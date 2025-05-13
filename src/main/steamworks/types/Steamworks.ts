@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 export type SteamErrorCallback = (err: Error) => void;
 export type ProgressCallback = (progress_msg: string) => void;
 

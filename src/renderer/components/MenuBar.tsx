@@ -12,8 +12,6 @@ interface MenuProps {
 }
 
 class MenuBar extends Component<MenuProps, never> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	render() {
 		const { disableNavigation, appState } = this.props;
 		const { config, navigate, updateState } = appState;
@@ -60,6 +58,6 @@ class MenuBar extends Component<MenuProps, never> {
 	}
 }
 
-export default (props: { disableNavigation: boolean; appState: AppState }) => {
+export default function (props: { disableNavigation: boolean; appState: AppState }) {
 	return <MenuBar {...props} navigate={useNavigate()} />;
-};
+}

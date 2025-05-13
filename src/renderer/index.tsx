@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 // eslint-disable-next-line prettier/prettier
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 
@@ -22,7 +22,8 @@ import RawCollectionComponent from './components/collections/RawCollectionCompon
 import SteamworksVerification from './components/loading/SteamworksVerification';
 
 const rootElement = document.getElementById('root');
-render(
+const appRoot = createRoot(rootElement!);
+appRoot.render(
 	<Router>
 		<Routes>
 			<Route path="/" element={<App />}>
@@ -45,6 +46,5 @@ render(
 				</Route>
 			</Route>
 		</Routes>
-	</Router>,
-	rootElement
+	</Router>
 );

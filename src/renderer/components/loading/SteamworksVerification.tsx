@@ -4,6 +4,7 @@ import { CheckOutlined, CloseOutlined, Loading3QuartersOutlined } from '@ant-des
 import { useNavigate, NavigateFunction, useOutletContext } from 'react-router-dom';
 import { AppState, ValidChannel } from 'model';
 import api from 'renderer/Api';
+// eslint-disable-next-line camelcase
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 
 const { Content } = Layout;
@@ -20,8 +21,6 @@ interface VerificationMessage {
 }
 
 class SteamworksVerification extends Component<{ navigate: NavigateFunction; appState: AppState }, SteamworksVerificationState> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	constructor(props: { navigate: NavigateFunction; appState: AppState }) {
 		super(props);
 		this.state = {
@@ -104,6 +103,7 @@ class SteamworksVerification extends Component<{ navigate: NavigateFunction; app
 						<Row key="steamworks" justify="center" align="bottom" gutter={16}>
 							<Col key="status">{this.getStatusIcon()}</Col>
 							<Col key="logo">
+								{/* eslint-disable-next-line camelcase */}
 								<img src={logo_steamworks} width={500} alt="" key="steamworks" />
 							</Col>
 						</Row>
@@ -128,6 +128,6 @@ class SteamworksVerification extends Component<{ navigate: NavigateFunction; app
 	}
 }
 
-export default () => {
+export default function () {
 	return <SteamworksVerification navigate={useNavigate()} appState={useOutletContext<AppState>()} />;
-};
+}

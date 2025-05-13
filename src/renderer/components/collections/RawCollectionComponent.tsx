@@ -34,6 +34,6 @@ class RawCollectionComponent extends Component<CollectionViewProps, never> {
 	}
 }
 
-export default () => {
+export default function () {
 	return <RawCollectionComponent {...useOutletContext<CollectionViewProps>()} />;
-};
+}

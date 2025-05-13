@@ -12,25 +12,26 @@
 import 'core-js/stable';
 import 'regenerator-runtime/runtime';
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, protocol, dialog, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, protocol, shell } from 'electron';
 import log from 'electron-log';
 import fs from 'fs';
+// eslint-disable-next-line camelcase
 import child_process from 'child_process';
 import psList from 'ps-list';
 import { autoUpdater } from 'electron-updater';
 
 import {
-	ModData,
-	ModCollection,
-	ModType,
-	SessionMods,
-	ValidChannel,
 	AppConfig,
+	ModCollection,
+	ModData,
+	ModDataOverride,
 	ModErrorType,
-	PathType,
+	ModType,
 	PathParams,
-	ModDataOverride
-} from '../model';
+	PathType,
+	SessionMods,
+	ValidChannel
+} from 'model';
 import Steamworks, { EResult, UGCItemState, WorkshopFileType } from './steamworks';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
@@ -55,8 +56,10 @@ if (process.env.NODE_ENV === 'production') {
 	sourceMapSupport.install();
 }
 
-if (isDevelopment) {
-	require('electron-debug')();
+const isDebug = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+
+if (isDebug) {
+	require('electron-debug').default();
 }
 
 const installExtensions = async () => {
@@ -394,9 +397,9 @@ ipcMain.handle(ValidChannel.DELETE_COLLECTION, async (_event, collection: string
 
 // create steam collection
 ipcMain.handle(ValidChannel.CREATE_STEAM_COLLECTION, async (_event) => {
-	log.info(`Creating steam collection`);
+	log.info('Creating steam collection');
 	try {
-		const result = await new Promise((resolve, reject) => {
+		return await new Promise((resolve, reject) => {
 			Steamworks.ugcCreateItem(
 				WorkshopFileType.Collection,
 				(publishedFileId: string) => {
@@ -404,13 +407,12 @@ ipcMain.handle(ValidChannel.CREATE_STEAM_COLLECTION, async (_event) => {
 					resolve(publishedFileId);
 				},
 				(error) => {
-					log.error(`Failed to create collection`);
+					log.error('Failed to create collection');
 					log.error(error);
 					reject(error);
 				}
 			);
 		});
-		return result;
 	} catch (error) {
 		log.error(error);
 		return false;
@@ -519,6 +521,7 @@ ipcMain.handle(ValidChannel.LAUNCH_GAME, async (_event, gameExec, workshopID, cl
 	log.info('Launching game with custom args:');
 	const allArgs = ['+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
 	log.info(allArgs);
+	// eslint-disable-next-line camelcase
 	await child_process.spawn(gameExec, allArgs, {
 		detached: true
 	});

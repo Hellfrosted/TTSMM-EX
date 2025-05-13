@@ -55,7 +55,7 @@ const configuration: webpack.Configuration = {
 	module: {
 		rules: [
 			{
-				test: /\.s?css$/,
+				test: /\.s?(c|a)ss$/,
 				use: [
 					'style-loader',
 					{
@@ -142,7 +142,7 @@ const configuration: webpack.Configuration = {
 						manifest: require(manifest),
 						sourceType: 'var'
 					})
-			  ]),
+				]),
 
 		new webpack.NoEmitOnErrorsPlugin(),
 

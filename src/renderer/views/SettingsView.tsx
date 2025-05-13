@@ -1,20 +1,20 @@
 import React, { Component } from 'react';
-import { AppState, AppConfig, ValidChannel, LogLevel, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
+import { AppConfig, AppConfigKeys, AppState, LogLevel, NLogLevel, SettingsViewModalType, ValidChannel } from 'model';
 import {
-	Layout,
-	Form,
-	Input,
-	InputNumber,
-	Switch,
 	Button,
-	FormInstance,
-	Space,
-	PageHeader,
-	Select,
-	Row,
 	Col,
 	Divider,
+	Form,
+	FormInstance,
+	Input,
+	InputNumber,
+	Layout,
 	Modal,
+	PageHeader,
+	Row,
+	Select,
+	Space,
+	Switch,
 	Tag
 } from 'antd';
 import { useOutletContext } from 'react-router-dom';
@@ -61,8 +61,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 	constructor(props: AppState) {
 		super(props);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const appState = props as AppState;
-		const config = appState.config as AppConfig;
+		const { config } = props;
 		const logConfig: LogConfig[] = [];
 		if (config.logParams) {
 			Object.entries(config.logParams).forEach(([loggerID, level]: [string, NLogLevel]) => {
@@ -99,7 +98,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 	setSelectedPath(path: string, target: AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC) {
 		if (path) {
 			const { editingConfig } = this.state;
-			editingConfig![target] = path;
+			editingConfig[target] = path;
 			this.setState({ selectingDirectory: false }, () => {
 				const changedFields: SettingsFields = {};
 				changedFields[target] = path;
@@ -131,7 +130,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 		}
 		updateState({ savingConfig: true });
 		api
-			.updateConfig(editingConfig!)
+			.updateConfig(editingConfig)
 			.then(() => {
 				updateState({
 					config: { ...(editingConfig as AppConfig) },
@@ -160,7 +159,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 				});
 			});
 		}
-		this.setState({ editingConfig: { ...(config as AppConfig), editingLogConfig: logConfig }, madeLocalEdits: false }, () => {
+		this.setState({ editingConfig: { ...config, editingLogConfig: logConfig }, madeLocalEdits: false }, () => {
 			this.formRef.current!.resetFields();
 			this.formRef.current!.validateFields();
 		});
@@ -289,9 +288,9 @@ class SettingsView extends Component<AppState, SettingsState> {
 						>
 							<Form.Item key="workshop-id" name="workshop-id" label="Workshop ID" initialValue={editingConfig.workshopID}>
 								<InputNumber
-									value={editingConfig!.workshopID.toString()}
+									value={editingConfig.workshopID.toString()}
 									onChange={(value) => {
-										editingConfig!.workshopID = BigInt(value || 0);
+										editingConfig.workshopID = BigInt(value || 0);
 										updateState({ madeConfigEdits: true });
 									}}
 									style={{ width: '200px' }}
@@ -345,7 +344,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 											</div>
 										)
 									}}
-									initialValue={editingConfig!.localDir}
+									initialValue={editingConfig.localDir}
 									rules={[
 										{
 											validator: (_, value) => {
@@ -358,10 +357,10 @@ class SettingsView extends Component<AppState, SettingsState> {
 								>
 									<Search
 										disabled={selectingDirectory}
-										value={editingConfig!.localDir}
+										value={editingConfig.localDir}
 										enterButton={<FolderOutlined />}
 										onChange={(event) => {
-											editingConfig!.localDir = event.target.value;
+											editingConfig.localDir = event.target.value;
 											updateState({ madeConfigEdits: true });
 										}}
 										onSearch={() => {
@@ -384,7 +383,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 											</div>
 										)
 									}}
-									initialValue={editingConfig!.gameExec}
+									initialValue={editingConfig.gameExec}
 									rules={[
 										{
 											required: true,
@@ -398,7 +397,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 								>
 									<Search
 										disabled={selectingDirectory}
-										value={editingConfig!.gameExec}
+										value={editingConfig.gameExec}
 										enterButton={<FolderOutlined />}
 										onSearch={() => {
 											if (!selectingDirectory) {
@@ -407,15 +406,15 @@ class SettingsView extends Component<AppState, SettingsState> {
 											}
 										}}
 										onChange={(event) => {
-											editingConfig!.gameExec = event.target.value;
+											editingConfig.gameExec = event.target.value;
 											updateState({ madeConfigEdits: true });
 										}}
 									/>
 								</Form.Item>
-								<Form.Item name="logsDir" label="Logs Directory" initialValue={editingConfig!.logsDir}>
+								<Form.Item name="logsDir" label="Logs Directory" initialValue={editingConfig.logsDir}>
 									<Search
 										disabled
-										value={editingConfig!.logsDir}
+										value={editingConfig.logsDir}
 										enterButton={<FolderOutlined />}
 										onSearch={() => {
 											if (!selectingDirectory) {
@@ -425,11 +424,11 @@ class SettingsView extends Component<AppState, SettingsState> {
 										}}
 									/>
 								</Form.Item>
-								<Form.Item name="closeOnLaunch" label="Close on Game Launch" initialValue={editingConfig!.closeOnLaunch}>
+								<Form.Item name="closeOnLaunch" label="Close on Game Launch" initialValue={editingConfig.closeOnLaunch}>
 									<Switch
-										checked={editingConfig!.closeOnLaunch}
+										checked={editingConfig.closeOnLaunch}
 										onChange={(checked) => {
-											editingConfig!.closeOnLaunch = checked;
+											editingConfig.closeOnLaunch = checked;
 											updateState({ madeConfigEdits: true });
 										}}
 									/>
@@ -437,7 +436,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 								<Form.Item
 									name="pureVanilla"
 									label="Pure Vanilla"
-									initialValue={editingConfig!.pureVanilla}
+									initialValue={editingConfig.pureVanilla}
 									tooltip={{
 										overlayInnerStyle: { minWidth: 300 },
 										title: (
@@ -448,9 +447,9 @@ class SettingsView extends Component<AppState, SettingsState> {
 									}}
 								>
 									<Switch
-										checked={editingConfig!.pureVanilla}
+										checked={editingConfig.pureVanilla}
 										onChange={(checked) => {
-											editingConfig!.pureVanilla = checked;
+											editingConfig.pureVanilla = checked;
 											updateState({ madeConfigEdits: true });
 										}}
 									/>
@@ -474,12 +473,12 @@ class SettingsView extends Component<AppState, SettingsState> {
 										)
 									}}
 									rules={[{ required: false }]}
-									initialValue={editingConfig!.logLevel}
+									initialValue={editingConfig.logLevel}
 								>
 									<Select
-										value={editingConfig!.logLevel}
+										value={editingConfig.logLevel}
 										onChange={(value) => {
-											editingConfig!.logLevel = value;
+											editingConfig.logLevel = value;
 											api.send(ValidChannel.UPDATE_LOG_LEVEL, value);
 											updateState({ madeConfigEdits: true });
 										}}
@@ -509,7 +508,7 @@ class SettingsView extends Component<AppState, SettingsState> {
 									name="workshopID"
 									label="Workshop ID"
 									rules={[{ required: true }]}
-									initialValue={editingConfig!.workshopID.toString()}
+									initialValue={editingConfig.workshopID.toString()}
 									tooltip={{
 										overlayInnerStyle: { minWidth: 300 },
 										title: (
@@ -521,9 +520,9 @@ class SettingsView extends Component<AppState, SettingsState> {
 								>
 									<Input.Group compact style={{ width: '100%' }}>
 										<InputNumber
-											value={editingConfig!.workshopID.toString()}
+											value={editingConfig.workshopID.toString()}
 											onChange={(value) => {
-												editingConfig!.workshopID = BigInt(value || 0);
+												editingConfig.workshopID = BigInt(value || 0);
 												updateState({ madeConfigEdits: true });
 											}}
 											disabled
@@ -543,11 +542,11 @@ class SettingsView extends Component<AppState, SettingsState> {
 								</Form.Item>
 							</Col>
 							<Col span={12} key="additional-commands">
-								<Form.Item name="extraParams" label="Additional launch Arguments" initialValue={editingConfig!.extraParams}>
+								<Form.Item name="extraParams" label="Additional launch Arguments" initialValue={editingConfig.extraParams}>
 									<Input
-										value={editingConfig!.extraParams}
+										value={editingConfig.extraParams}
 										onChange={(evt) => {
-											editingConfig!.extraParams = evt.target.value;
+											editingConfig.extraParams = evt.target.value;
 											updateState({ madeConfigEdits: true });
 										}}
 									/>
@@ -664,6 +663,6 @@ class SettingsView extends Component<AppState, SettingsState> {
 	}
 }
 
-export default () => {
+export default function () {
 	return <SettingsView {...useOutletContext<AppState>()} />;
-};
+}

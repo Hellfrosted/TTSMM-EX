@@ -1,4 +1,6 @@
 // eslint-disable-next-line prettier/prettier
+import IpcRendererEvent = Electron.IpcRendererEvent;
+
 const { contextBridge, ipcRenderer } = require('electron');
 const log = require('electron-log');
 const { ValidChannel } = require('model');
@@ -52,13 +54,13 @@ contextBridge.exposeInMainWorld('electron', {
 		on: (channel: string, func: (...args: unknown[]) => void) => {
 			if (validChannels.includes(channel)) {
 				// Deliberately strip event as it includes `sender`
-				ipcRenderer.on(channel, (event, ...args) => func(...args));
+				ipcRenderer.on(channel, (event: IpcRendererEvent, ...args: unknown[]) => func(...args));
 			}
 		},
 		once: (channel: string, func: (...args: unknown[]) => void) => {
 			if (validChannels.includes(channel)) {
 				// Deliberately strip event as it includes `sender`
-				ipcRenderer.once(channel, (event, ...args) => func(...args));
+				ipcRenderer.once(channel, (event: IpcRendererEvent, ...args: unknown[]) => func(...args));
 			}
 		}
 	}

@@ -4,8 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { Mutex } from 'async-mutex';
 
-import { ModData, ModType, ProgressTypes, ValidChannel } from '../model';
-import { isSuccessful } from '../util/Promise';
+import { ModData, ModType, ProgressTypes, ValidChannel } from 'model';
+import { isSuccessful } from 'util/Promise';
 
 import Steamworks, {
 	GetUserItemsProps,
@@ -43,6 +43,7 @@ const MAX_MODS_PER_PAGE = 50;
 
 async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
 	return new Promise((resolve, reject) => {
+		log.silly('Preparing to get page');
 		const options: GetUserItemsProps = {
 			options: {
 				app_id: 285920,
@@ -53,13 +54,16 @@ async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults
 			ugc_list: UserUGCList.Subscribed,
 			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
 			success_callback: (results: SteamPageResults) => {
+				log.silly('got page');
 				resolve(results);
 			},
 			error_callback: (err: Error) => {
+				log.error(err);
 				reject(err);
 			}
 		};
 		Steamworks.ugcGetUserItems(options);
+		log.silly('Steamworks request sent');
 	});
 }
 
@@ -195,6 +199,7 @@ export default class ModFetcher {
 				});
 			})
 		);
+		log.debug('Finished fetching local mods');
 		return filterOutNullValues(modResponses);
 	}
 
@@ -240,7 +245,7 @@ export default class ModFetcher {
 							const modid = mod.workshopID!;
 							this.knownWorkshopMods.delete(modid);
 							knownInvalidMods.delete(modid);
-							workshopMap.set(modid!, mod);
+							workshopMap.set(modid, mod);
 						});
 
 						// After this round has been added to the mod map, check if any items are missing
@@ -304,7 +309,9 @@ export default class ModFetcher {
 				try {
 					if (Steamworks.requestUserInformation(steamUGCDetails.steamIDOwner, true)) {
 						// eslint-disable-next-line no-await-in-loop
-						await new Promise((resolve) => setTimeout(resolve, 5000)); // sleep until done (hopefully)
+						await new Promise((resolve) => {
+							setTimeout(resolve, 5000);
+						}); // sleep until done (hopefully)
 					}
 					potentialMod.authors = [Steamworks.getFriendPersonaName(steamUGCDetails.steamIDOwner)];
 				} catch (err) {
@@ -362,7 +369,9 @@ export default class ModFetcher {
 		//	2. The subscription list will not change mid-pull
 
 		// eslint-disable-next-line promise/always-return
+		log.silly('Starting pagination');
 		while (lastProcessed > 0) {
+			log.debug(`Loading page ${pageNum}`);
 			// eslint-disable-next-line no-await-in-loop
 			const { items, totalItems, numReturned } = await getSteamSubscribedPage(pageNum);
 			this.workshopMods = totalItems;
@@ -430,6 +439,7 @@ export default class ModFetcher {
 		}
 
 		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(localModDirs), this.fetchWorkshopMods()]);
+		log.debug('Got all mod responses');
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done

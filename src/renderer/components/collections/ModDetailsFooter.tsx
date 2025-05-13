@@ -37,7 +37,6 @@ import { ColumnType } from 'antd/lib/table';
 import { TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
 import {
-	AppConfig,
 	AppState,
 	DisplayModData,
 	getDescriptor,
@@ -216,7 +215,6 @@ const AUTHORS_SCHEMA: ColumnType<DisplayModData> = {
 		}
 		return -1;
 	},
-	// eslint-disable-next-line @typescript-eslint/ban-types
 	render: (authors: string[] | undefined) => {
 		return (authors || []).map((author) => {
 			return <Tag key={author}>{author}</Tag>;
@@ -242,7 +240,6 @@ const ID_SCHEMA: ColumnType<DisplayModData> = {
 	}
 };
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 export default class ModDetailsFooter extends Component<ModDetailsFooterProps, {}> {
 	constructor(props: ModDetailsFooterProps) {
 		super(props);
@@ -391,7 +388,7 @@ export default class ModDetailsFooter extends Component<ModDetailsFooterProps, {
 				break;
 		}
 		if (errorType) {
-			return (_: unknown, record: DisplayModData) => {
+			return function (_: unknown, record: DisplayModData) {
 				const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
 				const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecord.uid] || [] : [];
 				const recordID = getModDataId(record);
@@ -403,7 +400,7 @@ export default class ModDetailsFooter extends Component<ModDetailsFooterProps, {
 				const saveUpdates = () => {
 					updateState({});
 					validateCollection();
-					api.updateConfig(config as AppConfig).catch((error) => {
+					api.updateConfig(config).catch((error) => {
 						api.logger.error(error);
 						openNotification(
 							{
@@ -475,7 +472,6 @@ export default class ModDetailsFooter extends Component<ModDetailsFooterProps, {
 		const { activeCollection } = appState;
 		const { mods } = activeCollection!;
 
-		// eslint-disable-next-line @typescript-eslint/ban-types
 		const rowSelection: TableRowSelection<DisplayModData> = {
 			selectedRowKeys: mods,
 			checkStrictly: false,
@@ -527,7 +523,7 @@ export default class ModDetailsFooter extends Component<ModDetailsFooterProps, {
 				setModSubsetCallback(changes);
 			},
 			onSelectNone: () => {
-				api.logger.debug(`clearing sub-selection`);
+				api.logger.debug('clearing sub-selection');
 				const changes: { [uid: string]: boolean } = {};
 				data.forEach((record) => {
 					if (record.type === ModType.DESCRIPTOR) {

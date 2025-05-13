@@ -3,6 +3,7 @@
  */
 
 import webpack from 'webpack';
+import TsconfigPathsPlugins from 'tsconfig-paths-webpack-plugin';
 import webpackPaths from './webpack.paths';
 import { dependencies as externals } from '../../release/app/package.json';
 
@@ -20,7 +21,11 @@ const configuration: webpack.Configuration = {
 					loader: 'ts-loader',
 					options: {
 						// Remove this line to enable type checking in webpack builds
-						transpileOnly: true
+						transpileOnly: true,
+						compilerOptions: {
+							module: 'nodenext',
+							moduleResolution: 'nodenext'
+						}
 					}
 				}
 			}
@@ -30,9 +35,7 @@ const configuration: webpack.Configuration = {
 	output: {
 		path: webpackPaths.srcPath,
 		// https://github.com/webpack/webpack/issues/1114
-		library: {
-			type: 'commonjs2'
-		}
+		library: { type: 'commonjs2' }
 	},
 
 	/**
@@ -40,14 +43,12 @@ const configuration: webpack.Configuration = {
 	 */
 	resolve: {
 		extensions: ['.js', '.jsx', '.json', '.ts', '.tsx'],
-		modules: [webpackPaths.srcPath, 'node_modules']
+		modules: [webpackPaths.srcPath, 'node_modules'],
+		// There is no need to add aliases here, the paths in tsconfig get mirrored
+		plugins: [new TsconfigPathsPlugins()]
 	},
 
-	plugins: [
-		new webpack.EnvironmentPlugin({
-			NODE_ENV: 'production'
-		})
-	]
+	plugins: [new webpack.EnvironmentPlugin({ NODE_ENV: 'production' })]
 };
 
 export default configuration;

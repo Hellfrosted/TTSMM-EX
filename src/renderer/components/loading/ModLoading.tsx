@@ -18,13 +18,11 @@ interface ModLoadingProps {
 }
 
 export default class ModLoadingComponent extends Component<ModLoadingProps, ModLoadingState> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	constructor(props: ModLoadingProps) {
 		super(props);
 
 		const { appState } = this.props;
-		const config: AppConfig = appState.config as AppConfig;
+		const { config } = appState;
 
 		this.state = {
 			config,

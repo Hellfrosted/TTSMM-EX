@@ -1,0 +1,8 @@
+# Ignore artifacts:
+build
+coverage
+.erb/scripts
+.idea
+.vscode
+assets
+

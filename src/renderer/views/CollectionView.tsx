@@ -2,14 +2,12 @@
 import React, { Component } from 'react';
 import { useOutletContext, Outlet, useLocation, Location } from 'react-router-dom';
 import { Layout, Button, Popover, notification } from 'antd';
-import { SizeMe } from 'react-sizeme';
 import {
 	ModData,
 	CollectionErrors,
 	AppState,
 	ModCollection,
 	CollectionViewProps,
-	AppConfig,
 	ValidChannel,
 	getRows,
 	filterRows,
@@ -275,9 +273,9 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 			.then(() => {
 				allCollectionNames.add(name);
 				allCollections.set(name, newCollection);
-				config!.activeCollection = name;
+				config.activeCollection = name;
 				// eslint-disable-next-line promise/no-nesting
-				api.updateConfig(config as AppConfig).catch((error) => {
+				api.updateConfig(config).catch((error) => {
 					api.logger.error(error);
 					openNotification(
 						{
@@ -323,7 +321,7 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 		this.setState({ savingCollection: true });
 		const newCollection = {
 			name,
-			mods: activeCollection ? [...activeCollection!.mods] : []
+			mods: activeCollection ? [...activeCollection.mods] : []
 		};
 
 		const oldName = activeCollection!.name;
@@ -337,9 +335,9 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 				if (writeSuccess) {
 					allCollectionNames.add(name);
 					allCollections.set(name, newCollection);
-					config!.activeCollection = name;
+					config.activeCollection = name;
 					// eslint-disable-next-line promise/no-nesting
-					api.updateConfig(config as AppConfig).catch((error) => {
+					api.updateConfig(config).catch((error) => {
 						api.logger.error(error);
 						openNotification(
 							{
@@ -399,9 +397,9 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 			.then((updateSuccess) => {
 				if (updateSuccess) {
 					activeCollection!.name = name;
-					config!.activeCollection = name;
+					config.activeCollection = name;
 					// eslint-disable-next-line promise/no-nesting
-					api.updateConfig(config as AppConfig).catch((error) => {
+					api.updateConfig(config).catch((error) => {
 						api.logger.error(error);
 						openNotification(
 							{
@@ -474,9 +472,9 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 						newCollection = allCollections.get(newCollectionName)!;
 					}
 
-					config!.activeCollection = newCollectionName;
+					config.activeCollection = newCollectionName;
 					// eslint-disable-next-line promise/no-nesting
-					api.updateConfig(config as AppConfig).catch((error) => {
+					api.updateConfig(config).catch((error) => {
 						api.logger.error(error);
 						openNotification(
 							{
@@ -531,7 +529,7 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 		const { config } = appState;
 
 		promiseManager
-			.execute(api.updateConfig(config as AppConfig))
+			.execute(api.updateConfig(config))
 			.catch((error) => {
 				api.logger.error(error);
 				openNotification(
@@ -619,12 +617,12 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 					1000,
 					api.launchGame,
 					config.gameExec,
-					config!.workshopID,
-					config!.closeOnLaunch,
+					config.workshopID,
+					config.closeOnLaunch,
 					mods,
-					config!.pureVanilla,
-					config!.logParams,
-					config!.extraParams
+					config.pureVanilla,
+					config.logParams,
+					config.extraParams
 				)
 			)
 			.then((success) => {
@@ -737,7 +735,7 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 			() => {
 				// Guarantee validation runs after state update
 				if (activeCollection) {
-					const collectionMods = [...activeCollection!.mods];
+					const collectionMods = [...activeCollection.mods];
 					api.logger.debug(`Selected mods: ${collectionMods}`);
 
 					const validationPromise: CancellablePromise<CollectionErrors> = cancellablePromise(validateCollection(mods, activeCollection));
@@ -782,7 +780,7 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 				appState={appState}
 				launchAnyway={() => {
 					this.setState({ launchGameWithErrors: true });
-					const modList: ModData[] = (activeCollection ? [...activeCollection!.mods].map((mod) => getByUID(mods, mod)) : []) as ModData[];
+					const modList: ModData[] = (activeCollection ? [...activeCollection.mods].map((mod) => getByUID(mods, mod)) : []) as ModData[];
 					this.baseLaunchGame(modList);
 				}}
 				modalType={modalType}
@@ -807,77 +805,74 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 
 		const rows = getRows(mods);
 
-		return bigDetails && currentRecord ? null : (
-			<SizeMe monitorHeight monitorWidth refreshMode="debounce">
-				{({ size }) => {
-					let actualContent = null;
-					if (appState.loadingMods) {
-						actualContent = (
-							<ModLoadingView
-								appState={appState}
-								modLoadCompleteCallback={() => {
-									this.recalculateModData();
-								}}
-							/>
-						);
-					} else if (guidedFixActive) {
-						actualContent = null;
-					} else {
-						const collectionComponentProps: CollectionViewProps = {
-							madeEdits,
-							lastValidationStatus,
-							rows,
-							viewType: currentView,
-							filteredRows: filteredRows || rows,
-							height: size.height as number,
-							width: size.width as number,
-							collection: appState.activeCollection as ModCollection,
-							launchingGame: appState.launchingGame,
-							setEnabledModsCallback: (enabledMods: Set<string>) => {
-								const managerUID = this.getModManagerUID();
-								enabledMods.add(managerUID);
-								api.logger.debug(`Setting active mods: ${[...enabledMods]}`);
-								if (appState.activeCollection) {
-									appState.activeCollection.mods = [...enabledMods].sort();
-									const { validationPromise } = this.state;
-									if (validationPromise) {
-										validationPromise.cancel();
-									}
-									this.setState({ madeEdits: true }, () => appState.updateState({}, () => this.validateActiveCollection(false)));
-								}
-							},
-							setEnabledCallback: (id: string) => {
-								this.handleClick(true, id);
-							},
-							setDisabledCallback: (id: string) => {
-								this.handleClick(false, id);
-							},
-							getModDetails: (uid: string, record: ModData, showBigDetails?: boolean) => {
-								if (!currentRecord || currentRecord.uid !== uid) {
-									// eslint-disable-next-line @typescript-eslint/no-explicit-any
-									const change: any = { currentRecord: record };
-									if (showBigDetails !== undefined) {
-										change.bigDetails = showBigDetails;
-									}
-									this.setState(change);
-								} else {
-									this.setState({ currentRecord: undefined });
-								}
-							}
-						};
-						if (viewConfigs) {
-							collectionComponentProps.config = viewConfigs[currentView];
+		if (bigDetails && currentRecord) {
+			return null;
+		}
+		let actualContent = null;
+		if (appState.loadingMods) {
+			actualContent = (
+				<ModLoadingView
+					appState={appState}
+					modLoadCompleteCallback={() => {
+						this.recalculateModData();
+					}}
+				/>
+			);
+		} else if (guidedFixActive) {
+			actualContent = null;
+		} else {
+			const collectionComponentProps: CollectionViewProps = {
+				madeEdits,
+				lastValidationStatus,
+				rows,
+				viewType: currentView,
+				filteredRows: filteredRows || rows,
+				height: 1080,
+				width: 1920,
+				collection: appState.activeCollection as ModCollection,
+				launchingGame: appState.launchingGame,
+				setEnabledModsCallback: (enabledMods: Set<string>) => {
+					const managerUID = this.getModManagerUID();
+					enabledMods.add(managerUID);
+					api.logger.debug(`Setting active mods: ${[...enabledMods]}`);
+					if (appState.activeCollection) {
+						appState.activeCollection.mods = [...enabledMods].sort();
+						const { validationPromise } = this.state;
+						if (validationPromise) {
+							validationPromise.cancel();
 						}
-						actualContent = <Outlet context={{ ...collectionComponentProps }} />;
+						this.setState({ madeEdits: true }, () => appState.updateState({}, () => this.validateActiveCollection(false)));
 					}
+				},
+				setEnabledCallback: (id: string) => {
+					this.handleClick(true, id);
+				},
+				setDisabledCallback: (id: string) => {
+					this.handleClick(false, id);
+				},
+				getModDetails: (uid: string, record: ModData, showBigDetails?: boolean) => {
+					if (!currentRecord || currentRecord.uid !== uid) {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						const change: any = { currentRecord: record };
+						if (showBigDetails !== undefined) {
+							change.bigDetails = showBigDetails;
+						}
+						this.setState(change);
+					} else {
+						this.setState({ currentRecord: undefined });
+					}
+				}
+			};
+			if (viewConfigs) {
+				collectionComponentProps.config = viewConfigs[currentView];
+			}
+			actualContent = <Outlet context={{ ...collectionComponentProps }} />;
+		}
 
-					return (
-						<Content key="collection" style={{ padding: '0px', overflowY: 'clip', overflowX: 'clip' }}>
-							{actualContent}
-						</Content>
-					);
-				}}
-			</SizeMe>
+		return (
+			<Content key="collection" style={{ padding: '0px', overflowY: 'clip', overflowX: 'clip' }}>
+				{actualContent}
+			</Content>
 		);
 	}
 
@@ -1057,6 +1052,6 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 	}
 }
 
-export default () => {
+export default function () {
 	return <CollectionView appState={useOutletContext<AppState>()} location={useLocation()} />;
-};
+}

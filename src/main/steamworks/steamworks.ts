@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 /* eslint-disable global-require */
 /* eslint-disable class-methods-use-this */
+/* eslint-disable camelcase */
 // A wrapper interface around Greenworks written in ts
 import {
 	// Steam API
@@ -34,6 +35,7 @@ const greenworks: any = require('greenworks');
 function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResults) => void) {
 	return (apiResults: SteamPageResults) => {
 		const { items, totalItems, numReturned } = apiResults;
+		console.log('got results, performing conversion');
 		callback({
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			items: items.map((result: any) => {

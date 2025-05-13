@@ -103,6 +103,6 @@ class App extends Component<{ location: Location; navigate: NavigateFunction }, 
 	}
 }
 
-export default () => {
+export default function () {
 	return <App location={useLocation()} navigate={useNavigate()} />;
-};
+}

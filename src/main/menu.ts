@@ -1,7 +1,7 @@
 import { app, Menu, shell, BrowserWindow, MenuItemConstructorOptions } from 'electron';
+import { ValidChannel } from 'model';
+import log from 'electron-log';
 import checkForUpdates from './updater';
-
-import { ValidChannel } from '../model';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
 	selector?: string;
@@ -148,7 +148,7 @@ export default class MenuBuilder {
 					}
 				},
 				{
-					label: `TerraTech Discord`,
+					label: 'TerraTech Discord',
 					click() {
 						shell.openExternal('https://discord.com/invite/terratechgame');
 					}

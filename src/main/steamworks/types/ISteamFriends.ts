@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { EAccountType } from './steam_api';
 
 export enum FriendFlags {

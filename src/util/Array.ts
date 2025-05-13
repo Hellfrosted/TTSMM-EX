@@ -25,7 +25,7 @@ export function filterOutFalseValues<T>(array: (T | false)[]): T[] {
 		});
 }
 
-export function filterOutFalsyValues<T>(array: (T | false | 0 | -0 | 0n | '' | null | undefined | typeof NaN)[]): T[] {
+export function filterOutFalsyValues<T>(array: (T | false | 0 | 0n | '' | null | undefined | typeof NaN)[]): T[] {
 	return array
 		.filter((value) => !!value)
 		.map((value) => {

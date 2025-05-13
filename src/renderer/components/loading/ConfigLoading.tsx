@@ -46,8 +46,6 @@ interface ConfigLoadingState {
 }
 
 class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState: AppState }, ConfigLoadingState> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	constructor(props: { navigate: NavigateFunction; appState: AppState }) {
 		super(props);
 		this.state = {
@@ -71,12 +69,6 @@ class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState
 		api.removeListener(ValidChannel.READ_COLLECTION, this.loadCollectionCallback);
 	}
 
-	setStateCallback(update: AppState) {
-		const { appState } = this.props;
-		const { updateState } = appState;
-		updateState(update);
-	}
-
 	readConfig() {
 		const { appState } = this.props;
 		const { updateState } = appState;
@@ -85,7 +77,7 @@ class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState
 			.readConfig()
 			.then((response) => {
 				if (response) {
-					const config = response as AppConfig;
+					const config = response;
 					updateState({ config });
 					this.validateConfig(config);
 				} else {
@@ -145,7 +137,7 @@ class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState
 		const { allCollections, allCollectionNames } = appState;
 		const { loadedCollections } = this.state;
 		if (collection) {
-			allCollections!.set(collection.name, collection);
+			allCollections.set(collection.name, collection);
 			allCollectionNames.add(collection.name);
 		}
 		this.setState({ loadedCollections: loadedCollections + 1 }, this.checkCanProceed);
@@ -205,11 +197,11 @@ class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState
 					// activeCollection is no longer there: default to first available in ASCII-betical order
 				}
 				const collectionName = [...allCollectionNames].sort()[0];
-				config!.activeCollection = collectionName;
+				config.activeCollection = collectionName;
 				updateState({ activeCollection: allCollections.get(collectionName) }, this.proceedToNext.bind(this));
 			} else {
 				// there are no collections - create a new defaultCollection
-				config!.activeCollection = 'default';
+				config.activeCollection = 'default';
 				const defaultCollection: ModCollection = {
 					mods: [],
 					name: 'default'
@@ -242,6 +234,6 @@ class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState
 	}
 }
 
-export default () => {
+export default function () {
 	return <ConfigLoadingView navigate={useNavigate()} appState={useOutletContext<AppState>()} />;
-};
+}

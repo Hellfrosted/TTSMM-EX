@@ -12,13 +12,11 @@ import {
 	CheckCircleOutlined,
 	CopyOutlined,
 	ImportOutlined,
-	ExportOutlined,
 	CloseCircleOutlined,
 	SettingFilled,
 	LinkOutlined
 } from '@ant-design/icons';
 import api from 'renderer/Api';
-import steam from '../../../../assets/steam.png';
 
 const { Option } = Select;
 const { Search } = Input;
@@ -280,7 +278,7 @@ export default class CollectionManagementToolbarComponent extends Component<
 									navigator.clipboard.writeText(JSON.stringify(activeCollection, null, '\t'));
 									openNotification(
 										{
-											message: `Copied collection to clipboard`,
+											message: 'Copied collection to clipboard',
 											placement: 'topRight',
 											duration: 1
 										},

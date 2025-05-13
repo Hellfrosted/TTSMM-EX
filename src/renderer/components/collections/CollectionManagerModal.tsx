@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import { Button, Modal, Typography, Form, Switch, FormInstance, Row, Col, Divider, Input } from 'antd';
 import {
-	AppConfig,
 	AppState,
 	CollectionManagerModalType,
 	CollectionViewType,
@@ -256,7 +255,7 @@ export default class CollectionManagerModal extends Component<CollectionManagerM
 									onFinish={() => {
 										this.setState({ savingConfig: true }, () => {
 											api
-												.updateConfig(config as AppConfig)
+												.updateConfig(config)
 												.catch((error) => {
 													api.logger.error(error);
 													openNotification(
@@ -341,7 +340,7 @@ export default class CollectionManagerModal extends Component<CollectionManagerM
 																		overlayInnerStyle: { minWidth: 300 },
 																		// eslint-disable-next-line max-len
 																		title: <Text>{`Must enable either the ${MainColumnTitles.ID} or ${MainColumnTitles.NAME} column`}</Text>
-																  }
+																	}
 																: undefined
 														}
 													>
@@ -416,7 +415,7 @@ export default class CollectionManagerModal extends Component<CollectionManagerM
 							onFinish={() => {
 								this.setState({ savingConfig: true }, () => {
 									api
-										.updateConfig(config as AppConfig)
+										.updateConfig(config)
 										.catch((error) => {
 											api.logger.error(error);
 											openNotification(
@@ -438,16 +437,16 @@ export default class CollectionManagerModal extends Component<CollectionManagerM
 						>
 							<Row justify="space-between" gutter={16} className="ModOverrides">
 								<Col span={10} key="overrides">
-									<Form.Item key="override-id" name="override-id" label="Override ID" initialValue={thisOverride!.id}>
+									<Form.Item key="override-id" name="override-id" label="Override ID" initialValue={thisOverride.id}>
 										<Input
-											value={thisOverride!.id}
+											value={thisOverride.id}
 											onChange={(evt) => {
-												thisOverride!.id = evt.target.value;
+												thisOverride.id = evt.target.value;
 												updateState({ madeConfigEdits: true });
 											}}
 										/>
 									</Form.Item>
-									<Form.Item key="customTags" name="customTags" label="User Tags" initialValue={thisOverride!.tags}>
+									<Form.Item key="customTags" name="customTags" label="User Tags" initialValue={thisOverride.tags}>
 										<Input disabled />
 									</Form.Item>
 								</Col>

@@ -1,3 +1,5 @@
+/* eslint-disable camelcase */
+
 export enum EAccountType {
 	k_EAccountTypeInvalid = 0,
 	k_EAccountTypeIndividual = 1,

@@ -7,8 +7,6 @@ import MenuBar from '../MenuBar';
 const { Sider, Content } = Layout;
 
 class SteamBrowserView extends Component<{ location: Location }, AppState> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	constructor(props: { location: Location }) {
 		super(props);
 		console.log('hi');
@@ -44,6 +42,6 @@ class SteamBrowserView extends Component<{ location: Location }, AppState> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default (props: any) => {
+export default function (props: any) {
 	return <SteamBrowserView {...props} location={useLocation()} />;
-};
+}

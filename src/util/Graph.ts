@@ -1,3 +1,4 @@
+/*
 function bronKerbosch() {}
 
 function getIncompatibilityGroups(incompatibilityMap: { [modUID: string]: string[] }): string[][] {
@@ -22,3 +23,4 @@ function getIncompatibilityGroups(incompatibilityMap: { [modUID: string]: string
 }
 
 export { bronKerbosch, getIncompatibilityGroups };
+*/

@@ -14,10 +14,6 @@
 		"javascript.format.enable": false,
 		"typescript.format.enable": false,
 		"prettier.enable": true,
-		"prettier.documentSelectors": [
-			"*.js",
-			"*.ts",
-			"*.tsx"
-		]
+		"prettier.documentSelectors": ["*.js", "*.ts", "*.tsx"]
 	}
 }

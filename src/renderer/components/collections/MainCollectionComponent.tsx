@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable camelcase */
 import { Button, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import React, { Component } from 'react';
@@ -321,7 +322,6 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 			}
 			return -1;
 		},
-		// eslint-disable-next-line @typescript-eslint/ban-types
 		renderSetup: () => {
 			return (authors: string[] | undefined) => {
 				return (authors || []).map((author) => {
@@ -552,7 +552,6 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.TAGS,
 		dataIndex: 'tags',
 		className: 'CollectionRowTags',
-		// eslint-disable-next-line @typescript-eslint/ban-types
 		renderSetup: (props: CollectionViewProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
@@ -598,7 +597,6 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 		const { collection, rows, filteredRows } = this.props;
 		const { setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = this.props;
 
-		// eslint-disable-next-line @typescript-eslint/ban-types
 		const rowSelection: TableRowSelection<DisplayModData> = {
 			selections: [Table.SELECTION_INVERT],
 			selectedRowKeys: collection.mods,
@@ -637,7 +635,7 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 				setEnabledModsCallback(selectedMods);
 			},
 			onSelectInvert: () => {
-				api.logger.debug(`inverting selection`);
+				api.logger.debug('inverting selection');
 				const currentVisible = filteredRows.map((modData) => modData.uid);
 				const selected = new Set(collection.mods);
 				currentVisible.forEach((mod) => {
@@ -650,7 +648,7 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 				setEnabledModsCallback(selected);
 			},
 			onSelectNone: () => {
-				api.logger.debug(`clearing selection`);
+				api.logger.debug('clearing selection');
 				const currentVisible = filteredRows.map((modData) => modData.uid);
 				const selected = new Set(collection.mods);
 				currentVisible.forEach((mod) => {
@@ -700,8 +698,6 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 			: local}
 			*/
 
-		// eslint-disable-next-line @typescript-eslint/ban-types
-
 		return (
 			// eslint-disable-next-line react/destructuring-assignment
 			<Layout style={{ width: this.props.width, height: this.props.height }}>
@@ -736,6 +732,6 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 	}
 }
 
-export default () => {
+export default function () {
 	return <MainCollectionComponent {...useOutletContext()} />;
-};
+}

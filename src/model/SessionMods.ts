@@ -130,10 +130,10 @@ export function setupDescriptors(session: SessionMods, overrides: Map<string, Mo
 				dependencies.forEach((dependency: ModDescriptor) => {
 					let reliers = dependenciesMap.get(dependency);
 					if (reliers) {
-						reliers.add(myDescriptor!);
+						reliers.add(myDescriptor);
 					} else {
 						reliers = new Set();
-						reliers.add(myDescriptor!);
+						reliers.add(myDescriptor);
 						dependenciesMap.set(dependency, reliers);
 					}
 				});

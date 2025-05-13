@@ -25,10 +25,10 @@ export const DEFAULT_WORKSHOP_DIR = getDefaultWorkshopDir();
 function getDefaultExecutablePath(): string {
 	switch (platform) {
 		case 'win32':
-			return `C:\\Program Files(x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe`;
+			return 'C:\\Program Files(x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe';
 			break;
 		case 'darwin':
-			return `~/Library/"Application Support"/Steam/steamapps/common/TerraTech/TerraTechOSX64.app`;
+			return '~/Library/"Application Support"/Steam/steamapps/common/TerraTech/TerraTechOSX64.app';
 			break;
 		default:
 			return '';

@@ -7,13 +7,7 @@ import MenuBar from '../MenuBar';
 const { Sider, Content } = Layout;
 
 class TTQMMBrowserView extends Component<{ location: Location }, AppState> {
-	CONFIG_PATH: string | undefined = undefined;
-
 	componentDidMount() {}
-
-	setStateCallback(update: AppState) {
-		this.setState(update);
-	}
 
 	render() {
 		const { sidebarCollapsed } = this.state;
@@ -43,6 +37,6 @@ class TTQMMBrowserView extends Component<{ location: Location }, AppState> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default (props: any) => {
+export default function (props: any) {
 	return <TTQMMBrowserView {...props} location={useLocation()} />;
-};
+}
