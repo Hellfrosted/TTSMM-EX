@@ -47,8 +47,8 @@ async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults
 		const options: GetUserItemsProps = {
 			options: {
 				app_id: 285920,
-				page_num: pageNum,
-				required_tag: 'Mods'
+				page_num: pageNum
+				// required_tag: 'Mods'
 			},
 			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
 			ugc_list: UserUGCList.Subscribed,
@@ -58,6 +58,7 @@ async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults
 				resolve(results);
 			},
 			error_callback: (err: Error) => {
+				log.error('failed to get page:');
 				log.error(err);
 				reject(err);
 			}
@@ -359,10 +360,8 @@ export default class ModFetcher {
 		let lastProcessed = 1;
 		const workshopMap: Map<bigint, ModData> = new Map();
 
-		if (log.transports.file.level === 'debug' || log.transports.file.level === 'silly') {
-			const allSubscribedItems: bigint[] = Steamworks.getSubscribedItems();
-			log.debug(`All subscribed items: [${allSubscribedItems}]`);
-		}
+		// const allSubscribedItems: bigint[] = Steamworks.getSubscribedItems();
+		// log.debug(`All subscribed items: [${allSubscribedItems}]`);
 
 		// We make 2 assumptions:
 		//	1. We are done if and only if reading a page returns 0 results
@@ -370,6 +369,7 @@ export default class ModFetcher {
 
 		// eslint-disable-next-line promise/always-return
 		log.silly('Starting pagination');
+		// allSubscribedItems.map((id) => this.knownWorkshopMods.add(id));
 		while (lastProcessed > 0) {
 			log.debug(`Loading page ${pageNum}`);
 			// eslint-disable-next-line no-await-in-loop
@@ -420,6 +420,7 @@ export default class ModFetcher {
 			this.knownWorkshopMods = new Set(missingKnownWorkshopMods);
 		}
 
+		log.silly(workshopMap);
 		return [...workshopMap.values()];
 	}
 
@@ -440,10 +441,13 @@ export default class ModFetcher {
 
 		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(localModDirs), this.fetchWorkshopMods()]);
 		log.debug('Got all mod responses');
+		log.silly(modResponses);
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done
 		this.event.reply(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, 1.0, 'Finished loading mods'); // Return a value > 1.0 to signal we are done
+		log.silly('Complete mod list:');
+		log.silly(allMods);
 		return allMods;
 	}
 }

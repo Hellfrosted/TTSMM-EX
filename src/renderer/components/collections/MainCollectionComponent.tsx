@@ -701,7 +701,7 @@ class MainCollectionComponent extends Component<CollectionViewProps, MainCollect
 		return (
 			// eslint-disable-next-line react/destructuring-assignment
 			<Layout style={{ width: this.props.width, height: this.props.height }}>
-				<Content key="main table" style={{ padding: '0px', overflowY: 'auto', scrollbarWidth: 'none' }}>
+				<Content key="main table" style={{ padding: '10px', overflowY: 'auto', scrollbarWidth: 'thin' }}>
 					<Table
 						dataSource={filteredRows}
 						pagination={false}

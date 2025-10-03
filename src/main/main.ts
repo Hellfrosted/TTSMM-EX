@@ -519,11 +519,12 @@ ipcMain.on(ValidChannel.GAME_RUNNING, async (event) => {
 // Launch steam as separate process
 ipcMain.handle(ValidChannel.LAUNCH_GAME, async (_event, gameExec, workshopID, closeOnLaunch, args) => {
 	log.info('Launching game with custom args:');
-	const allArgs = ['+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
+	const allArgs = ['run', gameExec, '+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
 	log.info(allArgs);
 	// eslint-disable-next-line camelcase
-	await child_process.spawn(gameExec, allArgs, {
-		detached: true
+	await child_process.spawn('proton', allArgs, {
+		detached: true,
+		cwd: '/home/thomas/.steam/steam/steamapps/common/Proton - Experimental/'
 	});
 	if (closeOnLaunch) {
 		app.quit();

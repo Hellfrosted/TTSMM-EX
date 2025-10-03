@@ -827,8 +827,8 @@ class CollectionView extends Component<{ appState: AppState; location: Location 
 				rows,
 				viewType: currentView,
 				filteredRows: filteredRows || rows,
-				height: 1080,
-				width: 1920,
+				height: 750,
+				width: 1800,
 				collection: appState.activeCollection as ModCollection,
 				launchingGame: appState.launchingGame,
 				setEnabledModsCallback: (enabledMods: Set<string>) => {

@@ -33,9 +33,10 @@ import {
 const greenworks: any = require('greenworks');
 
 function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResults) => void) {
-	return (apiResults: SteamPageResults) => {
-		const { items, totalItems, numReturned } = apiResults;
+	return (apiResults: SteamUGCDetails[]) => {
+		const items = apiResults;
 		console.log('got results, performing conversion');
+		console.log(apiResults);
 		callback({
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			items: items.map((result: any) => {
@@ -45,8 +46,8 @@ function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResult
 					children: result.children ? result.children.map((stringID: string) => BigInt(stringID)) : undefined
 				};
 			}),
-			totalItems,
-			numReturned
+			totalItems: Infinity,
+			numReturned: items.length
 		});
 	};
 }
