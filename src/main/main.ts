@@ -525,7 +525,7 @@ ipcMain.handle(ValidChannel.LAUNCH_GAME, async (_event, gameExec, workshopID, cl
 
 	shell.openExternal(`steam://run/285920//${allArgs.join(' ')}/`);
 
-	if (closeOnLaunch) {
+	if (closeOnLaunch || process.platform == 'linux') {
 		app.quit();
 	}
 	return true;
