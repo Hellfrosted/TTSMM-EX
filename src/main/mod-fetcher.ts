@@ -1,11 +1,10 @@
-import { IpcMainEvent } from 'electron';
 import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
 import { Mutex } from 'async-mutex';
 
-import { ModData, ModType, ProgressTypes, ValidChannel } from 'model';
-import { isSuccessful } from 'util/Promise';
+import { ModData, ModType, ProgressTypes, ValidChannel } from '../model';
+import { isSuccessful } from '../util/Promise';
 
 import Steamworks, {
 	GetUserItemsProps,
@@ -16,9 +15,15 @@ import Steamworks, {
 	UserUGCList,
 	UserUGCListSortOrder
 } from './steamworks';
+import { clearPreviewAllowlist, registerPreviewImage } from './preview-protocol';
+import { resolvePersonaName } from './steam-persona-cache';
+
+interface ProgressSender {
+	send: (channel: string, ...args: unknown[]) => void;
+}
 
 function chunk<Type>(arr: Type[], size: number): Type[][] {
-	return Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size));
+	return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 }
 
 function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[] {
@@ -43,28 +48,23 @@ const MAX_MODS_PER_PAGE = 50;
 
 async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
 	return new Promise((resolve, reject) => {
-		log.silly('Preparing to get page');
 		const options: GetUserItemsProps = {
 			options: {
 				app_id: 285920,
-				page_num: pageNum
-				// required_tag: 'Mods'
+				page_num: pageNum,
+				required_tag: 'Mods'
 			},
 			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
 			ugc_list: UserUGCList.Subscribed,
 			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
 			success_callback: (results: SteamPageResults) => {
-				log.silly('got page');
 				resolve(results);
 			},
 			error_callback: (err: Error) => {
-				log.error('failed to get page:');
-				log.error(err);
 				reject(err);
 			}
 		};
 		Steamworks.ugcGetUserItems(options);
-		log.silly('Steamworks request sent');
 	});
 }
 
@@ -94,15 +94,16 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 						if (file.isFile()) {
 							try {
 								const stats = fs.statSync(path.join(modPath, file.name));
-								size = stats.size;
-								if (!potentialMod.lastUpdate || stats.mtime > potentialMod.lastUpdate) {
-									potentialMod.lastUpdate = stats.mtime;
+								const { size: fileSize, mtime } = stats;
+								size = fileSize;
+								if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
+									potentialMod.lastUpdate = mtime;
 								}
 							} catch (e) {
 								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
 							}
 							if (file.name === 'preview.png' && !potentialMod.preview) {
-								potentialMod.preview = `image://${path.join(modPath, file.name)}`;
+								potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
 							} else if (file.name.match(/^(.*)\.dll$/)) {
 								potentialMod.hasCode = true;
 							} else if (file.name === 'ttsmm.json') {
@@ -110,14 +111,13 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 							} else {
 								const matches = file.name.match(/^(.*)_bundle$/);
 								if (matches && matches.length > 1) {
-									// eslint-disable-next-line prefer-destructuring
-									potentialMod.id = matches[1];
+									const [, modId] = matches;
+									potentialMod.id = modId;
 									if (type !== ModType.WORKSHOP) {
 										potentialMod.uid = `${type}:${potentialMod.id}`;
 									}
 									if (!potentialMod.name) {
-										// eslint-disable-next-line prefer-destructuring
-										potentialMod.name = matches[1];
+										potentialMod.name = modId;
 									}
 									potentialMod.path = modPath;
 									validModData = true;
@@ -151,7 +151,7 @@ export default class ModFetcher {
 
 	knownWorkshopMods: Set<bigint>;
 
-	event: IpcMainEvent;
+	progressSender: ProgressSender;
 
 	localMods: number;
 
@@ -161,10 +161,10 @@ export default class ModFetcher {
 
 	modCountMutex: Mutex;
 
-	constructor(event: IpcMainEvent, localPath: string | undefined, knownWorkshopMods: bigint[]) {
+	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[]) {
 		this.localPath = localPath;
 		this.knownWorkshopMods = new Set();
-		this.event = event;
+		this.progressSender = progressSender;
 
 		this.localMods = 0;
 		this.workshopMods = 0;
@@ -180,7 +180,7 @@ export default class ModFetcher {
 			this.loadedMods += size;
 			const total = (this.localMods || 0) + (this.workshopMods || 0);
 			log.silly(`Loaded ${size} new mods. Old total: ${current}, Local: ${this.localMods}, Workshop: ${this.workshopMods}`);
-			this.event.reply(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, (current + size) / total, 'Loading mod details');
+			this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, (current + size) / total, 'Loading mod details');
 		});
 	}
 
@@ -200,7 +200,6 @@ export default class ModFetcher {
 				});
 			})
 		);
-		log.debug('Finished fetching local mods');
 		return filterOutNullValues(modResponses);
 	}
 
@@ -208,7 +207,7 @@ export default class ModFetcher {
 		return new Promise((resolve, reject) => {
 			Steamworks.getUGCDetails(
 				workshopIDs.map((workshopID) => workshopID.toString()),
-				// eslint-disable-next-line consistent-return
+				 
 				async (steamDetails: SteamUGCDetails[]) => {
 					log.silly(`Raw workshop list results: ${JSON.stringify(steamDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
 					resolve(this.processSteamModResults(steamDetails));
@@ -232,11 +231,11 @@ export default class ModFetcher {
 
 		const modDependencies: Set<bigint> = new Set();
 
-		// eslint-disable-next-line no-plusplus
+		 
 		for (let i = 0; i < modChunks.length; i++) {
 			try {
 				log.silly(`Processing known mod chunk: ${JSON.stringify(modChunks[i], (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
-				// eslint-disable-next-line no-await-in-loop
+				 
 				await this.getDetailsForWorkshopModList(modChunks[i])
 					// eslint-disable-next-line promise/always-return
 					.then((modDetails) => {
@@ -246,7 +245,7 @@ export default class ModFetcher {
 							const modid = mod.workshopID!;
 							this.knownWorkshopMods.delete(modid);
 							knownInvalidMods.delete(modid);
-							workshopMap.set(modid, mod);
+							workshopMap.set(modid!, mod);
 						});
 
 						// After this round has been added to the mod map, check if any items are missing
@@ -294,27 +293,21 @@ export default class ModFetcher {
 
 				const state: UGCItemState = Steamworks.ugcGetItemState(workshopid);
 				if (state) {
-					// eslint-disable-next-line no-bitwise
+					 
 					potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
-					// eslint-disable-next-line no-bitwise
+					 
 					potentialMod.installed = !!(state & UGCItemState.Installed);
-					// eslint-disable-next-line no-bitwise
+					 
 					potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
-					// eslint-disable-next-line no-bitwise
+					 
 					potentialMod.downloading = !!(state & UGCItemState.Downloading);
-					// eslint-disable-next-line no-bitwise
+					 
 					potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
 				}
 
 				let validMod = steamUGCDetails.steamIDOwner !== '0';
 				try {
-					if (Steamworks.requestUserInformation(steamUGCDetails.steamIDOwner, true)) {
-						// eslint-disable-next-line no-await-in-loop
-						await new Promise((resolve) => {
-							setTimeout(resolve, 5000);
-						}); // sleep until done (hopefully)
-					}
-					potentialMod.authors = [Steamworks.getFriendPersonaName(steamUGCDetails.steamIDOwner)];
+					potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
 				} catch (err) {
 					console.error(`Failed to get username for Author ${steamUGCDetails.steamIDOwner}`);
 					console.error(err);
@@ -330,7 +323,7 @@ export default class ModFetcher {
 					potentialMod.needsUpdate = potentialMod.needsUpdate || potentialMod.lastWorkshopUpdate > potentialMod.lastUpdate;
 					try {
 						const modPath = installInfo.folder;
-						// eslint-disable-next-line no-await-in-loop
+						 
 						validMod = !!(await getModDetailsFromPath(potentialMod, modPath, ModType.WORKSHOP).finally(() => {
 							this.updateModLoadingProgress(1);
 						}));
@@ -360,26 +353,25 @@ export default class ModFetcher {
 		let lastProcessed = 1;
 		const workshopMap: Map<bigint, ModData> = new Map();
 
-		// const allSubscribedItems: bigint[] = Steamworks.getSubscribedItems();
-		// log.debug(`All subscribed items: [${allSubscribedItems}]`);
+		if (log.transports.file.level === 'debug' || log.transports.file.level === 'silly') {
+			const allSubscribedItems: bigint[] = Steamworks.getSubscribedItems();
+			log.debug(`All subscribed items: [${allSubscribedItems}]`);
+		}
 
 		// We make 2 assumptions:
 		//	1. We are done if and only if reading a page returns 0 results
 		//	2. The subscription list will not change mid-pull
 
-		// eslint-disable-next-line promise/always-return
-		log.silly('Starting pagination');
-		// allSubscribedItems.map((id) => this.knownWorkshopMods.add(id));
+		 
 		while (lastProcessed > 0) {
-			log.debug(`Loading page ${pageNum}`);
-			// eslint-disable-next-line no-await-in-loop
+			 
 			const { items, totalItems, numReturned } = await getSteamSubscribedPage(pageNum);
 			this.workshopMods = totalItems;
 			numProcessedWorkshop += numReturned;
 			lastProcessed = numReturned;
 			log.debug(`Total items: ${totalItems}, Returned by Steam: ${numReturned}, Processed this chunk: ${items.length}`);
 
-			// eslint-disable-next-line no-await-in-loop
+			 
 			const data: ModData[] = await this.processSteamModResults(items);
 			data.forEach((modData) => {
 				const workshopID: bigint = modData.workshopID!;
@@ -397,9 +389,12 @@ export default class ModFetcher {
 			}
 		});
 
-		// don't expect this to ever trigger
-		if (workshopMap.size < numProcessedWorkshop) {
-			log.error(`Was there an update mid-fetch? We didn't process the promised amount: ${workshopMap.size} vs ${numProcessedWorkshop}`);
+		if (workshopMap.size !== numProcessedWorkshop) {
+			log.debug(
+				`Steam returned ${numProcessedWorkshop} subscribed workshop entries, ` +
+					`but loaded ${workshopMap.size} valid unique mods. ` +
+					'Filtered or duplicate entries are expected to make these counts differ.'
+			);
 		}
 
 		// We've processed all subscribed workshop mods. Now process the known mods
@@ -410,7 +405,7 @@ export default class ModFetcher {
 		// continue to query steam until all dependencies are met via BFS search
 		while (this.knownWorkshopMods.size > 0) {
 			this.workshopMods += missingKnownWorkshopMods.size;
-			// eslint-disable-next-line no-await-in-loop
+			 
 			missingKnownWorkshopMods = await this.processWorkshopModList(workshopMap, knownInvalidMods, missingKnownWorkshopMods);
 			this.knownWorkshopMods.forEach((workshopID) => {
 				log.error(`Known workshop mod ${workshopID} is invalid`);
@@ -420,11 +415,12 @@ export default class ModFetcher {
 			this.knownWorkshopMods = new Set(missingKnownWorkshopMods);
 		}
 
-		log.silly(workshopMap);
 		return [...workshopMap.values()];
 	}
 
 	async fetchMods(): Promise<ModData[]> {
+		clearPreviewAllowlist();
+
 		// get local fist
 		let localModDirs: string[] = [];
 		if (this.localPath) {
@@ -440,14 +436,10 @@ export default class ModFetcher {
 		}
 
 		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(localModDirs), this.fetchWorkshopMods()]);
-		log.debug('Got all mod responses');
-		log.silly(modResponses);
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done
-		this.event.reply(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, 1.0, 'Finished loading mods'); // Return a value > 1.0 to signal we are done
-		log.silly('Complete mod list:');
-		log.silly(allMods);
+		this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, 1.0, 'Finished loading mods'); // Return a value > 1.0 to signal we are done
 		return allMods;
 	}
 }
