@@ -1,44 +1,82 @@
-import React, { Component } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Layout, Button, Typography, Row, Col } from 'antd';
 import { CheckOutlined, CloseOutlined, Loading3QuartersOutlined } from '@ant-design/icons';
-import { useNavigate, NavigateFunction, useOutletContext } from 'react-router-dom';
-import { AppState, ValidChannel } from 'model';
 import api from 'renderer/Api';
-// eslint-disable-next-line camelcase
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
+import { useAppState } from 'renderer/state/app-state';
 
 const { Content } = Layout;
 const { Text } = Typography;
-
-interface SteamworksVerificationState {
-	verifying: boolean;
-	error?: string;
-}
 
 interface VerificationMessage {
 	inited: boolean;
 	error?: string;
 }
 
-class SteamworksVerification extends Component<{ navigate: NavigateFunction; appState: AppState }, SteamworksVerificationState> {
-	constructor(props: { navigate: NavigateFunction; appState: AppState }) {
-		super(props);
-		this.state = {
-			verifying: true
+export default function SteamworksVerification() {
+	const appState = useAppState();
+	const [verifying, setVerifying] = useState(true);
+	const [error, setError] = useState<string>();
+	const appStateRef = useRef(appState);
+	const timeoutIdsRef = useRef<number[]>([]);
+
+	useEffect(() => {
+		appStateRef.current = appState;
+	}, [appState]);
+
+	const scheduleTimeout = useCallback((callback: () => void, delay: number) => {
+		const timeoutId = window.setTimeout(() => {
+			timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId);
+			callback();
+		}, delay);
+		timeoutIdsRef.current.push(timeoutId);
+	}, []);
+
+	const goToConfig = useCallback(() => {
+		const { config, initializedConfigs: initialized, navigate, updateState } = appStateRef.current;
+		if (!initialized) {
+			updateState({ initializedConfigs: true });
+			navigate('/loading/config');
+			return;
+		}
+
+		const nextConfig = {
+			...config,
+			currentPath: '/collections/main'
 		};
+		updateState({ config: nextConfig });
+		navigate(nextConfig.currentPath);
+	}, []);
 
-		this.verify = this.verify.bind(this);
-		this.processVerificationMessage = this.processVerificationMessage.bind(this);
-	}
+	const processVerificationMessage = useCallback((message: VerificationMessage) => {
+		scheduleTimeout(() => {
+			if (message.inited) {
+				setError(undefined);
+			} else {
+				setError(message.error);
+			}
+			setVerifying(false);
+			if (message.inited) {
+				scheduleTimeout(() => {
+					goToConfig();
+				}, 500);
+			}
+		}, 100);
 
-	// Register listener for mod load callback, start mod loading
-	componentDidMount() {
-		// eslint-disable-next-line promise/catch-or-return
-		api.invoke(ValidChannel.STEAMWORKS_INITED).then(this.processVerificationMessage);
-	}
+		return message.inited;
+	}, [goToConfig, scheduleTimeout]);
 
-	getStatusIcon() {
-		const { verifying, error } = this.state;
+	useEffect(() => {
+		void api.steamworksInited().then(processVerificationMessage).catch(api.logger.error);
+		return () => {
+			timeoutIdsRef.current.forEach((timeoutId) => {
+				window.clearTimeout(timeoutId);
+			});
+			timeoutIdsRef.current = [];
+		};
+	}, [processVerificationMessage]);
+
+	function getStatusIcon() {
 		if (verifying) {
 			return <Loading3QuartersOutlined spin style={{ fontSize: 70, margin: 2.5, color: 'rgb(51,255,255)' }} />;
 		}
@@ -48,86 +86,44 @@ class SteamworksVerification extends Component<{ navigate: NavigateFunction; app
 		return <CheckOutlined style={{ fontSize: 75, color: 'rgb(51,255,51)' }} />;
 	}
 
-	goToConfig() {
-		const { appState, navigate } = this.props;
-		const { config, initializedConfigs: initialized, updateState } = appState;
-		if (!initialized) {
-			updateState({ initializedConfigs: true }, () => {
-				console.log('DOING CONFIG');
-				navigate('/loading/config');
-			});
-		} else {
-			config.currentPath = '/collections/main';
-			navigate(config.currentPath);
-		}
+	function verify() {
+		setVerifying(true);
+		void api.steamworksInited().then(processVerificationMessage).catch(api.logger.error);
 	}
 
-	processVerificationMessage(message: VerificationMessage) {
-		setTimeout(() => {
-			if (message.inited) {
-				this.setState({ error: undefined });
-			} else {
-				this.setState({ error: message.error });
-			}
-			this.setState({ verifying: false }, () => {
-				setTimeout(() => {
-					if (message.inited) {
-						this.goToConfig();
-					}
-				}, 500);
-			});
-		}, 100);
-		return message.inited;
-	}
-
-	verify() {
-		this.setState({ verifying: true }, () => {
-			// eslint-disable-next-line promise/catch-or-return
-			api.invoke(ValidChannel.STEAMWORKS_INITED).then(this.processVerificationMessage);
-		});
-	}
-
-	render() {
-		const { verifying, error } = this.state;
-		return (
-			<Layout>
-				<Content style={{ backgroundColor: '#222' }}>
-					<div
-						style={{
-							display: 'flex',
-							flexDirection: 'column',
-							justifyContent: 'center',
-							height: '100vh'
-						}}
-					>
-						<Row key="steamworks" justify="center" align="bottom" gutter={16}>
-							<Col key="status">{this.getStatusIcon()}</Col>
-							<Col key="logo">
-								{/* eslint-disable-next-line camelcase */}
-								<img src={logo_steamworks} width={500} alt="" key="steamworks" />
-							</Col>
+	return (
+		<Layout>
+			<Content style={{ backgroundColor: '#222' }}>
+				<div
+					style={{
+						display: 'flex',
+						flexDirection: 'column',
+						justifyContent: 'center',
+						height: '100vh'
+					}}
+				>
+					<Row key="steamworks" justify="center" align="bottom" gutter={16}>
+						<Col key="status">{getStatusIcon()}</Col>
+						<Col key="logo">
+							<img src={logo_steamworks} width={500} alt="" key="steamworks" />
+						</Col>
+					</Row>
+					{error ? (
+						<Row key="error" justify="center" style={{ marginTop: '16px' }}>
+							<Text code type="danger">
+								{error}
+							</Text>
 						</Row>
-						{error ? (
-							<Row key="error" justify="center" style={{ marginTop: '16px' }}>
-								<Text code type="danger">
-									{error}
-								</Text>
-							</Row>
-						) : null}
-						{error ? (
-							<Row key="retry" justify="center" style={{ margin: '16px' }}>
-								<Button type="primary" onClick={this.verify} loading={verifying}>
-									Retry Steamworks Initialization
-								</Button>
-							</Row>
-						) : null}
-					</div>
-				</Content>
-			</Layout>
-		);
-	}
-}
-
-export default function () {
-	return <SteamworksVerification navigate={useNavigate()} appState={useOutletContext<AppState>()} />;
+					) : null}
+					{error ? (
+						<Row key="retry" justify="center" style={{ margin: '16px' }}>
+							<Button type="primary" onClick={verify} loading={verifying}>
+								Retry Steamworks Initialization
+							</Button>
+						</Row>
+					) : null}
+				</div>
+			</Content>
+		</Layout>
+	);
 }

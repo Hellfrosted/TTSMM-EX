@@ -1,9 +1,9 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable global-require */
+ 
+ 
+ 
 /* eslint-disable class-methods-use-this */
-/* eslint-disable camelcase */
 // A wrapper interface around Greenworks written in ts
+import log from 'electron-log';
 import {
 	// Steam API
 	EResult,
@@ -19,6 +19,7 @@ import {
 	PublishWorkshopFileProps,
 	SynchronizeItemsProps,
 	UpdatePublishedWorkshopFileProps,
+	ExtendedSteamUGCDetails,
 	ItemInstallInfo,
 	UGCItemState,
 
@@ -29,25 +30,124 @@ import {
 	WorkshopFileType
 } from './types';
 
+let greenworksModule: unknown;
+let greenworksLoadError: Error | undefined;
+
+const getGreenworksModule = () => {
+	if (greenworksModule) {
+		return greenworksModule;
+	}
+	if (greenworksLoadError) {
+		return undefined;
+	}
+	try {
+		 
+		greenworksModule = require('greenworks');
+		return greenworksModule;
+	} catch (error) {
+		greenworksLoadError = error as Error;
+		return undefined;
+	}
+};
+
+const getGreenworksUnavailableMessage = () => {
+	const details = greenworksLoadError ? ` Details: ${greenworksLoadError.message}` : '';
+	return `Greenworks native module is unavailable. Run "npm run setup:steamworks" after installing the Steamworks SDK if you need Steam integration locally.${details}`;
+};
+
+type RawWorkshopItem = {
+	publishedFileId: string | bigint;
+	children?: unknown;
+	tags?: unknown;
+	tagsDisplayNames?: unknown;
+	acceptForUse?: boolean;
+	acceptedForUse?: boolean;
+};
+
+type NormalizedWorkshopItem<T extends RawWorkshopItem> = Omit<T, 'publishedFileId' | 'children'> & {
+	publishedFileId: bigint;
+	children?: bigint[];
+};
+
+interface RawSteamPageResults {
+	items: RawWorkshopItem[];
+	totalItems: number;
+	numReturned: number;
+}
+
+function normalizeWorkshopChildren(children: unknown): bigint[] | undefined {
+	if (!Array.isArray(children)) {
+		return undefined;
+	}
+
+	return children.map((stringID: string) => BigInt(stringID));
+}
+
+function normalizeWorkshopTags(tags: unknown): string[] {
+	if (Array.isArray(tags)) {
+		return tags.map((tag) => `${tag}`.trim()).filter((tag) => tag.length > 0);
+	}
+	if (typeof tags !== 'string') {
+		return [];
+	}
+
+	return tags
+		.split(',')
+		.map((tag) => tag.trim())
+		.filter((tag) => tag.length > 0);
+}
+
+function normalizeSteamPageResults(apiResults: Partial<SteamPageResults> | RawWorkshopItem[] | undefined): RawSteamPageResults {
+	const items = (Array.isArray(apiResults) ? apiResults : Array.isArray(apiResults?.items) ? apiResults.items : []) as RawWorkshopItem[];
+	if (!Array.isArray(apiResults) && !Array.isArray(apiResults?.items)) {
+		log.warn('Steamworks returned page results without an items array. Treating the response as empty.');
+	}
+
+	return {
+		items,
+		totalItems: !Array.isArray(apiResults) && typeof apiResults?.totalItems === 'number' ? apiResults.totalItems : items.length,
+		numReturned: !Array.isArray(apiResults) && typeof apiResults?.numReturned === 'number' ? apiResults.numReturned : items.length
+	};
+}
+
+function normalizeWorkshopItem<T extends RawWorkshopItem>(result: T): NormalizedWorkshopItem<T> {
+	const normalizedTags = normalizeWorkshopTags(
+		Array.isArray(result.tagsDisplayNames) && result.tagsDisplayNames.length > 0 ? result.tagsDisplayNames : result.tags
+	);
+
+	return {
+		...result,
+		acceptForUse: typeof result.acceptForUse === 'boolean' ? result.acceptForUse : !!result.acceptedForUse,
+		publishedFileId: typeof result.publishedFileId === 'bigint' ? result.publishedFileId : BigInt(result.publishedFileId),
+		children: normalizeWorkshopChildren(result.children),
+		tags: normalizedTags,
+		tagsDisplayNames: normalizedTags
+	} as NormalizedWorkshopItem<T>;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const greenworks: any = require('greenworks');
+const greenworks: any = new Proxy(
+	{},
+	{
+		get: (_target, property) => {
+			const loaded = getGreenworksModule();
+			if (!loaded) {
+				throw new Error(getGreenworksUnavailableMessage());
+			}
+			const value = Reflect.get(loaded as object, property);
+			return typeof value === 'function' ? value.bind(loaded) : value;
+		}
+	}
+);
 
 function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResults) => void) {
-	return (apiResults: SteamUGCDetails[]) => {
-		const items = apiResults;
-		console.log('got results, performing conversion');
-		console.log(apiResults);
+	return (apiResults: Partial<SteamPageResults> | RawWorkshopItem[]) => {
+		const { items, totalItems, numReturned } = normalizeSteamPageResults(apiResults);
+		const normalizedItems = items.map((result) => normalizeWorkshopItem(result as RawWorkshopItem)) as SteamUGCDetails[];
 		callback({
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			items: items.map((result: any) => {
-				return {
-					...result,
-					publishedFileId: BigInt(result.publishedFileId),
-					children: result.children ? result.children.map((stringID: string) => BigInt(stringID)) : undefined
-				};
-			}),
-			totalItems: Infinity,
-			numReturned: items.length
+			items: normalizedItems,
+			totalItems,
+			numReturned
 		});
 	};
 }
@@ -115,12 +215,12 @@ class SteamworksAPI {
 		return greenworks.getSteamId();
 	}
 
-	isAppInstalled(): boolean {
-		return greenworks.isAppInstalled();
+	isAppInstalled(app_id?: number): boolean {
+		return greenworks.isAppInstalled(app_id ?? greenworks.getAppId());
 	}
 
-	isSubscribedApp(): boolean {
-		return greenworks.isSubscribedApp();
+	isSubscribedApp(app_id?: number): boolean {
+		return greenworks.isSubscribedApp(app_id ?? greenworks.getAppId());
 	}
 
 	getLaunchCommandLine(): string {
@@ -194,13 +294,23 @@ class SteamworksAPI {
 	}
 
 	getSubscribedItems(): bigint[] {
-		return greenworks
-			.getSubscribedItems()
+		if (typeof greenworks.getSubscribedItems !== 'function') {
+			log.debug('Steamworks binding does not expose getSubscribedItems directly. Returning an empty list.');
+			return [];
+		}
+
+		const subscribedItems = greenworks.getSubscribedItems();
+		if (!Array.isArray(subscribedItems)) {
+			log.warn('Steamworks returned subscribed items without an array payload. Treating the response as empty.');
+			return [];
+		}
+
+		return subscribedItems
 			.map((workshopID: string) => {
 				try {
 					return BigInt(workshopID);
 				} catch (e) {
-					return 0;
+					return 0n;
 				}
 			})
 			.filter((id: bigint) => id > 0);
@@ -209,9 +319,9 @@ class SteamworksAPI {
 	getUGCDetails(workshop_ids: string[], success_callback: (items: SteamUGCDetails[]) => void, error_callback?: SteamErrorCallback) {
 		greenworks.getUGCDetails(
 			workshop_ids,
-			(results: SteamPageResults) => {
-				const { items } = results;
-				return success_callback(items);
+			(results: Partial<SteamPageResults> | RawWorkshopItem[]) => {
+				const { items } = normalizeSteamPageResults(results);
+				return success_callback(items.map((result) => normalizeWorkshopItem(result as RawWorkshopItem)) as SteamUGCDetails[]);
 			},
 			error_callback
 		);
@@ -230,7 +340,7 @@ class SteamworksAPI {
 			actualOptions!.required_tag = '';
 		}
 		greenworks._ugcGetItems(
-			options,
+			actualOptions,
 			ugc_matching_type,
 			ugc_query_type,
 			wrapCallbackForWorkshopIDConversion(success_callback),
@@ -251,7 +361,7 @@ class SteamworksAPI {
 			actualOptions!.required_tag = '';
 		}
 		greenworks._ugcGetUserItems(
-			options,
+			actualOptions,
 			ugc_matching_type,
 			ugc_list_sort_order,
 			ugc_list,
@@ -273,16 +383,11 @@ class SteamworksAPI {
 			actualOptions,
 			sync_dir,
 			(results: unknown[]) => {
-				success_callback(
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					results.map((result: any) => {
-						return {
-							...result,
-							publishedFileId: BigInt(result.publishedFileId),
-							children: result.children ? result.children.map((stringID: string) => BigInt(stringID)) : undefined
-						};
-					})
-				);
+				const normalizedResults = Array.isArray(results) ? (results as ExtendedSteamUGCDetails[]) : [];
+				if (!Array.isArray(results)) {
+					log.warn('Steamworks returned synchronize items without an array payload. Treating the response as empty.');
+				}
+				success_callback(normalizedResults.map((result) => normalizeWorkshopItem(result)) as ExtendedSteamUGCDetails[]);
 			},
 			error_callback
 		);

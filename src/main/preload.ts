@@ -1,67 +1,55 @@
-// eslint-disable-next-line prettier/prettier
-import IpcRendererEvent = Electron.IpcRendererEvent;
+import { contextBridge, ipcRenderer } from 'electron';
+import log from 'electron-log';
+import type { ElectronApi } from 'shared/electron-api';
+import { ValidChannel } from 'shared/ipc';
 
-const { contextBridge, ipcRenderer } = require('electron');
-const log = require('electron-log');
-const { ValidChannel } = require('model');
+const subscribe = <TArgs extends unknown[]>(channel: string, callback: (...args: TArgs) => void) => {
+	const listener = (_event: unknown, ...args: unknown[]) => callback(...(args as TArgs));
+	ipcRenderer.on(channel, listener);
+	return () => {
+		ipcRenderer.removeListener(channel, listener);
+	};
+};
 
-const validChannels = Object.values(ValidChannel);
-
-contextBridge.exposeInMainWorld('electron', {
+const electronApi = {
 	platform: process.platform,
 	log: log.functions,
-	ipcRenderer: {
-		myPing() {
-			ipcRenderer.send('ipc-example', 'ping');
-		},
+	updateLogLevel: (level) => {
+		ipcRenderer.send(ValidChannel.UPDATE_LOG_LEVEL, level);
+	},
+	getUserDataPath: () => ipcRenderer.invoke(ValidChannel.USER_DATA_PATH),
+	readConfig: () => ipcRenderer.invoke(ValidChannel.READ_CONFIG),
+	updateConfig: (config) => ipcRenderer.invoke(ValidChannel.UPDATE_CONFIG, config),
+	readCollection: (collection: string) => ipcRenderer.invoke(ValidChannel.READ_COLLECTION, collection),
+	readCollectionsList: () => ipcRenderer.invoke(ValidChannel.READ_COLLECTIONS),
+	updateCollection: (collection) => ipcRenderer.invoke(ValidChannel.UPDATE_COLLECTION, collection),
+	renameCollection: (collection, newName: string) => ipcRenderer.invoke(ValidChannel.RENAME_COLLECTION, collection, newName),
+	deleteCollection: (collection: string) => ipcRenderer.invoke(ValidChannel.DELETE_COLLECTION, collection),
+	pathExists: (targetPath: string, expectedType?: number) => ipcRenderer.invoke(ValidChannel.PATH_EXISTS, targetPath, expectedType),
+	discoverGameExecutable: () => ipcRenderer.invoke(ValidChannel.DISCOVER_GAME_EXEC),
+	selectPath: (directory: boolean, title: string) => ipcRenderer.invoke(ValidChannel.SELECT_PATH, directory, title),
+	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) =>
+		ipcRenderer.invoke(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args),
+	isGameRunning: () => ipcRenderer.invoke(ValidChannel.GAME_RUNNING),
+	readModMetadata: (localDir: string | undefined, allKnownMods: string[]) => ipcRenderer.invoke(ValidChannel.READ_MOD_METADATA, localDir, allKnownMods),
+	fetchWorkshopDependencies: (workshopID: bigint) => ipcRenderer.invoke(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, workshopID),
+	steamworksInited: () => ipcRenderer.invoke(ValidChannel.STEAMWORKS_INITED),
+	downloadMod: (workshopID: bigint) => ipcRenderer.invoke(ValidChannel.DOWNLOAD_MOD, workshopID),
+	subscribeMod: (workshopID: bigint) => ipcRenderer.invoke(ValidChannel.SUBSCRIBE_MOD, workshopID),
+	unsubscribeMod: (workshopID: bigint) => ipcRenderer.invoke(ValidChannel.UNSUBSCRIBE_MOD, workshopID),
+	openModBrowser: (workshopID: bigint) => {
+		ipcRenderer.send(ValidChannel.OPEN_MOD_BROWSER, workshopID);
+	},
+	openModSteam: (workshopID: bigint) => {
+		ipcRenderer.send(ValidChannel.OPEN_MOD_STEAM, workshopID);
+	},
+	openModContextMenu: (record) => {
+		ipcRenderer.send(ValidChannel.OPEN_MOD_CONTEXT_MENU, record);
+	},
+	onProgressChange: (callback) => subscribe(ValidChannel.PROGRESS_CHANGE, callback),
+	onModMetadataUpdate: (callback) => subscribe(ValidChannel.MOD_METADATA_UPDATE, callback),
+	onModRefreshRequested: (callback) => subscribe(ValidChannel.MOD_REFRESH_REQUESTED, callback),
+	onReloadSteamworks: (callback) => subscribe(ValidChannel.RELOAD_STEAMWORKS, callback)
+} satisfies ElectronApi;
 
-		close: () => {
-			ipcRenderer.sendSync('close');
-		},
-		exit: (code: number) => {
-			ipcRenderer.sendSync('exit', code);
-		},
-
-		// Generic ipcRenderer API replication
-		send: (channel: string, ...args: unknown[]) => {
-			if (validChannels.includes(channel)) {
-				ipcRenderer.send(channel, ...args);
-			}
-		},
-		sendSync: (channel: string, ...args: unknown[]) => {
-			if (validChannels.includes(channel)) {
-				return ipcRenderer.sendSync(channel, ...args);
-			}
-			return null;
-		},
-		removeListener: (channel: string, listener: (...args: unknown[]) => void) => {
-			if (validChannels.includes(channel)) {
-				ipcRenderer.removeListener(channel, listener);
-			}
-		},
-		removeAllListeners: (channel: string) => {
-			if (validChannels.includes(channel)) {
-				ipcRenderer.removeAllListeners(channel);
-			}
-		},
-		invoke: (channel: string, ...args: unknown[]) => {
-			if (validChannels.includes(channel)) {
-				// Deliberately strip event as it includes `sender`
-				return ipcRenderer.invoke(channel, ...args);
-			}
-			return null;
-		},
-		on: (channel: string, func: (...args: unknown[]) => void) => {
-			if (validChannels.includes(channel)) {
-				// Deliberately strip event as it includes `sender`
-				ipcRenderer.on(channel, (event: IpcRendererEvent, ...args: unknown[]) => func(...args));
-			}
-		},
-		once: (channel: string, func: (...args: unknown[]) => void) => {
-			if (validChannels.includes(channel)) {
-				// Deliberately strip event as it includes `sender`
-				ipcRenderer.once(channel, (event: IpcRendererEvent, ...args: unknown[]) => func(...args));
-			}
-		}
-	}
-});
+contextBridge.exposeInMainWorld('electron', electronApi);

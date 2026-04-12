@@ -1,4 +1,4 @@
-/* eslint-disable no-bitwise */
+ 
 export enum ModType {
 	WORKSHOP = 'workshop',
 	LOCAL = 'local',
@@ -10,6 +10,7 @@ export enum ModType {
 export interface ModDescriptor {
 	UIDs: Set<string>;
 	modID?: string;
+	workshopID?: bigint;
 	name?: string;
 }
 
@@ -35,6 +36,7 @@ export interface ModData {
 	hasCode?: boolean;
 	// Raw mod dependencies
 	steamDependencies?: bigint[];
+	steamDependencyNames?: Record<string, string>;
 	explicitIDDependencies?: string[];
 	// Processed descriptor dependencies
 	dependsOn?: ModDescriptor[];
@@ -54,6 +56,29 @@ export interface ModData {
 export interface ModDataOverride {
 	id?: string;
 	tags?: string[];
+}
+
+export function getModDescriptorKey(descriptor: ModDescriptor): string | undefined {
+	if (descriptor.modID) {
+		return descriptor.modID;
+	}
+	if (descriptor.workshopID !== undefined) {
+		return `${ModType.WORKSHOP}:${descriptor.workshopID.toString()}`;
+	}
+	return undefined;
+}
+
+export function getModDescriptorDisplayName(descriptor: ModDescriptor): string {
+	if (descriptor.name) {
+		return descriptor.name;
+	}
+	if (descriptor.modID) {
+		return descriptor.modID;
+	}
+	if (descriptor.workshopID !== undefined) {
+		return `Workshop item ${descriptor.workshopID.toString()}`;
+	}
+	return 'Unknown dependency';
 }
 
 export function getModDataId(record: ModData): string | null {
