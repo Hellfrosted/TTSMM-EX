@@ -1,0 +1,27 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"jsx": "react-jsx",
+		"strict": true,
+		"pretty": true,
+		"sourceMap": true,
+		"baseUrl": "./src",
+		"paths": {
+			"model": ["model/index.ts"],
+			"model/*": ["model/*"],
+			"renderer/*": ["renderer/*"],
+			"shared/*": ["shared/*"],
+			"util/*": ["util/*"]
+		},
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"skipLibCheck": true,
+		"ignoreDeprecations": "6.0"
+	}
+}

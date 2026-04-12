@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"noEmit": true,
+		"lib": ["ES2022", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"types": ["node", "electron"]
+	},
+	"include": ["src/main/preload.ts", "src/model/**/*.ts", "src/shared/**/*.ts", "assets/assets.d.ts"]
+}
