@@ -9,7 +9,7 @@ The EX build uses its own app identity and app-data directory, so it can be inst
 - Manage TerraTech mod collections without packaging or installing the app during development
 - Load Steam Workshop dependency data from Steamworks and fall back to the Workshop page when needed
 - Validate collection conflicts, missing dependencies, subscription state, install state, and update state
-- Optionally treat `NuterraSteam`, `NuterraSteam(beta)`, and `NuterraSteam (Beta)` as equivalent during validation
+- Optionally treat `NuterraSteam` and `NuterraSteam (Beta)` as equivalent during validation
 
 ## Development
 
@@ -21,50 +21,7 @@ npm run validate
 npm run package
 ```
 
-`npm run start:desktop` builds the app and launches the desktop build with `NODE_ENV=production` without creating an installer.
-
-## Steamworks Setup
-
-Most work on this repository does not require the Steamworks SDK.
-
-Maintained Steamworks matrix:
-
-- Windows x64
-- Electron `41.x`
-- `greenworks` `github:FLSoz/greenworks`
-- Steamworks SDK `1.64`
-
-macOS is not supported.
-
-Avoid SDK upgrades unless TerraTech, Valve, or this app actually requires one.
-
-`npm run setup:steamworks` also applies the local compatibility patch this repo needs before rebuilding the `greenworks` native module on current Windows toolchains.
-
-If you need local Steam integration:
-
-1. Download and extract the Steamworks SDK from the Steamworks partner site.
-2. Set `STEAMWORKS_SDK_PATH` to the SDK directory that contains `public` and `redistributable_bin`.
-   On Windows that usually means the extracted `...\steamworks_sdk_<version>\sdk` directory, not its parent.
-3. Run:
-
-```powershell
-npm run setup:steamworks
-```
-
-Example on Windows:
-
-```powershell
-$env:STEAMWORKS_SDK_PATH='C:\path\to\steamworks_sdk\sdk'
-npm run setup:steamworks
-```
-
-Verify Steam integration locally with:
-
-```powershell
-npm run smoke:steamworks
-```
-
-In development, the app will attempt to install React DevTools automatically. Set `UPGRADE_EXTENSIONS=1` before launch if you want to force a refresh of the downloaded extension.
+`npm run start:desktop` builds the app and launches the desktop build with `NODE_ENV=production`.
 
 ## Dependency Validation Notes
 
