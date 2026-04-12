@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable camelcase */
-import { Button, Layout, Table, Tag, Tooltip, Typography } from 'antd';
+import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import React, { Component } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo } from 'react';
+import type { Key, ReactNode } from 'react';
 import { ColumnType } from 'antd/lib/table';
 import { CompareFn, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
@@ -13,7 +13,6 @@ import {
 	MainColumnTitles,
 	ModErrors,
 	ModType,
-	ValidChannel,
 	getModDataId,
 	CorpType,
 	getCorpType
@@ -35,11 +34,7 @@ import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
 import Icon_Corps from '../../../../assets/faction-flag.svg';
 
 const { Content } = Layout;
-
-interface MainCollectionState {
-	currentRecord?: DisplayModData;
-	bigDetails?: boolean;
-}
+const { Text } = Typography;
 
 function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
@@ -96,6 +91,7 @@ function getTypeIcon(type: TypeTag, size = 15) {
 			return null;
 	}
 }
+
 function getCorpIcon(type: CorpType, size = 15) {
 	switch (type) {
 		case CorpType.HE:
@@ -144,6 +140,7 @@ function getCorpIcon(type: CorpType, size = 15) {
 			return null;
 	}
 }
+
 function getTypeTag(tag: string): TypeTag | null {
 	const lowercase = tag.toLowerCase().trim();
 	if (lowercase === 'blocks') {
@@ -165,6 +162,9 @@ interface ColumnSchema<T> {
 	width?: number;
 	align?: 'center';
 	defaultSortOrder?: 'ascend';
+	filters?: ColumnType<DisplayModData>['filters'];
+	filtersSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['filters'];
+	onFilter?: ColumnType<DisplayModData>['onFilter'];
 	sorter?:
 		| boolean
 		| CompareFn<DisplayModData>
@@ -173,11 +173,89 @@ interface ColumnSchema<T> {
 				multiple?: number | undefined;
 		  }
 		| undefined;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	renderSetup?: (props: CollectionViewProps) => (value: any, record: T, index: number) => React.ReactNode;
+	sorterSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['sorter'];
+	renderSetup?: (props: CollectionViewProps) => (value: any, record: T, index: number) => ReactNode;
 }
 
-const { Text } = Typography;
+interface StateTagConfig {
+	color?: string;
+	rank: number;
+	text: string;
+}
+
+function compareOptionalDates(a?: Date, b?: Date) {
+	const left = a ? a.getTime() : 0;
+	const right = b ? b.getTime() : 0;
+	return left - right;
+}
+
+function getAllTags(record: DisplayModData) {
+	return [...new Set([...(record.tags || []), ...(record.overrides?.tags || [])])].filter((tag) => tag.toLowerCase() !== 'mods');
+}
+
+function getStateTags(props: CollectionViewProps, record: DisplayModData): StateTagConfig[] {
+	const { lastValidationStatus, collection } = props;
+	const selectedMods = collection.mods;
+	const { uid, subscribed, workshopID, installed, id } = record;
+
+	if (installed && id === null) {
+		return [{ text: 'Invalid', color: 'red', rank: 0 }];
+	}
+
+	if (!selectedMods.includes(uid)) {
+		if (!subscribed && workshopID && workshopID > 0) {
+			return [{ text: 'Not subscribed', rank: 4 }];
+		}
+		if (subscribed && !installed) {
+			return [{ text: 'Not installed', rank: 5 }];
+		}
+		return [];
+	}
+
+	const stateTags: StateTagConfig[] = [];
+	const { errors } = record;
+	if (errors) {
+		const { incompatibleMods, invalidId, missingDependencies, notInstalled, notSubscribed, needsUpdate } = errors;
+		if (incompatibleMods && incompatibleMods.length > 0) {
+			stateTags.push({ text: 'Conflicts', color: 'red', rank: 1 });
+		}
+		if (invalidId) {
+			stateTags.push({ text: 'Invalid ID', color: 'volcano', rank: 0 });
+		}
+		if (missingDependencies && missingDependencies.length > 0) {
+			stateTags.push({ text: 'Missing dependencies', color: 'orange', rank: 2 });
+		}
+		if (notSubscribed) {
+			stateTags.push({ text: 'Not subscribed', color: 'yellow', rank: 4 });
+		} else if (notInstalled) {
+			stateTags.push({ text: 'Not installed', color: 'yellow', rank: 5 });
+		} else if (needsUpdate) {
+			stateTags.push({ text: 'Needs update', color: 'yellow', rank: 6 });
+		}
+	}
+
+	if (stateTags.length > 0) {
+		return stateTags;
+	}
+
+	if (lastValidationStatus !== undefined) {
+		return [{ text: 'OK', color: 'green', rank: 7 }];
+	}
+
+	return [];
+}
+
+function compareStateTags(leftTags: StateTagConfig[], rightTags: StateTagConfig[]) {
+	const leftRank = leftTags.length > 0 ? Math.min(...leftTags.map((tag) => tag.rank)) : Number.MAX_SAFE_INTEGER;
+	const rightRank = rightTags.length > 0 ? Math.min(...rightTags.map((tag) => tag.rank)) : Number.MAX_SAFE_INTEGER;
+	if (leftRank !== rightRank) {
+		return leftRank - rightRank;
+	}
+
+	const leftLabel = leftTags.map((tag) => tag.text).join(', ');
+	const rightLabel = rightTags.map((tag) => tag.text).join(', ');
+	return leftLabel.localeCompare(rightLabel);
+}
 
 const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
@@ -188,12 +266,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
 			return (type: ModType) => (
-				<Button
-					type="text"
-					onClick={() => {
-						// eslint-disable-next-line react/prop-types
-					}}
-				>
+				<Button type="text">
 					{getImageSrcFromType(type, small ? 20 : 30)}
 				</Button>
 			);
@@ -248,7 +321,6 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 					}
 				}
 				let correctedName = name;
-				// eslint-disable-next-line react/destructuring-assignment
 				const matches = name.match(/(.*)\s*\(([^()]*[Tt][Tt][Ss][Mm][Mm][^()]*)\)$/);
 				if (matches && matches[1]) {
 					correctedName = matches[1].trim();
@@ -256,6 +328,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				return (
 					<button
 						type="submit"
+						className="CollectionNameButton"
 						style={{
 							fontSize: 14,
 							backgroundColor: 'transparent',
@@ -271,17 +344,11 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 							display: 'block'
 						}}
 						onClick={() => {
-							// eslint-disable-next-line react/prop-types
-							const { getModDetails } = props;
-							getModDetails(uid, record);
+							props.getModDetails(uid, record);
 						}}
 					>
 						{updateIcon}
-						<Text
-							strong={needsUpdate}
-							type={updateType}
-							style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}
-						>{` ${correctedName} `}</Text>
+						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${correctedName} `}</Text>
 						{hasCode && <CodeFilled style={{ color: '#6abe39', fontSize: 16, verticalAlign: 'middle' }} />}
 					</button>
 				);
@@ -324,9 +391,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		},
 		renderSetup: () => {
 			return (authors: string[] | undefined) => {
-				return (authors || []).map((author) => {
-					return <Tag key={author}>{author}</Tag>;
-				});
+				return (authors || []).map((author) => <Tag key={author}>{author}</Tag>);
 			};
 		}
 	},
@@ -334,84 +399,18 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.STATE,
 		dataIndex: 'errors',
 		width: 250,
+		sorterSetup: (props: CollectionViewProps) => {
+			return (a: DisplayModData, b: DisplayModData) => compareStateTags(getStateTags(props, a), getStateTags(props, b));
+		},
 		renderSetup: (props: CollectionViewProps) => {
-			const { lastValidationStatus, collection } = props;
-			return (errors: ModErrors | undefined, record: DisplayModData) => {
-				const selectedMods = collection.mods;
-				const { uid, subscribed, workshopID, installed, id } = record;
-				if (installed && id === null) {
-					return (
-						<Tag key="notValid" color="red">
-							Invalid
+			return (_errors: ModErrors | undefined, record: DisplayModData) => {
+				const stateTags = getStateTags(props, record);
+				if (stateTags.length > 0) {
+					return stateTags.map((tagConfig) => (
+						<Tag key={tagConfig.text} color={tagConfig.color}>
+							{tagConfig.text}
 						</Tag>
-					);
-				}
-				if (!selectedMods.includes(uid)) {
-					if (!subscribed && workshopID && workshopID > 0) {
-						return <Tag key="notSubscribed">Not subscribed</Tag>;
-					}
-					if (subscribed && !installed) {
-						return <Tag key="notInstalled">Not installed</Tag>;
-					}
-					return null;
-				}
-				const errorTags: { text: string; color: string }[] = [];
-				if (errors) {
-					const { incompatibleMods, invalidId, missingDependencies, notInstalled, notSubscribed, needsUpdate } = errors;
-					if (incompatibleMods && incompatibleMods.length > 0) {
-						errorTags.push({
-							text: 'Conflicts',
-							color: 'red'
-						});
-					}
-					if (invalidId) {
-						errorTags.push({
-							text: 'Invalid ID',
-							color: 'volcano'
-						});
-					}
-					if (missingDependencies && missingDependencies.length > 0) {
-						errorTags.push({
-							text: 'Missing dependencies',
-							color: 'orange'
-						});
-					}
-
-					// Installation status errors
-					if (notSubscribed) {
-						errorTags.push({
-							text: 'Not subscribed',
-							color: 'yellow'
-						});
-					} else if (notInstalled) {
-						errorTags.push({
-							text: 'Not installed',
-							color: 'yellow'
-						});
-					} else if (needsUpdate) {
-						errorTags.push({
-							text: 'Needs update',
-							color: 'yellow'
-						});
-					}
-				}
-				if (errorTags.length > 0) {
-					return errorTags.map((tagConfig) => {
-						return (
-							<Tag key={tagConfig.text} color={tagConfig.color}>
-								{tagConfig.text}
-							</Tag>
-						);
-					});
-				}
-
-				// If everything is fine, only return OK if we have actually validated it
-				if (lastValidationStatus !== undefined) {
-					return (
-						<Tag key="OK" color="green">
-							OK
-						</Tag>
-					);
+					));
 				}
 				return null;
 			};
@@ -436,15 +435,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		},
 		renderSetup: () => {
 			return (_: string, record: DisplayModData) => {
-				const { id, overrides } = record;
-				if (!!overrides && !!overrides.id) {
+				if (record.overrides?.id) {
 					return (
 						<Tag color="gray" key="id">
-							{overrides.id}
+							{record.overrides.id}
 						</Tag>
 					);
 				}
-				return id;
+				return record.id;
 			};
 		}
 	},
@@ -454,67 +452,59 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		width: 80,
 		renderSetup: () => {
 			return (size?: number) => {
-				if (size && size > 0) {
-					// return 3 points of precision
-					const strNum = `${size}`;
-					const power = strNum.length;
-					const digit1 = strNum[0];
-					const digit2 = strNum[1];
-					let digit3 = strNum[2];
-					const digit4 = strNum[3];
-					let sizeStr = '';
-					if (!digit4) {
-						sizeStr = `${strNum} B`;
-					} else {
-						digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
-
-						let descriptor = ' B';
-						if (power > 3) {
-							if (power > 6) {
-								if (power > 9) {
-									descriptor = ' GB';
-								} else {
-									descriptor = ' MB';
-								}
-							} else {
-								descriptor = ' KB';
-							}
-						}
-
-						let value = `${digit1}${digit2}${digit3}`;
-						const decimal = power % 3;
-						if (decimal === 1) {
-							value = `${digit1}.${digit2}${digit3}`;
-						} else if (decimal === 2) {
-							value = `${digit1}${digit2}.${digit3}`;
-						}
-						sizeStr = value + descriptor;
-					}
-					let color = 'green'; // under 1 MB is green
-					if (size > 1000000) {
-						if (size < 5000000) {
-							// under 5 MB is cyan
-							color = 'cyan';
-						} else if (size < 50000000) {
-							// under 50 MB is blue
-							color = 'blue';
-						} else if (size < 1000000000) {
-							// under 1 GB is geekblue
-							color = 'geekblue';
-						} else if (size < 5000000000) {
-							// under 5 GB is purple
-							color = 'purple';
-						} else {
-							color = 'magenta';
-						}
-					}
-					return (
-						<Tag color={color} key="size">
-							{sizeStr}
-						</Tag>
-					);
+				if (!size || size <= 0) {
+					return null;
 				}
-				return null;
+
+				const strNum = `${size}`;
+				const power = strNum.length;
+				const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
+				let digit3 = digit3Raw;
+				let sizeStr = '';
+				if (!digit4) {
+					sizeStr = `${strNum} B`;
+				} else {
+					digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
+
+					let descriptor = ' B';
+					if (power > 3) {
+						if (power > 6) {
+							descriptor = power > 9 ? ' GB' : ' MB';
+						} else {
+							descriptor = ' KB';
+						}
+					}
+
+					let value = `${digit1}${digit2}${digit3}`;
+					const decimal = power % 3;
+					if (decimal === 1) {
+						value = `${digit1}.${digit2}${digit3}`;
+					} else if (decimal === 2) {
+						value = `${digit1}${digit2}.${digit3}`;
+					}
+					sizeStr = value + descriptor;
+				}
+
+				let color = 'green';
+				if (size > 1000000) {
+					if (size < 5000000) {
+						color = 'cyan';
+					} else if (size < 50000000) {
+						color = 'blue';
+					} else if (size < 1000000000) {
+						color = 'geekblue';
+					} else if (size < 5000000000) {
+						color = 'purple';
+					} else {
+						color = 'magenta';
+					}
+				}
+
+				return (
+					<Tag color={color} key="size">
+						{sizeStr}
+					</Tag>
+				);
 			};
 		}
 	},
@@ -522,20 +512,18 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.LAST_UPDATE,
 		dataIndex: 'lastUpdate',
 		width: 130,
+		sorter: (a, b) => compareOptionalDates(a.lastUpdate, b.lastUpdate),
 		renderSetup: () => {
-			return (date: Date) => {
-				return formatDateStr(date);
-			};
+			return (date: Date) => formatDateStr(date);
 		}
 	},
 	{
 		title: MainColumnTitles.LAST_WORKSHOP_UPDATE,
 		dataIndex: 'lastWorkshopUpdate',
 		width: 130,
+		sorter: (a, b) => compareOptionalDates(a.lastWorkshopUpdate, b.lastWorkshopUpdate),
 		renderSetup: () => {
-			return (date: Date) => {
-				return formatDateStr(date);
-			};
+			return (date: Date) => formatDateStr(date);
 		}
 	},
 	{
@@ -543,15 +531,21 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		dataIndex: 'dateAdded',
 		width: 130,
 		renderSetup: () => {
-			return (date: Date) => {
-				return formatDateStr(date);
-			};
+			return (date: Date) => formatDateStr(date);
 		}
 	},
 	{
 		title: MainColumnTitles.TAGS,
 		dataIndex: 'tags',
 		className: 'CollectionRowTags',
+		filtersSetup: (props: CollectionViewProps) => {
+			return [...new Set(props.rows.flatMap((record) => getAllTags(record)))]
+				.sort((left, right) => left.localeCompare(right))
+				.map((tag) => ({ text: tag, value: tag }));
+		},
+		onFilter: (value, record) => {
+			return getAllTags(record).includes(value.toString());
+		},
 		renderSetup: (props: CollectionViewProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
@@ -587,151 +581,128 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	}
 ];
 
-class MainCollectionComponent extends Component<CollectionViewProps, MainCollectionState> {
-	constructor(props: CollectionViewProps) {
-		super(props);
-		this.state = {};
-	}
+function getRowSelection(props: CollectionViewProps) {
+	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
 
-	getRowSelection() {
-		const { collection, rows, filteredRows } = this.props;
-		const { setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = this.props;
-
-		const rowSelection: TableRowSelection<DisplayModData> = {
-			selections: [Table.SELECTION_INVERT],
-			selectedRowKeys: collection.mods,
-			onChange: (selectedRowKeys: React.Key[]) => {
-				const currentVisible = new Set(filteredRows.map((modData) => modData.uid));
-				const currentSelection = collection.mods;
-				const newSelection = rows
-					.map((modData) => modData.uid)
-					.filter((mod) => {
-						return (!currentVisible.has(mod) && currentSelection.includes(mod)) || selectedRowKeys.includes(mod);
-					});
-				setEnabledModsCallback(new Set(newSelection));
-			},
-			onSelect: (record: DisplayModData, selected: boolean) => {
-				api.logger.debug(`selecting ${record.uid}: ${selected}`);
+	const rowSelection: TableRowSelection<DisplayModData> = {
+		selections: [Table.SELECTION_INVERT],
+		selectedRowKeys: collection.mods,
+		onChange: (selectedRowKeys: Key[]) => {
+			const currentVisible = new Set(filteredRows.map((modData) => modData.uid));
+			const currentSelection = collection.mods;
+			const newSelection = rows
+				.map((modData) => modData.uid)
+				.filter((mod) => (!currentVisible.has(mod) && currentSelection.includes(mod)) || selectedRowKeys.includes(mod));
+			setEnabledModsCallback(new Set(newSelection));
+		},
+		onSelect: (record: DisplayModData, selected: boolean) => {
+			if (selected) {
+				setEnabledCallback(record.uid);
+			} else {
+				setDisabledCallback(record.uid);
+			}
+		},
+		onSelectAll: (selected: boolean) => {
+			const currentVisible = filteredRows.map((modData) => modData.uid);
+			const selectedMods = new Set(collection.mods);
+			currentVisible.forEach((mod) => {
 				if (selected) {
-					if (!collection.mods.includes(record.uid)) {
-						collection.mods.push(record.uid);
-					}
-					setEnabledCallback(record.uid);
+					selectedMods.add(mod);
 				} else {
-					setDisabledCallback(record.uid);
+					selectedMods.delete(mod);
 				}
-			},
-			onSelectAll: (selected: boolean) => {
-				api.logger.debug(`selecting all: ${selected}`);
-				const currentVisible = filteredRows.map((modData) => modData.uid);
-				const selectedMods = new Set(collection.mods);
-				currentVisible.forEach((mod) => {
-					if (selected) {
-						selectedMods.add(mod);
-					} else {
-						selectedMods.delete(mod);
-					}
-				});
-				setEnabledModsCallback(selectedMods);
-			},
-			onSelectInvert: () => {
-				api.logger.debug('inverting selection');
-				const currentVisible = filteredRows.map((modData) => modData.uid);
-				const selected = new Set(collection.mods);
-				currentVisible.forEach((mod) => {
-					if (!selected.has(mod)) {
-						selected.add(mod);
-					} else {
-						selected.delete(mod);
-					}
-				});
-				setEnabledModsCallback(selected);
-			},
-			onSelectNone: () => {
-				api.logger.debug('clearing selection');
-				const currentVisible = filteredRows.map((modData) => modData.uid);
-				const selected = new Set(collection.mods);
-				currentVisible.forEach((mod) => {
+			});
+			setEnabledModsCallback(selectedMods);
+		},
+		onSelectInvert: () => {
+			const currentVisible = filteredRows.map((modData) => modData.uid);
+			const selected = new Set(collection.mods);
+			currentVisible.forEach((mod) => {
+				if (!selected.has(mod)) {
+					selected.add(mod);
+				} else {
 					selected.delete(mod);
-				});
-				setEnabledModsCallback(selected);
+				}
+			});
+			setEnabledModsCallback(selected);
+		},
+		onSelectNone: () => {
+			const currentVisible = filteredRows.map((modData) => modData.uid);
+			const selected = new Set(collection.mods);
+			currentVisible.forEach((mod) => {
+				selected.delete(mod);
+			});
+			setEnabledModsCallback(selected);
+		}
+	};
+
+	return rowSelection;
+}
+
+function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>[] {
+	const { config } = props;
+	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
+	const columnActiveConfig = (config as MainCollectionConfig | undefined)?.columnActiveConfig;
+	if (columnActiveConfig) {
+		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
+	}
+	return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
+		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
+		return {
+			title,
+			dataIndex,
+			className,
+			width,
+			defaultSortOrder,
+			filters: filtersSetup ? filtersSetup(props) : filters,
+			onFilter,
+			sorter: sorterSetup ? sorterSetup(props) : sorter,
+			align,
+			render: renderSetup ? renderSetup(props) : undefined
+		};
+	});
+}
+
+function MainCollectionViewComponent(props: CollectionViewProps) {
+	const { config, filteredRows, launchingGame, width, height } = props;
+	const small = (config as MainCollectionConfig | undefined)?.smallRows;
+	const deferredRows = useDeferredValue(filteredRows);
+	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
+	const columns = useMemo(() => getColumnSchema(props), [props]);
+	const handleRow = useCallback((record: DisplayModData) => {
+		return {
+			onContextMenu: () => {
+				api.openModContextMenu(record);
 			}
 		};
+	}, []);
 
-		return rowSelection;
-	}
-
-	getColumnSchema(): ColumnType<DisplayModData>[] {
-		const { config } = this.props;
-		let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
-		const columnActiveConfig = (config as MainCollectionConfig | undefined)?.columnActiveConfig;
-		if (columnActiveConfig) {
-			activeColumns = activeColumns.filter(
-				(colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined
-			);
-		}
-		return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
-			const { title, dataIndex, className, width, defaultSortOrder, sorter, align, renderSetup } = colSchema;
-			return {
-				title,
-				dataIndex,
-				className,
-				width,
-				defaultSortOrder,
-				sorter,
-				align,
-				render: renderSetup ? renderSetup(this.props) : undefined
-			};
-		});
-	}
-
-	render() {
-		const { config, filteredRows, launchingGame } = this.props;
-		const small = (config as MainCollectionConfig | undefined)?.smallRows;
-		// <img src={cellData} height="50px" width="50px" />
-		// <div>
-		/*
-		{cellData === ModType.WORKSHOP
-			? steam
-			: cellData === ModType.TTQMM
-			? ttmm
-			: local}
-			*/
-
-		return (
-			// eslint-disable-next-line react/destructuring-assignment
-			<Layout style={{ width: this.props.width, height: this.props.height }}>
-				<Content key="main table" style={{ padding: '10px', overflowY: 'auto', scrollbarWidth: 'thin' }}>
-					<Table
-						dataSource={filteredRows}
-						pagination={false}
-						loading={launchingGame}
-						size="small"
-						rowKey="uid"
-						rowSelection={this.getRowSelection()}
-						columns={this.getColumnSchema()}
-						sticky
-						onRow={(record) => {
-							return {
-								onDoubleClick: (event) => {
-									api.logger.debug(`Double clicking ${record.uid}, ${event}`);
-									// this.props.getModDetails(record.uid, record, true);
-								},
-								onContextMenu: (event) => {
-									api.logger.debug(`Showing context menu for ${record.uid}, ${event}`);
-									const { screenX, screenY } = event;
-									api.send(ValidChannel.OPEN_MOD_CONTEXT_MENU, record, screenX, screenY);
-								}
-							};
-						}}
-						rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
-					/>
-				</Content>
-			</Layout>
-		);
-	}
+	return (
+		<Layout style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+			<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
+				<Table
+					dataSource={deferredRows}
+					pagination={false}
+					loading={launchingGame}
+					size="small"
+					rowKey="uid"
+					rowSelection={rowSelection}
+					columns={columns}
+					sticky
+					scroll={{ x: 'max-content' }}
+					onRow={handleRow}
+					rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
+				/>
+			</Content>
+		</Layout>
+	);
 }
 
-export default function () {
-	return <MainCollectionComponent {...useOutletContext()} />;
+export const MainCollectionView = memo(MainCollectionViewComponent);
+
+function MainCollectionComponent() {
+	const props = useOutletContext<CollectionViewProps>();
+	return <MainCollectionView {...props} />;
 }
+
+export default memo(MainCollectionComponent);
