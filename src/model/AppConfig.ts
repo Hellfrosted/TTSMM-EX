@@ -1,5 +1,4 @@
 import { LogLevel } from './Api';
-import { CollectionConfig } from './CollectionConfig';
 import { ModErrorType } from './CollectionValidation';
 import { MainCollectionConfig } from './MainCollectionView';
 import { ModDataOverride } from './Mod';
@@ -28,6 +27,8 @@ export interface AppConfig {
 
 	pureVanilla?: boolean;
 
+	treatNuterraSteamBetaAsEquivalent?: boolean;
+
 	[AppConfigKeys.LOCAL_DIR]?: string;
 	[AppConfigKeys.GAME_EXEC]: string;
 	[AppConfigKeys.MANAGER_ID]: bigint;
@@ -44,22 +45,11 @@ export interface AppConfig {
 
 	viewConfigs: {
 		main?: MainCollectionConfig;
-		rawMods?: RawCollectionConfig;
-		separated?: SeparatedCollectionConfig;
 	};
 
 	ignoredValidationErrors: Map<ModErrorType, { [uid: string]: string[] }>;
 
 	userOverrides: Map<string, ModDataOverride>;
-}
-
-export interface RawCollectionConfig extends CollectionConfig {
-	showUpdateWarning?: boolean;
-}
-
-export interface SeparatedCollectionConfig extends CollectionConfig {
-	smallRows?: boolean;
-	disableTableViews?: boolean;
 }
 
 export enum SettingsViewModalType {
