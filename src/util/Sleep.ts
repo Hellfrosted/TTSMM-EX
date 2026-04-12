@@ -1,8 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const delay = (ms: number) =>
-	new Promise((resolve) => {
-		setTimeout(resolve, ms);
-	});
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const pause = (ms: number, callback: (...args: any[]) => any, ...args: any[]): Promise<any> => {
 	return new Promise((resolve, reject) => {

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 export interface CancellablePromise<Type> {
 	promise: Promise<Type>;
 	cancel: () => void;
@@ -9,11 +9,11 @@ export function cancellablePromise<Type>(promise: Promise<Type>): CancellablePro
 	const wrappedPromise: Promise<Type> = new Promise((resolve, reject) => {
 		promise
 			.then((d) => {
-				// eslint-disable-next-line prefer-promise-reject-errors
+				 
 				return isCancelled.value ? reject({ cancelled: true }) : resolve(d);
 			})
 			.catch((e) => {
-				// eslint-disable-next-line prefer-promise-reject-errors
+				 
 				reject({
 					cancelled: isCancelled.value,
 					error: e
@@ -39,7 +39,7 @@ export class CancellablePromiseManager {
 					return this.isCancelled.value ? reject(this.isCancelled) : resolve(d);
 				})
 				.catch((e) => {
-					// eslint-disable-next-line prefer-promise-reject-errors
+					 
 					reject({
 						cancelled: this.isCancelled.value,
 						error: e
