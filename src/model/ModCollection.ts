@@ -1,31 +1,26 @@
 import { CSSProperties, ReactNode } from 'react';
-import { CollectionConfig } from './CollectionConfig';
+import type { MainCollectionConfig } from './MainCollectionView';
 import { ModData } from './Mod';
 
 export interface ModCollection {
 	name: string;
-	description?: string;
-	linkedId?: string;
 	mods: string[];
 }
 
 export enum CollectionViewType {
-	MAIN = 'main',
-	SEPARATED = 'separated',
-	RAW_MODS = 'rawMods'
+	MAIN = 'main'
 }
 
 export interface CollectionViewProps {
 	rows: ModData[];
 	filteredRows: ModData[];
 	collection: ModCollection;
-	height: number;
-	width: number;
+	height?: number | string;
+	width?: number | string;
 	madeEdits?: boolean;
 	lastValidationStatus?: boolean;
 	launchingGame?: boolean;
-	viewType: CollectionViewType;
-	config?: CollectionConfig;
+	config?: MainCollectionConfig;
 	setEnabledModsCallback: (mods: Set<string>) => void;
 	setEnabledCallback: (mod: string) => void;
 	setDisabledCallback: (mod: string) => void;
@@ -38,9 +33,6 @@ export enum CollectionManagerModalType {
 	VIEW_SETTINGS = 2,
 	ERRORS_FOUND = 'errors_found',
 	WARNINGS_FOUND = 'warnings_found',
-	IMPORT_COLLECTION = 5,
-	EXPORT_COLLECTION = 6,
-	WARN_OVERWRITE_COLLECTION = 7,
 	EDIT_OVERRIDES = 8,
 	WARN_DELETE = 9
 }

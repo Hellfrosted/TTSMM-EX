@@ -1,0 +1,218 @@
+import { useCallback, useEffect, useState } from 'react';
+import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType, cloneSessionMods, setupDescriptors } from 'model';
+import api from 'renderer/Api';
+
+export interface LogConfig {
+	level: NLogLevel;
+	loggerID: string;
+}
+
+export interface EditingConfig extends AppConfig {
+	editingLogConfig: LogConfig[];
+}
+
+export function createEditingConfig(config: AppConfig): EditingConfig {
+	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
+		loggerID,
+		level
+	}));
+
+	return {
+		...config,
+		editingLogConfig
+	};
+}
+
+function createLogParams(editingLogConfig: LogConfig[]) {
+	if (editingLogConfig.length === 0) {
+		return undefined;
+	}
+
+	return editingLogConfig.reduce<{ [loggerID: string]: NLogLevel }>((nextLogParams, logConfig) => {
+		nextLogParams[logConfig.loggerID] = logConfig.level;
+		return nextLogParams;
+	}, {});
+}
+
+export function useSettingsForm(appState: AppState) {
+	const [editingConfig, setEditingConfig] = useState<EditingConfig>(() => createEditingConfig(appState.config));
+	const [selectingDirectory, setSelectingDirectory] = useState(false);
+	const [modalType, setModalType] = useState(SettingsViewModalType.NONE);
+	const [editingContextIndex, setEditingContextIndex] = useState<number>();
+
+	useEffect(() => {
+		setEditingConfig(createEditingConfig(appState.config));
+		setSelectingDirectory(false);
+		setModalType(SettingsViewModalType.NONE);
+		setEditingContextIndex(undefined);
+	}, [appState.config]);
+
+	const markConfigEdited = useCallback(() => {
+		appState.updateState({ madeConfigEdits: true });
+	}, [appState]);
+
+	const setField = useCallback(
+		<K extends keyof EditingConfig>(field: K, value: EditingConfig[K]) => {
+			setEditingConfig((currentConfig) => ({
+				...currentConfig,
+				[field]: value
+			}));
+			markConfigEdited();
+		},
+		[markConfigEdited]
+	);
+
+	const updateLogConfig = useCallback(
+		(index: number, updates: Partial<LogConfig>) => {
+			setEditingConfig((currentConfig) => ({
+				...currentConfig,
+				editingLogConfig: currentConfig.editingLogConfig.map((logConfig, currentIndex) => {
+					if (currentIndex !== index) {
+						return logConfig;
+					}
+
+					return {
+						...logConfig,
+						...updates
+					};
+				})
+			}));
+			markConfigEdited();
+		},
+		[markConfigEdited]
+	);
+
+	const addLogConfig = useCallback(() => {
+		setEditingConfig((currentConfig) => ({
+			...currentConfig,
+			editingLogConfig: [...currentConfig.editingLogConfig, { loggerID: '', level: NLogLevel.ERROR }]
+		}));
+		setModalType(SettingsViewModalType.NONE);
+		setEditingContextIndex(undefined);
+		markConfigEdited();
+	}, [markConfigEdited]);
+
+	const removeLogConfig = useCallback(
+		(index: number) => {
+			setEditingConfig((currentConfig) => ({
+				...currentConfig,
+				editingLogConfig: currentConfig.editingLogConfig.filter((_, currentIndex) => currentIndex !== index)
+			}));
+			setModalType(SettingsViewModalType.NONE);
+			setEditingContextIndex(undefined);
+			markConfigEdited();
+		},
+		[markConfigEdited]
+	);
+
+	const selectPath = useCallback(
+		async (target: AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC, directory: boolean, title: string) => {
+			if (selectingDirectory) {
+				return null;
+			}
+
+			setSelectingDirectory(true);
+			try {
+				const selectedPath = await api.selectPath(directory, title);
+				if (selectedPath) {
+					setEditingConfig((currentConfig) => ({
+						...currentConfig,
+						[target]: selectedPath
+					}));
+					markConfigEdited();
+				}
+				return selectedPath;
+			} catch (error) {
+				api.logger.error(error);
+				return null;
+			} finally {
+				setSelectingDirectory(false);
+			}
+		},
+		[markConfigEdited, selectingDirectory]
+	);
+
+	const saveChanges = useCallback(async () => {
+		const { editingLogConfig, logParams: _unusedLogParams, ...nextConfig } = editingConfig;
+		const configToSave: AppConfig = {
+			...nextConfig
+		};
+		const nextLogParams = createLogParams(editingLogConfig);
+		if (nextLogParams) {
+			configToSave.logParams = nextLogParams;
+		}
+
+		const shouldReloadMods = appState.config.localDir !== configToSave.localDir || appState.config.workshopID !== configToSave.workshopID;
+		const shouldRebuildDescriptors =
+			appState.config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
+
+		if (shouldReloadMods) {
+			appState.updateState({ firstModLoad: false });
+		}
+
+		appState.updateState({ savingConfig: true });
+		try {
+			const updateSuccess = await api.updateConfig(configToSave);
+			if (!updateSuccess) {
+				throw new Error('Config write was rejected');
+			}
+			const nextState: {
+				config: AppConfig;
+				madeConfigEdits: boolean;
+				configErrors: {};
+				mods?: AppState['mods'];
+			} = {
+				config: { ...configToSave },
+				madeConfigEdits: false,
+				configErrors: {}
+			};
+			if (shouldRebuildDescriptors && !shouldReloadMods) {
+				const nextMods = cloneSessionMods(appState.mods);
+				setupDescriptors(nextMods, configToSave.userOverrides, configToSave);
+				nextState.mods = nextMods;
+			}
+			appState.updateState({
+				...nextState
+			});
+		} catch (error) {
+			api.logger.error(error);
+			appState.updateState({ config: appState.config });
+		} finally {
+			appState.updateState({ savingConfig: false });
+		}
+	}, [appState, editingConfig]);
+
+	const cancelChanges = useCallback(() => {
+		setEditingConfig(createEditingConfig(appState.config));
+		setModalType(SettingsViewModalType.NONE);
+		setEditingContextIndex(undefined);
+		appState.updateState({ madeConfigEdits: false });
+	}, [appState]);
+
+	return {
+		editingConfig,
+		selectingDirectory,
+		modalType,
+		editingContextIndex,
+		editingContext: editingContextIndex !== undefined ? editingConfig.editingLogConfig[editingContextIndex] : undefined,
+		setField,
+		updateLogConfig,
+		addLogConfig,
+		removeLogConfig,
+		selectPath,
+		saveChanges,
+		cancelChanges,
+		openLogEditModal: (index: number) => {
+			setModalType(SettingsViewModalType.LOG_EDIT);
+			setEditingContextIndex(index);
+		},
+		openWorkshopIdModal: () => {
+			setModalType(SettingsViewModalType.WORKSHOP_ID_EDIT);
+			setEditingContextIndex(undefined);
+		},
+		closeModal: () => {
+			setModalType(SettingsViewModalType.NONE);
+			setEditingContextIndex(undefined);
+		}
+	};
+}

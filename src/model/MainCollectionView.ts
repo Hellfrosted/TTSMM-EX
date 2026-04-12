@@ -1,5 +1,3 @@
-import { CollectionConfig } from './CollectionConfig';
-
 export enum MainColumnTitles {
 	TYPE = 'Type',
 	NAME = 'Name',
@@ -13,7 +11,7 @@ export enum MainColumnTitles {
 	TAGS = 'Tags'
 }
 
-export interface MainCollectionConfig extends CollectionConfig {
+export interface MainCollectionConfig {
 	smallRows?: boolean;
 	columnActiveConfig?: { [colID: string]: boolean };
 }

@@ -6,20 +6,17 @@ export interface AppState {
 	config: AppConfig;
 	userDataPath: string;
 	mods: SessionMods;
-	workshopToModID: Map<bigint, string>;
 	allCollections: Map<string, ModCollection>;
 	allCollectionNames: Set<string>;
 	activeCollection?: ModCollection;
 	firstModLoad?: boolean;
 	sidebarCollapsed: boolean;
-	searchString: string;
 	launchingGame?: boolean;
 
 	// General initialization
 	initializedConfigs?: boolean; // Did we go load configs yet?
-	initializedMods?: boolean; // Did we go load mods yet?
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	updateState: (props: any, callback?: () => void) => void;
+	updateState: (props: any) => void;
 	navigate: (path: string) => void;
 
 	// Settings
@@ -29,4 +26,5 @@ export interface AppState {
 
 	//
 	loadingMods?: boolean;
+	forceReloadMods?: boolean;
 }

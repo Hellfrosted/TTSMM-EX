@@ -1,12 +1,34 @@
-import React, { Component } from 'react';
-import api from 'renderer/Api';
-import { AppConfig, ModCollection, AppState, ValidChannel, AppConfigKeys } from 'model';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Layout, Progress } from 'antd';
-import { useNavigate, NavigateFunction, useOutletContext } from 'react-router-dom';
+import { AppConfig, AppConfigKeys, ModCollection } from 'model';
+import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
+import { useAppDispatch, useAppState, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Footer, Content } = Layout;
+
+function normalizeCurrentPath(currentPath: string | undefined): string {
+	if (!currentPath) {
+		return '/collections/main';
+	}
+
+	const normalizedPath = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
+	if (normalizedPath === '/collections') {
+		return '/collections/main';
+	}
+
+	return normalizedPath;
+}
+
+function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean): boolean {
+	const configuredPath = config.gameExec?.trim();
+	if (!configuredPath) {
+		return true;
+	}
+
+	return !hasStoredConfig || configuredPath === DEFAULT_CONFIG.gameExec;
+}
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
 	const errors: { [field: string]: string } = {};
@@ -36,204 +58,227 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 	return {};
 }
 
-interface ConfigLoadingState {
-	loadingConfig?: boolean;
-	userDataPathError?: string;
-	configLoadError?: string;
-	loadedCollections: number;
-	totalCollections: number;
-	updatingSteamMod: boolean;
-}
+export default function ConfigLoading() {
+	const appState = useAppState();
+	const dispatch = useAppDispatch();
+	const { allCollectionNames, allCollections, config, configErrors } = appState;
+	const [loadingConfig, setLoadingConfig] = useState(true);
+	const [userDataPathError, setUserDataPathError] = useState<string>();
+	const [configLoadError, setConfigLoadError] = useState<string>();
+	const [loadedCollections, setLoadedCollections] = useState(0);
+	const [totalCollections, setTotalCollections] = useState(-1);
+	const [updatingSteamMod, setUpdatingSteamMod] = useState(true);
+	const [bootResolved, setBootResolved] = useState(false);
 
-class ConfigLoadingView extends Component<{ navigate: NavigateFunction; appState: AppState }, ConfigLoadingState> {
-	constructor(props: { navigate: NavigateFunction; appState: AppState }) {
-		super(props);
-		this.state = {
-			loadingConfig: true,
-			totalCollections: -1,
-			loadedCollections: 0,
-			updatingSteamMod: true
-		};
-		this.loadCollectionCallback = this.loadCollectionCallback.bind(this);
-	}
-
-	componentDidMount() {
-		api.on(ValidChannel.READ_COLLECTION, this.loadCollectionCallback);
-		this.readUserDataPath();
-		this.readConfig();
-		this.loadCollections();
-		this.updateSteamMod();
-	}
-
-	componentWillUnmount() {
-		api.removeListener(ValidChannel.READ_COLLECTION, this.loadCollectionCallback);
-	}
-
-	readConfig() {
-		const { appState } = this.props;
-		const { updateState } = appState;
-		// Attempt to load config. We allow app to proceed if it fails, but we show a warning
-		api
-			.readConfig()
-			.then((response) => {
-				if (response) {
-					const config = response;
-					updateState({ config });
-					this.validateConfig(config);
-				} else {
-					api.logger.info('No config present - using default config');
-					this.validateConfig(DEFAULT_CONFIG);
-				}
-				return null;
-			})
-			.catch((error) => {
-				api.logger.error(error);
-				this.setState({ configLoadError: error.toString() });
-				this.validateConfig(DEFAULT_CONFIG);
-			});
-	}
-
-	readUserDataPath() {
-		const { appState } = this.props;
-		const { updateState } = appState;
-		// Get user data path or die trying
-		api
-			.getUserDataPath()
-			.then((path) => {
-				updateState({ userDataPath: path });
-				return path;
-			})
-			.catch((error) => {
-				api.logger.error(error);
-				this.setState({ userDataPathError: error.toString() });
-			});
-	}
-
-	updateSteamMod() {
-		this.setState({ updatingSteamMod: false }, this.checkCanProceed);
-	}
-
-	loadCollections() {
-		// Attempt to load collections. We allow app to proceed if it fails
-		api
-			.readCollectionsList()
-			.then((collections) => {
-				if (collections && collections.length > 0) {
-					this.setState({ totalCollections: collections.length });
-					collections.forEach((collection: string) => api.readCollection(collection));
-				} else {
-					this.setState({ totalCollections: 0 });
-				}
-				return null;
-			})
-			.catch((error) => {
-				api.logger.error(error);
-				throw error;
-			});
-	}
-
-	loadCollectionCallback(collection: ModCollection | null) {
-		const { appState } = this.props;
-		const { allCollections, allCollectionNames } = appState;
-		const { loadedCollections } = this.state;
-		if (collection) {
-			allCollections.set(collection.name, collection);
-			allCollectionNames.add(collection.name);
+	const readUserDataPath = useEffectEvent(async () => {
+		try {
+			const path = await api.getUserDataPath();
+			appState.updateState({ userDataPath: path });
+		} catch (error) {
+			api.logger.error(error);
+			setUserDataPathError(String(error));
 		}
-		this.setState({ loadedCollections: loadedCollections + 1 }, this.checkCanProceed);
-	}
+	});
 
-	validateConfig(config: AppConfig) {
-		const { appState } = this.props;
-		const { updateState } = appState;
-		updateState({ configErrors: {} }, () => {
-			validateAppConfig(config)
-				.then((result) => {
-					updateState({ configErrors: result });
-					return result;
-				})
-				.catch((error) => {
-					api.logger.error(error);
-					updateState({
-						configErrors: {
-							undefined: `Internal exception while validating AppConfig:\n${error.toString()}`
-						}
-					});
-				})
-				.finally(() => {
-					this.setState({ loadingConfig: false }, this.checkCanProceed);
-				});
-		});
-	}
+	const validateConfig = useEffectEvent(async (nextConfig: AppConfig) => {
+		appState.updateState({ configErrors: {} });
+		try {
+			const result = await validateAppConfig(nextConfig);
+			appState.updateState({ configErrors: result });
+		} catch (error) {
+			api.logger.error(error);
+			appState.updateState({
+				configErrors: {
+					undefined: `Internal exception while validating AppConfig:\n${String(error)}`
+				}
+			});
+		} finally {
+			setLoadingConfig(false);
+		}
+	});
 
-	proceedToNext() {
-		const { appState } = this.props;
-		const { config, configErrors, updateState, navigate } = appState;
-		if (!!configErrors && Object.keys(configErrors).length > 0) {
-			// We have an invalid configuration - go to Settings tab for enhanced validation logic
-			config.currentPath = '/settings';
-			updateState({ loadingMods: true }, () => navigate('/settings'));
-		} else {
-			if (!config.currentPath) {
-				config.currentPath = '/collections/main';
+	const populateDiscoveredGameExec = useEffectEvent(async (baseConfig: AppConfig, hasStoredConfig: boolean) => {
+		if (!shouldAutoDiscoverGameExec(baseConfig, hasStoredConfig)) {
+			return baseConfig;
+		}
+
+		try {
+			const discoveredGameExec = await api.discoverGameExecutable();
+			if (!discoveredGameExec || discoveredGameExec === baseConfig.gameExec) {
+				return baseConfig;
 			}
-			updateState({ loadingMods: true }, () => navigate(config.currentPath));
-		}
-	}
 
-	checkCanProceed() {
-		const { appState } = this.props;
-		const { config, allCollections, allCollectionNames, updateState } = appState;
-		const { loadedCollections, loadingConfig, totalCollections, updatingSteamMod } = this.state;
-		if (!updatingSteamMod && totalCollections >= 0 && loadedCollections >= totalCollections && !loadingConfig) {
-			if (allCollectionNames.size > 0) {
-				// We always override activeCollection with something
-				if (config && config.activeCollection) {
-					const collection = allCollections.get(config.activeCollection);
-					if (collection) {
-						updateState({ activeCollection: collection }, this.proceedToNext.bind(this));
-						return;
-					}
-					// activeCollection is no longer there: default to first available in ASCII-betical order
-				}
-				const collectionName = [...allCollectionNames].sort()[0];
-				config.activeCollection = collectionName;
-				updateState({ activeCollection: allCollections.get(collectionName) }, this.proceedToNext.bind(this));
+			const nextConfig = {
+				...baseConfig,
+				gameExec: discoveredGameExec
+			};
+			const persisted = await api.updateConfig(nextConfig);
+			if (!persisted) {
+				api.logger.warn(`Failed to persist auto-discovered TerraTech executable: ${discoveredGameExec}`);
+			}
+			return nextConfig;
+		} catch (error) {
+			api.logger.error('Failed to auto-discover TerraTech executable');
+			api.logger.error(error);
+			return baseConfig;
+		}
+	});
+
+	const readConfig = useEffectEvent(async () => {
+		try {
+			const response = await api.readConfig();
+			if (response) {
+				const discoveredConfig = await populateDiscoveredGameExec(response as AppConfig, true);
+				dispatch(setAppConfig(discoveredConfig));
+				await validateConfig(discoveredConfig);
 			} else {
-				// there are no collections - create a new defaultCollection
-				config.activeCollection = 'default';
-				const defaultCollection: ModCollection = {
-					mods: [],
-					name: 'default'
-				};
-				allCollectionNames.add('default');
-				allCollections.set('default', defaultCollection);
-				updateState({ activeCollection: defaultCollection }, this.proceedToNext.bind(this));
+				api.logger.info('No config present - using default config');
+				const discoveredConfig = await populateDiscoveredGameExec(DEFAULT_CONFIG, false);
+				dispatch(setAppConfig(discoveredConfig));
+				await validateConfig(discoveredConfig);
 			}
+		} catch (error) {
+			api.logger.error(error);
+			setConfigLoadError(String(error));
+			const discoveredConfig = await populateDiscoveredGameExec(DEFAULT_CONFIG, false);
+			dispatch(setAppConfig(discoveredConfig));
+			await validateConfig(discoveredConfig);
 		}
-	}
+	});
 
-	render() {
-		const { loadedCollections, totalCollections, configLoadError, userDataPathError } = this.state;
-		const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
-		return (
-			<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
-				<Content />
-				<Footer>
-					<Progress
-						strokeColor={{
-							from: '#108ee9',
-							to: '#87d068'
-						}}
-						percent={percent}
-						status={configLoadError || userDataPathError ? 'exception' : undefined}
-					/>
-				</Footer>
-			</Layout>
+	const updateSteamMod = useEffectEvent(() => {
+		setUpdatingSteamMod(false);
+	});
+
+	const loadCollections = useEffectEvent(async () => {
+		try {
+			const collectionNames = (await api.readCollectionsList()) || [];
+			setTotalCollections(collectionNames.length);
+
+			const nextCollections = new Map<string, ModCollection>();
+			const nextCollectionNames = new Set<string>();
+
+			for (const collectionName of collectionNames) {
+				const collection = await api.readCollection(collectionName);
+				if (collection) {
+					nextCollections.set(collection.name, collection);
+					nextCollectionNames.add(collection.name);
+				}
+				setLoadedCollections((current) => current + 1);
+			}
+
+			dispatch(setCollectionsState(nextCollections, nextCollectionNames));
+		} catch (error) {
+			api.logger.error(error);
+			setTotalCollections(0);
+		}
+	});
+
+	const proceedToNext = useEffectEvent((baseConfig?: AppConfig) => {
+		const resolvedConfig = baseConfig || config;
+		if (!!configErrors && Object.keys(configErrors).length > 0) {
+			const nextConfig = {
+				...resolvedConfig,
+				currentPath: '/settings'
+			};
+			appState.updateState({ config: nextConfig, loadingMods: true });
+			appState.navigate('/settings');
+			return;
+		}
+
+		const currentPath = normalizeCurrentPath(resolvedConfig.currentPath);
+		const nextConfig = {
+			...resolvedConfig,
+			currentPath
+		};
+		appState.updateState({ config: nextConfig, loadingMods: true });
+		appState.navigate(currentPath);
+	});
+
+	useEffect(() => {
+		void readUserDataPath();
+		void readConfig();
+		void loadCollections();
+		updateSteamMod();
+	}, []);
+
+	useEffect(() => {
+		if (bootResolved || updatingSteamMod || totalCollections < 0 || loadedCollections < totalCollections || loadingConfig) {
+			return;
+		}
+
+		setBootResolved(true);
+
+		if (allCollectionNames.size > 0) {
+			if (config && config.activeCollection) {
+				const collection = allCollections.get(config.activeCollection);
+				if (collection) {
+					dispatch(setActiveCollection(collection));
+					proceedToNext(config);
+					return;
+				}
+			}
+
+			const [collectionName] = [...allCollectionNames].sort();
+			const nextConfig = {
+				...config,
+				activeCollection: collectionName
+			};
+			dispatch(setAppConfig(nextConfig));
+			dispatch(setActiveCollection(allCollections.get(collectionName)));
+			proceedToNext(nextConfig);
+			return;
+		}
+
+		const defaultCollection: ModCollection = {
+			mods: [],
+			name: 'default'
+		};
+		const nextCollections = new Map(allCollections);
+		nextCollections.set(defaultCollection.name, defaultCollection);
+		const nextCollectionNames = new Set(allCollectionNames);
+		nextCollectionNames.add(defaultCollection.name);
+		dispatch(
+			setCollectionsState(nextCollections, nextCollectionNames, defaultCollection)
 		);
-	}
-}
+		dispatch(
+			setAppConfig({
+				...config,
+				activeCollection: defaultCollection.name
+			})
+		);
+		proceedToNext({
+			...config,
+			activeCollection: defaultCollection.name
+		});
+	}, [
+		allCollectionNames,
+		allCollections,
+		config,
+		configErrors,
+		bootResolved,
+		dispatch,
+		loadedCollections,
+		loadingConfig,
+		totalCollections,
+		updatingSteamMod
+	]);
 
-export default function () {
-	return <ConfigLoadingView navigate={useNavigate()} appState={useOutletContext<AppState>()} />;
+	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
+
+	return (
+		<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
+			<Content />
+			<Footer>
+				<Progress
+					strokeColor={{
+						from: '#108ee9',
+						to: '#87d068'
+					}}
+					percent={percent}
+					status={configLoadError || userDataPathError ? 'exception' : undefined}
+				/>
+			</Footer>
+		</Layout>
+	);
 }
