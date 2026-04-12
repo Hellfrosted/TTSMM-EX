@@ -1,0 +1,86 @@
+import '@testing-library/jest-dom/vitest';
+import { TextDecoder, TextEncoder } from 'node:util';
+import { beforeEach, vi } from 'vitest';
+
+const noop = () => undefined;
+
+function createElectronMock() {
+	return {
+		platform: 'win32',
+		log: {
+			info: noop,
+			debug: noop,
+			warn: noop,
+			error: noop,
+			silly: noop,
+			verbose: noop
+		},
+		close: noop,
+		exit: noop,
+		updateLogLevel: noop,
+		getUserDataPath: vi.fn(async () => ''),
+		readConfig: vi.fn(async () => null),
+		updateConfig: vi.fn(async () => true),
+		readCollection: vi.fn(async () => null),
+		readCollectionsList: vi.fn(async () => []),
+		updateCollection: vi.fn(async () => true),
+		renameCollection: vi.fn(async () => true),
+		deleteCollection: vi.fn(async () => true),
+		pathExists: vi.fn(async () => true),
+		discoverGameExecutable: vi.fn(async () => null),
+		selectPath: vi.fn(async () => null),
+		launchGame: vi.fn(async () => true),
+		isGameRunning: vi.fn(async () => false),
+		readModMetadata: vi.fn(async () => null),
+		steamworksInited: vi.fn(async () => ({ inited: true })),
+		downloadMod: vi.fn(async () => true),
+		subscribeMod: vi.fn(async () => true),
+		unsubscribeMod: vi.fn(async () => true),
+		openModBrowser: noop,
+		openModSteam: noop,
+		openModContextMenu: noop,
+		onProgressChange: vi.fn(() => noop),
+		onModMetadataUpdate: vi.fn(() => noop),
+		onModRefreshRequested: vi.fn(() => noop),
+		onReloadSteamworks: vi.fn(() => noop)
+	};
+}
+
+Object.defineProperty(globalThis, 'TextEncoder', {
+	value: TextEncoder,
+	writable: true
+});
+
+Object.defineProperty(globalThis, 'TextDecoder', {
+	value: TextDecoder,
+	writable: true
+});
+
+Object.defineProperty(window, 'electron', {
+	value: createElectronMock(),
+	writable: true,
+	configurable: true
+});
+
+Object.defineProperty(window, 'matchMedia', {
+	value: vi.fn().mockImplementation((query: string) => ({
+		matches: false,
+		media: query,
+		onchange: null,
+		addListener: noop,
+		removeListener: noop,
+		addEventListener: noop,
+		removeEventListener: noop,
+		dispatchEvent: () => false
+	})),
+	writable: true,
+	configurable: true
+});
+
+beforeEach(() => {
+	Object.defineProperty(window, 'electron', {
+		value: createElectronMock(),
+		writable: true,
+		configurable: true
+	});
+});

@@ -1,0 +1,12 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"noEmit": true,
+		"lib": ["ES2022"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"types": ["node", "electron"]
+	},
+	"include": ["src/main/**/*", "src/model/**/*", "src/shared/**/*", "src/util/Promise.ts", "assets/assets.d.ts"]
+}
