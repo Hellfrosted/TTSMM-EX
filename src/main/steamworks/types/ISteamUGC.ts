@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-/* eslint-disable camelcase */
+ 
 import { SteamworksAPIProps } from './Steamworks';
 
 export enum ItemPreviewType {

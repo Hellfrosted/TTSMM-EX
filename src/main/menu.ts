@@ -1,7 +1,8 @@
-import { app, Menu, shell, BrowserWindow, MenuItemConstructorOptions } from 'electron';
-import { ValidChannel } from 'model';
+import { app, Menu, BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import log from 'electron-log';
-import checkForUpdates from './updater';
+
+import { openExternalUrl } from './external-links';
+import { ValidChannel } from '../model';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
 	selector?: string;
@@ -144,25 +145,25 @@ export default class MenuBuilder {
 				{
 					label: 'TerraTech Forums',
 					click() {
-						shell.openExternal('https://forum.terratechgame.com/index.php');
+						openExternalUrl('https://forum.terratechgame.com/index.php');
 					}
 				},
 				{
-					label: 'TerraTech Discord',
+					label: `TerraTech Discord`,
 					click() {
-						shell.openExternal('https://discord.com/invite/terratechgame');
+						openExternalUrl('https://discord.com/invite/terratechgame');
 					}
 				},
 				{
 					label: 'Documentation',
 					click() {
-						shell.openExternal('https://github.com/FLSoz/terratech-steam-mod-loader/#readme');
+						openExternalUrl('https://github.com/Hellfrosted/terratech-steam-mod-loader/#readme');
 					}
 				},
 				{
 					label: 'Search Issues',
 					click() {
-						shell.openExternal('https://github.com/FLSoz/terratech-steam-mod-loader/issues');
+						openExternalUrl('https://github.com/Hellfrosted/terratech-steam-mod-loader/issues');
 					}
 				}
 			]
@@ -172,8 +173,9 @@ export default class MenuBuilder {
 			submenu: [
 				{
 					label: 'Check for updates',
-					click: (menuItem) => {
+					click: async (menuItem) => {
 						try {
+							const { default: checkForUpdates } = await import('./updater');
 							checkForUpdates(menuItem);
 						} catch (e) {
 							log.error(e);

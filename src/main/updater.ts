@@ -69,5 +69,11 @@ autoUpdater.on('update-downloaded', () => {
 export default function checkForUpdates(menuItem: MenuItem) {
 	updater = menuItem;
 	updater.enabled = false;
-	autoUpdater.checkForUpdates();
+	void autoUpdater.checkForUpdates().catch((error) => {
+		log.error(error);
+		if (updater) {
+			updater.enabled = true;
+			updater = null;
+		}
+	});
 }
