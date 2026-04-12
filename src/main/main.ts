@@ -94,6 +94,7 @@ const createWindow = async () => {
 		minHeight: 728,
 		icon: getAssetPath('icon.png'),
 		webPreferences: {
+			nodeIntegration: true,
 			contextIsolation: true,
 			preload: app.isPackaged ? path.join(__dirname, 'preload.js') : path.join(__dirname, '../../.erb/dll/preload.js')
 		}
@@ -519,14 +520,12 @@ ipcMain.on(ValidChannel.GAME_RUNNING, async (event) => {
 // Launch steam as separate process
 ipcMain.handle(ValidChannel.LAUNCH_GAME, async (_event, gameExec, workshopID, closeOnLaunch, args) => {
 	log.info('Launching game with custom args:');
-	const allArgs = ['run', gameExec, '+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
+	const allArgs = ['+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
 	log.info(allArgs);
-	// eslint-disable-next-line camelcase
-	await child_process.spawn('proton', allArgs, {
-		detached: true,
-		cwd: '/home/thomas/.steam/steam/steamapps/common/Proton - Experimental/'
-	});
-	if (closeOnLaunch) {
+
+	shell.openExternal(`steam://run/285920//${allArgs.join(' ')}/`);
+
+	if (closeOnLaunch || process.platform == 'linux') {
 		app.quit();
 	}
 	return true;
