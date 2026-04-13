@@ -1,9 +1,10 @@
 import { AppConfigKeys, PathType } from 'model';
 import api from 'renderer/Api';
 import { TT_APP_ID } from 'renderer/Constants';
+import type { ElectronPlatform } from 'shared/electron-api';
 
-function getPlatform(): NodeJS.Platform {
-	return window.electron.platform as NodeJS.Platform;
+function getPlatform(): ElectronPlatform {
+	return window.electron.platform;
 }
 
 export async function validateSettingsPath(field: string, value: string): Promise<string | undefined> {
