@@ -7,12 +7,13 @@ vi.mock('ps-list', () => ({
 	default: vi.fn(async () => [])
 }));
 
-import { EResult } from '../../main/steamworks';
+import Steamworks, { EResult } from '../../main/steamworks';
 import { isAllowedExternalUrl } from '../../main/external-links';
 import { createDownloadModHandler, createFetchWorkshopDependenciesHandler } from '../../main/ipc/mod-handlers';
 import { readConfigFile } from '../../main/ipc/config-handlers';
 import { readCollectionFile, renameCollectionFile, updateCollectionFile } from '../../main/ipc/collection-handlers';
 import { discoverGameExecutablePath, launchGameProcess, pathExists } from '../../main/ipc/game-handlers';
+import ModFetcher from '../../main/mod-fetcher';
 import { clearPreviewAllowlist, registerPreviewImage, resolvePreviewImageRequest } from '../../main/preview-protocol';
 import { PathType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
@@ -102,7 +103,26 @@ describe('main process contracts', () => {
 		expect(pathExists(directoryPath, PathType.FILE)).toBe(false);
 		expect(pathExists(filePath, PathType.FILE)).toBe(true);
 		expect(pathExists(filePath, PathType.DIRECTORY)).toBe(false);
+		expect(pathExists('', PathType.FILE)).toBe(false);
+		expect(pathExists('   ', PathType.DIRECTORY)).toBe(false);
 		expect(pathExists(path.join(tempDir, 'missing'), PathType.FILE)).toBe(false);
+	});
+
+	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {
+		const isAppInstalled = vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
+		const getAppInstallDir = vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+		const getSubscribedItems = vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([BigInt(1)]);
+		const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation(() => {
+			throw new Error('workshop scan should have been skipped');
+		});
+		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
+
+		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([]);
+
+		expect(isAppInstalled).toHaveBeenCalledWith(285920);
+		expect(getAppInstallDir).toHaveBeenCalledWith(285920);
+		expect(getSubscribedItems).not.toHaveBeenCalled();
+		expect(ugcGetUserItems).not.toHaveBeenCalled();
 	});
 
 	it('discovers the TerraTech executable from Steam libraryfolders', () => {
