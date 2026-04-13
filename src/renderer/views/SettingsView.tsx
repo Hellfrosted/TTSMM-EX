@@ -60,8 +60,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 
 	const validateFile = useCallback(
 		async (field: string, value: string) => {
+			const isOptionalLinuxGameExec = field === AppConfigKeys.GAME_EXEC && window.electron.platform === 'linux';
 			if (!value || value.length === 0) {
-				if (field === AppConfigKeys.LOCAL_DIR) {
+				if (field === AppConfigKeys.LOCAL_DIR || isOptionalLinuxGameExec) {
 					updateConfigErrors(field);
 					return;
 				}
@@ -256,7 +257,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 								rules={[
 									{
-										required: true,
+										required: window.electron.platform !== 'linux',
 										validator: async (_, value) => validateFile(AppConfigKeys.GAME_EXEC, value)
 									}
 								]}

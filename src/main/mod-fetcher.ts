@@ -45,6 +45,27 @@ function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[
 }
 
 const MAX_MODS_PER_PAGE = 50;
+const TERRATECH_APP_ID = 285920;
+
+function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
+	if (platform !== 'linux') {
+		return false;
+	}
+
+	try {
+		const installDir = Steamworks.getAppInstallDir(TERRATECH_APP_ID);
+		if (Steamworks.isAppInstalled(TERRATECH_APP_ID) && installDir && existsSync(installDir)) {
+			return false;
+		}
+
+		log.warn(`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`);
+		return true;
+	} catch (error) {
+		log.error('Failed to verify the Linux TerraTech installation before scanning workshop items.');
+		log.error(error);
+		return true;
+	}
+}
 
 async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
 	return new Promise((resolve, reject) => {
@@ -153,6 +174,8 @@ export default class ModFetcher {
 
 	progressSender: ProgressSender;
 
+	platform: NodeJS.Platform;
+
 	localMods: number;
 
 	workshopMods: number;
@@ -161,10 +184,11 @@ export default class ModFetcher {
 
 	modCountMutex: Mutex;
 
-	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[]) {
+	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[], platform: NodeJS.Platform = process.platform) {
 		this.localPath = localPath;
 		this.knownWorkshopMods = new Set();
 		this.progressSender = progressSender;
+		this.platform = platform;
 
 		this.localMods = 0;
 		this.workshopMods = 0;
@@ -348,6 +372,10 @@ export default class ModFetcher {
 	}
 
 	async fetchWorkshopMods(): Promise<ModData[]> {
+		if (shouldSkipWorkshopFetch(this.platform)) {
+			return [];
+		}
+
 		let numProcessedWorkshop = 0;
 		let pageNum = 1;
 		let lastProcessed = 1;

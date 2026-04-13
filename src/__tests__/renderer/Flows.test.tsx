@@ -53,6 +53,7 @@ function ConfigLoadingHarness() {
 			<div data-testid="location">{location.pathname}</div>
 			<div data-testid="active-collection">{appState.activeCollection?.name || ''}</div>
 			<div data-testid="config-active-collection">{appState.config.activeCollection || ''}</div>
+			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
 			<ConfigLoading />
 		</>
 	);
@@ -202,6 +203,62 @@ describe('renderer flows', () => {
 		});
 	});
 
+	it('boots Linux with a blank game executable without redirecting to settings', async () => {
+		window.electron.platform = 'linux';
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			gameExec: '',
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
+			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('default');
+		});
+
+		expect(window.electron.pathExists).not.toHaveBeenCalledWith('', expect.anything());
+	});
+
+	it('routes invalid configs to settings without kicking off mod loading', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			gameExec: 'C:\\Missing\\TerraTechWin64.exe',
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.pathExists).mockResolvedValue(false);
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/settings');
+			expect(screen.getAllByTestId('loading-mods').at(-1)).toHaveTextContent('false');
+		});
+	});
+
 	it('normalizes legacy relative collection routes during boot', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
@@ -290,7 +347,7 @@ describe('renderer flows', () => {
 		});
 
 		await waitFor(() => {
-			expect(screen.getByTestId('loading-mods')).toHaveTextContent('true');
+			expect(screen.getAllByTestId('loading-mods').at(-1)).toHaveTextContent('true');
 			expect(screen.getByTestId('force-reload-mods')).toHaveTextContent('true');
 		});
 

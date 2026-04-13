@@ -214,8 +214,13 @@ export async function selectPath(directory: boolean, title: string): Promise<str
 }
 
 export function pathExists(targetPath: string, expectedType?: PathType): boolean {
+	const normalizedTargetPath = targetPath?.trim();
+	if (!normalizedTargetPath) {
+		return false;
+	}
+
 	try {
-		const stats = fs.statSync(targetPath);
+		const stats = fs.statSync(normalizedTargetPath);
 		if (expectedType === PathType.DIRECTORY) {
 			return stats.isDirectory();
 		}

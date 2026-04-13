@@ -181,7 +181,7 @@ export default function ConfigLoading() {
 				...resolvedConfig,
 				currentPath: '/settings'
 			};
-			appState.updateState({ config: nextConfig, loadingMods: true });
+			appState.updateState({ config: nextConfig, loadingMods: false });
 			appState.navigate('/settings');
 			return;
 		}
