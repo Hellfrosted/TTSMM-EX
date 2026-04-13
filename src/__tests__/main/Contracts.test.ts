@@ -198,7 +198,7 @@ describe('main process contracts', () => {
 			throw new Error('spawn failed');
 		});
 
-		await expect(launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn as never)).resolves.toBe(false);
+		await expect(launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn as never, undefined, 'win32')).resolves.toBe(false);
 	});
 
 	it('returns false when process launch fails asynchronously', async () => {
@@ -211,7 +211,7 @@ describe('main process contracts', () => {
 			unref: vi.fn()
 		}));
 
-		const launchPromise = launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn as never);
+		const launchPromise = launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn as never, undefined, 'win32');
 		onceHandlers.get('error')?.(new Error('spawn async failed'));
 
 		await expect(launchPromise).resolves.toBe(false);
