@@ -10,6 +10,8 @@ export type ElectronLogFunctions = {
 	verbose: (message: unknown) => void;
 };
 
+export type ElectronPlatform = 'aix' | 'android' | 'darwin' | 'freebsd' | 'haiku' | 'linux' | 'openbsd' | 'sunos' | 'win32' | 'cygwin' | 'netbsd';
+
 export type Unsubscribe = () => void;
 export type ProgressChangeCallback = (
 	type: ProgressUpdatePayload['type'],
@@ -18,7 +20,7 @@ export type ProgressChangeCallback = (
 ) => void;
 
 export interface ElectronApi {
-	platform: string;
+	platform: ElectronPlatform;
 	log: ElectronLogFunctions;
 	updateLogLevel: (level: LogLevel) => void;
 	getUserDataPath: () => Promise<string>;

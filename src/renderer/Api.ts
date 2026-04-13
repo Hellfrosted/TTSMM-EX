@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AppConfig, LogLevel, ModCollection, ModData, NLogLevel, PathType, SessionMods } from 'model';
-import type { ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
+import type { ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
 
 const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
@@ -13,7 +13,7 @@ export function parseExtraLaunchParams(extraParams: string): string[] {
 }
 
 class API {
-	platform: string;
+	platform: ElectronPlatform;
 
 	userDataPath: string | undefined;
 
