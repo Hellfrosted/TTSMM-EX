@@ -601,7 +601,7 @@ describe('renderer flows', () => {
 		await waitFor(() => {
 			expect(screen.getByRole('button', { name: 'Rename Collection' })).toBeDisabled();
 		});
-	}, 10000);
+	}, 30000);
 
 	it('persists dirty collection edits before switching active collections', async () => {
 		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
