@@ -57,6 +57,15 @@ Object.defineProperty(globalThis, 'TextDecoder', {
 });
 
 if (typeof window !== 'undefined') {
+	const originalGetComputedStyle = window.getComputedStyle.bind(window);
+
+	Object.defineProperty(window, 'getComputedStyle', {
+		value: ((element: Element, pseudoElt?: string | null) =>
+			originalGetComputedStyle(element, pseudoElt && pseudoElt.length > 0 ? null : pseudoElt ?? null)) as typeof window.getComputedStyle,
+		writable: true,
+		configurable: true
+	});
+
 	Object.defineProperty(window, 'electron', {
 		value: createElectronMock(),
 		writable: true,
