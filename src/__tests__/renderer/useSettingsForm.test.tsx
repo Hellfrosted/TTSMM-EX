@@ -78,4 +78,31 @@ describe('useSettingsForm', () => {
 		);
 		expect(appState.configErrors).toEqual({});
 	});
+
+	it('does not mark mods for reload when saving settings fails', async () => {
+		const appState = createAppState({
+			firstModLoad: true,
+			config: {
+				...DEFAULT_CONFIG,
+				localDir: 'C:\\TerraTech\\LocalMods',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		act(() => {
+			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Other\\LocalMods');
+		});
+
+		await act(async () => {
+			await result.current.saveChanges();
+		});
+
+		expect(appState.firstModLoad).toBe(true);
+		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
+		expect(appState.madeConfigEdits).toBe(true);
+	});
 });

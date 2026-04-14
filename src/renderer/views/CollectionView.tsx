@@ -25,6 +25,7 @@ import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { cloneAppConfig } from '../hooks/collections/utils';
+import { writeConfig } from '../util/config-write';
 
 const { Header, Footer } = Layout;
 
@@ -292,13 +293,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		setModalType(CollectionManagerModalType.VIEW_SETTINGS);
 	}, []);
 	const handleSetMainColumnWidth = useCallback(
-		(column: MainColumnTitles, width: number) => {
+		async (column: MainColumnTitles, width: number) => {
 			const normalizedWidth = Math.max(80, Math.round(width));
 			const nextConfig = cloneAppConfig(appState.config);
 			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
 			const currentColumnWidthConfig = currentMainConfig.columnWidthConfig || {};
 			if (currentColumnWidthConfig[column] === normalizedWidth) {
-				return;
+				return true;
 			}
 
 			currentMainConfig.columnWidthConfig = {
@@ -306,14 +307,12 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				[column]: normalizedWidth
 			};
 			nextConfig.viewConfigs.main = currentMainConfig;
-			appState.updateState({ config: nextConfig });
 
-			void api.updateConfig(nextConfig).then((updateSuccess) => {
-				if (!updateSuccess) {
-					throw new Error('Config write was rejected');
-				}
-				return updateSuccess;
-			}).catch((error) => {
+			try {
+				await writeConfig(nextConfig);
+				appState.updateState({ config: nextConfig });
+				return true;
+			} catch (error) {
 				api.logger.error(error);
 				openNotification(
 					{
@@ -323,7 +322,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					},
 					'error'
 				);
-			});
+				return false;
+			}
 		},
 		[appState, openNotification]
 	);

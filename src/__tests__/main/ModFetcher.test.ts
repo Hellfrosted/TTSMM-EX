@@ -257,4 +257,69 @@ describe('ModFetcher', () => {
 		expect(getFriendPersonaName).toHaveBeenCalledWith('123');
 		expect(requestUserInformation).not.toHaveBeenCalled();
 	});
+
+	it('only applies safe ttsmm metadata fields without overriding workshop identity or Steam metadata', async () => {
+		const tempDir = createTempDir('ttsmm-sanitized-workshop-');
+		const workshopID = BigInt(321);
+		const workshopDir = path.join(tempDir, workshopID.toString());
+		try {
+			fs.mkdirSync(workshopDir, { recursive: true });
+			fs.writeFileSync(path.join(workshopDir, 'CoreBundle_bundle'), 'bundle');
+			fs.writeFileSync(
+				path.join(workshopDir, 'ttsmm.json'),
+				JSON.stringify({
+					uid: 'local:overridden',
+					type: 'local',
+					workshopID: '999999',
+					path: 'C:\\malicious',
+					subscribed: false,
+					name: 'Local Override Name',
+					description: 'Local description',
+					authors: ['Local Author'],
+					tags: ['LocalTag'],
+					explicitIDDependencies: ['MissingDependency']
+				})
+			);
+
+			vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed | UGCItemState.Installed);
+			vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue({
+				folder: workshopDir,
+				sizeOnDisk: '2048',
+				timestamp: 1710000000
+			});
+			vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+			vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
+			vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
+
+			const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+			const mod = await fetcher.buildWorkshopMod(
+				workshopID,
+				createWorkshopDetails({
+					publishedFileId: workshopID,
+					title: 'Steam Workshop Title',
+					description: 'Steam description',
+					tags: ['Mods', 'Blocks'],
+					tagsDisplayNames: ['Mods', 'Blocks']
+				})
+			);
+
+			expect(mod).toEqual(
+				expect.objectContaining({
+					uid: `workshop:${workshopID}`,
+					type: 'workshop',
+					workshopID,
+					path: workshopDir,
+					subscribed: true,
+					name: 'Steam Workshop Title',
+					description: 'Steam description',
+					authors: ['Steam Author'],
+					tags: ['Mods', 'Blocks'],
+					explicitIDDependencies: ['MissingDependency'],
+					id: 'CoreBundle'
+				})
+			);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
 });

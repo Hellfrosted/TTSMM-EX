@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType, cloneSessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
+import { writeConfig } from 'renderer/util/config-write';
 
 export interface LogConfig {
 	level: NLogLevel;
@@ -146,26 +147,23 @@ export function useSettingsForm(appState: AppState) {
 		const shouldRebuildDescriptors =
 			appState.config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
 
-		if (shouldReloadMods) {
-			appState.updateState({ firstModLoad: false });
-		}
-
 		appState.updateState({ savingConfig: true });
 		try {
-			const updateSuccess = await api.updateConfig(configToSave);
-			if (!updateSuccess) {
-				throw new Error('Config write was rejected');
-			}
+			await writeConfig(configToSave);
 			const nextState: {
 				config: AppConfig;
 				madeConfigEdits: boolean;
 				configErrors: {};
 				mods?: AppState['mods'];
+				firstModLoad?: boolean;
 			} = {
 				config: { ...configToSave },
 				madeConfigEdits: false,
 				configErrors: {}
 			};
+			if (shouldReloadMods) {
+				nextState.firstModLoad = false;
+			}
 			if (shouldRebuildDescriptors && !shouldReloadMods) {
 				const nextMods = cloneSessionMods(appState.mods);
 				setupDescriptors(nextMods, configToSave.userOverrides, configToSave);
@@ -176,7 +174,6 @@ export function useSettingsForm(appState: AppState) {
 			});
 		} catch (error) {
 			api.logger.error(error);
-			appState.updateState({ config: appState.config });
 		} finally {
 			appState.updateState({ savingConfig: false });
 		}

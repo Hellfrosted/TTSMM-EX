@@ -126,6 +126,44 @@ function hasWorkshopModTag(tags: string[] | undefined): boolean {
 	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
 }
 
+function toOptionalStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+
+	const filtered = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+	return filtered.length > 0 ? filtered : undefined;
+}
+
+function applyTtsmmMetadata(potentialMod: ModData, metadata: unknown) {
+	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+		return;
+	}
+
+	const parsedMetadata = metadata as Record<string, unknown>;
+	if (typeof parsedMetadata.name === 'string' && parsedMetadata.name.trim().length > 0 && (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name))) {
+		potentialMod.name = parsedMetadata.name;
+	}
+	if (typeof parsedMetadata.description === 'string' && !potentialMod.description) {
+		potentialMod.description = parsedMetadata.description;
+	}
+
+	const authors = toOptionalStringArray(parsedMetadata.authors);
+	if (authors && (!potentialMod.authors || potentialMod.authors.length === 0)) {
+		potentialMod.authors = authors;
+	}
+
+	const tags = toOptionalStringArray(parsedMetadata.tags);
+	if (tags && (!potentialMod.tags || potentialMod.tags.length === 0)) {
+		potentialMod.tags = tags;
+	}
+
+	const explicitIDDependencies = toOptionalStringArray(parsedMetadata.explicitIDDependencies);
+	if (explicitIDDependencies) {
+		potentialMod.explicitIDDependencies = explicitIDDependencies;
+	}
+}
+
 async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
 	if (!steamUGCDetails) {
 		return;
@@ -211,7 +249,7 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 							} else if (file.name.match(/^(.*)\.dll$/)) {
 								potentialMod.hasCode = true;
 							} else if (file.name === 'ttsmm.json') {
-								Object.assign(potentialMod, JSON.parse(fs.readFileSync(path.join(modPath, file.name), 'utf8')));
+								applyTtsmmMetadata(potentialMod, JSON.parse(fs.readFileSync(path.join(modPath, file.name), 'utf8')));
 							} else {
 								const matches = file.name.match(/^(.*)_bundle$/);
 								if (matches && matches.length > 1) {

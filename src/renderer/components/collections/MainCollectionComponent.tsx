@@ -783,12 +783,13 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const small = (config as MainCollectionConfig | undefined)?.smallRows;
 	const deferredRows = useDeferredValue(filteredRows);
 	const [resizedColumnWidths, setResizedColumnWidths] = useState<Record<string, number>>({});
+	const persistedColumnWidths = useMemo(() => getColumnWidths(config as MainCollectionConfig | undefined), [config]);
 	const columnWidths = useMemo(
 		() => ({
-			...getColumnWidths(config as MainCollectionConfig | undefined),
+			...persistedColumnWidths,
 			...resizedColumnWidths
 		}),
-		[config, resizedColumnWidths]
+		[persistedColumnWidths, resizedColumnWidths]
 	);
 
 	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
@@ -808,6 +809,27 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 				return column;
 			}
 
+			const restorePersistedColumnWidth = () => {
+				setResizedColumnWidths((currentWidths) => {
+					const persistedWidth = persistedColumnWidths[columnTitle];
+					if (persistedWidth === undefined) {
+						if (currentWidths[columnTitle] === undefined) {
+							return currentWidths;
+						}
+						const nextWidths = { ...currentWidths };
+						delete nextWidths[columnTitle];
+						return nextWidths;
+					}
+					if (currentWidths[columnTitle] === persistedWidth) {
+						return currentWidths;
+					}
+					return {
+						...currentWidths,
+						[columnTitle]: persistedWidth
+					};
+				});
+			};
+
 			return {
 				...column,
 				onHeaderCell: () => ({
@@ -826,12 +848,23 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						});
 					},
 					onResizeEnd: (nextWidth: number) => {
-						setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth);
+						void (async () => {
+							try {
+								const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
+								if (persisted !== false) {
+									return;
+								}
+							} catch {
+								// The caller reports write failures separately; this only restores the local preview width.
+							}
+
+							restorePersistedColumnWidth();
+						})();
 					}
 				})
 			};
 		});
-	}, [columnWidths, props, setMainColumnWidthCallback]);
+	}, [columnWidths, persistedColumnWidths, props, setMainColumnWidthCallback]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {

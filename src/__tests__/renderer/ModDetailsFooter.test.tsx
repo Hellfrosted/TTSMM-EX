@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods, setupDescriptors } from '../../model';
 import ModDetailsFooter from '../../renderer/components/collections/ModDetailsFooter';
@@ -112,5 +112,62 @@ describe('ModDetailsFooter', () => {
 		expect(screen.getAllByText('Workshop ID').length).toBeGreaterThan(0);
 		expect(screen.getByText('11')).toBeInTheDocument();
 		expect(screen.getByText('Pending')).toBeInTheDocument();
+	});
+
+	it('does not update ignored validation config when persisting that change fails', async () => {
+		const currentMod = {
+			uid: 'local:core',
+			type: ModType.LOCAL,
+			id: 'CoreMod',
+			name: 'Core Mod',
+			steamDependencies: [BigInt(11)]
+		};
+		const dependencyMod = {
+			uid: 'workshop:11',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(11),
+			id: 'DependencyMod',
+			name: 'Dependency Mod',
+			subscribed: true,
+			installed: true
+		};
+		const mods = new SessionMods('', [currentMod, dependencyMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [currentMod.uid, dependencyMod.uid] }
+		});
+		const validateCollection = vi.fn();
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection,
+			openModal: vi.fn()
+		});
+
+		const dependencyIgnoreCheckboxes = screen.getAllByRole('checkbox');
+		fireEvent.click(dependencyIgnoreCheckboxes[dependencyIgnoreCheckboxes.length - 1]);
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalled();
+		});
+		expect(validateCollection).not.toHaveBeenCalled();
+		expect(appState.config.ignoredValidationErrors.size).toBe(0);
 	});
 });

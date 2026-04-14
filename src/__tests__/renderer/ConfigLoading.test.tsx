@@ -75,6 +75,8 @@ describe('ConfigLoading', () => {
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ gameExec: discoveredExecutable }));
+			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'default', mods: [] });
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'default' }));
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('default');
 		});
@@ -240,6 +242,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'alpha' }));
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
 			expect(screen.getAllByTestId('config-active-collection').at(-1)).toHaveTextContent('alpha');
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');

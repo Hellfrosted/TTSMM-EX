@@ -24,7 +24,7 @@ export interface CollectionViewProps {
 	setEnabledModsCallback: (mods: Set<string>) => void;
 	setEnabledCallback: (mod: string) => void;
 	setDisabledCallback: (mod: string) => void;
-	setMainColumnWidthCallback?: (column: MainColumnTitles, width: number) => void;
+	setMainColumnWidthCallback?: (column: MainColumnTitles, width: number) => boolean | void | Promise<boolean | void>;
 	getModDetails: (mod: string, modData: ModData, bigData?: boolean) => void;
 }
 

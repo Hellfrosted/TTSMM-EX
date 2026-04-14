@@ -56,6 +56,7 @@ import {
 } from 'model';
 import { formatDateStr } from 'util/Date';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 
 import missing from '../../../../assets/missing.png';
@@ -373,16 +374,12 @@ function ModDetailsFooter({
 							? [...new Set([...existingValues, targetValue])]
 							: existingValues.filter((ignoredID) => ignoredID !== targetValue);
 
-						updateAppState({ config: nextConfig });
-						validateCollection();
-						api.updateConfig(nextConfig)
-							.then((updateSuccess) => {
-								if (!updateSuccess) {
-									throw new Error('Config write was rejected');
-								}
-								return updateSuccess;
-							})
-							.catch((error) => {
+						void (async () => {
+							try {
+								await writeConfig(nextConfig);
+								updateAppState({ config: nextConfig });
+								validateCollection();
+							} catch (error) {
 								api.logger.error(error);
 								openNotification(
 									{
@@ -392,7 +389,8 @@ function ModDetailsFooter({
 									},
 									'error'
 								);
-							});
+							}
+						})();
 					}}
 				/>
 			);

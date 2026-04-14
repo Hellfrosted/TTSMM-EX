@@ -4,6 +4,7 @@ import { AppConfig, AppConfigKeys, ModCollection } from 'model';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppState, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
+import { tryWriteConfig } from 'renderer/util/config-write';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Footer, Content } = Layout;
@@ -224,49 +225,58 @@ export default function ConfigLoading() {
 		}
 
 		setBootResolved(true);
-
-		if (allCollectionNames.size > 0) {
-			if (config && config.activeCollection) {
-				const collection = allCollections.get(config.activeCollection);
-				if (collection) {
-					dispatch(setActiveCollection(collection));
-					proceedToNext(config);
-					return;
+		void (async () => {
+			if (allCollectionNames.size > 0) {
+				if (config && config.activeCollection) {
+					const collection = allCollections.get(config.activeCollection);
+					if (collection) {
+						dispatch(setActiveCollection(collection));
+						proceedToNext(config);
+						return;
+					}
 				}
+
+				const [collectionName] = [...allCollectionNames].sort();
+				const nextConfig = {
+					...config,
+					activeCollection: collectionName
+				};
+				const persistedActiveCollection = await tryWriteConfig(nextConfig);
+				if (!persistedActiveCollection) {
+					api.logger.warn(`Failed to persist repaired active collection ${collectionName}`);
+				}
+				dispatch(setAppConfig(nextConfig));
+				dispatch(setActiveCollection(allCollections.get(collectionName)));
+				proceedToNext(nextConfig);
+				return;
 			}
 
-			const [collectionName] = [...allCollectionNames].sort();
+			const defaultCollection: ModCollection = {
+				mods: [],
+				name: 'default'
+			};
+			const createdDefaultCollection = await api.updateCollection(defaultCollection);
+			if (!createdDefaultCollection) {
+				api.logger.warn('Failed to persist the default collection during boot');
+			}
+			const nextCollections = new Map(allCollections);
+			nextCollections.set(defaultCollection.name, defaultCollection);
+			const nextCollectionNames = new Set(allCollectionNames);
+			nextCollectionNames.add(defaultCollection.name);
 			const nextConfig = {
 				...config,
-				activeCollection: collectionName
-			};
-			dispatch(setAppConfig(nextConfig));
-			dispatch(setActiveCollection(allCollections.get(collectionName)));
-			proceedToNext(nextConfig);
-			return;
-		}
-
-		const defaultCollection: ModCollection = {
-			mods: [],
-			name: 'default'
-		};
-		const nextCollections = new Map(allCollections);
-		nextCollections.set(defaultCollection.name, defaultCollection);
-		const nextCollectionNames = new Set(allCollectionNames);
-		nextCollectionNames.add(defaultCollection.name);
-		dispatch(
-			setCollectionsState(nextCollections, nextCollectionNames, defaultCollection)
-		);
-		dispatch(
-			setAppConfig({
-				...config,
 				activeCollection: defaultCollection.name
-			})
-		);
-		proceedToNext({
-			...config,
-			activeCollection: defaultCollection.name
-		});
+			};
+			const persistedActiveCollection = await tryWriteConfig(nextConfig);
+			if (!persistedActiveCollection) {
+				api.logger.warn('Failed to persist the default active collection during boot');
+			}
+			dispatch(
+				setCollectionsState(nextCollections, nextCollectionNames, defaultCollection)
+			);
+			dispatch(setAppConfig(nextConfig));
+			proceedToNext(nextConfig);
+		})();
 	}, [
 		allCollectionNames,
 		allCollections,
