@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readCollectionFile, renameCollectionFile, updateCollectionFile } from '../../main/ipc/collection-handlers';
 import { createTempDir } from './test-utils';
@@ -16,13 +17,13 @@ describe('collection handlers', () => {
 
 	it('returns null for a missing collection file', () => {
 		expect(readCollectionFile(tempDir, 'missing')).toBeNull();
-		expect(fs.existsSync(`${tempDir}\\collections`)).toBe(true);
+		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(true);
 	});
 
 	it('rejects invalid collection names before touching the filesystem', () => {
 		expect(updateCollectionFile(tempDir, { name: '..\\..\\escape', mods: [] })).toBe(false);
 		expect(readCollectionFile(tempDir, '..\\..\\escape')).toBeNull();
-		expect(fs.existsSync(`${tempDir}\\collections`)).toBe(false);
+		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(false);
 	});
 
 	it('renames collections without dropping the latest in-memory mod selection', () => {
