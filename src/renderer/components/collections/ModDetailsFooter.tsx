@@ -453,7 +453,7 @@ function ModDetailsFooter({
 					));
 				}
 
-				if (lastValidationStatus !== undefined && !!errors) {
+				if (lastValidationStatus !== undefined) {
 					return (
 						<Tag key="OK" color="green">
 							OK
@@ -461,7 +461,7 @@ function ModDetailsFooter({
 					);
 				}
 
-				return null;
+				return <Tag key="Pending">Pending</Tag>;
 			}
 		};
 
@@ -654,7 +654,7 @@ function ModDetailsFooter({
 						children: (
 					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
 						<Descriptions.Item label="Name">{modDescriptor?.name}</Descriptions.Item>
-						<Descriptions.Item label="ID">{modDescriptor?.modID}</Descriptions.Item>
+						<Descriptions.Item label="Mod ID">{modDescriptor?.modID}</Descriptions.Item>
 						<Descriptions.Item label="Equivalent UIDs">{[...(modDescriptor?.UIDs || [])].join(', ')}</Descriptions.Item>
 					</Descriptions>
 						)
@@ -679,7 +679,7 @@ function ModDetailsFooter({
 						<Descriptions.Item label="SteamLink">
 							{currentRecord.workshopID ? `steam://url/CommunityFilePage/${currentRecord.workshopID}` : null}
 						</Descriptions.Item>
-						<Descriptions.Item label="WorkshopID">
+						<Descriptions.Item label="Workshop ID">
 							{currentRecord.workshopID ? currentRecord.workshopID.toString() : null}
 						</Descriptions.Item>
 					</Descriptions>

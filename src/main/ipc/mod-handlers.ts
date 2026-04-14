@@ -5,6 +5,7 @@ import {
 	ModData,
 	ModType,
 	SessionMods,
+	cloneModData,
 	ValidChannel
 } from '../../model';
 import { openExternalUrl } from '../external-links';
@@ -116,7 +117,7 @@ export function createSteamworksInitHandler(getSteamStatus: () => SteamStatus, t
 	};
 }
 
-function createContextMenuTemplate(record: ModData, mainWindowProvider: MainWindowProvider): MenuItemConstructorOptions[] {
+export function createContextMenuTemplate(record: ModData, mainWindowProvider: MainWindowProvider): MenuItemConstructorOptions[] {
 	const template: MenuItemConstructorOptions[] = [];
 	if (record.path) {
 		template.push({
@@ -144,23 +145,13 @@ function createContextMenuTemplate(record: ModData, mainWindowProvider: MainWind
 		const getUpdatedInfo = async () => {
 			const requestId = metadataUpdateRequestId + 1;
 			metadataUpdateRequestId = requestId;
-			const update = {
-				lastUpdate: record.lastUpdate,
-				size: record.size,
-				path: record.path,
-				installed: record.installed,
-				downloadPending: record.downloadPending,
-				downloading: record.downloading,
-				needsUpdate: record.needsUpdate,
-				id: record.id
-			};
+			const update = cloneModData(record);
 			const state: UGCItemState = Steamworks.ugcGetItemState(record.workshopID!);
-			if (state) {
-				update.installed = !!(state & UGCItemState.Installed);
-				update.downloadPending = !!(state & UGCItemState.DownloadPending);
-				update.downloading = !!(state & UGCItemState.Downloading);
-				update.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-			}
+			update.subscribed = !!(state & UGCItemState.Subscribed);
+			update.installed = !!(state & UGCItemState.Installed);
+			update.downloadPending = !!(state & UGCItemState.DownloadPending);
+			update.downloading = !!(state & UGCItemState.Downloading);
+			update.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
 			const installInfo = Steamworks.ugcGetItemInstallInfo(record.workshopID!);
 			if (installInfo) {
 				log.verbose(`Workshop mod is installed at path: ${installInfo.folder}`);
@@ -168,9 +159,11 @@ function createContextMenuTemplate(record: ModData, mainWindowProvider: MainWind
 				update.size = parseInt(installInfo.sizeOnDisk, 10);
 				update.path = installInfo.folder;
 
-				await getModDetailsFromPath(update as ModData, installInfo.folder, record.type);
+				await getModDetailsFromPath(update, installInfo.folder, record.type);
 			} else {
 				log.verbose(`FAILED to get install info for mod ${record.workshopID}`);
+				update.lastUpdate = undefined;
+				update.path = undefined;
 			}
 			if (requestId !== metadataUpdateRequestId) {
 				return;

@@ -265,7 +265,7 @@ export function useCollectionValidation({
 	const isValidationCurrentForCollection = useCallback(
 		(collection: ModCollection | undefined) => {
 			const collectionValidationKey = getCollectionValidationKey(collection);
-			return !!collectionValidationKey && collectionValidationKey === lastValidatedCollectionKey;
+			return collectionValidationKey !== undefined && collectionValidationKey === lastValidatedCollectionKey;
 		},
 		[lastValidatedCollectionKey]
 	);

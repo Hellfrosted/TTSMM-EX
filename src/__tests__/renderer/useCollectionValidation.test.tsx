@@ -50,4 +50,39 @@ describe('useCollectionValidation', () => {
 		expect(result.current.lastValidationStatus).toBe(true);
 		expect(result.current.isValidationCurrentForCollection(appState.activeCollection)).toBe(false);
 	});
+
+	it('treats a validated empty collection as current', async () => {
+		const mods = new SessionMods('', []);
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			mods,
+			activeCollection: { name: 'default', mods: [] }
+		});
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+
+		const { result } = renderHook(() =>
+			useCollectionValidation({
+				appState,
+				openNotification: vi.fn(),
+				setModalType: vi.fn(),
+				persistCollection: vi.fn(async () => true),
+				launchMods: vi.fn(async () => undefined)
+			})
+		);
+
+		await act(async () => {
+			await result.current.validateActiveCollection(false);
+		});
+
+		expect(result.current.lastValidationStatus).toBe(true);
+		expect(result.current.isValidationCurrentForCollection(appState.activeCollection)).toBe(true);
+	});
 });
