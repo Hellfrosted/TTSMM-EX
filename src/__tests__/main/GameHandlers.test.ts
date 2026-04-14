@@ -91,12 +91,24 @@ describe('game handlers', () => {
 		await expect(launchPromise).resolves.toBe(false);
 	});
 
-	it('launches through the Steam protocol on linux and always quits after handoff', async () => {
+	it('launches through the Steam protocol on linux without quitting when closeOnLaunch is disabled', async () => {
 		const spawn = vi.fn() as unknown as typeof child_process.spawn;
 		const openExternal = vi.fn(async () => undefined);
 		const quit = vi.fn();
 
 		await expect(launchGameProcess('game.exe', BigInt(42), false, ['-batchmode'], spawn, openExternal, 'linux', quit)).resolves.toBe(true);
+
+		expect(spawn).not.toHaveBeenCalled();
+		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] -batchmode/');
+		expect(quit).not.toHaveBeenCalled();
+	});
+
+	it('launches through the Steam protocol on linux and quits when closeOnLaunch is enabled', async () => {
+		const spawn = vi.fn() as unknown as typeof child_process.spawn;
+		const openExternal = vi.fn(async () => undefined);
+		const quit = vi.fn();
+
+		await expect(launchGameProcess('game.exe', BigInt(42), true, ['-batchmode'], spawn, openExternal, 'linux', quit)).resolves.toBe(true);
 
 		expect(spawn).not.toHaveBeenCalled();
 		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] -batchmode/');

@@ -128,6 +128,41 @@ body {
 	background-color: rgba(255, 255, 255, 0.04);
 }
 
+.CollectionTableHeaderCell {
+	min-width: 0;
+}
+
+.CollectionTableResizeHandle {
+	position: absolute;
+	top: 0;
+	right: -6px;
+	width: 12px;
+	height: 100%;
+	cursor: col-resize;
+	z-index: 2;
+	outline: none;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.CollectionTableResizeHandle::after {
+	content: '';
+	position: absolute;
+	top: 18%;
+	bottom: 18%;
+	left: 50%;
+	width: 1px;
+	background: rgba(242, 237, 230, 0.14);
+	transform: translateX(-50%);
+	transition: background-color 120ms ease;
+}
+
+th:hover .CollectionTableResizeHandle::after,
+.CollectionTableResizeHandle:focus-visible::after {
+	background: rgba(242, 237, 230, 0.42);
+}
+
 li {
 	list-style: none;
 }

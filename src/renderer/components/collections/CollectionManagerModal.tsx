@@ -304,7 +304,8 @@ function CollectionManagerModal({
 								const nextConfig = cloneAppConfig(appState.config);
 								nextConfig.viewConfigs.main = {
 									...mainConfigDraft,
-									columnActiveConfig: mainConfigDraft.columnActiveConfig ? { ...mainConfigDraft.columnActiveConfig } : undefined
+									columnActiveConfig: mainConfigDraft.columnActiveConfig ? { ...mainConfigDraft.columnActiveConfig } : undefined,
+									columnWidthConfig: mainConfigDraft.columnWidthConfig ? { ...mainConfigDraft.columnWidthConfig } : undefined
 								};
 								void saveConfig(nextConfig, closeModal);
 							}}

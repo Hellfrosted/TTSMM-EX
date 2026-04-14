@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useMemo } from 'react';
-import type { Key, ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
 import { ColumnType } from 'antd/lib/table';
 import { CompareFn, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
@@ -38,6 +38,8 @@ import Icon_Corps from '../../../../assets/faction-flag.svg';
 
 const { Content } = Layout;
 const { Text } = Typography;
+const MIN_COLUMN_WIDTH = 80;
+const KEYBOARD_RESIZE_STEP = 16;
 
 function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
@@ -196,6 +198,120 @@ function getAllTags(record: DisplayModData) {
 	return [...new Set([...(record.tags || []), ...(record.overrides?.tags || [])])].filter((tag) => tag.toLowerCase() !== 'mods');
 }
 
+interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
+	label?: string;
+	width?: number;
+	minWidth?: number;
+	onResize?: (nextWidth: number) => void;
+	onResizeEnd?: (nextWidth: number) => void;
+}
+
+function ResizableHeaderCell({
+	label,
+	width,
+	minWidth = MIN_COLUMN_WIDTH,
+	onResize,
+	onResizeEnd,
+	children,
+	style,
+	...rest
+}: ResizableHeaderCellProps) {
+	const cleanupRef = useRef<(() => void) | null>(null);
+	const widthRef = useRef(width ?? minWidth);
+
+	useEffect(() => {
+		widthRef.current = width ?? minWidth;
+	}, [minWidth, width]);
+
+	useEffect(() => {
+		return () => {
+			cleanupRef.current?.();
+		};
+	}, []);
+
+	const startResize = useCallback(
+		(startX: number) => {
+			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
+			let nextWidth = startWidth;
+			const previousCursor = document.body.style.cursor;
+			const previousUserSelect = document.body.style.userSelect;
+
+			const updateWidth = (clientX: number) => {
+				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
+				onResize?.(nextWidth);
+			};
+
+			const stopResize = () => {
+				window.removeEventListener('mousemove', handleMouseMove);
+				window.removeEventListener('mouseup', handleMouseUp);
+				document.body.style.cursor = previousCursor;
+				document.body.style.userSelect = previousUserSelect;
+				cleanupRef.current = null;
+				onResizeEnd?.(nextWidth);
+			};
+
+			const handleMouseMove = (event: MouseEvent) => {
+				updateWidth(event.clientX);
+			};
+
+			const handleMouseUp = () => {
+				stopResize();
+			};
+
+			document.body.style.cursor = 'col-resize';
+			document.body.style.userSelect = 'none';
+			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('mouseup', handleMouseUp);
+			cleanupRef.current = stopResize;
+		},
+		[minWidth, onResize, onResizeEnd]
+	);
+
+	const handleMouseDown = useCallback(
+		(event: ReactMouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			startResize(event.clientX);
+		},
+		[startResize]
+	);
+
+	const handleKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			const direction = event.key === 'ArrowRight' ? 1 : -1;
+			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * KEYBOARD_RESIZE_STEP));
+			onResize?.(nextWidth);
+			onResizeEnd?.(nextWidth);
+		},
+		[minWidth, onResize, onResizeEnd]
+	);
+
+	return (
+		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
+			<div className="CollectionTableHeaderCell">{children}</div>
+			{width ? (
+				<button
+					type="button"
+					className="CollectionTableResizeHandle"
+					aria-label={`Resize ${label || 'column'}`}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+					}}
+					onMouseDown={handleMouseDown}
+					onKeyDown={handleKeyDown}
+				/>
+			) : null}
+		</th>
+	);
+}
+
 function getStateTags(props: CollectionViewProps, record: DisplayModData): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
@@ -245,6 +361,10 @@ function getStateTags(props: CollectionViewProps, record: DisplayModData): State
 		return [{ text: 'OK', color: 'green', rank: 7 }];
 	}
 
+	if (selectedMods.includes(uid)) {
+		return [{ text: 'Pending', rank: 8 }];
+	}
+
 	return [];
 }
 
@@ -281,6 +401,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.NAME,
 		dataIndex: 'name',
 		className: 'CollectionRowModName',
+		width: 320,
 		defaultSortOrder: 'ascend',
 		sorter: compareModDataDisplayName,
 		renderSetup: (props: CollectionViewProps) => {
@@ -346,7 +467,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.AUTHORS,
 		dataIndex: 'authors',
-		width: 150,
+		width: 180,
 		defaultSortOrder: 'ascend',
 		sorter: (a, b) => {
 			const v1 = a;
@@ -407,6 +528,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.ID,
 		dataIndex: 'id',
+		width: 170,
 		sorter: compareModDataDisplayId,
 		renderSetup: () => {
 			return (_: string, record: DisplayModData) => {
@@ -517,6 +639,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.TAGS,
 		dataIndex: 'tags',
 		className: 'CollectionRowTags',
+		width: 240,
 		filtersSetup: (props: CollectionViewProps) => {
 			return [...new Set(props.rows.flatMap((record) => getAllTags(record)))]
 				.sort((left, right) => left.localeCompare(right))
@@ -618,7 +741,20 @@ function getRowSelection(props: CollectionViewProps) {
 	return rowSelection;
 }
 
-function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>[] {
+function getColumnWidths(config: MainCollectionConfig | undefined) {
+	const configuredWidths = config?.columnWidthConfig || {};
+	return MAIN_COLUMN_SCHEMA.reduce(
+		(acc, column) => {
+			if (column.width) {
+				acc[column.title] = configuredWidths[column.title] ?? column.width;
+			}
+			return acc;
+		},
+		{} as Record<string, number>
+	);
+}
+
+function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<string, number>): ColumnType<DisplayModData>[] {
 	const { config } = props;
 	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
 	const columnActiveConfig = (config as MainCollectionConfig | undefined)?.columnActiveConfig;
@@ -631,7 +767,7 @@ function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>
 			title,
 			dataIndex,
 			className,
-			width,
+			width: columnWidthConfig?.[title] ?? width,
 			defaultSortOrder,
 			filters: filtersSetup ? filtersSetup(props) : filters,
 			onFilter,
@@ -643,11 +779,59 @@ function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
-	const { config, filteredRows, launchingGame, width, height } = props;
+	const { config, filteredRows, launchingGame, width, height, setMainColumnWidthCallback } = props;
 	const small = (config as MainCollectionConfig | undefined)?.smallRows;
 	const deferredRows = useDeferredValue(filteredRows);
+	const [resizedColumnWidths, setResizedColumnWidths] = useState<Record<string, number>>({});
+	const columnWidths = useMemo(
+		() => ({
+			...getColumnWidths(config as MainCollectionConfig | undefined),
+			...resizedColumnWidths
+		}),
+		[config, resizedColumnWidths]
+	);
+
 	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
-	const columns = useMemo(() => getColumnSchema(props), [props]);
+	const tableComponents = useMemo(
+		() => ({
+			header: {
+				cell: ResizableHeaderCell
+			}
+		}),
+		[]
+	);
+	const columns = useMemo(() => {
+		return getColumnSchema(props, columnWidths).map((column) => {
+			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
+			const currentWidth = typeof column.width === 'number' ? column.width : undefined;
+			if (!columnTitle || !currentWidth) {
+				return column;
+			}
+
+			return {
+				...column,
+				onHeaderCell: () => ({
+					label: columnTitle,
+					width: currentWidth,
+					minWidth: MIN_COLUMN_WIDTH,
+					onResize: (nextWidth: number) => {
+						setResizedColumnWidths((currentWidths) => {
+							if (currentWidths[columnTitle] === nextWidth) {
+								return currentWidths;
+							}
+							return {
+								...currentWidths,
+								[columnTitle]: nextWidth
+							};
+						});
+					},
+					onResizeEnd: (nextWidth: number) => {
+						setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth);
+					}
+				})
+			};
+		});
+	}, [columnWidths, props, setMainColumnWidthCallback]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -666,6 +850,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					size="small"
 					rowKey="uid"
 					rowSelection={rowSelection}
+					components={tableComponents}
 					columns={columns}
 					sticky
 					scroll={{ x: 'max-content' }}

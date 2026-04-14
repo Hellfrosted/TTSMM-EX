@@ -152,7 +152,9 @@ export function launchGameProcess(
 		const launchExternal = openExternal ?? ((url: string) => shell.openExternal(url));
 		return launchExternal(steamRunUrl)
 			.then(() => {
-				quitApp();
+				if (closeOnLaunch) {
+					quitApp();
+				}
 				return true;
 			})
 			.catch((error) => {

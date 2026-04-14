@@ -1,5 +1,5 @@
 import { CSSProperties, ReactNode } from 'react';
-import type { MainCollectionConfig } from './MainCollectionView';
+import type { MainCollectionConfig, MainColumnTitles } from './MainCollectionView';
 import { ModData } from './Mod';
 
 export interface ModCollection {
@@ -24,6 +24,7 @@ export interface CollectionViewProps {
 	setEnabledModsCallback: (mods: Set<string>) => void;
 	setEnabledCallback: (mod: string) => void;
 	setDisabledCallback: (mod: string) => void;
+	setMainColumnWidthCallback?: (column: MainColumnTitles, width: number) => void;
 	getModDetails: (mod: string, modData: ModData, bigData?: boolean) => void;
 }
 

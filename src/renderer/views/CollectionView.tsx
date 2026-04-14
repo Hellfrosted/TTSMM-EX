@@ -6,6 +6,7 @@ import {
 	CollectionManagerModalType,
 	CollectionViewProps,
 	CollectionViewType,
+	MainColumnTitles,
 	ModCollection,
 	ModData,
 	getByUID,
@@ -23,6 +24,7 @@ import { useGameLaunch } from '../hooks/collections/useGameLaunch';
 import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
+import { cloneAppConfig } from '../hooks/collections/utils';
 
 const { Header, Footer } = Layout;
 
@@ -289,6 +291,42 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleOpenViewSettings = useCallback(() => {
 		setModalType(CollectionManagerModalType.VIEW_SETTINGS);
 	}, []);
+	const handleSetMainColumnWidth = useCallback(
+		(column: MainColumnTitles, width: number) => {
+			const normalizedWidth = Math.max(80, Math.round(width));
+			const nextConfig = cloneAppConfig(appState.config);
+			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
+			const currentColumnWidthConfig = currentMainConfig.columnWidthConfig || {};
+			if (currentColumnWidthConfig[column] === normalizedWidth) {
+				return;
+			}
+
+			currentMainConfig.columnWidthConfig = {
+				...currentColumnWidthConfig,
+				[column]: normalizedWidth
+			};
+			nextConfig.viewConfigs.main = currentMainConfig;
+			appState.updateState({ config: nextConfig });
+
+			void api.updateConfig(nextConfig).then((updateSuccess) => {
+				if (!updateSuccess) {
+					throw new Error('Config write was rejected');
+				}
+				return updateSuccess;
+			}).catch((error) => {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update view settings',
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+			});
+		},
+		[appState, openNotification]
+	);
 	const handleLaunchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
 		const modList = (appState.activeCollection ? appState.activeCollection.mods.map((mod) => getByUID(appState.mods, mod)) : []).filter(
@@ -361,6 +399,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setEnabledModsCallback: setEnabledMods,
 			setEnabledCallback: handleEnableMod,
 			setDisabledCallback: handleDisableMod,
+			setMainColumnWidthCallback: handleSetMainColumnWidth,
 			getModDetails: handleGetModDetails
 		}),
 		[
@@ -370,6 +409,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleDisableMod,
 			handleEnableMod,
 			handleGetModDetails,
+			handleSetMainColumnWidth,
 			currentValidationStatus,
 			madeEdits,
 			rows,

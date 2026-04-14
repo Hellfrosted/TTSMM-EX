@@ -89,6 +89,89 @@ async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults
 	});
 }
 
+async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promise<SteamUGCDetails[]> {
+	return new Promise((resolve, reject) => {
+		Steamworks.getUGCDetails(
+			workshopIDs.map((workshopID) => workshopID.toString()),
+			(steamDetails: SteamUGCDetails[]) => {
+				log.silly(`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`);
+				resolve(steamDetails);
+			},
+			(err: Error) => {
+				log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
+				log.error(err);
+				reject(err);
+			}
+		);
+	});
+}
+
+function createWorkshopPotentialMod(workshopID: bigint): ModData {
+	return {
+		uid: `${ModType.WORKSHOP}:${workshopID}`,
+		id: null,
+		type: ModType.WORKSHOP,
+		workshopID,
+		hasCode: false,
+		path: '',
+		name: `Workshop item ${workshopID.toString()}`
+	};
+}
+
+function isWorkshopPlaceholderName(name: string | undefined): boolean {
+	return !!name && /^Workshop item \d+$/i.test(name.trim());
+}
+
+function hasWorkshopModTag(tags: string[] | undefined): boolean {
+	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
+}
+
+async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
+	if (!steamUGCDetails) {
+		return;
+	}
+
+	potentialMod.steamDependencies = steamUGCDetails.children;
+	potentialMod.description = steamUGCDetails.description;
+	potentialMod.name = steamUGCDetails.title;
+	potentialMod.tags = steamUGCDetails.tagsDisplayNames;
+	potentialMod.size = steamUGCDetails.fileSize;
+	potentialMod.dateAdded = new Date(steamUGCDetails.timeAddedToUserList * 1000);
+	potentialMod.dateCreated = new Date(steamUGCDetails.timeCreated * 1000);
+	potentialMod.lastWorkshopUpdate = new Date(steamUGCDetails.timeUpdated * 1000);
+	potentialMod.preview = steamUGCDetails.previewURL;
+
+	try {
+		potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
+	} catch (err) {
+		log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
+		log.warn(err);
+		potentialMod.authors = [steamUGCDetails.steamIDOwner];
+	}
+}
+
+async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map<bigint, SteamUGCDetails>> {
+	const workshopDetailMap = new Map<bigint, SteamUGCDetails>();
+
+	for (const workshopChunk of chunk([...workshopIDs], MAX_MODS_PER_PAGE)) {
+		if (workshopChunk.length === 0) {
+			continue;
+		}
+
+		try {
+			const workshopDetails = await getRawWorkshopDetailsForList(workshopChunk);
+			workshopDetails.forEach((detail) => {
+				workshopDetailMap.set(detail.publishedFileId, detail);
+			});
+		} catch (error) {
+			log.warn(`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`);
+			log.warn(error);
+		}
+	}
+
+	return workshopDetailMap;
+}
+
 export async function getModDetailsFromPath(potentialMod: ModData, modPath: string, type: ModType): Promise<ModData | null> {
 	log.debug(`Reading mod metadata for ${modPath}`);
 	return new Promise((resolve, reject) => {
@@ -137,7 +220,7 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 									if (type !== ModType.WORKSHOP) {
 										potentialMod.uid = `${type}:${potentialMod.id}`;
 									}
-									if (!potentialMod.name) {
+									if (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name)) {
 										potentialMod.name = modId;
 									}
 									potentialMod.path = modPath;
@@ -228,21 +311,69 @@ export default class ModFetcher {
 	}
 
 	async getDetailsForWorkshopModList(workshopIDs: bigint[]): Promise<ModData[]> {
-		return new Promise((resolve, reject) => {
-			Steamworks.getUGCDetails(
-				workshopIDs.map((workshopID) => workshopID.toString()),
-				 
-				async (steamDetails: SteamUGCDetails[]) => {
-					log.silly(`Raw workshop list results: ${JSON.stringify(steamDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
-					resolve(this.processSteamModResults(steamDetails));
-				},
-				(err: Error) => {
-					log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
-					log.error(err);
-					reject(err);
+		const steamDetails = await getRawWorkshopDetailsForList(workshopIDs);
+		return this.processSteamModResults(steamDetails);
+	}
+
+	async buildWorkshopMod(workshopID: bigint, steamUGCDetails?: SteamUGCDetails, keepUnknownWorkshopItem = false): Promise<ModData | null> {
+		const potentialMod = createWorkshopPotentialMod(workshopID);
+		await populateWorkshopModMetadata(potentialMod, steamUGCDetails);
+
+		try {
+			const state: UGCItemState = Steamworks.ugcGetItemState(workshopID);
+			if (state) {
+				potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
+				potentialMod.installed = !!(state & UGCItemState.Installed);
+				potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
+				potentialMod.downloading = !!(state & UGCItemState.Downloading);
+				potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
+			}
+		} catch (error) {
+			log.warn(`Failed to read workshop item state for ${workshopID}`);
+			log.warn(error);
+		}
+
+		const installInfo = Steamworks.ugcGetItemInstallInfo(workshopID);
+		if (installInfo) {
+			log.silly(`Workshop mod is installed at path: ${installInfo.folder}`);
+			potentialMod.lastUpdate = new Date(installInfo.timestamp * 1000);
+			potentialMod.size = parseInt(installInfo.sizeOnDisk, 10);
+			potentialMod.path = installInfo.folder;
+			if (potentialMod.lastWorkshopUpdate) {
+				potentialMod.needsUpdate = potentialMod.needsUpdate || potentialMod.lastWorkshopUpdate > potentialMod.lastUpdate;
+			}
+
+			try {
+				const resolvedMod = await getModDetailsFromPath(potentialMod, installInfo.folder, ModType.WORKSHOP);
+				if (resolvedMod) {
+					log.silly(JSON.stringify(resolvedMod, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2));
+					return resolvedMod;
 				}
-			);
-		});
+			} catch (error) {
+				log.error(`Error parsing mod info for workshop:${workshopID}`);
+				log.error(error);
+			} finally {
+				this.updateModLoadingProgress(1);
+			}
+
+			if (keepUnknownWorkshopItem) {
+				return potentialMod;
+			}
+
+			log.warn(`${potentialMod.workshopID} is NOT a valid mod`);
+			return null;
+		}
+
+		this.updateModLoadingProgress(1);
+
+		const validMod = !!steamUGCDetails && steamUGCDetails.steamIDOwner !== '0' && hasWorkshopModTag(potentialMod.tags);
+		if (validMod || keepUnknownWorkshopItem) {
+			log.silly(JSON.stringify(potentialMod, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2));
+			return potentialMod;
+		}
+
+		log.warn(`${potentialMod.workshopID} is NOT a valid mod`);
+		return null;
 	}
 
 	async processWorkshopModList(
@@ -295,78 +426,7 @@ export default class ModFetcher {
 
 	async processSteamModResults(steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
 		const modResponses = await Promise.allSettled<ModData | null>(
-			steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
-				const workshopid: bigint = steamUGCDetails.publishedFileId;
-				const potentialMod: ModData = {
-					uid: `${ModType.WORKSHOP}:${workshopid}`,
-					id: null,
-					type: ModType.WORKSHOP,
-					workshopID: BigInt(workshopid),
-					hasCode: false,
-					path: ''
-				};
-				potentialMod.steamDependencies = steamUGCDetails.children;
-				potentialMod.description = steamUGCDetails.description;
-				potentialMod.name = steamUGCDetails.title;
-				potentialMod.tags = steamUGCDetails.tagsDisplayNames;
-				potentialMod.size = steamUGCDetails.fileSize;
-				potentialMod.dateAdded = new Date(steamUGCDetails.timeAddedToUserList * 1000);
-				potentialMod.dateCreated = new Date(steamUGCDetails.timeCreated * 1000);
-				potentialMod.lastWorkshopUpdate = new Date(steamUGCDetails.timeUpdated * 1000);
-				potentialMod.preview = steamUGCDetails.previewURL;
-
-				const state: UGCItemState = Steamworks.ugcGetItemState(workshopid);
-				if (state) {
-					 
-					potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
-					 
-					potentialMod.installed = !!(state & UGCItemState.Installed);
-					 
-					potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
-					 
-					potentialMod.downloading = !!(state & UGCItemState.Downloading);
-					 
-					potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-				}
-
-				let validMod = steamUGCDetails.steamIDOwner !== '0';
-				try {
-					potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
-				} catch (err) {
-					console.error(`Failed to get username for Author ${steamUGCDetails.steamIDOwner}`);
-					console.error(err);
-					potentialMod.authors = [steamUGCDetails.steamIDOwner];
-				}
-
-				const installInfo = Steamworks.ugcGetItemInstallInfo(workshopid);
-				if (installInfo) {
-					log.silly(`Workshop mod is installed at path: ${installInfo.folder}`);
-					// augment workshop mod with data
-					potentialMod.lastUpdate = new Date(installInfo.timestamp * 1000);
-					potentialMod.size = parseInt(installInfo.sizeOnDisk, 10);
-					potentialMod.needsUpdate = potentialMod.needsUpdate || potentialMod.lastWorkshopUpdate > potentialMod.lastUpdate;
-					try {
-						const modPath = installInfo.folder;
-						 
-						validMod = !!(await getModDetailsFromPath(potentialMod, modPath, ModType.WORKSHOP).finally(() => {
-							this.updateModLoadingProgress(1);
-						}));
-					} catch (error) {
-						log.error(`Error parsing mod info for workshop:${workshopid}`);
-						log.error(error);
-					}
-				} else {
-					validMod = potentialMod.tags.filter((tag: string) => tag.toLowerCase() === 'mods').length > 0;
-					this.updateModLoadingProgress(1);
-				}
-
-				if (validMod) {
-					log.silly(JSON.stringify(potentialMod, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
-					return potentialMod;
-				}
-				log.warn(`${potentialMod.workshopID} is NOT a valid mod`);
-				return null;
-			})
+			steamDetails.map((steamUGCDetails: SteamUGCDetails) => this.buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails))
 		);
 		return filterOutNullValues(modResponses);
 	}
@@ -452,106 +512,19 @@ export default class ModFetcher {
 
 	private async fetchWorkshopModsFromSubscriptions(): Promise<ModData[]> {
 		const allSubscribedItems = Steamworks.getSubscribedItems();
-		const workshopIDs = [...new Set<bigint>([...allSubscribedItems, ...this.knownWorkshopMods])];
+		const knownWorkshopMods = new Set(this.knownWorkshopMods);
+		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...knownWorkshopMods]);
 
 		log.debug(`All subscribed items: [${allSubscribedItems}]`);
-		this.workshopMods = workshopIDs.length;
+		this.workshopMods = workshopIDs.size;
+		const workshopDetailsMap = await getWorkshopDetailsMap(workshopIDs);
 
-		if (workshopIDs.length === 0) {
-			return [];
-		}
-
-		const workshopMap = new Map<bigint, ModData>();
-		const unresolvedWorkshopIDs = new Set(workshopIDs);
-		const modChunks: bigint[][] = chunk(workshopIDs, MAX_MODS_PER_PAGE);
-
-		for (const modChunk of modChunks) {
-			try {
-				const modDetails = await this.getDetailsForWorkshopModList(modChunk);
-				modDetails.forEach((mod) => {
-					const { workshopID } = mod;
-					if (workshopID === undefined) {
-						return;
-					}
-					workshopMap.set(workshopID, mod);
-					unresolvedWorkshopIDs.delete(workshopID);
-					this.knownWorkshopMods.delete(workshopID);
-				});
-			} catch (error) {
-				log.warn(
-					`Failed to fetch Linux workshop details for [${modChunk.map((workshopID) => workshopID.toString()).join(', ')}]. Falling back to install info.`
-				);
-				log.warn(error);
-			}
-		}
-
-		if (unresolvedWorkshopIDs.size === 0) {
-			return [...workshopMap.values()];
-		}
-
-		const fallbackMods = await Promise.allSettled<ModData | null>(
-			[...unresolvedWorkshopIDs].map((workshopID) => {
-				const potentialMod: ModData = {
-					uid: `${ModType.WORKSHOP}:${workshopID}`,
-					id: null,
-					type: ModType.WORKSHOP,
-					workshopID,
-					hasCode: false,
-					path: '',
-					name: `Workshop item ${workshopID.toString()}`
-				};
-
-				return Promise.resolve()
-					.then(async () => {
-						try {
-							const state = Steamworks.ugcGetItemState(workshopID);
-							if (state) {
-								potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
-								potentialMod.installed = !!(state & UGCItemState.Installed);
-								potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
-								potentialMod.downloading = !!(state & UGCItemState.Downloading);
-								potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-							}
-						} catch (error) {
-							log.warn(`Failed to read workshop item state for ${workshopID}`);
-							log.warn(error);
-						}
-
-						try {
-							const installInfo = Steamworks.ugcGetItemInstallInfo(workshopID);
-							if (!installInfo) {
-								return potentialMod;
-							}
-
-							log.silly(`Workshop mod is installed at path: ${installInfo.folder}`);
-							potentialMod.lastUpdate = new Date(installInfo.timestamp * 1000);
-							potentialMod.size = parseInt(installInfo.sizeOnDisk, 10);
-							potentialMod.path = installInfo.folder;
-
-							const resolvedMod = await getModDetailsFromPath(potentialMod, installInfo.folder, ModType.WORKSHOP);
-							return resolvedMod || potentialMod;
-						} catch (error) {
-							log.error(`Error parsing Linux workshop info for workshop:${workshopID}`);
-							log.error(error);
-							return potentialMod;
-						}
-					})
-					.finally(() => {
-						this.updateModLoadingProgress(1);
-					});
+		const modResponses = await Promise.allSettled<ModData | null>(
+			[...workshopIDs].map((workshopID) => {
+				return this.buildWorkshopMod(workshopID, workshopDetailsMap.get(workshopID), knownWorkshopMods.has(workshopID));
 			})
 		);
-
-		filterOutNullValues(fallbackMods).forEach((mod) => {
-			const { workshopID } = mod;
-			if (workshopID === undefined) {
-				return;
-			}
-			workshopMap.set(workshopID, mod);
-			this.knownWorkshopMods.delete(workshopID);
-		});
-
-		return [...workshopMap.values()];
+		return filterOutNullValues(modResponses);
 	}
 
 	async fetchMods(): Promise<ModData[]> {
