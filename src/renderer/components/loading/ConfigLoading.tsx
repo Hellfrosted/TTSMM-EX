@@ -22,6 +22,10 @@ function normalizeCurrentPath(currentPath: string | undefined): string {
 }
 
 function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean): boolean {
+	if (window.electron.platform === 'linux') {
+		return false;
+	}
+
 	const configuredPath = config.gameExec?.trim();
 	if (!configuredPath) {
 		return true;
@@ -32,19 +36,31 @@ function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean)
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
 	const errors: { [field: string]: string } = {};
-	const fields: AppConfigKeys[] = [AppConfigKeys.GAME_EXEC, AppConfigKeys.LOCAL_DIR];
-	const paths = ['Steam executable', 'TerraTech Local Mods directory', 'TerraTech Steam Workshop directory'];
+	const checks: { field: AppConfigKeys; label: string; task: Promise<string | undefined> | undefined }[] = [
+		...(window.electron.platform === 'linux'
+			? []
+			: [
+					{
+						field: AppConfigKeys.GAME_EXEC,
+						label: 'TerraTech executable',
+						task: validateSettingsPath(AppConfigKeys.GAME_EXEC, config.gameExec)
+					}
+				]),
+		{
+			field: AppConfigKeys.LOCAL_DIR,
+			label: 'TerraTech Local Mods directory',
+			task: config.localDir && config.localDir.length > 0 ? validateSettingsPath(AppConfigKeys.LOCAL_DIR, config.localDir) : undefined
+		}
+	];
 	let failed = false;
-	await Promise.allSettled([
-		validateSettingsPath('gameExec', config.gameExec),
-		config.localDir && config.localDir.length > 0 ? validateSettingsPath('localDir', config.localDir) : undefined
-	]).then((results) => {
+	await Promise.allSettled(checks.map((check) => check.task)).then((results) => {
 		results.forEach((result, index) => {
+			const check = checks[index];
 			if (result.status !== 'fulfilled') {
-				errors[fields[index]] = `Unexpected error checking ${fields[index]} path (${paths[index]})`;
+				errors[check.field] = `Unexpected error checking ${check.field} path (${check.label})`;
 				failed = true;
 			} else if (result.value !== undefined) {
-				errors[fields[index]] = result.value;
+				errors[check.field] = result.value;
 				failed = true;
 			}
 		});

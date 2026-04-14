@@ -10,9 +10,6 @@ function getPlatform(): ElectronPlatform {
 export async function validateSettingsPath(field: string, value: string): Promise<string | undefined> {
 	const normalizedValue = value?.trim() || '';
 	const platform = getPlatform();
-	if (field === AppConfigKeys.GAME_EXEC && platform === 'linux' && normalizedValue.length === 0) {
-		return undefined;
-	}
 
 	const result: string | undefined = await api
 		.pathExists(normalizedValue, field === AppConfigKeys.GAME_EXEC && platform !== 'darwin' ? PathType.FILE : PathType.DIRECTORY)

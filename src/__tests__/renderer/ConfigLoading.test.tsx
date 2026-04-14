@@ -107,6 +107,37 @@ describe('ConfigLoading', () => {
 		});
 
 		expect(window.electron.pathExists).not.toHaveBeenCalledWith('', expect.anything());
+		expect(window.electron.discoverGameExecutable).not.toHaveBeenCalled();
+	});
+
+	it('ignores stale TerraTech executable paths during Linux boot', async () => {
+		window.electron.platform = 'linux';
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			gameExec: 'C:\\Missing\\TerraTechWin64.exe',
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
+			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('default');
+		});
+
+		expect(window.electron.pathExists).not.toHaveBeenCalledWith('C:\\Missing\\TerraTechWin64.exe', expect.anything());
+		expect(window.electron.discoverGameExecutable).not.toHaveBeenCalled();
 	});
 
 	it('routes invalid configs to settings without kicking off mod loading', async () => {

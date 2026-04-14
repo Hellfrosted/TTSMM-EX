@@ -86,6 +86,7 @@ Notes:
 
 - rerun `npm run setup:steamworks` after reinstalling dependencies or switching operating systems
 - Linux rebuilds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough
+- Linux launches TerraTech through Steam; the `TerraTech Executable` setting is unused there
 - the pacman target needs `bsdtar`
 
 ## Notes
