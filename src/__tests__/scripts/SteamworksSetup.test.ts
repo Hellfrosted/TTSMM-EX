@@ -55,6 +55,10 @@ function createGreenworksSkeleton(greenworksPath: string, previewTypeSignature: 
 	);
 }
 
+function createDirectoryLink(targetPath: string, linkPath: string) {
+	fs.symlinkSync(targetPath, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
 function createRepoLayout() {
 	const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ttsmm-steamworks-setup-'));
 	const releaseAppPath = path.join(repoRoot, 'release', 'app');
@@ -161,5 +165,25 @@ describe('steamworks setup scripts', () => {
 		expect(source).toContain('const char *PreviewTypeToString(EItemPreviewType type) {');
 		expect(source).not.toContain('const const char *PreviewTypeToString(EItemPreviewType type) {');
 		expect(execSync.mock.calls.some(([command]) => command.includes('install --ignore-scripts'))).toBe(false);
+	});
+
+	it('recreates a dangling src node_modules link during setup staging', async () => {
+		const { paths } = createRepoLayout();
+		const staleModulesPath = path.join(paths.repoRoot, 'stale-release', 'node_modules');
+
+		fs.rmSync(paths.srcNodeModulesPath, { recursive: true, force: true });
+		fs.mkdirSync(staleModulesPath, { recursive: true });
+		createDirectoryLink(staleModulesPath, paths.srcNodeModulesPath);
+		fs.rmSync(path.dirname(staleModulesPath), { recursive: true, force: true });
+
+		const execSync = vi.fn();
+		const { linkModules } = await importSteamworksSetup(paths, execSync);
+
+		expect(fs.existsSync(paths.srcNodeModulesPath)).toBe(false);
+
+		linkModules();
+
+		expect(path.normalize(fs.realpathSync.native(paths.srcNodeModulesPath))).toBe(path.normalize(fs.realpathSync.native(paths.releaseAppNodeModulesPath)));
+		expect(execSync).not.toHaveBeenCalled();
 	});
 });
