@@ -376,6 +376,10 @@ export default class ModFetcher {
 			return [];
 		}
 
+		if (this.platform === 'linux') {
+			return this.fetchWorkshopModsFromSubscriptions();
+		}
+
 		let numProcessedWorkshop = 0;
 		let pageNum = 1;
 		let lastProcessed = 1;
@@ -444,6 +448,69 @@ export default class ModFetcher {
 		}
 
 		return [...workshopMap.values()];
+	}
+
+	private async fetchWorkshopModsFromSubscriptions(): Promise<ModData[]> {
+		const allSubscribedItems = Steamworks.getSubscribedItems();
+		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...this.knownWorkshopMods]);
+
+		log.debug(`All subscribed items: [${allSubscribedItems}]`);
+		this.workshopMods = workshopIDs.size;
+
+		const modResponses = await Promise.allSettled<ModData>(
+			[...workshopIDs].map((workshopID) => {
+				const potentialMod: ModData = {
+					uid: `${ModType.WORKSHOP}:${workshopID}`,
+					id: null,
+					type: ModType.WORKSHOP,
+					workshopID,
+					hasCode: false,
+					path: '',
+					name: `Workshop item ${workshopID.toString()}`
+				};
+
+				return Promise.resolve()
+					.then(async () => {
+						try {
+							const state = Steamworks.ugcGetItemState(workshopID);
+							if (state) {
+								potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
+								potentialMod.installed = !!(state & UGCItemState.Installed);
+								potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
+								potentialMod.downloading = !!(state & UGCItemState.Downloading);
+								potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
+							}
+						} catch (error) {
+							log.warn(`Failed to read workshop item state for ${workshopID}`);
+							log.warn(error);
+						}
+
+						try {
+							const installInfo = Steamworks.ugcGetItemInstallInfo(workshopID);
+							if (!installInfo) {
+								return potentialMod;
+							}
+
+							log.silly(`Workshop mod is installed at path: ${installInfo.folder}`);
+							potentialMod.lastUpdate = new Date(installInfo.timestamp * 1000);
+							potentialMod.size = parseInt(installInfo.sizeOnDisk, 10);
+							potentialMod.path = installInfo.folder;
+
+							const resolvedMod = await getModDetailsFromPath(potentialMod, installInfo.folder, ModType.WORKSHOP);
+							return resolvedMod || potentialMod;
+						} catch (error) {
+							log.error(`Error parsing Linux workshop info for workshop:${workshopID}`);
+							log.error(error);
+							return potentialMod;
+						}
+					})
+					.finally(() => {
+						this.updateModLoadingProgress(1);
+					});
+			})
+		);
+
+		return filterOutNullValues(modResponses);
 	}
 
 	async fetchMods(): Promise<ModData[]> {
