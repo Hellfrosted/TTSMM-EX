@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Run cross-platform regression suites
-        run: npm test -- src/__tests__/main/Contracts.test.ts src/__tests__/renderer/Flows.test.tsx
+        run: npm test -- src/__tests__/main src/__tests__/renderer
 
       - name: Build app
         run: npm run build
