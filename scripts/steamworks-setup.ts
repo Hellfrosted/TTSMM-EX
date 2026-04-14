@@ -120,6 +120,15 @@ function removeIfExists(targetPath: string) {
 	}
 }
 
+function pathExistsOrIsDanglingLink(targetPath: string) {
+	try {
+		fs.lstatSync(targetPath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function ensureGreenworksPresent() {
 	if (!fs.existsSync(greenworksPath)) {
 		run('npm --prefix release/app install --ignore-scripts');
@@ -219,9 +228,30 @@ export function stageSteamworksSdk(steamworksSdkPath: string) {
 }
 
 export function linkModules() {
-	if (!fs.existsSync(srcNodeModulesPath) && fs.existsSync(releaseAppNodeModulesPath)) {
-		fs.symlinkSync(releaseAppNodeModulesPath, srcNodeModulesPath, 'junction');
+	if (!fs.existsSync(releaseAppNodeModulesPath)) {
+		return;
 	}
+
+	if (pathExistsOrIsDanglingLink(srcNodeModulesPath)) {
+		try {
+			const currentStats = fs.lstatSync(srcNodeModulesPath);
+			if (currentStats.isSymbolicLink()) {
+				const currentTarget = path.normalize(fs.realpathSync.native(srcNodeModulesPath));
+				const expectedTarget = path.normalize(fs.realpathSync.native(releaseAppNodeModulesPath));
+				if (currentTarget === expectedTarget) {
+					return;
+				}
+			} else {
+				return;
+			}
+		} catch {
+			// Remove stale or dangling junctions so setup can recreate them.
+		}
+
+		fs.rmSync(srcNodeModulesPath, { recursive: true, force: true });
+	}
+
+	fs.symlinkSync(releaseAppNodeModulesPath, srcNodeModulesPath, 'junction');
 }
 
 export function setupSteamworksNativeDeps(steamworksSdkPath: string) {

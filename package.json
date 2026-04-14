@@ -74,6 +74,20 @@
 			],
 			"category": "Development"
 		},
+		"pacman": {
+			"depends": [
+				"alsa-lib",
+				"at-spi2-core",
+				"gtk3",
+				"libappindicator",
+				"libnotify",
+				"libsecret",
+				"libxss",
+				"libxtst",
+				"nss",
+				"xdg-utils"
+			]
+		},
 		"directories": {
 			"app": "release/app",
 			"buildResources": "assets",
