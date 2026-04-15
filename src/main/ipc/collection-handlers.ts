@@ -5,7 +5,7 @@ import log from 'electron-log';
 
 import { ModCollection, ValidChannel } from '../../model';
 import { validateCollectionName } from '../../shared/collection-name';
-import { ensureCollectionsDirectory, readJsonFile } from '../storage';
+import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from '../storage';
 
 function resolveCollectionFilePath(userDataPath: string, collectionName: string): string | null {
 	const validationError = validateCollectionName(collectionName);
@@ -23,6 +23,24 @@ function resolveCollectionFilePath(userDataPath: string, collectionName: string)
 	}
 
 	return filepath;
+}
+
+export function refersToSameCollectionPath(oldpath: string, newpath: string): boolean {
+	if (oldpath === newpath) {
+		return true;
+	}
+
+	if (!fs.existsSync(oldpath) || !fs.existsSync(newpath)) {
+		return false;
+	}
+
+	try {
+		return fs.realpathSync.native(oldpath) === fs.realpathSync.native(newpath);
+	} catch (error) {
+		log.error(`Failed to compare collection paths ${oldpath} and ${newpath}`);
+		log.error(error);
+		return false;
+	}
 }
 
 export function readCollectionFile(userDataPath: string, collection: string): ModCollection | null {
@@ -52,7 +70,7 @@ export function listCollections(userDataPath: string): string[] {
 		const dirContents = fs.readdirSync(collectionsDirectory, { withFileTypes: true });
 		return dirContents
 			.filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.json')
-			.map((entry) => path.basename(entry.name, '.json'))
+			.map((entry) => path.parse(entry.name).name)
 			.filter((collectionName) => validateCollectionName(collectionName) === undefined);
 	} catch (error) {
 		log.error(error);
@@ -67,7 +85,7 @@ export function updateCollectionFile(userDataPath: string, collection: ModCollec
 	}
 
 	try {
-		fs.writeFileSync(filepath, JSON.stringify({ ...collection, mods: [...collection.mods] }, null, 4), { encoding: 'utf8', flag: 'w' });
+		writeUtf8FileAtomic(filepath, JSON.stringify({ ...collection, mods: [...collection.mods] }, null, 4));
 		return true;
 	} catch (error) {
 		log.error(error);
@@ -89,10 +107,31 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 			name: newName,
 			mods: [...collection.mods]
 		};
-		if (fs.existsSync(oldpath)) {
-			fs.renameSync(oldpath, newpath);
+		const serializedCollection = JSON.stringify(renamedCollection, null, 4);
+		const oldCollectionExists = fs.existsSync(oldpath);
+		const newCollectionExists = fs.existsSync(newpath);
+		const sameCollectionPath = oldCollectionExists && newCollectionExists && refersToSameCollectionPath(oldpath, newpath);
+		if (oldpath !== newpath && newCollectionExists && !sameCollectionPath) {
+			log.warn(`Refusing to rename collection ${collection.name} because ${newName} already exists`);
+			return false;
 		}
-		fs.writeFileSync(newpath, JSON.stringify(renamedCollection, null, 4), { encoding: 'utf8', flag: 'w' });
+
+		writeUtf8FileAtomic(newpath, serializedCollection);
+		if (oldCollectionExists && oldpath !== newpath && !sameCollectionPath) {
+			try {
+				fs.unlinkSync(oldpath);
+			} catch (error) {
+				try {
+					if (fs.existsSync(newpath)) {
+						fs.unlinkSync(newpath);
+					}
+				} catch (rollbackError) {
+					log.error(`Failed to roll back rename for ${newpath}`);
+					log.error(rollbackError);
+				}
+				throw error;
+			}
+		}
 		return true;
 	} catch (error) {
 		log.error(error);

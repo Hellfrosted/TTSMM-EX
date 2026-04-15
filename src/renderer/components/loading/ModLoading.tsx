@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Layout, Progress, Typography } from 'antd';
 import { AppConfig, ModType, AppState, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
@@ -17,10 +17,16 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	const [progressMessage, setProgressMessage] = useState('Counting mods');
 	const [loadError, setLoadError] = useState<string>();
 	const [retryCount, setRetryCount] = useState(0);
+	const loadRequestIdRef = useRef(0);
 
 	useEffect(() => {
+		const requestId = loadRequestIdRef.current + 1;
+		loadRequestIdRef.current = requestId;
 		const config: AppConfig = appState.config as AppConfig;
 		const unsubscribeProgress = api.onProgressChange((type: ProgressTypes, nextProgress: number, nextProgressMessage: string) => {
+			if (loadRequestIdRef.current !== requestId) {
+				return;
+			}
 			if (type === ProgressTypes.MOD_LOAD) {
 				api.logger.silly(`Mod loading progress: ${nextProgress}`);
 				setProgress(nextProgress);
@@ -40,6 +46,9 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 		void api
 			.readModMetadata(config.localDir, allKnownMods)
 			.then((mods) => {
+				if (loadRequestIdRef.current !== requestId) {
+					return mods;
+				}
 				setupDescriptors(mods as SessionMods, appState.config.userOverrides, appState.config);
 				appState.updateState({
 					mods,
@@ -51,12 +60,18 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				return mods;
 			})
 			.catch((error) => {
+				if (loadRequestIdRef.current !== requestId) {
+					return;
+				}
 				api.logger.error(error);
 				setLoadError(error instanceof Error ? error.message : String(error));
 			});
 
 		return () => {
 			unsubscribeProgress();
+			if (loadRequestIdRef.current === requestId) {
+				loadRequestIdRef.current += 1;
+			}
 		};
 	}, [appState, modLoadCompleteCallback, retryCount]);
 

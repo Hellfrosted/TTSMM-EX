@@ -222,4 +222,55 @@ describe('session mod descriptors', () => {
 
 		expect(filterRows(session, 'omodmanager')).toEqual([versionedWorkshopMod]);
 	});
+
+	it('clears stale overrides when a user override is removed', () => {
+		const mod = {
+			uid: `${ModType.LOCAL}:override-target`,
+			type: ModType.LOCAL,
+			id: 'OriginalModId',
+			name: 'Override Target'
+		};
+		const session = new SessionMods('', [mod]);
+
+		setupDescriptors(
+			session,
+			new Map([
+				[
+					mod.uid,
+					{
+						id: 'OverrideModId',
+						tags: ['utility']
+					}
+				]
+			]),
+			DEFAULT_CONFIG
+		);
+		expect(mod.overrides).toEqual({
+			id: 'OverrideModId',
+			tags: ['utility']
+		});
+
+		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+
+		expect(mod.overrides).toBeUndefined();
+	});
+
+	it('flags duplicate UID selections in a collection as conflicts', async () => {
+		const mod = {
+			uid: `${ModType.LOCAL}:duplicate-mod`,
+			type: ModType.LOCAL,
+			id: 'DuplicateMod',
+			name: 'Duplicate Mod'
+		};
+		const session = new SessionMods('', [mod]);
+
+		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [mod.uid, mod.uid]
+		});
+
+		expect(errors[mod.uid]?.incompatibleMods).toEqual([mod.uid]);
+	});
 });

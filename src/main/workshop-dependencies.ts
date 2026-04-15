@@ -1,13 +1,42 @@
 import axios from 'axios';
 import log from 'electron-log';
 import { parse } from 'node-html-parser';
+import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from 'shared/workshop-dependency-lookup';
 
 export interface WorkshopDependencyLookup {
 	steamDependencies: bigint[];
 	steamDependencyNames?: Record<string, string>;
+	steamDependenciesFetchedAt?: number;
 }
 
-const workshopDependencyLookupCache = new Map<string, Promise<WorkshopDependencyLookup | null>>();
+interface WorkshopDependencyLookupCacheEntry {
+	lookup: Promise<WorkshopDependencyLookup | null>;
+	expiresAt: number;
+}
+
+const MAX_WORKSHOP_DEPENDENCY_LOOKUP_CACHE_SIZE = 200;
+const workshopDependencyLookupCache = new Map<string, WorkshopDependencyLookupCacheEntry>();
+
+function pruneWorkshopDependencyLookupCache(now = Date.now()) {
+	for (const [cacheKey, cacheEntry] of workshopDependencyLookupCache.entries()) {
+		if (cacheEntry.expiresAt <= now) {
+			workshopDependencyLookupCache.delete(cacheKey);
+		}
+	}
+
+	while (workshopDependencyLookupCache.size > MAX_WORKSHOP_DEPENDENCY_LOOKUP_CACHE_SIZE) {
+		const oldestCacheKey = workshopDependencyLookupCache.keys().next().value;
+		if (oldestCacheKey === undefined) {
+			break;
+		}
+
+		workshopDependencyLookupCache.delete(oldestCacheKey);
+	}
+}
+
+export function clearWorkshopDependencyLookupCache() {
+	workshopDependencyLookupCache.clear();
+}
 
 export function parseWorkshopDependencyLookup(html: string): WorkshopDependencyLookup {
 	const root = parse(html);
@@ -60,10 +89,15 @@ export function parseWorkshopDependencyLookup(html: string): WorkshopDependencyL
 
 export async function fetchWorkshopDependencyLookup(workshopID: bigint): Promise<WorkshopDependencyLookup | null> {
 	const cacheKey = workshopID.toString();
+	const now = Date.now();
+	pruneWorkshopDependencyLookupCache(now);
+
 	const existingLookup = workshopDependencyLookupCache.get(cacheKey);
-	if (existingLookup) {
-		return existingLookup;
+	if (existingLookup && existingLookup.expiresAt > now) {
+		return existingLookup.lookup;
 	}
+
+	workshopDependencyLookupCache.delete(cacheKey);
 
 	const pendingLookup = axios
 		.get<string>(`https://steamcommunity.com/sharedfiles/filedetails/?id=${cacheKey}`, {
@@ -75,7 +109,10 @@ export async function fetchWorkshopDependencyLookup(workshopID: bigint): Promise
 			}
 		})
 		.then((response) => {
-			return parseWorkshopDependencyLookup(response.data);
+			return {
+				...parseWorkshopDependencyLookup(response.data),
+				steamDependenciesFetchedAt: Date.now()
+			};
 		})
 		.catch((error) => {
 			log.warn(`Failed to fetch workshop dependencies for ${cacheKey}`);
@@ -84,6 +121,11 @@ export async function fetchWorkshopDependencyLookup(workshopID: bigint): Promise
 			return null;
 		});
 
-	workshopDependencyLookupCache.set(cacheKey, pendingLookup);
+	workshopDependencyLookupCache.set(cacheKey, {
+		lookup: pendingLookup,
+		expiresAt: now + WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS
+	});
+	pruneWorkshopDependencyLookupCache(now);
+
 	return pendingLookup;
 }

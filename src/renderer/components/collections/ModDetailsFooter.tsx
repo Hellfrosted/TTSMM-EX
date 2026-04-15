@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type Key } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react';
 import {
 	Empty,
 	Layout,
@@ -54,6 +54,7 @@ import {
 	compareModDataDisplayId,
 	CollectionManagerModalType
 } from 'model';
+import { isWorkshopDependencyLookupStale } from 'shared/workshop-dependency-lookup';
 import { formatDateStr } from 'util/Date';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { writeConfig } from 'renderer/util/config-write';
@@ -146,7 +147,7 @@ interface ModDetailsFooterProps {
 	disableModCallback: (uid: string) => void;
 	setModSubsetCallback: (changes: { [uid: string]: boolean }) => void;
 	openNotification: (props: NotificationProps, type?: 'info' | 'error' | 'success' | 'warn') => void;
-	validateCollection: () => void;
+	validateCollection: (options?: { config?: AppState['config'] }) => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
 }
 
@@ -279,40 +280,86 @@ function ModDetailsFooter({
 	openModal,
 	lastValidationStatus
 }: ModDetailsFooterProps) {
-	const [requestedDependencyLookupUid, setRequestedDependencyLookupUid] = useState<string | null>(null);
+	const requestedDependencyLookupUidRef = useRef<string | null>(null);
 	const [loadingDependencies, setLoadingDependencies] = useState(false);
+	const [dependencyLookupError, setDependencyLookupError] = useState<string>();
 	const { activeCollection, config: appConfig, updateState: updateAppState } = appState;
+	const currentRecordUid = currentRecord.uid;
+	const currentRecordType = currentRecord.type;
+	const currentRecordWorkshopID = currentRecord.workshopID;
+	const currentRecordSteamDependencies = currentRecord.steamDependencies;
+	const currentRecordSteamDependenciesFetchedAt = currentRecord.steamDependenciesFetchedAt;
 
 	useEffect(() => {
+		if (requestedDependencyLookupUidRef.current === null) {
+			return;
+		}
+
+		if (activeTabKey === 'dependencies' && requestedDependencyLookupUidRef.current === currentRecordUid) {
+			return;
+		}
+
+		requestedDependencyLookupUidRef.current = null;
+		setLoadingDependencies(false);
+	}, [activeTabKey, currentRecordUid]);
+
+	useEffect(() => {
+		setDependencyLookupError(undefined);
+	}, [currentRecordUid]);
+
+	useEffect(() => {
+		if (activeTabKey !== 'dependencies') {
+			setDependencyLookupError(undefined);
+		}
+	}, [activeTabKey]);
+
+	useEffect(() => {
+		const shouldRefreshWorkshopDependencies =
+			currentRecordSteamDependencies === undefined ||
+			isWorkshopDependencyLookupStale(currentRecordSteamDependenciesFetchedAt);
+
 		if (
 			activeTabKey !== 'dependencies' ||
-			currentRecord.type !== ModType.WORKSHOP ||
-			currentRecord.workshopID === undefined ||
-			currentRecord.steamDependencies !== undefined ||
-			requestedDependencyLookupUid === currentRecord.uid
+			currentRecordType !== ModType.WORKSHOP ||
+			currentRecordWorkshopID === undefined ||
+			!shouldRefreshWorkshopDependencies ||
+			requestedDependencyLookupUidRef.current === currentRecordUid ||
+			!!dependencyLookupError
 		) {
 			return;
 		}
 
 		let cancelled = false;
 		const loadDependencies = async () => {
-			const { uid, workshopID } = currentRecord;
-			if (workshopID === undefined) {
+			if (currentRecordWorkshopID === undefined) {
 				return;
 			}
 
-			setRequestedDependencyLookupUid(uid);
+			requestedDependencyLookupUidRef.current = currentRecordUid;
 			setLoadingDependencies(true);
 			try {
-				const loaded = await api.fetchWorkshopDependencies(workshopID);
+				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
 				if (!loaded) {
-					api.logger.warn(`Failed to load workshop dependencies for ${workshopID}`);
+					const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
+					api.logger.warn(message);
+					if (!cancelled) {
+						setDependencyLookupError(message);
+					}
+					return;
+				}
+				if (!cancelled) {
+					setDependencyLookupError(undefined);
 				}
 			} catch (error) {
-				api.logger.error(`Failed to load workshop dependencies for ${workshopID}`);
+				const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
+				api.logger.error(message);
 				api.logger.error(error);
+				if (!cancelled) {
+					setDependencyLookupError(message);
+				}
 			} finally {
 				if (!cancelled) {
+					requestedDependencyLookupUidRef.current = null;
 					setLoadingDependencies(false);
 				}
 			}
@@ -322,8 +369,20 @@ function ModDetailsFooter({
 
 		return () => {
 			cancelled = true;
+			if (requestedDependencyLookupUidRef.current === currentRecordUid) {
+				requestedDependencyLookupUidRef.current = null;
+				setLoadingDependencies(false);
+			}
 		};
-	}, [activeTabKey, currentRecord, requestedDependencyLookupUid]);
+	}, [
+		activeTabKey,
+		currentRecordUid,
+		currentRecordType,
+		currentRecordWorkshopID,
+		currentRecordSteamDependencies,
+		currentRecordSteamDependenciesFetchedAt,
+		dependencyLookupError
+	]);
 
 	const getIgnoredRenderer = useCallback((type: DependenciesTableType) => {
 		const { uid: currentRecordUid } = currentRecord;
@@ -378,7 +437,7 @@ function ModDetailsFooter({
 							try {
 								await writeConfig(nextConfig);
 								updateAppState({ config: nextConfig });
-								validateCollection();
+								validateCollection({ config: nextConfig });
 							} catch (error) {
 								api.logger.error(error);
 								openNotification(
@@ -711,6 +770,19 @@ function ModDetailsFooter({
 					return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 5, marginBottom: 5 }} />;
 				}}
 			>
+				{dependencyLookupError ? (
+					<Space orientation="vertical" size={8} style={{ width: '100%', marginBottom: 12 }}>
+						<Text type="warning">{dependencyLookupError}</Text>
+						<Button
+							size="small"
+							onClick={() => {
+								setDependencyLookupError(undefined);
+							}}
+						>
+							Retry Dependency Lookup
+						</Button>
+					</Space>
+				) : null}
 				<Collapse
 					className="ModDetailDependencies"
 					defaultActiveKey={['required']}

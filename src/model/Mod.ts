@@ -37,6 +37,7 @@ export interface ModData {
 	// Raw mod dependencies
 	steamDependencies?: bigint[];
 	steamDependencyNames?: Record<string, string>;
+	steamDependenciesFetchedAt?: number;
 	explicitIDDependencies?: string[];
 	// Processed descriptor dependencies
 	dependsOn?: ModDescriptor[];

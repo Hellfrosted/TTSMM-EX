@@ -146,10 +146,15 @@ export function useSettingsForm(appState: AppState) {
 		const shouldReloadMods = appState.config.localDir !== configToSave.localDir || appState.config.workshopID !== configToSave.workshopID;
 		const shouldRebuildDescriptors =
 			appState.config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
+		const nextLogLevel = configToSave.logLevel;
+		const shouldUpdateLogLevel = appState.config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 
 		appState.updateState({ savingConfig: true });
 		try {
 			await writeConfig(configToSave);
+			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
+				api.updateLogLevel(nextLogLevel);
+			}
 			const nextState: {
 				config: AppConfig;
 				madeConfigEdits: boolean;

@@ -19,6 +19,7 @@ export default function SteamworksVerification() {
 	const [verifying, setVerifying] = useState(true);
 	const [error, setError] = useState<string>();
 	const appStateRef = useRef(appState);
+	const mountedRef = useRef(true);
 	const timeoutIdsRef = useRef<number[]>([]);
 
 	useEffect(() => {
@@ -26,8 +27,15 @@ export default function SteamworksVerification() {
 	}, [appState]);
 
 	const scheduleTimeout = useCallback((callback: () => void, delay: number) => {
+		if (!mountedRef.current) {
+			return;
+		}
+
 		const timeoutId = window.setTimeout(() => {
 			timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId);
+			if (!mountedRef.current) {
+				return;
+			}
 			callback();
 		}, delay);
 		timeoutIdsRef.current.push(timeoutId);
@@ -71,15 +79,28 @@ export default function SteamworksVerification() {
 		return message.inited;
 	}, [goToConfig, scheduleTimeout]);
 
+	const processVerificationFailure = useCallback((cause: unknown) => {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		scheduleTimeout(() => {
+			setError(message);
+			setVerifying(false);
+		}, 100);
+	}, [scheduleTimeout]);
+
 	useEffect(() => {
-		void api.steamworksInited().then(processVerificationMessage).catch(api.logger.error);
+		mountedRef.current = true;
+		void api.steamworksInited().then(processVerificationMessage).catch((error) => {
+			api.logger.error(error);
+			processVerificationFailure(error);
+		});
 		return () => {
+			mountedRef.current = false;
 			timeoutIdsRef.current.forEach((timeoutId) => {
 				window.clearTimeout(timeoutId);
 			});
 			timeoutIdsRef.current = [];
 		};
-	}, [processVerificationMessage]);
+	}, [processVerificationFailure, processVerificationMessage]);
 
 	function getStatusIcon() {
 		if (verifying) {
@@ -92,8 +113,12 @@ export default function SteamworksVerification() {
 	}
 
 	function verify() {
+		setError(undefined);
 		setVerifying(true);
-		void api.steamworksInited().then(processVerificationMessage).catch(api.logger.error);
+		void api.steamworksInited().then(processVerificationMessage).catch((error) => {
+			api.logger.error(error);
+			processVerificationFailure(error);
+		});
 	}
 
 	return (

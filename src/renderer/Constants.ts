@@ -11,9 +11,9 @@ export function IsMac(): boolean {
 function getDefaultWorkshopDir(): string {
 	switch (platform) {
 		case 'win32':
-			return `C:\\Program Files(x86)\\Steam\\steamapps\\workshop\\content\\${TT_APP_ID}`;
+			return `C:\\Program Files (x86)\\Steam\\steamapps\\workshop\\content\\${TT_APP_ID}`;
 		case 'darwin':
-			return `~/Library/"Application Support"/Steam/steamapps/workshop/content/${TT_APP_ID}`;
+			return `~/Library/Application Support/Steam/steamapps/workshop/content/${TT_APP_ID}`;
 		default:
 			return `~/.steam/steam/SteamApps/workshop/content/${TT_APP_ID}`;
 	}
@@ -23,9 +23,9 @@ export const DEFAULT_WORKSHOP_DIR = getDefaultWorkshopDir();
 function getDefaultExecutablePath(): string {
 	switch (platform) {
 		case 'win32':
-			return `C:\\Program Files(x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe`;
+			return `C:\\Program Files (x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe`;
 		case 'darwin':
-			return `~/Library/"Application Support"/Steam/steamapps/common/TerraTech/TerraTechOSX64.app`;
+			return `~/Library/Application Support/Steam/steamapps/common/TerraTech/TerraTechOSX64.app`;
 		default:
 			return '';
 	}

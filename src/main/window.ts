@@ -7,19 +7,49 @@ import { openExternalUrl } from './external-links';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 
+const STEAM_APP_ID = '285920\n';
+const STEAM_APP_ID_VALUE = '285920';
+
 export interface WindowOptions {
 	isDevelopment: boolean;
 	onDidFinishLoad: () => void;
 }
 
-export function ensureSteamAppIdFile() {
-	if (fs.existsSync('steam_appid.txt')) {
-		const appID = fs.readFileSync('steam_appid.txt', 'utf8');
-		if (!appID.toString().startsWith('285920')) {
-			fs.writeFileSync('steam_appid.txt', '285920\n', 'utf8');
+interface SteamAppIdFileOptions {
+	isPackaged?: boolean;
+	cwd?: string;
+	exePath?: string;
+	fsImpl?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'writeFileSync'>;
+	logger?: Pick<typeof log, 'error'>;
+}
+
+export function resolveSteamAppIdFilePath({
+	isPackaged = app.isPackaged,
+	cwd = process.cwd(),
+	exePath = app.getPath('exe')
+}: Pick<SteamAppIdFileOptions, 'isPackaged' | 'cwd' | 'exePath'> = {}) {
+	const basePath = isPackaged ? path.dirname(exePath) : cwd;
+	return path.join(basePath, 'steam_appid.txt');
+}
+
+export function ensureSteamAppIdFile(options: SteamAppIdFileOptions = {}) {
+	const { fsImpl = fs, logger = log } = options;
+	const steamAppIdPath = resolveSteamAppIdFilePath(options);
+
+	try {
+		if (fsImpl.existsSync(steamAppIdPath)) {
+			const appID = fsImpl.readFileSync(steamAppIdPath, 'utf8');
+			if (appID.toString().trim() !== STEAM_APP_ID_VALUE) {
+				fsImpl.writeFileSync(steamAppIdPath, STEAM_APP_ID, 'utf8');
+			}
+		} else {
+			fsImpl.writeFileSync(steamAppIdPath, STEAM_APP_ID, 'utf8');
 		}
-	} else {
-		fs.writeFileSync('steam_appid.txt', '285920\n', 'utf8');
+		return true;
+	} catch (error) {
+		logger.error(`Failed to ensure steam_appid.txt at ${steamAppIdPath}`);
+		logger.error(error);
+		return false;
 	}
 }
 

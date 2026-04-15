@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AppConfigKeys, SettingsViewModalType } from '../../model';
+import { AppConfigKeys, LogLevel, SettingsViewModalType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
 import { createAppState } from './test-utils';
@@ -104,5 +104,41 @@ describe('useSettingsForm', () => {
 		expect(appState.firstModLoad).toBe(true);
 		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
 		expect(appState.madeConfigEdits).toBe(true);
+	});
+
+	it('applies log level only after a successful save', async () => {
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				logLevel: LogLevel.WARN,
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		const updateLogLevel = vi.fn();
+		window.electron.updateLogLevel = updateLogLevel;
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		act(() => {
+			result.current.setField('logLevel', LogLevel.DEBUG);
+		});
+
+		expect(updateLogLevel).not.toHaveBeenCalled();
+
+		await act(async () => {
+			await result.current.saveChanges();
+		});
+
+		expect(updateLogLevel).not.toHaveBeenCalled();
+		expect(appState.config.logLevel).toBe(LogLevel.WARN);
+
+		await act(async () => {
+			await result.current.saveChanges();
+		});
+
+		expect(updateLogLevel).toHaveBeenCalledWith(LogLevel.DEBUG);
+		expect(appState.config.logLevel).toBe(LogLevel.DEBUG);
 	});
 });

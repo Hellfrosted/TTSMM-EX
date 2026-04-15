@@ -1,8 +1,9 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods, setupDescriptors } from '../../model';
 import ModDetailsFooter from '../../renderer/components/collections/ModDetailsFooter';
+import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from '../../shared/workshop-dependency-lookup';
 import { createAppState } from './test-utils';
 
 function renderFooter(props: React.ComponentProps<typeof ModDetailsFooter>) {
@@ -14,10 +15,15 @@ describe('ModDetailsFooter', () => {
 		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 			return {
 				observe: vi.fn(),
+				unobserve: vi.fn(),
 				disconnect: vi.fn()
 			};
 		});
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+	});
+
+	afterEach(() => {
+		cleanup();
 	});
 
 	it('shows workshop ids in the footer identity and inspect details without ambiguous ID labels', () => {
@@ -112,6 +118,171 @@ describe('ModDetailsFooter', () => {
 		expect(screen.getAllByText('Workshop ID').length).toBeGreaterThan(0);
 		expect(screen.getByText('11')).toBeInTheDocument();
 		expect(screen.getByText('Pending')).toBeInTheDocument();
+	});
+
+	it('retries workshop dependency lookup after leaving and reopening the dependencies tab', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'RetryMod',
+			name: 'Retry Mod',
+			subscribed: true,
+			installed: true
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => false);
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		const [currentRecord] = mods.foundMods;
+
+		const footerProps = {
+			bigDetails: false,
+			halfLayoutMode: 'bottom' as const,
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		};
+		const { rerender } = renderFooter({
+			...footerProps,
+			activeTabKey: 'dependencies'
+		});
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+		});
+
+		rerender(
+			<ModDetailsFooter
+				{...footerProps}
+				activeTabKey="info"
+			/>
+		);
+
+		rerender(
+			<ModDetailsFooter
+				{...footerProps}
+				activeTabKey="dependencies"
+			/>
+		);
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	it('offers a same-tab retry after a workshop dependency lookup failure', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'RetryMod',
+			name: 'Retry Mod',
+			subscribed: true,
+			installed: true
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => false).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		});
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+			expect(screen.getByRole('button', { name: 'Retry Dependency Lookup' })).toBeInTheDocument();
+			expect(screen.getAllByText('Failed to load workshop dependencies for 77').length).toBeGreaterThan(0);
+		});
+		fireEvent.click(screen.getByRole('button', { name: 'Retry Dependency Lookup' }));
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	it('refreshes stale workshop dependency snapshots when opening the dependencies tab', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'RetryMod',
+			name: 'Retry Mod',
+			subscribed: true,
+			installed: true,
+			steamDependencies: [BigInt(11)],
+			steamDependenciesFetchedAt: Date.now() - WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS - 1
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => true);
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		});
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	it('does not update ignored validation config when persisting that change fails', async () => {

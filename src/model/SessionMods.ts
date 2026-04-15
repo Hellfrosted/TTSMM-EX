@@ -188,9 +188,7 @@ export function setupDescriptors(
 	// Setup ModDescriptors and other maps
 	foundMods.forEach((mod: ModData) => {
 		const modOverrides = overrides.get(mod.uid);
-		if (modOverrides) {
-			mod.overrides = modOverrides;
-		}
+		mod.overrides = cloneModOverride(modOverrides);
 
 		modIdToModDataMap.set(mod.uid, mod);
 		// Create mod descriptors using workshop mods as first pass
@@ -359,6 +357,15 @@ export function validateCollection(session: SessionMods, collection: ModCollecti
 	return new Promise<CollectionErrors>((resolve, reject) => {
 		try {
 			const errors: CollectionErrors = {};
+			const duplicateSelections = new Set<string>();
+			const activeUidCounts = new Map<string, number>();
+			collection.mods.forEach((uid) => {
+				const nextCount = (activeUidCounts.get(uid) || 0) + 1;
+				activeUidCounts.set(uid, nextCount);
+				if (nextCount > 1) {
+					duplicateSelections.add(uid);
+				}
+			});
 
 			const descriptorToActiveMap: Map<ModDescriptor, string[]> = new Map();
 			const presentDescriptorsList = collection.mods.map((uid) => {
@@ -389,8 +396,12 @@ export function validateCollection(session: SessionMods, collection: ModCollecti
 					if (descriptor) {
 						// incompatibilities
 						const activeForDescriptor = descriptorToActiveMap.get(descriptor)!;
-						if (activeForDescriptor.length > 1) {
-							modErrors.incompatibleMods = activeForDescriptor.filter((uid) => uid !== modData.uid);
+						const conflictingSelections = activeForDescriptor.filter((uid) => uid !== modData.uid);
+						if (duplicateSelections.has(modData.uid)) {
+							conflictingSelections.push(modData.uid);
+						}
+						if (conflictingSelections.length > 0) {
+							modErrors.incompatibleMods = [...new Set(conflictingSelections)];
 						}
 						// dependencies
 						const dependencies = modData.dependsOn;

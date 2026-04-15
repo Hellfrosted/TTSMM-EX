@@ -1,10 +1,12 @@
 import child_process from 'child_process';
 import fs from 'fs';
+import os from 'node:os';
 import { app, IpcMain, dialog, shell } from 'electron';
 import log from 'electron-log';
 import path from 'path';
 
 import { PathType, ValidChannel } from '../../model';
+import { expandUserPath, normalizePathValue } from '../path-utils';
 
 interface ProcessDetails {
 	pid: number;
@@ -13,15 +15,6 @@ interface ProcessDetails {
 }
 
 const WINDOWS_TERRATECH_EXECUTABLE_PATH = path.join('steamapps', 'common', 'TerraTech', 'TerraTechWin64.exe');
-
-function normalizePathValue(value: string | null | undefined): string | null {
-	if (!value) {
-		return null;
-	}
-
-	const normalized = path.normalize(value.trim().replace(/^"+|"+$/g, '').replace(/\\\\/g, '\\'));
-	return normalized.length > 0 ? normalized : null;
-}
 
 function parseSteamLibraryFolders(contents: string): string[] {
 	return [...contents.matchAll(/"path"\s+"([^"]+)"/g)]
@@ -132,6 +125,14 @@ export async function isGameRunning(): Promise<boolean> {
 	}
 }
 
+function encodeSteamRunArgument(argument: string) {
+	return encodeURIComponent(argument)
+		.replace(/%2B/gi, '+')
+		.replace(/%5B/gi, '[')
+		.replace(/%5D/gi, ']')
+		.replace(/%3A/gi, ':');
+}
+
 export function launchGameProcess(
 	gameExec: string,
 	workshopID: string | bigint | null | undefined,
@@ -140,14 +141,17 @@ export function launchGameProcess(
 	spawn: typeof child_process.spawn = child_process.spawn,
 	openExternal?: typeof shell.openExternal,
 	platform: NodeJS.Platform = process.platform,
-	quit?: typeof app.quit
+	quit?: typeof app.quit,
+	homeDir: string = os.homedir()
 ): Promise<boolean> {
 	log.info('Launching game with custom args:');
 	const allArgs = ['+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
 	log.info(allArgs);
 	const quitApp = quit ?? (() => app.quit());
+	const resolvedGameExec = expandUserPath(gameExec, homeDir) ?? gameExec;
 	if (platform === 'linux') {
-		const steamRunUrl = `steam://run/285920//${allArgs.join(' ')}/`;
+		const steamRunArgs = allArgs.map((argument) => encodeSteamRunArgument(argument)).join(' ');
+		const steamRunUrl = `steam://run/285920//${steamRunArgs}/`;
 		log.info(`Launching game via Steam protocol: ${steamRunUrl}`);
 		const launchExternal = openExternal ?? ((url: string) => shell.openExternal(url));
 		return launchExternal(steamRunUrl)
@@ -164,9 +168,13 @@ export function launchGameProcess(
 			});
 	}
 	try {
-		const child = spawn(gameExec, allArgs, {
+		const child = spawn(
+			platform === 'darwin' && resolvedGameExec.endsWith('.app') ? 'open' : resolvedGameExec,
+			platform === 'darwin' && resolvedGameExec.endsWith('.app') ? ['-a', resolvedGameExec, '--args', ...allArgs] : allArgs,
+			{
 			detached: true
-		});
+			}
+		);
 		return new Promise((resolve) => {
 			const settle = (success: boolean, error?: unknown) => {
 				child.removeAllListeners('error');
@@ -215,8 +223,8 @@ export async function selectPath(directory: boolean, title: string): Promise<str
 	}
 }
 
-export function pathExists(targetPath: string, expectedType?: PathType): boolean {
-	const normalizedTargetPath = targetPath?.trim();
+export function pathExists(targetPath: string, expectedType?: PathType, homeDir: string = os.homedir()): boolean {
+	const normalizedTargetPath = expandUserPath(targetPath, homeDir);
 	if (!normalizedTargetPath) {
 		return false;
 	}

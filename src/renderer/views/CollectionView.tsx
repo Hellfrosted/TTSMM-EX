@@ -104,7 +104,7 @@ type HalfDetailsLayout = 'bottom' | 'side';
 interface ValidationCallbacks {
 	cancelValidation: () => void;
 	resetValidationState: () => void;
-	validateActiveCollection: (launchIfValid: boolean) => Promise<void>;
+	validateActiveCollection: (launchIfValid: boolean, options?: { config?: AppState['config'] }) => Promise<void>;
 }
 
 interface CollectionViewRouteProps {
@@ -280,9 +280,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setPreferredHalfDetailsLayout(halfDetailsLayout === 'side' ? 'bottom' : 'side');
 		});
 	}, [halfDetailsLayout]);
-	const handleValidateCollection = useCallback(() => {
+	const handleValidateCollection = useCallback((options?: { config?: AppState['config'] }) => {
 		setCollectionErrors(undefined);
-		void validateActiveCollection(false);
+		void validateActiveCollection(false, options);
 	}, [setCollectionErrors, validateActiveCollection]);
 	const handleReloadModList = useCallback(() => {
 		setCurrentRecord(undefined);

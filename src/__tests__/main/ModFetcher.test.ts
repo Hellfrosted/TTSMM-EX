@@ -150,6 +150,7 @@ describe('ModFetcher', () => {
 					id: 'GreenTech',
 					tags: ['Mods', 'Blocks'],
 					steamDependencies: [BigInt(789)],
+					steamDependenciesFetchedAt: expect.any(Number),
 					authors: ['Test Author']
 				})
 			]);

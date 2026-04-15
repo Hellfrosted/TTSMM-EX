@@ -33,6 +33,7 @@ function createElectronMock() {
 		launchGame: vi.fn(async () => true),
 		isGameRunning: vi.fn(async () => false),
 		readModMetadata: vi.fn(async () => new SessionMods('', [])),
+		fetchWorkshopDependencies: vi.fn(async () => true),
 		steamworksInited: vi.fn(async () => ({ inited: true })),
 		downloadMod: vi.fn(async () => true),
 		subscribeMod: vi.fn(async () => true),

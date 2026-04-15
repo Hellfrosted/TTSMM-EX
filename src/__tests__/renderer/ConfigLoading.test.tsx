@@ -33,6 +33,10 @@ function ConfigLoadingAppHarness() {
 }
 
 describe('ConfigLoading', () => {
+	it('uses the corrected default Windows executable path', () => {
+		expect(DEFAULT_CONFIG.gameExec).toBe('C:\\Program Files (x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
+	});
+
 	it('loads config and collections through the provider-owned boot flow', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({

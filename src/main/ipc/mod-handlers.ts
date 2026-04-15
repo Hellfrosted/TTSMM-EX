@@ -10,8 +10,9 @@ import {
 } from '../../model';
 import { openExternalUrl } from '../external-links';
 import ModFetcher, { getModDetailsFromPath } from '../mod-fetcher';
+import { expandUserPath } from '../path-utils';
 import Steamworks, { EResult, UGCItemState } from '../steamworks';
-import { fetchWorkshopDependencyLookup } from '../workshop-dependencies';
+import { clearWorkshopDependencyLookupCache, fetchWorkshopDependencyLookup } from '../workshop-dependencies';
 
 interface MainWindowProvider {
 	getWebContents: () => WebContents | null;
@@ -27,21 +28,27 @@ function createSteamResultHandler(
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void
 ): Promise<boolean> {
 	return new Promise((resolve) => {
-		action(
-			(result: EResult) => {
-				if (result === EResult.k_EResultOK) {
-					resolve(true);
-				} else {
-					log.error(`${failureMessage}. Status ${result.toString()}`);
+		try {
+			action(
+				(result: EResult) => {
+					if (result === EResult.k_EResultOK) {
+						resolve(true);
+					} else {
+						log.error(`${failureMessage}. Status ${result.toString()}`);
+						resolve(false);
+					}
+				},
+				(error: Error) => {
+					log.error(failureMessage);
+					log.error(error);
 					resolve(false);
 				}
-			},
-			(error: Error) => {
-				log.error(failureMessage);
-				log.error(error);
-				resolve(false);
-			}
-		);
+			);
+		} catch (error) {
+			log.error(failureMessage);
+			log.error(error);
+			resolve(false);
+		}
 	});
 }
 
@@ -78,8 +85,11 @@ export function createUnsubscribeModHandler(steamworks = Steamworks) {
 	};
 }
 
-export function createReadModMetadataHandler() {
+export function createReadModMetadataHandler(clearDependencyLookupCache = clearWorkshopDependencyLookupCache) {
 	return async (event: { sender: WebContents }, localDir: string | undefined, allKnownMods: string[]): Promise<SessionMods> => {
+		clearDependencyLookupCache();
+		const resolvedLocalDir = expandUserPath(localDir) ?? undefined;
+
 		const knownWorkshopMods: bigint[] = [];
 		allKnownMods.forEach((uid: string) => {
 			log.debug(`Found known mod ${uid}`);
@@ -95,10 +105,10 @@ export function createReadModMetadataHandler() {
 			}
 		});
 
-		const modFetcher = new ModFetcher(event.sender, localDir, knownWorkshopMods);
+		const modFetcher = new ModFetcher(event.sender, resolvedLocalDir, knownWorkshopMods);
 		try {
 			const modsList = await modFetcher.fetchMods();
-			return new SessionMods(localDir, modsList);
+			return new SessionMods(resolvedLocalDir, modsList);
 		} catch (error) {
 			log.error('Failed to get mod info:');
 			log.error(error);
@@ -146,24 +156,29 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 			const requestId = metadataUpdateRequestId + 1;
 			metadataUpdateRequestId = requestId;
 			const update = cloneModData(record);
-			const state: UGCItemState = Steamworks.ugcGetItemState(record.workshopID!);
-			update.subscribed = !!(state & UGCItemState.Subscribed);
-			update.installed = !!(state & UGCItemState.Installed);
-			update.downloadPending = !!(state & UGCItemState.DownloadPending);
-			update.downloading = !!(state & UGCItemState.Downloading);
-			update.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-			const installInfo = Steamworks.ugcGetItemInstallInfo(record.workshopID!);
-			if (installInfo) {
-				log.verbose(`Workshop mod is installed at path: ${installInfo.folder}`);
-				update.lastUpdate = new Date(installInfo.timestamp * 1000);
-				update.size = parseInt(installInfo.sizeOnDisk, 10);
-				update.path = installInfo.folder;
+			try {
+				const state: UGCItemState = Steamworks.ugcGetItemState(record.workshopID!);
+				update.subscribed = !!(state & UGCItemState.Subscribed);
+				update.installed = !!(state & UGCItemState.Installed);
+				update.downloadPending = !!(state & UGCItemState.DownloadPending);
+				update.downloading = !!(state & UGCItemState.Downloading);
+				update.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
+				const installInfo = Steamworks.ugcGetItemInstallInfo(record.workshopID!);
+				if (installInfo) {
+					log.verbose(`Workshop mod is installed at path: ${installInfo.folder}`);
+					update.lastUpdate = new Date(installInfo.timestamp * 1000);
+					update.size = parseInt(installInfo.sizeOnDisk, 10);
+					update.path = installInfo.folder;
 
-				await getModDetailsFromPath(update, installInfo.folder, record.type);
-			} else {
-				log.verbose(`FAILED to get install info for mod ${record.workshopID}`);
-				update.lastUpdate = undefined;
-				update.path = undefined;
+					await getModDetailsFromPath(update, installInfo.folder, record.type);
+				} else {
+					log.verbose(`FAILED to get install info for mod ${record.workshopID}`);
+					update.lastUpdate = undefined;
+					update.path = undefined;
+				}
+			} catch (error) {
+				log.error(`Failed to refresh workshop metadata for ${record.workshopID}`);
+				log.error(error);
 			}
 			if (requestId !== metadataUpdateRequestId) {
 				return;
@@ -181,7 +196,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						mainWindowProvider
 							.getWebContents()
 							?.send(ValidChannel.MOD_METADATA_UPDATE, `${ModType.WORKSHOP}:${record.workshopID}`, { subscribed: false });
-						getUpdatedInfo();
+						void getUpdatedInfo();
 					});
 				}
 			});
@@ -194,7 +209,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						mainWindowProvider
 							.getWebContents()
 							?.send(ValidChannel.MOD_METADATA_UPDATE, `${ModType.WORKSHOP}:${record.workshopID}`, { subscribed: true });
-						getUpdatedInfo();
+						void getUpdatedInfo();
 					});
 				}
 			});
@@ -205,7 +220,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					Steamworks.ugcDownloadItem(record.workshopID!, () => {
 						log.verbose(`Updated ${record.workshopID}`);
-						getUpdatedInfo();
+						void getUpdatedInfo();
 					});
 				}
 			});

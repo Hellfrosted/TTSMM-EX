@@ -4,7 +4,6 @@ import { Layout, Form, Input, InputNumber, Switch, Button, Space, Select, Row, C
 import { useOutletContext } from 'react-router-dom';
 import { CloseOutlined, EditFilled, FolderOutlined, PlusOutlined } from '@ant-design/icons';
 import { createEditingConfig, useSettingsForm } from 'renderer/hooks/useSettingsForm';
-import api from 'renderer/Api';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Content } = Layout;
@@ -371,7 +370,6 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									value={editingConfig.logLevel}
 									onChange={(value) => {
 										setField('logLevel', value);
-										api.updateLogLevel(value);
 									}}
 									style={{ width: 125 }}
 								>
