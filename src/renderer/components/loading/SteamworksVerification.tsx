@@ -4,6 +4,7 @@ import { CheckOutlined, CloseOutlined, Loading3QuartersOutlined } from '@ant-des
 import api from 'renderer/Api';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppState } from 'renderer/state/app-state';
+import { getStoredViewPath } from 'renderer/util/view-path';
 
 const { Content } = Layout;
 const { Text } = Typography;
@@ -40,12 +41,16 @@ export default function SteamworksVerification() {
 			return;
 		}
 
-		const nextConfig = {
-			...config,
-			currentPath: '/collections/main'
-		};
-		updateState({ config: nextConfig });
-		navigate(nextConfig.currentPath);
+		const nextPath = getStoredViewPath(config.currentPath);
+		if (nextPath !== config.currentPath) {
+			updateState({
+				config: {
+					...config,
+					currentPath: nextPath
+				}
+			});
+		}
+		navigate(nextPath);
 	}, []);
 
 	const processVerificationMessage = useCallback((message: VerificationMessage) => {

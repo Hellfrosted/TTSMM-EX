@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Layout, Progress } from 'antd';
+import { Button, Layout, Progress, Typography } from 'antd';
 import { AppConfig, ModType, AppState, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
 import { CheckCircleFilled } from '@ant-design/icons';
 
 const { Content } = Layout;
+const { Text } = Typography;
 
 interface ModLoadingProps {
 	appState: AppState;
@@ -14,6 +15,8 @@ interface ModLoadingProps {
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
 	const [progress, setProgress] = useState(0);
 	const [progressMessage, setProgressMessage] = useState('Counting mods');
+	const [loadError, setLoadError] = useState<string>();
+	const [retryCount, setRetryCount] = useState(0);
 
 	useEffect(() => {
 		const config: AppConfig = appState.config as AppConfig;
@@ -37,14 +40,6 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 		void api
 			.readModMetadata(config.localDir, allKnownMods)
 			.then((mods) => {
-				if (!mods) {
-					appState.updateState({
-						loadingMods: false,
-						forceReloadMods: false
-					});
-					return null;
-				}
-
 				setupDescriptors(mods as SessionMods, appState.config.userOverrides, appState.config);
 				appState.updateState({
 					mods,
@@ -57,16 +52,13 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			})
 			.catch((error) => {
 				api.logger.error(error);
-				appState.updateState({
-					loadingMods: false,
-					forceReloadMods: false
-				});
+				setLoadError(error instanceof Error ? error.message : String(error));
 			});
 
 		return () => {
 			unsubscribeProgress();
 		};
-	}, [appState, modLoadCompleteCallback]);
+	}, [appState, modLoadCompleteCallback, retryCount]);
 
 	return (
 		<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
@@ -79,6 +71,37 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				<span style={{ width: 'calc(100%)', display: 'flex', justifyContent: 'center', position: 'absolute', top: 'calc(90%)' }}>
 					{progressMessage ? <div>{progressMessage}</div> : null}
 				</span>
+				{loadError ? (
+					<div
+						style={{
+							position: 'absolute',
+							top: 'calc(58%)',
+							left: '50%',
+							transform: 'translateX(-50%)',
+							display: 'flex',
+							flexDirection: 'column',
+							alignItems: 'center',
+							gap: 12,
+							maxWidth: '70%',
+							textAlign: 'center'
+						}}
+					>
+						<Text code type="danger">
+							{loadError}
+						</Text>
+						<Button
+							type="primary"
+							onClick={() => {
+								setLoadError(undefined);
+								setProgress(0);
+								setProgressMessage('Counting mods');
+								setRetryCount((current) => current + 1);
+							}}
+						>
+							Retry Mod Scan
+						</Button>
+					</div>
+				) : null}
 				<span style={{ width: 'calc(100%)', display: 'flex', justifyContent: 'center', position: 'absolute', top: 'calc(85%)' }}>
 					<Progress
 						style={{ width: 'calc(80%)' }}

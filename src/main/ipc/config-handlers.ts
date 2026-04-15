@@ -53,8 +53,9 @@ export function readConfigFile(filepath: string, isDevelopment: boolean): AppCon
 		}
 		return appConfig as AppConfig;
 	} catch (error) {
+		log.error(`Failed to read config file at ${filepath}`);
 		log.error(error);
-		return null;
+		throw new Error(`Failed to load config file "${filepath}"`);
 	}
 }
 

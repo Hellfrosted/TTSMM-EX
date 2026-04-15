@@ -19,13 +19,7 @@ export function ensureCollectionsDirectory(userDataPath: string): string {
 	return collectionsDirectory;
 }
 
-export function readJsonFile<T>(filepath: string): T | null {
-	try {
-		const fileContents = fs.readFileSync(filepath, 'utf8');
-		return JSON.parse(fileContents) as T;
-	} catch (error) {
-		log.error(`Failed to read json file at ${filepath}`);
-		log.error(error);
-		return null;
-	}
+export function readJsonFile<T>(filepath: string): T {
+	const fileContents = fs.readFileSync(filepath, 'utf8');
+	return JSON.parse(fileContents) as T;
 }

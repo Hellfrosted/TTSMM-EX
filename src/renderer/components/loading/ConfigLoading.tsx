@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from 'react';
-import { Layout, Progress } from 'antd';
+import { Layout, Progress, Typography } from 'antd';
 import { AppConfig, AppConfigKeys, ModCollection } from 'model';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
@@ -8,6 +8,7 @@ import { tryWriteConfig } from 'renderer/util/config-write';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Footer, Content } = Layout;
+const { Text } = Typography;
 
 function normalizeCurrentPath(currentPath: string | undefined): string {
 	if (!currentPath) {
@@ -82,6 +83,8 @@ export default function ConfigLoading() {
 	const [loadingConfig, setLoadingConfig] = useState(true);
 	const [userDataPathError, setUserDataPathError] = useState<string>();
 	const [configLoadError, setConfigLoadError] = useState<string>();
+	const [bootPersistenceError, setBootPersistenceError] = useState<string>();
+	const [collectionLoadError, setCollectionLoadError] = useState<string>();
 	const [loadedCollections, setLoadedCollections] = useState(0);
 	const [totalCollections, setTotalCollections] = useState(-1);
 	const [updatingSteamMod, setUpdatingSteamMod] = useState(true);
@@ -129,9 +132,10 @@ export default function ConfigLoading() {
 				...baseConfig,
 				gameExec: discoveredGameExec
 			};
-			const persisted = await api.updateConfig(nextConfig);
+			const persisted = await tryWriteConfig(nextConfig);
 			if (!persisted) {
 				api.logger.warn(`Failed to persist auto-discovered TerraTech executable: ${discoveredGameExec}`);
+				return baseConfig;
 			}
 			return nextConfig;
 		} catch (error) {
@@ -157,9 +161,7 @@ export default function ConfigLoading() {
 		} catch (error) {
 			api.logger.error(error);
 			setConfigLoadError(String(error));
-			const discoveredConfig = await populateDiscoveredGameExec(DEFAULT_CONFIG, false);
-			dispatch(setAppConfig(discoveredConfig));
-			await validateConfig(discoveredConfig);
+			setLoadingConfig(false);
 		}
 	});
 
@@ -187,8 +189,14 @@ export default function ConfigLoading() {
 			dispatch(setCollectionsState(nextCollections, nextCollectionNames));
 		} catch (error) {
 			api.logger.error(error);
+			setCollectionLoadError(String(error));
 			setTotalCollections(0);
 		}
+	});
+
+	const haltBootOnPersistenceFailure = useEffectEvent((message: string) => {
+		api.logger.warn(message);
+		setBootPersistenceError(message);
 	});
 
 	const proceedToNext = useEffectEvent((baseConfig?: AppConfig) => {
@@ -220,7 +228,16 @@ export default function ConfigLoading() {
 	}, []);
 
 	useEffect(() => {
-		if (bootResolved || updatingSteamMod || totalCollections < 0 || loadedCollections < totalCollections || loadingConfig) {
+		if (
+			bootResolved ||
+			bootPersistenceError ||
+			configLoadError ||
+			collectionLoadError ||
+			updatingSteamMod ||
+			totalCollections < 0 ||
+			loadedCollections < totalCollections ||
+			loadingConfig
+		) {
 			return;
 		}
 
@@ -243,7 +260,8 @@ export default function ConfigLoading() {
 				};
 				const persistedActiveCollection = await tryWriteConfig(nextConfig);
 				if (!persistedActiveCollection) {
-					api.logger.warn(`Failed to persist repaired active collection ${collectionName}`);
+					haltBootOnPersistenceFailure(`Failed to persist repaired active collection ${collectionName}`);
+					return;
 				}
 				dispatch(setAppConfig(nextConfig));
 				dispatch(setActiveCollection(allCollections.get(collectionName)));
@@ -257,7 +275,8 @@ export default function ConfigLoading() {
 			};
 			const createdDefaultCollection = await api.updateCollection(defaultCollection);
 			if (!createdDefaultCollection) {
-				api.logger.warn('Failed to persist the default collection during boot');
+				haltBootOnPersistenceFailure('Failed to persist the default collection during boot');
+				return;
 			}
 			const nextCollections = new Map(allCollections);
 			nextCollections.set(defaultCollection.name, defaultCollection);
@@ -269,7 +288,8 @@ export default function ConfigLoading() {
 			};
 			const persistedActiveCollection = await tryWriteConfig(nextConfig);
 			if (!persistedActiveCollection) {
-				api.logger.warn('Failed to persist the default active collection during boot');
+				haltBootOnPersistenceFailure('Failed to persist the default active collection during boot');
+				return;
 			}
 			dispatch(
 				setCollectionsState(nextCollections, nextCollectionNames, defaultCollection)
@@ -283,7 +303,10 @@ export default function ConfigLoading() {
 		config,
 		configErrors,
 		bootResolved,
+		bootPersistenceError,
+		configLoadError,
 		dispatch,
+		collectionLoadError,
 		loadedCollections,
 		loadingConfig,
 		totalCollections,
@@ -291,6 +314,7 @@ export default function ConfigLoading() {
 	]);
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
+	const bootError = configLoadError || bootPersistenceError || userDataPathError || collectionLoadError;
 
 	return (
 		<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
@@ -302,8 +326,15 @@ export default function ConfigLoading() {
 						to: '#87d068'
 					}}
 					percent={percent}
-					status={configLoadError || userDataPathError ? 'exception' : undefined}
+					status={bootError ? 'exception' : undefined}
 				/>
+				{bootError ? (
+					<div style={{ marginTop: 12, textAlign: 'center' }}>
+						<Text code type="danger">
+							{bootError}
+						</Text>
+					</div>
+				) : null}
 			</Footer>
 		</Layout>
 	);

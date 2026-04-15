@@ -31,27 +31,29 @@ export function readCollectionFile(userDataPath: string, collection: string): Mo
 		return null;
 	}
 
-	const data = readJsonFile<ModCollection>(collectionPath);
-	if (!data) {
+	if (!fs.existsSync(collectionPath)) {
 		return null;
 	}
-	data.name = collection;
-	return data;
+
+	try {
+		const data = readJsonFile<ModCollection>(collectionPath);
+		data.name = collection;
+		return data;
+	} catch (error) {
+		log.error(`Failed to read collection file ${collectionPath}`);
+		log.error(error);
+		throw new Error(`Failed to load collection "${collection}"`);
+	}
 }
 
 export function listCollections(userDataPath: string): string[] {
 	const collectionsDirectory = ensureCollectionsDirectory(userDataPath);
 	try {
-		const dirContents: string[] | Buffer[] | fs.Dirent[] = fs.readdirSync(collectionsDirectory);
+		const dirContents = fs.readdirSync(collectionsDirectory, { withFileTypes: true });
 		return dirContents
-			.map((elem) => {
-				const matches = elem.toString().match(/(.*)\.json/);
-				if (matches && matches[1]) {
-					return matches[1];
-				}
-				return null;
-			})
-			.filter((elem: string | null): elem is string => !!elem);
+			.filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.json')
+			.map((entry) => path.basename(entry.name, '.json'))
+			.filter((collectionName) => validateCollectionName(collectionName) === undefined);
 	} catch (error) {
 		log.error(error);
 		return [];

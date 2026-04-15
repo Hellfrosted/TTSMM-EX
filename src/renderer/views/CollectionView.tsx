@@ -224,7 +224,11 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const launchGame = useCallback(async () => {
 		api.logger.info('validating and launching game');
-		const { activeCollection, mods } = appState;
+		const { activeCollection, loadingMods, mods } = appState;
+
+		if (loadingMods) {
+			return;
+		}
 
 		if (currentValidationStatus && !madeEdits && activeCollection) {
 			const modDataList = activeCollection.mods
@@ -639,6 +643,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 								type="primary"
 								loading={appState.launchingGame}
 								disabled={
+									appState.loadingMods ||
 									overrideGameRunning ||
 									gameRunning ||
 									modalType !== CollectionManagerModalType.NONE ||
@@ -657,6 +662,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 								type="primary"
 								loading={appState.launchingGame}
 								disabled={
+									appState.loadingMods ||
 									overrideGameRunning ||
 									gameRunning ||
 									modalType !== CollectionManagerModalType.NONE ||
@@ -674,6 +680,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 							type="primary"
 							loading={appState.launchingGame}
 							disabled={
+								appState.loadingMods ||
 								overrideGameRunning ||
 								gameRunning ||
 								modalType !== CollectionManagerModalType.NONE ||

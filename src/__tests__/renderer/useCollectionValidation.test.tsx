@@ -85,4 +85,44 @@ describe('useCollectionValidation', () => {
 		expect(result.current.lastValidationStatus).toBe(true);
 		expect(result.current.isValidationCurrentForCollection(appState.activeCollection)).toBe(true);
 	});
+
+	it('does not mark validation current or launch when persisting the validated collection fails', async () => {
+		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
+		const mods = new SessionMods('', [modA]);
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			mods,
+			activeCollection: { name: 'default', mods: ['local:a'] }
+		});
+		const persistCollection = vi.fn(async () => false);
+		const launchMods = vi.fn(async () => undefined);
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+
+		const { result } = renderHook(() =>
+			useCollectionValidation({
+				appState,
+				openNotification: vi.fn(),
+				setModalType: vi.fn(),
+				persistCollection,
+				launchMods
+			})
+		);
+
+		await act(async () => {
+			await result.current.validateActiveCollection(true);
+		});
+
+		expect(persistCollection).toHaveBeenCalledWith(appState.activeCollection);
+		expect(launchMods).not.toHaveBeenCalled();
+		expect(result.current.lastValidationStatus).toBeUndefined();
+		expect(result.current.isValidationCurrentForCollection(appState.activeCollection)).toBe(false);
+	});
 });

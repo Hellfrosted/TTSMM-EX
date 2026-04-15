@@ -5,6 +5,7 @@ import { AppstoreOutlined, SettingOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppState } from 'model';
 import api from 'renderer/Api';
+import { getStoredViewPath } from 'renderer/util/view-path';
 
 interface MenuProps {
 	disableNavigation?: boolean;
@@ -20,7 +21,7 @@ export default function MenuBar({ disableNavigation, appState }: MenuProps) {
 	const persistPathHandleRef = useRef<number | null>(null);
 	const menuIconStyle = { fontSize: 18, lineHeight: 1 };
 	const menuItemStyle = { display: 'flex', alignItems: 'center' };
-	const selectedPath = location.pathname.startsWith('/settings') ? '/settings' : '/collections/main';
+	const selectedPath = getStoredViewPath(location.pathname);
 
 	useEffect(() => {
 		configRef.current = config;
@@ -95,8 +96,13 @@ export default function MenuBar({ disableNavigation, appState }: MenuProps) {
 			items={items}
 			onClick={(e) => {
 				if (e.key !== selectedPath) {
+					const nextConfig = { ...configRef.current, currentPath: e.key };
+					configRef.current = nextConfig;
 					startTransition(() => {
-						updateState(loadModsOnNavigate ? { loadingMods: true } : {});
+						updateState({
+							config: nextConfig,
+							...(loadModsOnNavigate ? { loadingMods: true } : {})
+						});
 						navigate(e.key);
 					});
 					persistCurrentPath(e.key);

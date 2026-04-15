@@ -295,4 +295,36 @@ describe('useCollections', () => {
 		expect(appState.config.activeCollection).toBe('archived');
 		expect(appState.allCollections.has('archived')).toBe(true);
 	});
+
+	it('deletes the default collection from disk when another collection remains', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['archived', archivedCollection]
+			]),
+			allCollectionNames: new Set(['default', 'archived']),
+			activeCollection: defaultCollection
+		});
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.deleteCollection();
+		});
+
+		expect(window.electron.deleteCollection).toHaveBeenCalledWith('default');
+		expect(appState.activeCollection).toEqual(archivedCollection);
+		expect(appState.config.activeCollection).toBe('archived');
+		expect(appState.allCollections.has('default')).toBe(false);
+	});
 });

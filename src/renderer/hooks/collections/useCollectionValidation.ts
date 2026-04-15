@@ -222,9 +222,15 @@ export function useCollectionValidation({
 			return;
 		}
 
+		const persisted = await persistCollection(activeCollection);
+		if (!persisted) {
+			setLastValidationStatus(undefined);
+			setLastValidatedCollectionKey(undefined);
+			return;
+		}
+
 		setLastValidationStatus(true);
 		setLastValidatedCollectionKey(currentValidationKey);
-		await persistCollection(activeCollection);
 
 		if (launchIfValid) {
 			const modDataList = activeCollection.mods

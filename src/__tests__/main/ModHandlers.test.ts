@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createContextMenuTemplate, createDownloadModHandler, createFetchWorkshopDependenciesHandler } from '../../main/ipc/mod-handlers';
+import { createContextMenuTemplate, createDownloadModHandler, createFetchWorkshopDependenciesHandler, createReadModMetadataHandler } from '../../main/ipc/mod-handlers';
 import Steamworks, { EResult, UGCItemState } from '../../main/steamworks';
-import { getModDetailsFromPath } from '../../main/mod-fetcher';
+import ModFetcher, { getModDetailsFromPath } from '../../main/mod-fetcher';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 
@@ -63,6 +63,12 @@ describe('mod handlers', () => {
 				'11': 'Harmony (2.2.2)'
 			}
 		});
+	});
+
+	it('rejects mod metadata requests when scanning mods fails', async () => {
+		vi.spyOn(ModFetcher.prototype, 'fetchMods').mockRejectedValueOnce(new Error('scan failed'));
+
+		await expect(createReadModMetadataHandler()({ sender: {} as never }, 'C:\\mods', [])).rejects.toThrow('scan failed');
 	});
 
 	it('preserves Steam metadata when refreshing workshop state from the context menu', async () => {

@@ -594,7 +594,7 @@ export function useCollections({
 			const deletedCollection = cloneCollection(activeCollection);
 
 			try {
-				const deleteSuccess = name === 'default' ? true : await api.deleteCollection(name);
+				const deleteSuccess = await api.deleteCollection(name);
 				if (!deleteSuccess) {
 					openNotification(
 						{
@@ -630,7 +630,7 @@ export function useCollections({
 					if (!createdDefaultCollection) {
 						return;
 					}
-					createdFallbackCollection = name !== 'default';
+					createdFallbackCollection = true;
 				}
 
 				const nextConfig = withActiveCollection(appState.config, nextActiveCollection.name);
@@ -643,11 +643,9 @@ export function useCollections({
 							notifyRollbackFailure(`Failed to remove the fallback collection after the config update failed`);
 						}
 					}
-					if (name !== 'default') {
-						const restoredCollection = await rawPersistCollection(deletedCollection);
-						if (!restoredCollection) {
-							notifyRollbackFailure(`Failed to restore collection ${name} after the config update failed`);
-						}
+					const restoredCollection = await rawPersistCollection(deletedCollection);
+					if (!restoredCollection) {
+						notifyRollbackFailure(`Failed to restore collection ${name} after the config update failed`);
 					}
 					return;
 				}

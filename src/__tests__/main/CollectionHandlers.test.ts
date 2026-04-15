@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readCollectionFile, renameCollectionFile, updateCollectionFile } from '../../main/ipc/collection-handlers';
+import { listCollections, readCollectionFile, renameCollectionFile, updateCollectionFile } from '../../main/ipc/collection-handlers';
 import { createTempDir } from './test-utils';
 
 describe('collection handlers', () => {
@@ -20,6 +20,14 @@ describe('collection handlers', () => {
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(true);
 	});
 
+	it('throws when a collection file exists but contains malformed json', () => {
+		const collectionsDir = path.join(tempDir, 'collections');
+		fs.mkdirSync(collectionsDir, { recursive: true });
+		fs.writeFileSync(path.join(collectionsDir, 'broken.json'), '{ bad json', 'utf8');
+
+		expect(() => readCollectionFile(tempDir, 'broken')).toThrow('Failed to load collection "broken"');
+	});
+
 	it('rejects invalid collection names before touching the filesystem', () => {
 		expect(updateCollectionFile(tempDir, { name: '..\\..\\escape', mods: [] })).toBe(false);
 		expect(readCollectionFile(tempDir, '..\\..\\escape')).toBeNull();
@@ -35,5 +43,17 @@ describe('collection handlers', () => {
 			name: 'renamed',
 			mods: ['local:new']
 		});
+	});
+
+	it('lists only valid json collection files', () => {
+		const collectionsDir = path.join(tempDir, 'collections');
+		fs.mkdirSync(collectionsDir, { recursive: true });
+		fs.writeFileSync(path.join(collectionsDir, 'alpha.json'), '{}', 'utf8');
+		fs.writeFileSync(path.join(collectionsDir, 'alpha.json.bak'), '{}', 'utf8');
+		fs.writeFileSync(path.join(collectionsDir, 'notes.txt'), '{}', 'utf8');
+		fs.writeFileSync(path.join(collectionsDir, 'bad..json'), '{}', 'utf8');
+		fs.mkdirSync(path.join(collectionsDir, 'archived.json'));
+
+		expect(listCollections(tempDir).sort()).toEqual(['alpha']);
 	});
 });

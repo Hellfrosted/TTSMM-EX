@@ -79,7 +79,7 @@ export function createUnsubscribeModHandler(steamworks = Steamworks) {
 }
 
 export function createReadModMetadataHandler() {
-	return async (event: { sender: WebContents }, localDir: string | undefined, allKnownMods: string[]): Promise<SessionMods | null> => {
+	return async (event: { sender: WebContents }, localDir: string | undefined, allKnownMods: string[]): Promise<SessionMods> => {
 		const knownWorkshopMods: bigint[] = [];
 		allKnownMods.forEach((uid: string) => {
 			log.debug(`Found known mod ${uid}`);
@@ -102,7 +102,7 @@ export function createReadModMetadataHandler() {
 		} catch (error) {
 			log.error('Failed to get mod info:');
 			log.error(error);
-			return null;
+			throw error instanceof Error ? error : new Error(String(error));
 		}
 	};
 }

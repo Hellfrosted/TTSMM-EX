@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { beforeEach, vi } from 'vitest';
+import { SessionMods } from './src/model';
 
 const noop = () => undefined;
 
@@ -31,7 +32,7 @@ function createElectronMock() {
 		selectPath: vi.fn(async () => null),
 		launchGame: vi.fn(async () => true),
 		isGameRunning: vi.fn(async () => false),
-		readModMetadata: vi.fn(async () => null),
+		readModMetadata: vi.fn(async () => new SessionMods('', [])),
 		steamworksInited: vi.fn(async () => ({ inited: true })),
 		downloadMod: vi.fn(async () => true),
 		subscribeMod: vi.fn(async () => true),
