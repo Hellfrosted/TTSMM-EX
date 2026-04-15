@@ -332,8 +332,9 @@ describe('ModDetailsFooter', () => {
 			openModal: vi.fn()
 		});
 
-		const dependencyIgnoreCheckboxes = screen.getAllByRole('checkbox');
-		fireEvent.click(dependencyIgnoreCheckboxes[dependencyIgnoreCheckboxes.length - 1]);
+		const dependencyIgnoreCheckbox = screen.getByLabelText('Ignore validation error for Dependency Mod');
+		expect(dependencyIgnoreCheckbox).not.toBeDisabled();
+		fireEvent.click(dependencyIgnoreCheckbox);
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalled();

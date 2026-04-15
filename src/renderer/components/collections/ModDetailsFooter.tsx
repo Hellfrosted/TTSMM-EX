@@ -406,13 +406,14 @@ function ModDetailsFooter({
 			const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
 			const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
 			const dependencyKey = getRequiredDependencyKey(record);
-			const { type: recordType, uid: recordUid } = record;
+			const { name: recordName, type: recordType, uid: recordUid } = record;
 			const isSelected =
 				(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
 				(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
 
 			return (
 				<Checkbox
+					aria-label={`Ignore validation error for ${recordName || recordUid}`}
 					checked={isSelected}
 					disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
 					onChange={(event) => {
