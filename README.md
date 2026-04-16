@@ -120,15 +120,16 @@ Build Linux artifacts on Linux:
 
 ```bash
 npm run package
-npm run package:linux:deb
-npm run package:linux:pacman
+npm run package:linux -- deb
+npm run package:linux -- pacman
 ```
 
 Linux outputs:
 
 - `npm run package` on Linux uses the default configured Linux target, `AppImage`
-- `npm run package:linux:deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
-- `npm run package:linux:pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
+- `npm run package:linux` produces both Linux package formats, `deb` and `pacman`
+- `npm run package:linux -- deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
+- `npm run package:linux -- pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
 
 Install and run:
 
@@ -161,7 +162,6 @@ The pacman target needs `bsdtar`.
 ## Scripts
 
 - `npm run dev`: development app
-- `npm run start`: alias for `npm run dev`
 - `npm run start:desktop`: build and launch the production desktop entrypoint
 - `npm run lint`: ESLint
 - `npm run lint:fix`: ESLint with autofix
@@ -173,11 +173,10 @@ The pacman target needs `bsdtar`.
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`
 - `npm run package`: package for the current platform default target
-- `npm run package:linux:deb`: build the Debian package
-- `npm run package:linux:pacman`: build the pacman package
 - `npm run package:linux`: build both Linux package formats
+- `npm run package:linux -- deb`: build the Debian package
+- `npm run package:linux -- pacman`: build the pacman package
 - `npm run publish`: package for tag or draft publishing
-- `npm run only-publish`: run Electron Builder publish directly
-- `npm run patch`: patch version bump
-- `npm run minor`: minor version bump
-- `npm run major`: major version bump
+- `npm run bump -- patch`: patch version bump
+- `npm run bump -- minor`: minor version bump
+- `npm run bump -- major`: major version bump
