@@ -13,6 +13,7 @@ import {
 	MainColumnTitles,
 	ModErrors,
 	ModType,
+	getMainColumnMinWidth,
 	getModDataDisplayName,
 	compareModDataDisplayName,
 	getModDataDisplayId,
@@ -38,7 +39,7 @@ import Icon_Corps from '../../../../assets/faction-flag.svg';
 
 const { Content } = Layout;
 const { Text } = Typography;
-const MIN_COLUMN_WIDTH = 80;
+const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 const KEYBOARD_RESIZE_STEP = 16;
 const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
 const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
@@ -214,7 +215,7 @@ function ResizableHeaderCell({
 	label,
 	width,
 	resizeWidth,
-	minWidth = MIN_COLUMN_WIDTH,
+	minWidth = 80,
 	onResize,
 	onResizeEnd,
 	children,
@@ -757,17 +758,31 @@ function getRowSelection(props: CollectionViewProps) {
 	return rowSelection;
 }
 
-function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}) {
+export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
 	const configuredWidths = config?.columnWidthConfig || {};
-	return getActiveColumnSchemas(config).reduce(
+	const columnWidths = getActiveColumnSchemas(config).reduce(
 		(acc, column) => {
 			if (column.width) {
-				acc[column.title] = configuredWidths[column.title] ?? autoColumnWidths[column.title] ?? column.width;
+				const minWidth = getMainColumnMinWidth(column.title as MainColumnTitles);
+				const configuredWidth = configuredWidths[column.title] ?? autoColumnWidths[column.title] ?? column.width;
+				acc[column.title] = Math.max(minWidth, configuredWidth);
 			}
 			return acc;
 		},
 		{} as Record<string, number>
 	);
+
+	const nameWidth = columnWidths[MainColumnTitles.NAME];
+	const nameWidthIsConfigured = configuredWidths[MainColumnTitles.NAME] !== undefined;
+	if (availableTableWidth > 0 && nameWidth !== undefined && !nameWidthIsConfigured) {
+		const currentTableWidth = Object.values(columnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, 0);
+		const targetTableWidth = Math.max(0, Math.floor(availableTableWidth - DEFAULT_SELECTION_COLUMN_WIDTH));
+		if (currentTableWidth < targetTableWidth) {
+			columnWidths[MainColumnTitles.NAME] += targetTableWidth - currentTableWidth;
+		}
+	}
+
+	return columnWidths;
 }
 
 function createColumnMeasurementHost() {
@@ -899,12 +914,45 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		[config]
 	);
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
+	const [availableTableWidth, setAvailableTableWidth] = useState(0);
 	const resolvedColumnWidths = useMemo(
-		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths),
-		[autoColumnWidths, config]
+		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
+		[autoColumnWidths, availableTableWidth, config]
 	);
 	const tableRootRef = useRef<HTMLDivElement | null>(null);
 	const syncedColumnTitlesRef = useRef<string[]>([]);
+
+	useEffect(() => {
+		const tableRoot = tableRootRef.current;
+		if (!tableRoot) {
+			return;
+		}
+
+		const syncAvailableWidth = (nextWidth: number) => {
+			setAvailableTableWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth));
+		};
+
+		syncAvailableWidth(Math.round(tableRoot.clientWidth));
+
+		if (typeof ResizeObserver === 'undefined') {
+			const handleWindowResize = () => {
+				syncAvailableWidth(Math.round(tableRoot.clientWidth));
+			};
+			window.addEventListener('resize', handleWindowResize);
+			return () => {
+				window.removeEventListener('resize', handleWindowResize);
+			};
+		}
+
+		const resizeObserver = new ResizeObserver((entries) => {
+			const nextWidth = Math.round(entries[0]?.contentRect.width ?? tableRoot.clientWidth);
+			syncAvailableWidth(nextWidth);
+		});
+		resizeObserver.observe(tableRoot);
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
 
 	useEffect(() => {
 		const nextColumnTitles = Object.keys(resolvedColumnWidths);
@@ -947,7 +995,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					}, 0);
 
 					if (measuredWidth > 0) {
-						nextMeasuredWidths[columnTitle] = Math.max(MIN_COLUMN_WIDTH, measuredWidth);
+						nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
 					}
 				});
 
@@ -1016,7 +1064,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						'data-column-title': columnTitle,
 						width: getColumnWidthStyle(columnTitle, currentWidth),
 						resizeWidth: currentWidth,
-						minWidth: MIN_COLUMN_WIDTH,
+						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
 						onResize: (nextWidth: number) => {
 							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
 						},
@@ -1061,12 +1109,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						loading={launchingGame}
 						size="small"
 						rowKey="uid"
-					rowSelection={rowSelection}
-					components={tableComponents}
-					columns={columns}
-					sortDirections={TABLE_SORT_DIRECTIONS}
-					sticky
-					scroll={{ x: 'max-content' }}
+						rowSelection={rowSelection}
+						components={tableComponents}
+						columns={columns}
+						sortDirections={TABLE_SORT_DIRECTIONS}
+						sticky
+						scroll={{ x: 'max-content' }}
 						onRow={handleRow}
 						rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
 					/>

@@ -1,8 +1,8 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MainCollectionView } from '../../renderer/components/collections/MainCollectionComponent';
-import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
+import { MainCollectionView, getColumnWidths } from '../../renderer/components/collections/MainCollectionComponent';
+import { CollectionViewProps, MainCollectionConfig, MainColumnTitles, ModType } from '../../model';
 
 afterEach(() => {
 	cleanup();
@@ -63,6 +63,54 @@ function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionVi
 }
 
 describe('MainCollectionView', () => {
+	it('uses the lower per-column minimums and gives unsaved extra width to Name instead of Tags', () => {
+		const autoColumnWidths: Record<string, number> = {
+			[MainColumnTitles.TYPE]: 65,
+			[MainColumnTitles.NAME]: 300,
+			[MainColumnTitles.AUTHORS]: 24,
+			[MainColumnTitles.STATE]: 28,
+			[MainColumnTitles.ID]: 20,
+			[MainColumnTitles.SIZE]: 16,
+			[MainColumnTitles.LAST_UPDATE]: 130,
+			[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 130,
+			[MainColumnTitles.DATE_ADDED]: 130,
+			[MainColumnTitles.TAGS]: 200
+		};
+
+		const widths = getColumnWidths(undefined, autoColumnWidths, 1400);
+
+		expect(widths[MainColumnTitles.AUTHORS]).toBe(40);
+		expect(widths[MainColumnTitles.STATE]).toBe(40);
+		expect(widths[MainColumnTitles.ID]).toBe(32);
+		expect(widths[MainColumnTitles.SIZE]).toBe(32);
+		expect(widths[MainColumnTitles.TAGS]).toBe(200);
+		expect(widths[MainColumnTitles.NAME]).toBe(553);
+	});
+
+	it('does not override a saved Name width when filling the table', () => {
+		const config: MainCollectionConfig = {
+			columnWidthConfig: {
+				[MainColumnTitles.NAME]: 320
+			}
+		};
+		const autoColumnWidths: Record<string, number> = {
+			[MainColumnTitles.TYPE]: 65,
+			[MainColumnTitles.NAME]: 300,
+			[MainColumnTitles.AUTHORS]: 64,
+			[MainColumnTitles.STATE]: 64,
+			[MainColumnTitles.ID]: 52,
+			[MainColumnTitles.SIZE]: 52,
+			[MainColumnTitles.LAST_UPDATE]: 130,
+			[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 130,
+			[MainColumnTitles.DATE_ADDED]: 130,
+			[MainColumnTitles.TAGS]: 200
+		};
+
+		const widths = getColumnWidths(config, autoColumnWidths, 1400);
+
+		expect(widths[MainColumnTitles.NAME]).toBe(320);
+	});
+
 	it('shows the mod id in the Name column and the workshop id in the ID column', async () => {
 		stubResizeObserver();
 

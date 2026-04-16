@@ -9,6 +9,7 @@ import {
 	MainColumnTitles,
 	ModCollection,
 	ModData,
+	getMainColumnMinWidth,
 	getByUID,
 	getRows
 } from 'model';
@@ -298,7 +299,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	}, []);
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
-			const normalizedWidth = Math.max(80, Math.round(width));
+			const normalizedWidth = Math.max(getMainColumnMinWidth(column), Math.round(width));
 			const nextConfig = cloneAppConfig(appState.config);
 			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
 			const currentColumnWidthConfig = currentMainConfig.columnWidthConfig || {};
