@@ -32,7 +32,7 @@ function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionVi
 }
 
 describe('MainCollectionView', () => {
-	it('shows the workshop id in the ID column instead of the mod id', async () => {
+	it('shows the mod id in the Name column and the workshop id in the ID column', async () => {
 		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 			return {
 				observe: vi.fn(),
@@ -44,7 +44,7 @@ describe('MainCollectionView', () => {
 		render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByText('3264187221')).toBeInTheDocument();
-		expect(screen.queryByText('HumanReadableModId')).not.toBeInTheDocument();
+		expect(screen.getByText('HumanReadableModId')).toBeInTheDocument();
 	});
 
 	it('allows resizing a column and reports the persisted width', async () => {

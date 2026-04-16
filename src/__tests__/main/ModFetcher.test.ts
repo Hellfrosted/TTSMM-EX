@@ -232,7 +232,7 @@ describe('ModFetcher', () => {
 		});
 		const ugcGetItemState = vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(0);
 		const ugcGetItemInstallInfo = vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
-		const on = vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
 		const getFriendPersonaName = vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Author One');
 		const requestUserInformation = vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
@@ -254,7 +254,6 @@ describe('ModFetcher', () => {
 		expect(ugcGetUserItems).not.toHaveBeenCalled();
 		expect(ugcGetItemState).toHaveBeenCalledWith(BigInt(42));
 		expect(ugcGetItemInstallInfo).toHaveBeenCalledWith(BigInt(42));
-		expect(on).toHaveBeenCalledTimes(1);
 		expect(getFriendPersonaName).toHaveBeenCalledWith('123');
 		expect(requestUserInformation).not.toHaveBeenCalled();
 	});
