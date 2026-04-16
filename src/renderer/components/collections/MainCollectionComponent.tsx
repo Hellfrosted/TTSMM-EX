@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
 import { ColumnType } from 'antd/lib/table';
-import { CompareFn, TableRowSelection } from 'antd/lib/table/interface';
+import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
 import {
 	CollectionViewProps,
@@ -40,6 +40,8 @@ const { Content } = Layout;
 const { Text } = Typography;
 const MIN_COLUMN_WIDTH = 80;
 const KEYBOARD_RESIZE_STEP = 16;
+const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
+const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
 
 function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
@@ -472,7 +474,6 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.AUTHORS,
 		dataIndex: 'authors',
 		width: 180,
-		defaultSortOrder: 'ascend',
 		sorter: (a, b) => {
 			const v1 = a;
 			const v2 = b;
@@ -555,6 +556,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.SIZE,
 		dataIndex: 'size',
 		width: 80,
+		sorter: (a, b) => (a.size || 0) - (b.size || 0),
 		renderSetup: () => {
 			return (size?: number) => {
 				if (!size || size <= 0) {
@@ -635,6 +637,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.DATE_ADDED,
 		dataIndex: 'dateAdded',
 		width: 130,
+		sorter: (a, b) => compareOptionalDates(a.dateAdded, b.dateAdded),
 		renderSetup: () => {
 			return (date: Date) => formatDateStr(date);
 		}
@@ -686,6 +689,15 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		}
 	}
 ];
+
+function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
+	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
+	const columnActiveConfig = config?.columnActiveConfig;
+	if (columnActiveConfig) {
+		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
+	}
+	return activeColumns;
+}
 
 function getRowSelection(props: CollectionViewProps) {
 	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
@@ -745,16 +757,99 @@ function getRowSelection(props: CollectionViewProps) {
 	return rowSelection;
 }
 
-function getColumnWidths(config: MainCollectionConfig | undefined) {
+function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}) {
 	const configuredWidths = config?.columnWidthConfig || {};
-	return MAIN_COLUMN_SCHEMA.reduce(
+	return getActiveColumnSchemas(config).reduce(
 		(acc, column) => {
 			if (column.width) {
-				acc[column.title] = configuredWidths[column.title] ?? column.width;
+				acc[column.title] = configuredWidths[column.title] ?? autoColumnWidths[column.title] ?? column.width;
 			}
 			return acc;
 		},
 		{} as Record<string, number>
+	);
+}
+
+function createColumnMeasurementHost() {
+	const measurementHost = document.createElement('div');
+	measurementHost.className = COLUMN_MEASUREMENT_HOST_CLASS;
+	Object.assign(measurementHost.style, {
+		position: 'fixed',
+		left: '-100000px',
+		top: '0',
+		visibility: 'hidden',
+		pointerEvents: 'none',
+		whiteSpace: 'nowrap',
+		width: 'max-content',
+		maxWidth: 'none',
+		overflow: 'visible',
+		contain: 'layout style size'
+	});
+	document.body.appendChild(measurementHost);
+	return measurementHost;
+}
+
+function prepareMeasurementClone(root: HTMLElement) {
+	root.querySelectorAll('.CollectionTableResizeHandle').forEach((handle) => handle.remove());
+	const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+	elements.forEach((element) => {
+		element.style.width = element.classList.contains('CollectionNameButton') || element.style.width === '100%' ? 'auto' : element.style.width;
+		element.style.minWidth = '0';
+		element.style.maxWidth = 'none';
+		element.style.whiteSpace = 'nowrap';
+		element.style.overflow = 'visible';
+		if (element === root) {
+			element.style.position = 'static';
+			element.style.left = 'auto';
+			element.style.right = 'auto';
+			element.style.top = 'auto';
+			element.style.bottom = 'auto';
+			element.style.transform = 'none';
+			if (element.tagName === 'TH' || element.tagName === 'TD') {
+				element.style.display = 'inline-block';
+			}
+		}
+		if (element.classList.contains('CollectionNameButton')) {
+			element.style.display = 'inline-block';
+		}
+	});
+}
+
+function measureNaturalCellWidth(cell: HTMLElement, measurementHost: HTMLElement) {
+	const clone = cell.cloneNode(true) as HTMLElement;
+	prepareMeasurementClone(clone);
+	measurementHost.appendChild(clone);
+	const width = Math.ceil(clone.getBoundingClientRect().width);
+	measurementHost.removeChild(clone);
+	return width;
+}
+
+function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: string[]) {
+	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
+	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
+	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
+
+	return activeColumnTitles.reduce(
+		(acc, columnTitle, columnIndex) => {
+			const renderedColumnIndex = columnIndex + leadingCellCount;
+			const renderedCells: HTMLElement[] = [];
+			const headerCell = headerCells[renderedColumnIndex];
+			if (headerCell) {
+				renderedCells.push(headerCell);
+			}
+			bodyRows.forEach((row) => {
+				const bodyCells = Array.from(row.querySelectorAll<HTMLElement>('td'));
+				const bodyCell = bodyCells[renderedColumnIndex];
+				if (bodyCell) {
+					renderedCells.push(bodyCell);
+				}
+			});
+			acc[columnTitle] = renderedCells;
+			return acc;
+		},
+		{} as Record<string, HTMLElement[]>
 	);
 }
 
@@ -775,11 +870,8 @@ function setColumnWidthVariable(container: HTMLElement | null, columnTitle: stri
 
 function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<string, number>): ColumnType<DisplayModData>[] {
 	const { config } = props;
-	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
-	const columnActiveConfig = (config as MainCollectionConfig | undefined)?.columnActiveConfig;
-	if (columnActiveConfig) {
-		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
-	}
+	const activeColumns = getActiveColumnSchemas(config as MainCollectionConfig | undefined);
+	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
 	return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
 		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
 		return {
@@ -787,7 +879,7 @@ function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<
 			dataIndex,
 			className,
 			width: columnWidthConfig?.[title] ?? width,
-			defaultSortOrder,
+			defaultSortOrder: title === defaultSortColumnTitle ? defaultSortOrder || 'ascend' : undefined,
 			filters: filtersSetup ? filtersSetup(props) : filters,
 			onFilter,
 			sorter: sorterSetup ? sorterSetup(props) : sorter,
@@ -798,15 +890,24 @@ function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
-	const { config, filteredRows, launchingGame, width, height, setMainColumnWidthCallback } = props;
+	const { config, filteredRows, launchingGame, rows, width, height, setMainColumnWidthCallback } = props;
 	const small = (config as MainCollectionConfig | undefined)?.smallRows;
 	const deferredRows = useDeferredValue(filteredRows);
-	const persistedColumnWidths = useMemo(() => getColumnWidths(config as MainCollectionConfig | undefined), [config]);
+	const configuredColumnWidths = useMemo(() => (config as MainCollectionConfig | undefined)?.columnWidthConfig || {}, [config]);
+	const activeColumnTitles = useMemo(
+		() => getActiveColumnSchemas(config as MainCollectionConfig | undefined).map((column) => column.title),
+		[config]
+	);
+	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
+	const resolvedColumnWidths = useMemo(
+		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths),
+		[autoColumnWidths, config]
+	);
 	const tableRootRef = useRef<HTMLDivElement | null>(null);
 	const syncedColumnTitlesRef = useRef<string[]>([]);
 
 	useEffect(() => {
-		const nextColumnTitles = Object.keys(persistedColumnWidths);
+		const nextColumnTitles = Object.keys(resolvedColumnWidths);
 		const activeColumnTitles = new Set(nextColumnTitles);
 		syncedColumnTitlesRef.current.forEach((columnTitle) => {
 			if (!activeColumnTitles.has(columnTitle)) {
@@ -814,10 +915,71 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 			}
 		});
 		nextColumnTitles.forEach((columnTitle) => {
-			setColumnWidthVariable(tableRootRef.current, columnTitle, persistedColumnWidths[columnTitle]);
+			setColumnWidthVariable(tableRootRef.current, columnTitle, resolvedColumnWidths[columnTitle]);
 		});
 		syncedColumnTitlesRef.current = nextColumnTitles;
-	}, [persistedColumnWidths]);
+	}, [resolvedColumnWidths]);
+
+	useEffect(() => {
+		const tableRoot = tableRootRef.current;
+		const missingColumnTitles = activeColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
+
+		if (!tableRoot) {
+			return;
+		}
+
+		if (missingColumnTitles.length === 0) {
+			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			return;
+		}
+
+		const animationFrame = window.requestAnimationFrame(() => {
+			const measurementHost = createColumnMeasurementHost();
+
+			try {
+				const renderedColumnCells = getRenderedColumnCells(tableRoot, activeColumnTitles);
+				const nextMeasuredWidths: Record<string, number> = {};
+
+				missingColumnTitles.forEach((columnTitle) => {
+					const matchingCells = renderedColumnCells[columnTitle] || [];
+					const measuredWidth = matchingCells.reduce((largestWidth, cell) => {
+						return Math.max(largestWidth, measureNaturalCellWidth(cell, measurementHost));
+					}, 0);
+
+					if (measuredWidth > 0) {
+						nextMeasuredWidths[columnTitle] = Math.max(MIN_COLUMN_WIDTH, measuredWidth);
+					}
+				});
+
+				setAutoColumnWidths((currentWidths) => {
+					const nextWidths: Record<string, number> = {};
+					let changed = false;
+
+					missingColumnTitles.forEach((columnTitle) => {
+						const nextWidth = nextMeasuredWidths[columnTitle] ?? currentWidths[columnTitle];
+						if (nextWidth !== undefined) {
+							nextWidths[columnTitle] = nextWidth;
+							if (currentWidths[columnTitle] !== nextWidth) {
+								changed = true;
+							}
+						}
+					});
+
+					if (!changed && Object.keys(currentWidths).length === Object.keys(nextWidths).length) {
+						return currentWidths;
+					}
+
+					return nextWidths;
+				});
+			} finally {
+				measurementHost.remove();
+			}
+		});
+
+		return () => {
+			window.cancelAnimationFrame(animationFrame);
+		};
+	}, [activeColumnTitles, configuredColumnWidths, rows]);
 
 	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
 	const tableComponents = useMemo(
@@ -829,15 +991,15 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		[]
 	);
 	const columns = useMemo(() => {
-		return getColumnSchema(props, persistedColumnWidths).map((column) => {
+		return getColumnSchema(props, resolvedColumnWidths).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
-			const currentWidth = columnTitle ? persistedColumnWidths[columnTitle] : undefined;
+			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
 			if (!columnTitle || !currentWidth) {
 				return column;
 			}
 
 			const restorePersistedColumnWidth = () => {
-				const persistedWidth = persistedColumnWidths[columnTitle];
+				const persistedWidth = resolvedColumnWidths[columnTitle];
 				if (persistedWidth === undefined) {
 					tableRootRef.current?.style.removeProperty(getColumnWidthVariableName(columnTitle));
 					return;
@@ -873,10 +1035,14 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								restorePersistedColumnWidth();
 							})();
 						}
+					}) as any,
+				onCell: () =>
+					({
+						'data-column-title': columnTitle
 					}) as any
 			};
 		});
-	}, [persistedColumnWidths, props, setMainColumnWidthCallback]);
+	}, [props, resolvedColumnWidths, setMainColumnWidthCallback]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -895,11 +1061,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						loading={launchingGame}
 						size="small"
 						rowKey="uid"
-						rowSelection={rowSelection}
-						components={tableComponents}
-						columns={columns}
-						sticky
-						scroll={{ x: 'max-content' }}
+					rowSelection={rowSelection}
+					components={tableComponents}
+					columns={columns}
+					sortDirections={TABLE_SORT_DIRECTIONS}
+					sticky
+					scroll={{ x: 'max-content' }}
 						onRow={handleRow}
 						rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
 					/>

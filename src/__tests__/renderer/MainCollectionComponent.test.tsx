@@ -1,13 +1,18 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MainCollectionView } from '../../renderer/components/collections/MainCollectionComponent';
 import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
+
+afterEach(() => {
+	cleanup();
+});
 
 function stubResizeObserver() {
 	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 		return {
 			observe: vi.fn(),
+			unobserve: vi.fn(),
 			disconnect: vi.fn()
 		};
 	});
@@ -18,6 +23,16 @@ function getResizeHandles(columnTitle: string) {
 	return Array.from(document.querySelectorAll('thead th'))
 		.filter((header) => header.textContent?.trim() === columnTitle)
 		.flatMap((header) => Array.from(header.querySelectorAll('.CollectionTableResizeHandle'))) as HTMLButtonElement[];
+}
+
+function clickHeaderSort(columnTitle: string) {
+	const headerCell = Array.from(document.querySelectorAll('thead th')).find((header) => header.textContent?.trim() === columnTitle) as HTMLElement | undefined;
+	expect(headerCell).toBeDefined();
+	fireEvent.click(headerCell?.querySelector('.ant-table-column-sorters') || headerCell!);
+}
+
+function getRenderedNameOrder() {
+	return Array.from(document.querySelectorAll('.CollectionNameButton')).map((button) => button.textContent?.trim() || '');
 }
 
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
@@ -55,6 +70,80 @@ describe('MainCollectionView', () => {
 
 		expect(await screen.findByText('3264187221')).toBeInTheDocument();
 		expect(screen.getByText('HumanReadableModId')).toBeInTheDocument();
+	});
+
+	it('defaults to name sorting and supports size and date added sorting without an unsorted state', async () => {
+		stubResizeObserver();
+
+		const rows = [
+			{
+				uid: 'workshop:3',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(3),
+				id: 'Charlie',
+				name: 'Charlie',
+				size: 100,
+				dateAdded: new Date('2026-04-12T00:00:00.000Z'),
+				subscribed: true,
+				installed: true
+			},
+			{
+				uid: 'workshop:1',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(1),
+				id: 'Alpha',
+				name: 'Alpha',
+				size: 300,
+				dateAdded: new Date('2026-04-13T00:00:00.000Z'),
+				subscribed: true,
+				installed: true
+			},
+			{
+				uid: 'workshop:2',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(2),
+				id: 'Bravo',
+				name: 'Bravo',
+				size: 200,
+				dateAdded: new Date('2026-04-11T00:00:00.000Z'),
+				subscribed: true,
+				installed: true
+			}
+		];
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: rows.map((row) => row.uid) }
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Alpha', 'Bravo', 'Charlie']);
+		});
+
+		clickHeaderSort('Size');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Charlie', 'Bravo', 'Alpha']);
+		});
+
+		clickHeaderSort('Size');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Alpha', 'Bravo', 'Charlie']);
+		});
+
+		clickHeaderSort('Size');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Charlie', 'Bravo', 'Alpha']);
+		});
+
+		clickHeaderSort('Date Added');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Bravo', 'Charlie', 'Alpha']);
+		});
 	});
 
 	it('allows resizing a column and reports the persisted width', async () => {
