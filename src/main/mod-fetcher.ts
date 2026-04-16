@@ -452,13 +452,45 @@ export default class ModFetcher {
 
 	private async fetchWorkshopModsFromSubscriptions(): Promise<ModData[]> {
 		const allSubscribedItems = Steamworks.getSubscribedItems();
-		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...this.knownWorkshopMods]);
+		const workshopIDs = [...new Set<bigint>([...allSubscribedItems, ...this.knownWorkshopMods])];
 
 		log.debug(`All subscribed items: [${allSubscribedItems}]`);
-		this.workshopMods = workshopIDs.size;
+		this.workshopMods = workshopIDs.length;
 
-		const modResponses = await Promise.allSettled<ModData>(
-			[...workshopIDs].map((workshopID) => {
+		if (workshopIDs.length === 0) {
+			return [];
+		}
+
+		const workshopMap = new Map<bigint, ModData>();
+		const unresolvedWorkshopIDs = new Set(workshopIDs);
+		const modChunks: bigint[][] = chunk(workshopIDs, MAX_MODS_PER_PAGE);
+
+		for (const modChunk of modChunks) {
+			try {
+				const modDetails = await this.getDetailsForWorkshopModList(modChunk);
+				modDetails.forEach((mod) => {
+					const { workshopID } = mod;
+					if (workshopID === undefined) {
+						return;
+					}
+					workshopMap.set(workshopID, mod);
+					unresolvedWorkshopIDs.delete(workshopID);
+					this.knownWorkshopMods.delete(workshopID);
+				});
+			} catch (error) {
+				log.warn(
+					`Failed to fetch Linux workshop details for [${modChunk.map((workshopID) => workshopID.toString()).join(', ')}]. Falling back to install info.`
+				);
+				log.warn(error);
+			}
+		}
+
+		if (unresolvedWorkshopIDs.size === 0) {
+			return [...workshopMap.values()];
+		}
+
+		const fallbackMods = await Promise.allSettled<ModData | null>(
+			[...unresolvedWorkshopIDs].map((workshopID) => {
 				const potentialMod: ModData = {
 					uid: `${ModType.WORKSHOP}:${workshopID}`,
 					id: null,
@@ -510,7 +542,16 @@ export default class ModFetcher {
 			})
 		);
 
-		return filterOutNullValues(modResponses);
+		filterOutNullValues(fallbackMods).forEach((mod) => {
+			const { workshopID } = mod;
+			if (workshopID === undefined) {
+				return;
+			}
+			workshopMap.set(workshopID, mod);
+			this.knownWorkshopMods.delete(workshopID);
+		});
+
+		return [...workshopMap.values()];
 	}
 
 	async fetchMods(): Promise<ModData[]> {

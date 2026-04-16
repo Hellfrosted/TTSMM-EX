@@ -87,3 +87,54 @@ export function getModDataId(record: ModData): string | null {
 	}
 	return record.id;
 }
+
+export function getModDataDisplayName(record: ModData): string | undefined {
+	return getModDataId(record) || record.name || undefined;
+}
+
+export function getModDataDisplayId(record: ModData): string | null {
+	if (record.workshopID !== undefined) {
+		return record.workshopID.toString();
+	}
+	return getModDataId(record);
+}
+
+export function compareModDataDisplayName(left: ModData, right: ModData): number {
+	const leftName = getModDataDisplayName(left);
+	const rightName = getModDataDisplayName(right);
+	if (leftName) {
+		if (rightName) {
+			return leftName.localeCompare(rightName);
+		}
+		return 1;
+	}
+	if (rightName) {
+		return -1;
+	}
+	return 0;
+}
+
+export function compareModDataDisplayId(left: ModData, right: ModData): number {
+	if (left.workshopID !== undefined && right.workshopID !== undefined) {
+		if (left.workshopID > right.workshopID) {
+			return 1;
+		}
+		if (left.workshopID < right.workshopID) {
+			return -1;
+		}
+		return 0;
+	}
+
+	const leftId = getModDataDisplayId(left);
+	const rightId = getModDataDisplayId(right);
+	if (leftId) {
+		if (rightId) {
+			return leftId.localeCompare(rightId);
+		}
+		return 1;
+	}
+	if (rightId) {
+		return -1;
+	}
+	return 0;
+}

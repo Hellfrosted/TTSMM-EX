@@ -13,7 +13,10 @@ import {
 	MainColumnTitles,
 	ModErrors,
 	ModType,
-	getModDataId,
+	getModDataDisplayName,
+	compareModDataDisplayName,
+	getModDataDisplayId,
+	compareModDataDisplayId,
 	CorpType,
 	getCorpType
 } from 'model';
@@ -279,20 +282,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		dataIndex: 'name',
 		className: 'CollectionRowModName',
 		defaultSortOrder: 'ascend',
-		sorter: (a: DisplayModData, b: DisplayModData) => {
-			if (a.name) {
-				if (b.name) {
-					return a.name > b.name ? 1 : -1;
-				}
-				return 1;
-			}
-			if (b.name) {
-				return -1;
-			}
-			return 0;
-		},
+		sorter: compareModDataDisplayName,
 		renderSetup: (props: CollectionViewProps) => {
-			return (name: string, record: DisplayModData) => {
+			return (_name: string, record: DisplayModData) => {
 				let updateIcon = null;
 				let updateType: 'danger' | 'warning' | undefined;
 				const { needsUpdate, downloadPending, downloading, uid, hasCode } = record;
@@ -320,11 +312,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 						updateType = 'warning';
 					}
 				}
-				let correctedName = name;
-				const matches = name.match(/(.*)\s*\(([^()]*[Tt][Tt][Ss][Mm][Mm][^()]*)\)$/);
-				if (matches && matches[1]) {
-					correctedName = matches[1].trim();
-				}
+				const displayName = getModDataDisplayName(record) || record.uid;
 				return (
 					<button
 						type="submit"
@@ -348,7 +336,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 						}}
 					>
 						{updateIcon}
-						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${correctedName} `}</Text>
+						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${displayName} `}</Text>
 						{hasCode && <CodeFilled style={{ color: '#6abe39', fontSize: 16, verticalAlign: 'middle' }} />}
 					</button>
 				);
@@ -419,30 +407,21 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.ID,
 		dataIndex: 'id',
-		sorter: (a, b) => {
-			const aID = getModDataId(a);
-			const bID = getModDataId(b);
-			if (aID) {
-				if (bID) {
-					return aID > bID ? 1 : -1;
-				}
-				return 1;
-			}
-			if (bID) {
-				return -1;
-			}
-			return 0;
-		},
+		sorter: compareModDataDisplayId,
 		renderSetup: () => {
 			return (_: string, record: DisplayModData) => {
-				if (record.overrides?.id) {
+				const displayID = getModDataDisplayId(record);
+				if (!displayID) {
+					return null;
+				}
+				if (record.workshopID === undefined && record.overrides?.id) {
 					return (
 						<Tag color="gray" key="id">
-							{record.overrides.id}
+							{displayID}
 						</Tag>
 					);
 				}
-				return record.id;
+				return displayID;
 			};
 		}
 	},

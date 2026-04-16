@@ -1,6 +1,6 @@
 import type Logger from 'electron-log';
 import type { AppConfig } from './AppConfig';
-import { ModData, ModDescriptor, ModType, getModDataId, ModDataOverride } from './Mod';
+import { ModData, ModDescriptor, ModType, getModDataId, getModDataDisplayName, ModDataOverride } from './Mod';
 import { ModCollection } from './ModCollection';
 import { CollectionErrors, ModErrors } from './CollectionValidation';
 import { getCorpType } from './Corp';
@@ -296,7 +296,7 @@ export function filterRows(session: SessionMods, searchString: string | undefine
 	if (searchString && searchString.length > 0) {
 		const lowerSearchString = searchString.toLowerCase();
 		return getRows(session).filter((modData) => {
-			if (modData.name?.toLowerCase().includes(lowerSearchString)) {
+			if (getModDataDisplayName(modData)?.toLowerCase().includes(lowerSearchString)) {
 				return true;
 			}
 			if (modData.type.toLowerCase().includes(lowerSearchString)) {

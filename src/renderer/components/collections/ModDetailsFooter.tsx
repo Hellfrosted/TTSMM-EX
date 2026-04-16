@@ -42,12 +42,16 @@ import {
 	getDescriptor,
 	getModDescriptorDisplayName,
 	getModDescriptorKey,
+	getModDataDisplayName,
 	ModCollection,
 	ModErrors,
 	ModErrorType,
 	ModType,
 	NotificationProps,
+	getModDataDisplayId,
 	getModDataId,
+	compareModDataDisplayName,
+	compareModDataDisplayId,
 	CollectionManagerModalType
 } from 'model';
 import { formatDateStr } from 'util/Date';
@@ -149,23 +153,13 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 	title: 'Name',
 	dataIndex: 'name',
 	defaultSortOrder: 'ascend',
-	sorter: (a: DisplayModData, b: DisplayModData) => {
-		if (a.name) {
-			if (b.name) {
-				return a.name > b.name ? 1 : -1;
-			}
-			return 1;
-		}
-		if (b.name) {
-			return -1;
-		}
-		return 0;
-	},
-	render: (name: string, record: DisplayModData) => {
+	sorter: compareModDataDisplayName,
+	render: (_name: string, record: DisplayModData) => {
+		const displayName = getModDataDisplayName(record) || record.uid;
 		if (record.type === ModType.DESCRIPTOR && record.children && record.children.length > 0) {
 			return (
 				<span>
-					<FolderOpenFilled /> {name}
+					<FolderOpenFilled /> {displayName}
 				</span>
 			);
 		}
@@ -198,7 +192,7 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 		return (
 			<span>
 				{updateIcon}
-				<Text strong={record.needsUpdate} type={updateType}>{` ${name}`}</Text>
+				<Text strong={record.needsUpdate} type={updateType}>{` ${displayName}`}</Text>
 			</span>
 		);
 	}
@@ -253,19 +247,16 @@ const AUTHORS_SCHEMA: ColumnType<DisplayModData> = {
 const ID_SCHEMA: ColumnType<DisplayModData> = {
 	title: 'ID',
 	dataIndex: 'id',
-	sorter: (a, b) => {
-		const aID = getModDataId(a);
-		const bID = getModDataId(b);
-		if (aID) {
-			if (bID) {
-				return aID > bID ? 1 : -1;
-			}
-			return 1;
+	sorter: compareModDataDisplayId,
+	render: (_: string | null, record: DisplayModData) => {
+		const displayID = getModDataDisplayId(record);
+		if (!displayID) {
+			return null;
 		}
-		if (bID) {
-			return -1;
+		if (record.workshopID === undefined && record.overrides?.id) {
+			return <Tag color="gray">{displayID}</Tag>;
 		}
-		return 0;
+		return displayID;
 	}
 };
 
@@ -621,8 +612,8 @@ function ModDetailsFooter({
 						children: (
 					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
 						<Descriptions.Item label="ID">
-							{!!currentRecord.id || !!currentRecord?.overrides?.id ? (
-								currentRecord.id
+							{currentRecordID ? (
+								currentRecordID
 							) : (
 								<Button
 									icon={<EditFilled />}
@@ -632,8 +623,11 @@ function ModDetailsFooter({
 								/>
 							)}
 						</Descriptions.Item>
+						{currentRecord.workshopID !== undefined && !!currentRecord.id ? (
+							<Descriptions.Item label="Mod ID">{currentRecord.id}</Descriptions.Item>
+						) : null}
 						{currentRecord?.overrides?.id ? (
-							<Descriptions.Item label="ID (Override)">
+							<Descriptions.Item label={currentRecord.workshopID !== undefined ? 'Mod ID (Override)' : 'ID (Override)'}>
 								<Button
 									icon={<EditFilled />}
 									onClick={() => {
@@ -868,7 +862,7 @@ function ModDetailsFooter({
 		[getDependenciesRowSelection, conflictingModData]
 	);
 
-	const currentRecordID = getModDataId(currentRecord);
+	const currentRecordID = getModDataDisplayId(currentRecord);
 	const activeTabContent =
 		activeTabKey === 'inspect'
 			? renderInspectTab()
@@ -910,7 +904,7 @@ function ModDetailsFooter({
 					<Title level={5} style={{ margin: 0 }}>
 						{currentRecord.name}
 					</Title>
-					<Text type="secondary">{`${currentRecordID} (${currentRecord.uid})`}</Text>
+					<Text type="secondary">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</Text>
 				</div>
 				<Space>
 					<Tooltip title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}>
