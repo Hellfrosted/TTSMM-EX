@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react';
 import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
 import { ColumnType } from 'antd/lib/table';
 import { CompareFn, TableRowSelection } from 'antd/lib/table/interface';
@@ -199,8 +199,10 @@ function getAllTags(record: DisplayModData) {
 }
 
 interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
+	'data-column-title'?: string;
 	label?: string;
-	width?: number;
+	width?: number | string;
+	resizeWidth?: number;
 	minWidth?: number;
 	onResize?: (nextWidth: number) => void;
 	onResizeEnd?: (nextWidth: number) => void;
@@ -209,6 +211,7 @@ interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement
 function ResizableHeaderCell({
 	label,
 	width,
+	resizeWidth,
 	minWidth = MIN_COLUMN_WIDTH,
 	onResize,
 	onResizeEnd,
@@ -217,11 +220,12 @@ function ResizableHeaderCell({
 	...rest
 }: ResizableHeaderCellProps) {
 	const cleanupRef = useRef<(() => void) | null>(null);
-	const widthRef = useRef(width ?? minWidth);
+	const widthRef = useRef(resizeWidth ?? (typeof width === 'number' ? width : minWidth));
+	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
 
 	useEffect(() => {
-		widthRef.current = width ?? minWidth;
-	}, [minWidth, width]);
+		widthRef.current = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	}, [minWidth, resizeWidth, width]);
 
 	useEffect(() => {
 		return () => {
@@ -299,7 +303,7 @@ function ResizableHeaderCell({
 				<button
 					type="button"
 					className="CollectionTableResizeHandle"
-					aria-label={`Resize ${label || 'column'}`}
+					aria-label={`Resize ${resizeLabel}`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
@@ -754,6 +758,21 @@ function getColumnWidths(config: MainCollectionConfig | undefined) {
 	);
 }
 
+function getColumnWidthVariableName(columnTitle: string) {
+	return `--main-collection-column-width-${columnTitle
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')}`;
+}
+
+function getColumnWidthStyle(columnTitle: string, width: number) {
+	return `var(${getColumnWidthVariableName(columnTitle)}, ${width}px)`;
+}
+
+function setColumnWidthVariable(container: HTMLElement | null, columnTitle: string, width: number) {
+	container?.style.setProperty(getColumnWidthVariableName(columnTitle), `${width}px`);
+}
+
 function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<string, number>): ColumnType<DisplayModData>[] {
 	const { config } = props;
 	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
@@ -782,15 +801,23 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const { config, filteredRows, launchingGame, width, height, setMainColumnWidthCallback } = props;
 	const small = (config as MainCollectionConfig | undefined)?.smallRows;
 	const deferredRows = useDeferredValue(filteredRows);
-	const [resizedColumnWidths, setResizedColumnWidths] = useState<Record<string, number>>({});
 	const persistedColumnWidths = useMemo(() => getColumnWidths(config as MainCollectionConfig | undefined), [config]);
-	const columnWidths = useMemo(
-		() => ({
-			...persistedColumnWidths,
-			...resizedColumnWidths
-		}),
-		[persistedColumnWidths, resizedColumnWidths]
-	);
+	const tableRootRef = useRef<HTMLDivElement | null>(null);
+	const syncedColumnTitlesRef = useRef<string[]>([]);
+
+	useEffect(() => {
+		const nextColumnTitles = Object.keys(persistedColumnWidths);
+		const activeColumnTitles = new Set(nextColumnTitles);
+		syncedColumnTitlesRef.current.forEach((columnTitle) => {
+			if (!activeColumnTitles.has(columnTitle)) {
+				tableRootRef.current?.style.removeProperty(getColumnWidthVariableName(columnTitle));
+			}
+		});
+		nextColumnTitles.forEach((columnTitle) => {
+			setColumnWidthVariable(tableRootRef.current, columnTitle, persistedColumnWidths[columnTitle]);
+		});
+		syncedColumnTitlesRef.current = nextColumnTitles;
+	}, [persistedColumnWidths]);
 
 	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
 	const tableComponents = useMemo(
@@ -802,69 +829,54 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		[]
 	);
 	const columns = useMemo(() => {
-		return getColumnSchema(props, columnWidths).map((column) => {
+		return getColumnSchema(props, persistedColumnWidths).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
-			const currentWidth = typeof column.width === 'number' ? column.width : undefined;
+			const currentWidth = columnTitle ? persistedColumnWidths[columnTitle] : undefined;
 			if (!columnTitle || !currentWidth) {
 				return column;
 			}
 
 			const restorePersistedColumnWidth = () => {
-				setResizedColumnWidths((currentWidths) => {
-					const persistedWidth = persistedColumnWidths[columnTitle];
-					if (persistedWidth === undefined) {
-						if (currentWidths[columnTitle] === undefined) {
-							return currentWidths;
-						}
-						const nextWidths = { ...currentWidths };
-						delete nextWidths[columnTitle];
-						return nextWidths;
-					}
-					if (currentWidths[columnTitle] === persistedWidth) {
-						return currentWidths;
-					}
-					return {
-						...currentWidths,
-						[columnTitle]: persistedWidth
-					};
-				});
+				const persistedWidth = persistedColumnWidths[columnTitle];
+				if (persistedWidth === undefined) {
+					tableRootRef.current?.style.removeProperty(getColumnWidthVariableName(columnTitle));
+					return;
+				}
+				setColumnWidthVariable(tableRootRef.current, columnTitle, persistedWidth);
 			};
 
 			return {
 				...column,
-				onHeaderCell: () => ({
-					label: columnTitle,
-					width: currentWidth,
-					minWidth: MIN_COLUMN_WIDTH,
-					onResize: (nextWidth: number) => {
-						setResizedColumnWidths((currentWidths) => {
-							if (currentWidths[columnTitle] === nextWidth) {
-								return currentWidths;
-							}
-							return {
-								...currentWidths,
-								[columnTitle]: nextWidth
-							};
-						});
-					},
-					onResizeEnd: (nextWidth: number) => {
-						void (async () => {
-							try {
-								const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
-								if (persisted !== false) {
-									return;
+				width: getColumnWidthStyle(columnTitle, currentWidth),
+				onHeaderCell: () =>
+					({
+						label: columnTitle,
+						'data-column-title': columnTitle,
+						width: getColumnWidthStyle(columnTitle, currentWidth),
+						resizeWidth: currentWidth,
+						minWidth: MIN_COLUMN_WIDTH,
+						onResize: (nextWidth: number) => {
+							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+						},
+						onResizeEnd: (nextWidth: number) => {
+							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+							void (async () => {
+								try {
+									const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
+									if (persisted !== false) {
+										return;
+									}
+								} catch {
+									// The caller reports write failures separately; this only restores the local preview width.
 								}
-							} catch {
-								// The caller reports write failures separately; this only restores the local preview width.
-							}
 
-							restorePersistedColumnWidth();
-						})();
-					}
-				})
+								restorePersistedColumnWidth();
+							})();
+						}
+					}) as any
 			};
 		});
-	}, [columnWidths, persistedColumnWidths, props, setMainColumnWidthCallback]);
+	}, [persistedColumnWidths, props, setMainColumnWidthCallback]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -874,24 +886,26 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	}, []);
 
 	return (
-		<Layout style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
-				<Table
-					dataSource={deferredRows}
-					pagination={false}
-					loading={launchingGame}
-					size="small"
-					rowKey="uid"
-					rowSelection={rowSelection}
-					components={tableComponents}
-					columns={columns}
-					sticky
-					scroll={{ x: 'max-content' }}
-					onRow={handleRow}
-					rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
-				/>
-			</Content>
-		</Layout>
+		<div ref={tableRootRef} className="MainCollectionTableRoot" style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+			<Layout style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+				<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
+					<Table
+						dataSource={deferredRows}
+						pagination={false}
+						loading={launchingGame}
+						size="small"
+						rowKey="uid"
+						rowSelection={rowSelection}
+						components={tableComponents}
+						columns={columns}
+						sticky
+						scroll={{ x: 'max-content' }}
+						onRow={handleRow}
+						rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
+					/>
+				</Content>
+			</Layout>
+		</div>
 	);
 }
 

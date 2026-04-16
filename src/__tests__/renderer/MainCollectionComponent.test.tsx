@@ -4,6 +4,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { MainCollectionView } from '../../renderer/components/collections/MainCollectionComponent';
 import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
 
+function stubResizeObserver() {
+	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
+		return {
+			observe: vi.fn(),
+			disconnect: vi.fn()
+		};
+	});
+	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+}
+
+function getResizeHandles(columnTitle: string) {
+	return Array.from(document.querySelectorAll('thead th'))
+		.filter((header) => header.textContent?.trim() === columnTitle)
+		.flatMap((header) => Array.from(header.querySelectorAll('.CollectionTableResizeHandle'))) as HTMLButtonElement[];
+}
+
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
 	const rows = [
 		{
@@ -33,13 +49,7 @@ function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionVi
 
 describe('MainCollectionView', () => {
 	it('shows the mod id in the Name column and the workshop id in the ID column', async () => {
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+		stubResizeObserver();
 
 		render(<MainCollectionView {...createProps()} />);
 
@@ -48,13 +58,7 @@ describe('MainCollectionView', () => {
 	});
 
 	it('allows resizing a column and reports the persisted width', async () => {
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+		stubResizeObserver();
 
 		const setMainColumnWidthCallback = vi.fn();
 
@@ -66,7 +70,10 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		const resizeHandles = await screen.findAllByLabelText('Resize ID');
+		await waitFor(() => {
+			expect(getResizeHandles('ID').length).toBeGreaterThan(0);
+		});
+		const resizeHandles = getResizeHandles('ID');
 		resizeHandles.forEach((resizeHandle) => {
 			fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
 		});
@@ -78,5 +85,36 @@ describe('MainCollectionView', () => {
 				)
 			).toBe(true);
 		});
+	});
+
+	it('updates the column preview during mouse drag without persisting on mousemove', async () => {
+		stubResizeObserver();
+
+		const setMainColumnWidthCallback = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					setMainColumnWidthCallback
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(getResizeHandles('ID').length).toBeGreaterThan(0);
+		});
+		const [resizeHandle] = getResizeHandles('ID');
+		const tableRoot = document.querySelector('.MainCollectionTableRoot');
+
+		expect(resizeHandle).toBeDefined();
+		expect(tableRoot).not.toBeNull();
+
+		fireEvent.mouseDown(resizeHandle, { clientX: 200 });
+		fireEvent.mouseMove(window, { clientX: 236 });
+
+		expect(setMainColumnWidthCallback).not.toHaveBeenCalled();
+		expect(tableRoot?.style.getPropertyValue('--main-collection-column-width-id')).toBe('206px');
+
+		fireEvent.mouseUp(window);
 	});
 });
