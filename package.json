@@ -6,27 +6,21 @@
 	"version": "2.0.2",
 	"scripts": {
 		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && electron-vite dev",
-		"start": "npm run dev",
 		"start:desktop": "npm run build && cross-env NODE_ENV=production electron .",
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
 		"lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:fix": "npm run lint -- --fix",
-		"package": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never",
-		"package:linux": "node --import=tsx ./scripts/require-platform.ts linux package:linux && node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb && electron-builder build --publish never --linux pacman",
-		"package:linux:deb": "node --import=tsx ./scripts/require-platform.ts linux package:linux:deb && node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb",
-		"package:linux:pacman": "node --import=tsx ./scripts/require-platform.ts linux package:linux:pacman && node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux pacman",
+		"package": "node --import=tsx ./scripts/package.ts",
+		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
 		"test": "vitest run",
 		"typecheck": "tsc -b",
 		"validate": "npm run lint && npm run typecheck && npm test && npm run build",
-		"publish": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish onTagOrDraft",
-		"only-publish": "electron-builder build --publish onTagOrDraft",
-		"patch": "bash bin/version.sh patch",
-		"minor": "bash bin/version.sh minor",
-		"major": "bash bin/version.sh major"
+		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
+		"bump": "node --import=tsx ./scripts/version.ts"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
