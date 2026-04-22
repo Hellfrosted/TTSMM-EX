@@ -5,6 +5,7 @@
 	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
 	"version": "2.1.0",
 	"scripts": {
+		"help": "node --import=tsx ./scripts/help.ts",
 		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts electron-vite dev",
 		"start:desktop": "npm run build && cross-env NODE_ENV=production node --import=tsx ./scripts/run-with-clean-electron-env.ts electron .",
 		"build": "electron-vite build",

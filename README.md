@@ -161,6 +161,7 @@ The pacman target needs `bsdtar`.
 
 ## Scripts
 
+- `npm run help`: list root and `release/app` npm scripts
 - `npm run dev`: development app
 - `npm run start:desktop`: build and launch the production desktop entrypoint
 - `npm run lint`: ESLint
@@ -180,3 +181,5 @@ The pacman target needs `bsdtar`.
 - `npm run bump -- patch`: patch version bump
 - `npm run bump -- minor`: minor version bump
 - `npm run bump -- major`: major version bump
+- `npm --prefix release/app run electron-rebuild`: rebuild the packaged app native modules
+- `npm --prefix release/app run link-modules`: relink packaged app modules
