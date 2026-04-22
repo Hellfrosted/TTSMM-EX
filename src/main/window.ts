@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow, WebContents } from 'electron';
+import { app, BrowserWindow, WebContents, type WebContentsConsoleMessageEventParams } from 'electron';
 import log from 'electron-log';
 
 import { openExternalUrl } from './external-links';
@@ -15,12 +15,20 @@ export interface WindowOptions {
 	onDidFinishLoad: () => void;
 }
 
+type RendererConsoleLogLevel = 'error' | 'warn' | 'info';
+
 interface SteamAppIdFileOptions {
 	isPackaged?: boolean;
 	cwd?: string;
 	exePath?: string;
 	fsImpl?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'writeFileSync'>;
 	logger?: Pick<typeof log, 'error'>;
+}
+
+interface RendererConsoleForwardOptions {
+	consoleImpl?: Pick<Console, 'error' | 'warn' | 'info'>;
+	logger?: Pick<typeof log, 'processMessage' | 'transports'>;
+	mirrorToConsole?: boolean;
 }
 
 export function resolveSteamAppIdFilePath({
@@ -70,6 +78,58 @@ export async function installExtensions() {
 	}
 }
 
+function resolveRendererConsoleLogLevel(level: WebContentsConsoleMessageEventParams['level']): RendererConsoleLogLevel {
+	if (level === 'error') {
+		return 'error';
+	}
+	if (level === 'warning') {
+		return 'warn';
+	}
+	return 'info';
+}
+
+function isBrokenPipeError(error: unknown) {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	const errorCode = 'code' in error ? (error as NodeJS.ErrnoException).code : undefined;
+	return errorCode === 'EPIPE' || error.message.toLowerCase().includes('broken pipe');
+}
+
+export function forwardRendererConsoleMessage(
+	{ level, message, lineNumber, sourceId }: WebContentsConsoleMessageEventParams,
+	{
+		consoleImpl = console,
+		logger = log,
+		mirrorToConsole = false
+	}: RendererConsoleForwardOptions = {}
+) {
+	const formattedMessage = `[renderer console:${level}] ${message} (${sourceId}:${lineNumber})`;
+	const logLevel = resolveRendererConsoleLogLevel(level);
+
+	logger.processMessage(
+		{
+			date: new Date(),
+			data: [formattedMessage],
+			level: logLevel
+		},
+		{ transports: [logger.transports.file] }
+	);
+
+	if (!mirrorToConsole) {
+		return;
+	}
+
+	try {
+		consoleImpl[logLevel](formattedMessage);
+	} catch (error) {
+		if (!isBrokenPipeError(error)) {
+			throw error;
+		}
+	}
+}
+
 export async function createMainWindow({ isDevelopment, onDidFinishLoad }: WindowOptions): Promise<BrowserWindow> {
 	if (isDevelopment) {
 		await installExtensions();
@@ -97,17 +157,10 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 
 	mainWindow.loadURL(resolveHtmlPath('index.html'));
 
-	mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-		const formattedMessage = `[renderer console:${level}] ${message} (${sourceId}:${line})`;
-		if (level >= 3) {
-			console.error(formattedMessage);
-			return;
-		}
-		if (level === 2) {
-			console.warn(formattedMessage);
-			return;
-		}
-		console.info(formattedMessage);
+	mainWindow.webContents.on('console-message', (event) => {
+		forwardRendererConsoleMessage(event, {
+			mirrorToConsole: isDevelopment
+		});
 	});
 
 	mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -144,7 +197,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 	});
 
 	mainWindow.webContents.on('did-finish-load', () => {
-		const name = 'TerraTech Steam Mod Manager';
+		const name = 'TTSMM-EX';
 		log.info(`App Version: ${app.getVersion()}`);
 		log.info(`App Name: ${app.getName()}`);
 		mainWindow.setTitle(`${name} v${app.getVersion()}`);

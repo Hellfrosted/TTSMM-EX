@@ -1,6 +1,7 @@
 import { ReactNode, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Button, Layout, Popover } from 'antd';
+import { Button, Layout, Popover, Space } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined, SyncOutlined } from '@ant-design/icons';
 import {
 	AppState,
 	CollectionManagerModalType,
@@ -101,6 +102,9 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 }
 
 type HalfDetailsLayout = 'bottom' | 'side';
+const MIN_SIDE_BY_SIDE_WIDTH = 1120;
+const MIN_COLLECTION_TABLE_WIDTH = 640;
+const MIN_COLLECTION_TABLE_HEIGHT = 320;
 
 interface ValidationCallbacks {
 	cancelValidation: () => void;
@@ -250,8 +254,10 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const visibleRows = filteredRows || rows;
 	const displayedCurrentRecord = currentRecord ? getByUID(appState.mods, currentRecord.uid) || currentRecord : undefined;
 	const currentViewConfig = appState.config.viewConfigs?.[currentView];
-	const automaticHalfDetailsLayout: HalfDetailsLayout = contentSize.width > contentSize.height * 1.45 ? 'side' : 'bottom';
-	const halfDetailsLayout = preferredHalfDetailsLayout || automaticHalfDetailsLayout;
+	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
+	const automaticHalfDetailsLayout: HalfDetailsLayout =
+		sideBySideEligible && contentSize.width > contentSize.height * 1.45 ? 'side' : 'bottom';
+	const halfDetailsLayout = preferredHalfDetailsLayout === 'side' && !sideBySideEligible ? 'bottom' : preferredHalfDetailsLayout || automaticHalfDetailsLayout;
 	const handleEnableMod = useCallback(
 		(id: string) => {
 			toggleMod(true, id);
@@ -311,6 +317,47 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				...currentColumnWidthConfig,
 				[column]: normalizedWidth
 			};
+			nextConfig.viewConfigs.main = currentMainConfig;
+
+			try {
+				await writeConfig(nextConfig);
+				appState.updateState({ config: nextConfig });
+				return true;
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update view settings',
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+				return false;
+			}
+		},
+		[appState, openNotification]
+	);
+	const handleSetMainColumnVisibility = useCallback(
+		async (column: MainColumnTitles, visible: boolean) => {
+			const currentColumnActiveConfig = appState.config.viewConfigs.main?.columnActiveConfig || {};
+			const currentlyVisible = currentColumnActiveConfig[column] !== false;
+			if (currentlyVisible === visible) {
+				return true;
+			}
+
+			const nextConfig = cloneAppConfig(appState.config);
+			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
+			const nextColumnActiveConfig = { ...(currentMainConfig.columnActiveConfig || {}) };
+
+			if (visible) {
+				delete nextColumnActiveConfig[column];
+			} else {
+				nextColumnActiveConfig[column] = false;
+			}
+
+			currentMainConfig.columnActiveConfig =
+				Object.keys(nextColumnActiveConfig).length > 0 ? nextColumnActiveConfig : undefined;
 			nextConfig.viewConfigs.main = currentMainConfig;
 
 			try {
@@ -405,6 +452,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setEnabledCallback: handleEnableMod,
 			setDisabledCallback: handleDisableMod,
 			setMainColumnWidthCallback: handleSetMainColumnWidth,
+			setMainColumnVisibilityCallback: handleSetMainColumnVisibility,
+			openMainViewSettingsCallback: handleOpenViewSettings,
 			getModDetails: handleGetModDetails
 		}),
 		[
@@ -415,6 +464,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleEnableMod,
 			handleGetModDetails,
 			handleSetMainColumnWidth,
+			handleSetMainColumnVisibility,
+			handleOpenViewSettings,
 			currentValidationStatus,
 			madeEdits,
 			rows,
@@ -424,17 +475,29 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	);
 
 	const showSideBySideDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && !bigDetails && halfDetailsLayout === 'side';
+	const maxSideDetailsWidth = Math.max(360, contentSize.width - MIN_COLLECTION_TABLE_WIDTH);
 	const sideDetailsWidth = showSideBySideDetails
-		? Math.max(420, Math.min(Math.round(contentSize.width * 0.42), 760))
+		? Math.min(maxSideDetailsWidth, Math.max(360, Math.min(Math.round(contentSize.width * 0.38), 680)))
 		: 0;
 	const bottomDetailsHeight =
 		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
-			? Math.min(Math.max(260, Math.round(contentSize.height * 0.42)), Math.max(180, contentSize.height - 140))
+			? Math.min(Math.max(220, Math.round(contentSize.height * 0.36)), Math.max(180, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT))
 			: 0;
 	const footerBorderColor = '1px solid rgba(255, 255, 255, 0.08)';
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
+	const launchDisabled =
+		appState.loadingMods || overrideGameRunning || gameRunning || modalType !== CollectionManagerModalType.NONE || appState.launchingGame;
+	const validateIcon = validatingMods ? (
+		<SyncOutlined spin />
+	) : currentValidationStatus === true ? (
+		<CheckCircleOutlined />
+	) : currentValidationStatus === false ? (
+		<CloseCircleOutlined />
+	) : (
+		<SyncOutlined />
+	);
 	const fullDetailsFooter = displayedCurrentRecord ? (
 		<ModDetailsFooter
 			key="mod-details-full"
@@ -484,12 +547,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
-					validatingCollection={validatingMods}
 					savingCollection={savingCollection}
 					onSearchChangeCallback={onSearchChange}
-					validateCollectionCallback={handleValidateCollection}
 					madeEdits={madeEdits}
-					lastValidationStatus={currentValidationStatus}
 					onReloadModListCallback={handleReloadModList}
 					onSearchCallback={onSearch}
 					changeActiveCollectionCallback={changeActiveCollection}
@@ -638,62 +698,57 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			</div>
 			{showExpandedDetails ? null : (
 				<Footer className="MainFooter" style={{ flex: '0 0 auto', justifyContent: 'center', display: 'flex', padding: 10 }}>
-					{appState.launchingGame ? (
-						<Popover content="Already launching game">
-							<Button
-								type="primary"
-								loading={appState.launchingGame}
-								disabled={
-									appState.loadingMods ||
-									overrideGameRunning ||
-									gameRunning ||
-									modalType !== CollectionManagerModalType.NONE ||
-									appState.launchingGame
-								}
-								onClick={() => {
-									void launchGame();
-								}}
-							>
-								Launch Game
-							</Button>
-						</Popover>
-					) : gameRunning || overrideGameRunning ? (
-						<Popover content="Game already running">
-							<Button
-								type="primary"
-								loading={appState.launchingGame}
-								disabled={
-									appState.loadingMods ||
-									overrideGameRunning ||
-									gameRunning ||
-									modalType !== CollectionManagerModalType.NONE ||
-									appState.launchingGame
-								}
-								onClick={() => {
-									void launchGame();
-								}}
-							>
-								Launch Game
-							</Button>
-						</Popover>
-					) : (
+					<Space size={12} wrap>
 						<Button
-							type="primary"
-							loading={appState.launchingGame}
-							disabled={
-								appState.loadingMods ||
-								overrideGameRunning ||
-								gameRunning ||
-								modalType !== CollectionManagerModalType.NONE ||
-								appState.launchingGame
-							}
+							aria-label="Validate Collection"
+							icon={validateIcon}
+							danger={currentValidationStatus === false}
+							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
 							onClick={() => {
-								void launchGame();
+								handleValidateCollection();
 							}}
 						>
-							Launch Game
+							Validate Collection
 						</Button>
-					)}
+						{appState.launchingGame ? (
+							<Popover content="Already launching game">
+								<Button
+									type="primary"
+									loading={appState.launchingGame}
+									disabled={launchDisabled}
+									onClick={() => {
+										void launchGame();
+									}}
+								>
+									Launch Game
+								</Button>
+							</Popover>
+						) : gameRunning || overrideGameRunning ? (
+							<Popover content="Game already running">
+								<Button
+									type="primary"
+									loading={appState.launchingGame}
+									disabled={launchDisabled}
+									onClick={() => {
+										void launchGame();
+									}}
+								>
+									Launch Game
+								</Button>
+							</Popover>
+						) : (
+							<Button
+								type="primary"
+								loading={appState.launchingGame}
+								disabled={launchDisabled}
+								onClick={() => {
+									void launchGame();
+								}}
+							>
+								Launch Game
+							</Button>
+						)}
+					</Space>
 				</Footer>
 			)}
 		</Layout>

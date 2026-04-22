@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Layout, Progress, Typography } from 'antd';
+import { Button, Layout, Progress, Space, Typography } from 'antd';
 import { AppConfig, ModType, AppState, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
-import { CheckCircleFilled } from '@ant-design/icons';
+import { APP_THEME_COLORS } from 'renderer/theme';
+import { CheckCircleFilled, CloseCircleFilled, Loading3QuartersOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
-const { Text } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
 interface ModLoadingProps {
 	appState: AppState;
@@ -75,61 +76,68 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 		};
 	}, [appState, modLoadCompleteCallback, retryCount]);
 
+	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
+	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';
+	const statusDetail = loadError ? 'Fix the error below and retry the scan.' : progressMessage || 'Counting mods';
+	const statusIcon = loadError ? (
+		<CloseCircleFilled style={{ fontSize: 32, color: APP_THEME_COLORS.error }} />
+	) : progressPercent >= 100 ? (
+		<CheckCircleFilled style={{ fontSize: 32, color: APP_THEME_COLORS.success }} />
+	) : (
+		<Loading3QuartersOutlined spin style={{ fontSize: 32, color: APP_THEME_COLORS.primary }} />
+	);
+
 	return (
-		<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
-			<Content style={{ backgroundColor: '#222' }}>
-				<div className="e-loadholder" style={{ position: 'absolute', top: 'calc(45%)' }}>
-					<div className="m-loader">
-						<span className="e-text">Loading</span>
+		<Layout className="StartupShell">
+			<Content className="StartupContent">
+				<section aria-labelledby="mod-loading-title" className="StartupCard">
+					<Text type="secondary">Startup</Text>
+					<Title id="mod-loading-title" level={2} style={{ marginTop: 10, marginBottom: 8 }}>
+						Scanning your mods
+					</Title>
+					<Paragraph className="StartupIntro">
+						Refreshing local and workshop metadata before the collection workspace opens.
+					</Paragraph>
+					<div aria-live="polite" role="status" className={`StartupStatusCard${loadError ? ' is-error' : ''}`}>
+						<Space size={14} align="start">
+							<span aria-hidden>{statusIcon}</span>
+							<span>
+								<Text strong className="StartupStatusTitle">
+									{statusLabel}
+								</Text>
+								<Text className="StartupStatusDetail">{statusDetail}</Text>
+							</span>
+						</Space>
 					</div>
-				</div>
-				<span style={{ width: 'calc(100%)', display: 'flex', justifyContent: 'center', position: 'absolute', top: 'calc(90%)' }}>
-					{progressMessage ? <div>{progressMessage}</div> : null}
-				</span>
-				{loadError ? (
-					<div
-						style={{
-							position: 'absolute',
-							top: 'calc(58%)',
-							left: '50%',
-							transform: 'translateX(-50%)',
-							display: 'flex',
-							flexDirection: 'column',
-							alignItems: 'center',
-							gap: 12,
-							maxWidth: '70%',
-							textAlign: 'center'
-						}}
-					>
-						<Text code type="danger">
-							{loadError}
-						</Text>
-						<Button
-							type="primary"
-							onClick={() => {
-								setLoadError(undefined);
-								setProgress(0);
-								setProgressMessage('Counting mods');
-								setRetryCount((current) => current + 1);
-							}}
-						>
-							Retry Mod Scan
-						</Button>
-					</div>
-				) : null}
-				<span style={{ width: 'calc(100%)', display: 'flex', justifyContent: 'center', position: 'absolute', top: 'calc(85%)' }}>
 					<Progress
-						style={{ width: 'calc(80%)' }}
-						strokeColor={{
-							from: '#108ee9',
-							to: '#7c3bd0'
-						}}
-						percent={progress * 100}
+						className="StartupProgress"
+						strokeColor={APP_THEME_COLORS.primary}
+						railColor={APP_THEME_COLORS.border}
+						percent={progressPercent}
+						status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'}
 						format={(percent) =>
-							percent && percent >= 100 ? <CheckCircleFilled style={{ color: '#7c3bd0' }} /> : `${percent?.toFixed()}%`
+							percent && percent >= 100 ? <CheckCircleFilled style={{ color: APP_THEME_COLORS.success }} /> : `${percent?.toFixed()}%`
 						}
 					/>
-				</span>
+					{loadError ? (
+						<div className="StartupActions">
+							<Text code type="danger">
+								{loadError}
+							</Text>
+							<Button
+								type="primary"
+								onClick={() => {
+									setLoadError(undefined);
+									setProgress(0);
+									setProgressMessage('Counting mods');
+									setRetryCount((current) => current + 1);
+								}}
+							>
+								Retry Mod Scan
+							</Button>
+						</div>
+					) : null}
+				</section>
 			</Content>
 		</Layout>
 	);

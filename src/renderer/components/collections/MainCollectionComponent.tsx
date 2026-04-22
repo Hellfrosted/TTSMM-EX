@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
+import { Dropdown, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import type { MenuProps } from 'antd';
 import { ColumnType } from 'antd/lib/table';
 import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
@@ -42,26 +43,44 @@ const { Text } = Typography;
 const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 const KEYBOARD_RESIZE_STEP = 16;
 const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
+const COLUMN_MEASUREMENT_SAMPLE_SIZE = 40;
 const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
+const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+
+function getModTypeLabel(type: ModType) {
+	switch (type) {
+		case ModType.LOCAL:
+			return 'Local mod';
+		case ModType.TTQMM:
+			return 'TTMM mod';
+		case ModType.WORKSHOP:
+			return 'Steam Workshop mod';
+		default:
+			return 'Mod';
+	}
+}
 
 function getImageSrcFromType(type: ModType, size = 15) {
+	const label = getModTypeLabel(type);
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title="This is a local mod">
-					<HddFilled style={{ fontSize: size }} />
+				<Tooltip title={label}>
+					<span role="img" aria-label={label}>
+						<HddFilled style={{ fontSize: size }} />
+					</span>
 				</Tooltip>
 			);
 		case ModType.TTQMM:
 			return (
-				<Tooltip title="This is a TTMM mod">
-					<img src={ttmm} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={ttmm} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		case ModType.WORKSHOP:
 			return (
-				<Tooltip title="This is a Steam mod">
-					<img src={steam} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={steam} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		default:
@@ -76,23 +95,25 @@ enum TypeTag {
 }
 
 function getTypeIcon(type: TypeTag, size = 15) {
+	const label =
+		type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
 	switch (type) {
 		case TypeTag.SKINS:
 			return (
-				<Tooltip title="Skins" key={type}>
-					<img src={Icon_Skins} width={size - 14} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Skins} width={size - 14} alt={label} key={type} />
 				</Tooltip>
 			);
 		case TypeTag.BLOCKS:
 			return (
-				<Tooltip title="Blocks" key={type}>
-					<img src={Icon_Blocks} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Blocks} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case TypeTag.CORPS:
 			return (
-				<Tooltip title="Custom Corps" key={type}>
-					<img src={Icon_Corps} width={size - 10} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Corps} width={size - 10} alt={label} key={type} />
 				</Tooltip>
 			);
 		default:
@@ -101,47 +122,63 @@ function getTypeIcon(type: TypeTag, size = 15) {
 }
 
 function getCorpIcon(type: CorpType, size = 15) {
+	const label =
+		type === CorpType.HE
+			? 'Hawkeye (HE)'
+			: type === CorpType.GSO
+				? 'Galactic Survey Organization (GSO)'
+				: type === CorpType.GC
+					? 'GeoCorp (GC)'
+					: type === CorpType.BF
+						? 'Better Future (BF)'
+						: type === CorpType.RR
+							? 'Reticule Research (EXP)'
+							: type === CorpType.SPE
+								? 'Special (SPE)'
+								: type === CorpType.VEN
+									? 'Venture (VEN)'
+									: 'Corporation';
 	switch (type) {
 		case CorpType.HE:
 			return (
-				<Tooltip title="Hawkeye (HE)" key={type}>
-					<img src={Corp_Icon_HE} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_HE} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.GSO:
 			return (
-				<Tooltip title="Galactic Survey Organization (GSO)" key={type}>
-					<img src={Corp_Icon_GSO} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_GSO} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.GC:
 			return (
-				<Tooltip title="GeoCorp (GC)" key={type}>
-					<img src={Corp_Icon_GC} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_GC} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.BF:
 			return (
-				<Tooltip title="Better Future (BF)" key={type}>
-					<img src={Corp_Icon_BF} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_BF} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.RR:
 			return (
-				<Tooltip title="Reticule Research (EXP)" key={type}>
-					<img src={Corp_Icon_RR} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_RR} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.SPE:
 			return (
-				<Tooltip title="Special (SPE)" key={type}>
-					<img src={Corp_Icon_SPE} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_SPE} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.VEN:
 			return (
-				<Tooltip title="Venture (VEN)" key={type}>
-					<img src={Corp_Icon_VEN} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_VEN} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		default:
@@ -171,7 +208,7 @@ interface ColumnSchema<T> {
 	align?: 'center';
 	defaultSortOrder?: 'ascend';
 	filters?: ColumnType<DisplayModData>['filters'];
-	filtersSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['filters'];
+	filtersSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['filters'];
 	onFilter?: ColumnType<DisplayModData>['onFilter'];
 	sorter?:
 		| boolean
@@ -181,9 +218,11 @@ interface ColumnSchema<T> {
 				multiple?: number | undefined;
 		  }
 		| undefined;
-	sorterSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['sorter'];
-	renderSetup?: (props: CollectionViewProps) => (value: any, record: T, index: number) => ReactNode;
+	sorterSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['sorter'];
+	renderSetup?: (props: MainCollectionSchemaProps) => (value: any, record: T, index: number) => ReactNode;
 }
+
+type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
 
 interface StateTagConfig {
 	color?: string;
@@ -203,6 +242,7 @@ function getAllTags(record: DisplayModData) {
 
 interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
 	'data-column-title'?: string;
+	headerMenu?: MenuProps;
 	label?: string;
 	width?: number | string;
 	resizeWidth?: number;
@@ -212,6 +252,7 @@ interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement
 }
 
 function ResizableHeaderCell({
+	headerMenu,
 	label,
 	width,
 	resizeWidth,
@@ -301,7 +342,15 @@ function ResizableHeaderCell({
 
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
-			<div className="CollectionTableHeaderCell">{children}</div>
+			{headerMenu ? (
+				<Dropdown menu={headerMenu} trigger={['contextMenu']}>
+					<div className="CollectionTableHeaderContextTarget">
+						<div className="CollectionTableHeaderCell">{children}</div>
+					</div>
+				</Dropdown>
+			) : (
+				<div className="CollectionTableHeaderCell">{children}</div>
+			)}
 			{width ? (
 				<button
 					type="button"
@@ -319,7 +368,23 @@ function ResizableHeaderCell({
 	);
 }
 
-function getStateTags(props: CollectionViewProps, record: DisplayModData): StateTagConfig[] {
+function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: boolean, columnActiveConfig?: Record<string, boolean>) {
+	if (visible) {
+		return true;
+	}
+
+	if (columnTitle === MainColumnTitles.ID && columnActiveConfig?.[MainColumnTitles.NAME] === false) {
+		return false;
+	}
+
+	if (columnTitle === MainColumnTitles.NAME && columnActiveConfig?.[MainColumnTitles.ID] === false) {
+		return false;
+	}
+
+	return true;
+}
+
+function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
 	const { uid, subscribed, workshopID, installed, id } = record;
@@ -387,19 +452,27 @@ function compareStateTags(leftTags: StateTagConfig[], rightTags: StateTagConfig[
 	return leftLabel.localeCompare(rightLabel);
 }
 
+function getMeasurementRowSignature(rows: DisplayModData[]) {
+	if (rows.length === 0) {
+		return 'empty';
+	}
+
+	return rows
+		.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE)
+		.map((row) => row.uid)
+		.sort((left, right) => left.localeCompare(right))
+		.join('|');
+}
+
 const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.TYPE,
 		dataIndex: 'type',
 		className: 'CollectionRowModType',
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
-			return (type: ModType) => (
-				<Button type="text">
-					{getImageSrcFromType(type, small ? 20 : 30)}
-				</Button>
-			);
+			return (type: ModType) => <span className="CollectionTypeIndicator">{getImageSrcFromType(type, small ? 20 : 30)}</span>;
 		},
 		width: 65,
 		align: 'center'
@@ -411,7 +484,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		width: 320,
 		defaultSortOrder: 'ascend',
 		sorter: compareModDataDisplayName,
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			return (_name: string, record: DisplayModData) => {
 				let updateIcon = null;
 				let updateType: 'danger' | 'warning' | undefined;
@@ -443,8 +516,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				const displayName = getModDataDisplayName(record) || record.uid;
 				return (
 					<button
-						type="submit"
+						type="button"
 						className="CollectionNameButton"
+						aria-label={`Open details for ${displayName}`}
 						style={{
 							fontSize: 14,
 							backgroundColor: 'transparent',
@@ -465,7 +539,11 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 					>
 						{updateIcon}
 						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${displayName} `}</Text>
-						{hasCode && <CodeFilled style={{ color: '#6abe39', fontSize: 16, verticalAlign: 'middle' }} />}
+						{hasCode ? (
+							<Tooltip title="Contains code">
+								<CodeFilled style={{ color: '#6d9c6c', fontSize: 16, verticalAlign: 'middle' }} />
+							</Tooltip>
+						) : null}
 					</button>
 				);
 			};
@@ -514,10 +592,10 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.STATE,
 		dataIndex: 'errors',
 		width: 250,
-		sorterSetup: (props: CollectionViewProps) => {
+		sorterSetup: (props: MainCollectionSchemaProps) => {
 			return (a: DisplayModData, b: DisplayModData) => compareStateTags(getStateTags(props, a), getStateTags(props, b));
 		},
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			return (_errors: ModErrors | undefined, record: DisplayModData) => {
 				const stateTags = getStateTags(props, record);
 				if (stateTags.length > 0) {
@@ -648,7 +726,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		dataIndex: 'tags',
 		className: 'CollectionRowTags',
 		width: 240,
-		filtersSetup: (props: CollectionViewProps) => {
+		filtersSetup: (props: MainCollectionSchemaProps) => {
 			return [...new Set(props.rows.flatMap((record) => getAllTags(record)))]
 				.sort((left, right) => left.localeCompare(right))
 				.map((tag) => ({ text: tag, value: tag }));
@@ -656,7 +734,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		onFilter: (value, record) => {
 			return getAllTags(record).includes(value.toString());
 		},
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
 			return (tags: string[] | undefined, record: DisplayModData) => {
@@ -700,7 +778,12 @@ function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
 	return activeColumns;
 }
 
-function getRowSelection(props: CollectionViewProps) {
+function getRowSelection(
+	props: Pick<
+		CollectionViewProps,
+		'collection' | 'rows' | 'filteredRows' | 'setEnabledModsCallback' | 'setEnabledCallback' | 'setDisabledCallback'
+	>
+) {
 	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
 
 	const rowSelection: TableRowSelection<DisplayModData> = {
@@ -844,6 +927,8 @@ function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: stri
 	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
 	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
 	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const sampledBodyRows = bodyRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE);
+	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
 	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
 
 	return activeColumnTitles.reduce(
@@ -854,8 +939,7 @@ function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: stri
 			if (headerCell) {
 				renderedCells.push(headerCell);
 			}
-			bodyRows.forEach((row) => {
-				const bodyCells = Array.from(row.querySelectorAll<HTMLElement>('td'));
+			sampledBodyCells.forEach((bodyCells) => {
 				const bodyCell = bodyCells[renderedColumnIndex];
 				if (bodyCell) {
 					renderedCells.push(bodyCell);
@@ -883,7 +967,7 @@ function setColumnWidthVariable(container: HTMLElement | null, columnTitle: stri
 	container?.style.setProperty(getColumnWidthVariableName(columnTitle), `${width}px`);
 }
 
-function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<string, number>): ColumnType<DisplayModData>[] {
+function getColumnSchema(props: MainCollectionSchemaProps, columnWidthConfig?: Record<string, number>): ColumnType<DisplayModData>[] {
 	const { config } = props;
 	const activeColumns = getActiveColumnSchemas(config as MainCollectionConfig | undefined);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
@@ -905,13 +989,40 @@ function getColumnSchema(props: CollectionViewProps, columnWidthConfig?: Record<
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
-	const { config, filteredRows, launchingGame, rows, width, height, setMainColumnWidthCallback } = props;
-	const small = (config as MainCollectionConfig | undefined)?.smallRows;
+	const {
+		collection,
+		config,
+		filteredRows,
+		getModDetails,
+		height,
+		launchingGame,
+		lastValidationStatus,
+		openMainViewSettingsCallback,
+		rows,
+		setDisabledCallback,
+		setEnabledCallback,
+		setEnabledModsCallback,
+		setMainColumnVisibilityCallback,
+		setMainColumnWidthCallback,
+		width
+	} = props;
+	const mainConfig = config as MainCollectionConfig | undefined;
+	const small = mainConfig?.smallRows;
+	const columnActiveConfig = mainConfig?.columnActiveConfig;
+	const columnWidthConfig = mainConfig?.columnWidthConfig;
 	const deferredRows = useDeferredValue(filteredRows);
-	const configuredColumnWidths = useMemo(() => (config as MainCollectionConfig | undefined)?.columnWidthConfig || {}, [config]);
+	const configuredColumnWidths = useMemo(() => columnWidthConfig || {}, [columnWidthConfig]);
 	const activeColumnTitles = useMemo(
-		() => getActiveColumnSchemas(config as MainCollectionConfig | undefined).map((column) => column.title),
-		[config]
+		() => getActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined).map((column) => column.title),
+		[columnActiveConfig]
+	);
+	const hiddenColumnTitles = useMemo(
+		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !activeColumnTitles.includes(columnTitle)),
+		[activeColumnTitles]
+	);
+	const measurementInputKey = useMemo(
+		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
+		[deferredRows, small]
 	);
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
@@ -1027,9 +1138,20 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		return () => {
 			window.cancelAnimationFrame(animationFrame);
 		};
-	}, [activeColumnTitles, configuredColumnWidths, rows]);
+	}, [activeColumnTitles, configuredColumnWidths, measurementInputKey]);
 
-	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
+	const rowSelection = useMemo(
+		() =>
+			getRowSelection({
+				collection,
+				filteredRows: deferredRows,
+				rows,
+				setDisabledCallback,
+				setEnabledCallback,
+				setEnabledModsCallback
+			}),
+		[collection, deferredRows, rows, setDisabledCallback, setEnabledCallback, setEnabledModsCallback]
+	);
 	const tableComponents = useMemo(
 		() => ({
 			header: {
@@ -1038,12 +1160,54 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		}),
 		[]
 	);
+	const columnSchemaProps = useMemo<MainCollectionSchemaProps>(
+		() => ({
+			collection,
+			config,
+			getModDetails,
+			lastValidationStatus,
+			rows
+		}),
+		[collection, config, getModDetails, lastValidationStatus, rows]
+	);
 	const columns = useMemo(() => {
-		return getColumnSchema(props, resolvedColumnWidths).map((column) => {
+		return getColumnSchema(columnSchemaProps, resolvedColumnWidths).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
 			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
 			if (!columnTitle || !currentWidth) {
 				return column;
+			}
+
+			const typedColumnTitle = columnTitle as MainColumnTitles;
+			const canHideColumn = canSetMainColumnVisibility(typedColumnTitle, false, columnActiveConfig);
+			const contextMenuItems: NonNullable<MenuProps['items']> = [
+				{
+					key: `hide:${typedColumnTitle}`,
+					label: `Hide ${typedColumnTitle}`,
+					disabled: !canHideColumn
+				}
+			];
+
+			if (hiddenColumnTitles.length > 0) {
+				contextMenuItems.push({
+					type: 'divider'
+				});
+				hiddenColumnTitles.forEach((hiddenColumnTitle) => {
+					contextMenuItems.push({
+						key: `show:${hiddenColumnTitle}`,
+						label: `Show ${hiddenColumnTitle}`
+					});
+				});
+			}
+
+			if (openMainViewSettingsCallback) {
+				contextMenuItems.push({
+					type: 'divider'
+				});
+				contextMenuItems.push({
+					key: 'view-options',
+					label: 'View Options'
+				});
 			}
 
 			const restorePersistedColumnWidth = () => {
@@ -1065,6 +1229,30 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						width: getColumnWidthStyle(columnTitle, currentWidth),
 						resizeWidth: currentWidth,
 						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+						headerMenu: {
+							items: contextMenuItems,
+							onClick: (info: { key: Key }) => {
+								const key = info.key.toString();
+								if (key === 'view-options') {
+									openMainViewSettingsCallback?.();
+									return;
+								}
+
+								if (key.startsWith('hide:')) {
+									const targetColumn = key.slice('hide:'.length) as MainColumnTitles;
+									if (!canSetMainColumnVisibility(targetColumn, false, columnActiveConfig)) {
+										return;
+									}
+									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, false));
+									return;
+								}
+
+								if (key.startsWith('show:')) {
+									const targetColumn = key.slice('show:'.length) as MainColumnTitles;
+									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, true));
+								}
+							}
+						},
 						onResize: (nextWidth: number) => {
 							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
 						},
@@ -1090,7 +1278,15 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					}) as any
 			};
 		});
-	}, [props, resolvedColumnWidths, setMainColumnWidthCallback]);
+	}, [
+		columnActiveConfig,
+		columnSchemaProps,
+		hiddenColumnTitles,
+		openMainViewSettingsCallback,
+		resolvedColumnWidths,
+		setMainColumnVisibilityCallback,
+		setMainColumnWidthCallback
+	]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {

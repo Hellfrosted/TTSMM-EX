@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureSteamAppIdFile, resolveSteamAppIdFilePath } from '../../main/window';
+import { ensureSteamAppIdFile, forwardRendererConsoleMessage, resolveSteamAppIdFilePath } from '../../main/window';
 import { createTempDir } from './test-utils';
 
 describe('window helpers', () => {
@@ -59,5 +59,72 @@ describe('window helpers', () => {
 			})
 		).toBe(false);
 		expect(logger.error).toHaveBeenCalled();
+	});
+
+	it('swallows broken pipe errors while mirroring renderer console output', () => {
+		const fileTransport = vi.fn();
+		const logger = {
+			processMessage: vi.fn(),
+			transports: {
+				file: fileTransport
+			}
+		};
+		const consoleError = new Error('broken pipe');
+		Object.assign(consoleError, { code: 'EPIPE' });
+		const consoleImpl = {
+			error: vi.fn(),
+			warn: vi.fn(),
+			info: vi.fn(() => {
+				throw consoleError;
+			})
+		};
+
+		expect(() =>
+			forwardRendererConsoleMessage(
+				{
+					level: 'info',
+					message: 'Renderer booted',
+					lineNumber: 27,
+					sourceId: 'renderer.js'
+				},
+				{
+					consoleImpl,
+					logger,
+					mirrorToConsole: true
+				}
+			)
+		).not.toThrow();
+		expect(logger.processMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: ['[renderer console:info] Renderer booted (renderer.js:27)'],
+				level: 'info'
+			}),
+			{ transports: [fileTransport] }
+		);
+	});
+
+	it('rethrows unexpected console mirroring failures', () => {
+		const consoleImpl = {
+			error: vi.fn(),
+			warn: vi.fn(() => {
+				throw new Error('permission denied');
+			}),
+			info: vi.fn()
+		};
+
+		expect(() =>
+			forwardRendererConsoleMessage(
+				{
+					level: 'warning',
+					message: 'Renderer warning',
+					lineNumber: 15,
+					sourceId: 'renderer.js'
+				},
+				{
+					consoleImpl,
+					mirrorToConsole: true
+				}
+			)
+		).toThrow('permission denied');
 	});
 });

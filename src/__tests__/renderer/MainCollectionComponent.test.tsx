@@ -31,6 +31,10 @@ function clickHeaderSort(columnTitle: string) {
 	fireEvent.click(headerCell?.querySelector('.ant-table-column-sorters') || headerCell!);
 }
 
+function getHeaderCell(columnTitle: string) {
+	return Array.from(document.querySelectorAll('thead th')).find((header) => header.textContent?.trim() === columnTitle) as HTMLElement | undefined;
+}
+
 function getRenderedNameOrder() {
 	return Array.from(document.querySelectorAll('.CollectionNameButton')).map((button) => button.textContent?.trim() || '');
 }
@@ -118,6 +122,20 @@ describe('MainCollectionView', () => {
 
 		expect(await screen.findByText('3264187221')).toBeInTheDocument();
 		expect(screen.getByText('HumanReadableModId')).toBeInTheDocument();
+	});
+
+	it('labels the row details trigger and type indicator for accessibility', async () => {
+		stubResizeObserver();
+
+		render(<MainCollectionView {...createProps()} />);
+
+		await waitFor(() => {
+			expect(document.querySelector('.CollectionNameButton')).not.toBeNull();
+		});
+		const nameButton = document.querySelector('.CollectionNameButton');
+		expect(nameButton).not.toBeNull();
+		expect(nameButton).toHaveAttribute('aria-label', 'Open details for HumanReadableModId');
+		expect(screen.getByAltText('Steam Workshop mod')).toBeInTheDocument();
 	});
 
 	it('defaults to name sorting and supports size and date added sorting without an unsorted state', async () => {
@@ -253,5 +271,123 @@ describe('MainCollectionView', () => {
 		expect(tableRoot?.style.getPropertyValue('--main-collection-column-width-id')).toBe('206px');
 
 		fireEvent.mouseUp(window);
+	});
+
+	it('offers a header context menu that can hide the current column and restore hidden columns', async () => {
+		stubResizeObserver();
+
+		const setMainColumnVisibilityCallback = vi.fn();
+		const { rerender } = render(
+			<MainCollectionView
+				{...createProps({
+					setMainColumnVisibilityCallback
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(getHeaderCell('Tags')).toBeDefined();
+		});
+		const tagsHeader = getHeaderCell('Tags');
+		expect(tagsHeader).toBeDefined();
+		fireEvent.contextMenu(tagsHeader?.querySelector('.CollectionTableHeaderContextTarget') || tagsHeader!);
+		fireEvent.click(await screen.findByText('Hide Tags'));
+
+		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, false);
+
+		rerender(
+			<MainCollectionView
+				{...createProps({
+					config: {
+						columnActiveConfig: {
+							[MainColumnTitles.TAGS]: false
+						}
+					},
+					setMainColumnVisibilityCallback
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(getHeaderCell('Name')).toBeDefined();
+		});
+		const nameHeader = getHeaderCell('Name');
+		expect(nameHeader).toBeDefined();
+		fireEvent.contextMenu(nameHeader?.querySelector('.CollectionTableHeaderContextTarget') || nameHeader!);
+		fireEvent.click(await screen.findByText('Show Tags'));
+
+		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, true);
+	});
+
+	it('does not rerun offscreen measurement when the same sampled rows are only reordered', async () => {
+		stubResizeObserver();
+
+		const firstRows = [
+			{
+				uid: 'workshop:3',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(3),
+				id: 'Charlie',
+				name: 'Charlie',
+				subscribed: true,
+				installed: true
+			},
+			{
+				uid: 'workshop:1',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(1),
+				id: 'Alpha',
+				name: 'Alpha',
+				subscribed: true,
+				installed: true
+			},
+			{
+				uid: 'workshop:2',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(2),
+				id: 'Bravo',
+				name: 'Bravo',
+				subscribed: true,
+				installed: true
+			}
+		];
+		const appendSpy = vi.spyOn(document.body, 'appendChild');
+		const countMeasurementHosts = () =>
+			appendSpy.mock.calls.filter(
+				([node]) => node instanceof HTMLElement && node.className === 'MainCollectionTableMeasureHost'
+			).length;
+
+		const { rerender } = render(
+			<MainCollectionView
+				{...createProps({
+					rows: firstRows,
+					filteredRows: firstRows,
+					collection: { name: 'default', mods: firstRows.map((row) => row.uid) }
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(countMeasurementHosts()).toBeGreaterThan(0);
+		});
+
+		const initialMeasurementCount = countMeasurementHosts();
+		const reorderedRows = [firstRows[1], firstRows[2], firstRows[0]];
+		rerender(
+			<MainCollectionView
+				{...createProps({
+					rows: reorderedRows,
+					filteredRows: reorderedRows,
+					collection: { name: 'default', mods: reorderedRows.map((row) => row.uid) }
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText('Bravo')).toBeInTheDocument();
+		});
+
+		expect(countMeasurementHosts()).toBe(initialMeasurementCount);
+		appendSpy.mockRestore();
 	});
 });

@@ -1,19 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { AppState, CollectionManagerModalType, NotificationProps } from 'model';
-import { Button, Col, Dropdown, Row, Select, Space, Input, Modal, Typography } from 'antd';
-import type { MenuProps } from 'antd';
-import {
-	EditOutlined,
-	PlusOutlined,
-	SaveOutlined,
-	DeleteOutlined,
-	SyncOutlined,
-	CheckCircleOutlined,
-	CopyOutlined,
-	DownOutlined,
-	CloseCircleOutlined,
-	SettingFilled
-} from '@ant-design/icons';
+import { Button, Col, Row, Select, Space, Input, Modal, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, SyncOutlined, CopyOutlined, SettingFilled, CodeOutlined } from '@ant-design/icons';
 import { validateCollectionName } from 'shared/collection-name';
 
 const { Option } = Select;
@@ -31,16 +19,13 @@ interface CollectionManagementToolbarProps {
 	searchString: string;
 	appState: AppState;
 	savingCollection?: boolean;
-	validatingCollection?: boolean;
 	numResults?: number;
-	lastValidationStatus?: boolean;
 	loadingMods?: boolean;
 	onReloadModListCallback: () => void;
 	openViewSettingsCallback: () => void;
 	onSearchCallback: (search: string) => void;
 	onSearchChangeCallback: (search: string) => void;
 	saveCollectionCallback: () => void;
-	validateCollectionCallback: () => void;
 	changeActiveCollectionCallback: (name: string) => void;
 	newCollectionCallback: (name: string) => void;
 	duplicateCollectionCallback: (name: string) => void;
@@ -55,14 +40,11 @@ function CollectionManagementToolbarComponent({
 	appState,
 	changeActiveCollectionCallback,
 	savingCollection,
-	validatingCollection,
-	validateCollectionCallback,
 	numResults,
 	onSearchCallback,
 	onSearchChangeCallback,
 	searchString,
 	madeEdits,
-	lastValidationStatus,
 	openViewSettingsCallback,
 	onReloadModListCallback,
 	openNotification,
@@ -96,20 +78,6 @@ function CollectionManagementToolbarComponent({
 		[duplicateCollectionCallback, newCollectionCallback, renameCollectionCallback]
 	);
 
-	const newCollectionMenu: MenuProps = {
-		items: [
-			{
-				key: 'duplicate',
-				label: 'Duplicate'
-			}
-		],
-		onClick: ({ key }) => {
-			if (key === 'duplicate') {
-				setModalType(CollectionManagementToolbarModalType.DUPLICATE_COLLECTION);
-			}
-		}
-	};
-
 	const currentModal = modalType ? modalProps[modalType] : undefined;
 	const currentModalError = useMemo(() => {
 		if (!modalType) {
@@ -131,6 +99,32 @@ function CollectionManagementToolbarComponent({
 
 		return undefined;
 	}, [activeCollection?.name, appState.allCollectionNames, modalText, modalType]);
+
+	const handleCopyCollection = () => {
+		if (!activeCollection) {
+			openNotification(
+				{
+					message: 'No active collection selected',
+					description: 'Choose a collection before copying its JSON payload.',
+					placement: 'topRight',
+					duration: 2
+				},
+				'warn'
+			);
+			return;
+		}
+
+		navigator.clipboard.writeText(JSON.stringify(activeCollection, null, '\t'));
+		openNotification(
+			{
+				message: 'Collection copied',
+				description: `${activeCollection.name} was copied to the clipboard as JSON.`,
+				placement: 'topRight',
+				duration: 1
+			},
+			'success'
+		);
+	};
 
 	return (
 		<div id="mod-collection-toolbar" className="CollectionToolbar">
@@ -171,12 +165,13 @@ function CollectionManagementToolbarComponent({
 				</Modal>
 			)}
 			<Row key="row1" justify="space-between" gutter={16} className="CollectionToolbarRow">
-				<Col flex="auto">
-					<Row gutter={16}>
-						<Col span={8} key="collections">
+				<Col xs={24} flex="auto">
+					<div className="CollectionToolbarPrimaryBar">
+						<div className="CollectionToolbarCollectionSelector">
 							<Select
 								style={{ width: '100%' }}
 								value={activeCollection?.name}
+								aria-label="Select the active collection"
 								onSelect={(value: string) => {
 									changeActiveCollectionCallback(value);
 								}}
@@ -190,95 +185,73 @@ function CollectionManagementToolbarComponent({
 									);
 								})}
 							</Select>
-						</Col>
-						<Col>
-							<Space align="center" size={10}>
-								<Button
-									key="rename"
-									icon={<EditOutlined />}
-									onClick={() => {
-										setModalType(CollectionManagementToolbarModalType.RENAME_COLLECTION);
-									}}
-									disabled={disabledFeatures}
-								>
-									Rename
-								</Button>
-								<Space.Compact>
-									<Button
-										key="new"
-										icon={<PlusOutlined />}
-										disabled={disabledFeatures}
-										onClick={() => {
-											setModalType(CollectionManagementToolbarModalType.NEW_COLLECTION);
-										}}
-									>
-										New
-									</Button>
-									<Dropdown menu={newCollectionMenu} disabled={disabledFeatures} trigger={['click']}>
-										<Button
-											aria-label="Open additional collection actions"
-											icon={<DownOutlined />}
-											disabled={disabledFeatures}
-										/>
-									</Dropdown>
-								</Space.Compact>
-							</Space>
-						</Col>
-					</Row>
-				</Col>
-				<Col flex="none" style={{ display: 'inline-flex', justifyContent: 'flex-end' }}>
-					<Space align="center" size={10}>
-						<Button
-							key="copy"
-							type="default"
-							icon={<CopyOutlined />}
-							disabled={disabledFeatures}
-							loading={savingCollection}
-							onClick={() => {
-								navigator.clipboard.writeText(JSON.stringify(activeCollection, null, '\t'));
-								openNotification(
-									{
-										message: 'Copied collection to clipboard',
-										placement: 'topRight',
-										duration: 1
-									},
-									'success'
-								);
-							}}
-						>
-							Copy
-						</Button>
-						<Button
-							key="save"
-							type="primary"
-							icon={<SaveOutlined />}
-							onClick={saveCollectionCallback}
-							disabled={disabledFeatures || !madeEdits}
-							loading={savingCollection}
-						>
-							Save
-						</Button>
-						<Button
-							danger
-							key="delete"
-							icon={<DeleteOutlined />}
-							onClick={() => {
-								openModal(CollectionManagerModalType.WARN_DELETE);
-							}}
-							disabled={disabledFeatures}
-						>
-							Delete
-						</Button>
-					</Space>
+						</div>
+						<Space align="center" size={10} wrap className="CollectionToolbarActions CollectionToolbarActions--primary">
+							<Button
+								key="rename"
+								icon={<EditOutlined />}
+								onClick={() => {
+									setModalType(CollectionManagementToolbarModalType.RENAME_COLLECTION);
+								}}
+								disabled={disabledFeatures}
+							>
+								Rename
+							</Button>
+							<Button
+								key="new"
+								icon={<PlusOutlined />}
+								disabled={disabledFeatures}
+								onClick={() => {
+									setModalType(CollectionManagementToolbarModalType.NEW_COLLECTION);
+								}}
+							>
+								New
+							</Button>
+							<Button
+								key="duplicate"
+								icon={<CopyOutlined />}
+								disabled={disabledFeatures}
+								onClick={() => {
+									setModalType(CollectionManagementToolbarModalType.DUPLICATE_COLLECTION);
+								}}
+							>
+								Duplicate
+							</Button>
+							<Button
+								key="save"
+								type="primary"
+								icon={<SaveOutlined />}
+								onClick={saveCollectionCallback}
+								disabled={disabledFeatures || !madeEdits}
+								loading={savingCollection}
+							>
+								Save Collection
+							</Button>
+							<Button key="copy" icon={<CodeOutlined />} disabled={disabledFeatures} onClick={handleCopyCollection}>
+								Copy JSON
+							</Button>
+							<Button
+								key="delete"
+								danger
+								icon={<DeleteOutlined />}
+								disabled={disabledFeatures}
+								onClick={() => {
+									openModal(CollectionManagerModalType.WARN_DELETE);
+								}}
+							>
+								Delete
+							</Button>
+						</Space>
+					</div>
 				</Col>
 			</Row>
 			<Row key="row2" justify="space-between" align="middle" gutter={16} className="CollectionToolbarRow">
 				<Col flex="auto">
 					<Row gutter={24}>
-						<Col span={numResults !== undefined ? 16 : 24} key="search">
+						<Col xs={24} xl={16} key="search">
 							<div className="CollectionToolbarSearch">
 								<Search
-									placeholder="Search mods"
+									placeholder="Search mods by name, ID, author, or tag"
 									onChange={(event) => {
 										onSearchChangeCallback(event.target.value);
 									}}
@@ -290,40 +263,34 @@ function CollectionManagementToolbarComponent({
 								/>
 							</div>
 						</Col>
-						{numResults !== undefined ? (
-							<Col span={8} key="right">
-								<div className="CollectionToolbarMeta">
-									<span>{numResults} mods found</span>
-								</div>
-							</Col>
-						) : null}
+						<Col xs={24} xl={8} key="right">
+							<div className="CollectionToolbarMeta">
+								<Space align="center" size={10} wrap className="CollectionToolbarActions CollectionToolbarActions--secondary">
+									{numResults !== undefined ? (
+										<span>{`${numResults} mod${numResults === 1 ? '' : 's'} shown`}</span>
+									) : null}
+									<Button
+										icon={<SyncOutlined />}
+										disabled={disabledFeatures}
+										onClick={() => {
+											onReloadModListCallback();
+										}}
+									>
+										Reload Mods
+									</Button>
+									<Button
+										icon={<SettingFilled />}
+										disabled={disabledFeatures}
+										onClick={() => {
+											openViewSettingsCallback();
+										}}
+									>
+										View Options
+									</Button>
+								</Space>
+							</div>
+						</Col>
 					</Row>
-				</Col>
-				<Col key="tools" flex="none" className="CollectionToolbarActionCol">
-					<Space align="center" className="CollectionToolbarActions" size={10}>
-						<Button
-							key="reload"
-							type="default"
-							icon={<SyncOutlined spin={!!appState.loadingMods} />}
-							disabled={disabledFeatures}
-							onClick={onReloadModListCallback}
-						>
-							Reload Mods
-						</Button>
-						<Button
-							key="validate"
-							type="primary"
-							danger={!lastValidationStatus}
-							icon={validatingCollection ? <SyncOutlined spin /> : lastValidationStatus ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-							disabled={disabledFeatures || validatingCollection}
-							onClick={validateCollectionCallback}
-						>
-							Validate
-						</Button>
-						<Button icon={<SettingFilled />} onClick={openViewSettingsCallback}>
-							View
-						</Button>
-					</Space>
 				</Col>
 			</Row>
 		</div>

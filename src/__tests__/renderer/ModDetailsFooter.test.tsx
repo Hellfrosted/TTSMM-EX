@@ -70,6 +70,51 @@ describe('ModDetailsFooter', () => {
 		expect(screen.getAllByText(/^ID$/).length).toBeGreaterThan(0);
 	});
 
+	it('labels footer controls and preview content for accessibility', () => {
+		const workshopMod = {
+			uid: 'workshop:42',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(42),
+			id: 'HumanReadableModId',
+			name: 'Workshop Title',
+			subscribed: true,
+			installed: true,
+			preview: 'https://example.com/workshop-title.png'
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+
+		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'info',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		});
+
+		expect(screen.getByRole('button', { name: 'Switch to side-by-side split layout' })).toHaveAttribute('aria-pressed', 'false');
+		expect(screen.getByRole('button', { name: 'Expand details to full view' })).toHaveAttribute('aria-pressed', 'false');
+		expect(screen.getByRole('button', { name: 'Close details' })).toBeInTheDocument();
+		expect(screen.getByAltText('Workshop Title preview image')).toBeInTheDocument();
+	});
+
 	it('shows pending dependency rows with the workshop id in the ID column while validation is stale', () => {
 		const currentMod = {
 			uid: 'local:core',

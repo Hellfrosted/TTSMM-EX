@@ -10,8 +10,8 @@ If you only want to run the app, download a release artifact for your distro and
 
 Windows:
 
-- Run `TerraTech Steam Mod Manager EX Setup <version>.exe`
-- Launch `TerraTech Steam Mod Manager EX` from the Start menu or the desktop shortcut after install
+- Run `TTSMM-EX Setup <version>.exe`
+- Launch `TTSMM-EX` from the Start menu or the desktop shortcut after install
 
 Debian or Ubuntu:
 
@@ -108,8 +108,8 @@ npm run package
 
 This produces:
 
-- `TerraTech Steam Mod Manager EX Setup <version>.exe`
-- `TerraTech Steam Mod Manager EX Setup <version>.exe.blockmap`
+- `TTSMM-EX Setup <version>.exe`
+- `TTSMM-EX Setup <version>.exe.blockmap`
 - `win-unpacked/`
 
 The Windows target is `nsis`. Installer resources come from `assets/icon.ico`.

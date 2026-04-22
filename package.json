@@ -1,12 +1,12 @@
 {
 	"name": "terratech-steam-mod-manager-ex",
 	"main": "./release/app/dist/main/main.js",
-	"productName": "TerraTech Steam Mod Manager EX",
+	"productName": "TTSMM-EX",
 	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
 	"version": "2.1.0",
 	"scripts": {
-		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && electron-vite dev",
-		"start:desktop": "npm run build && cross-env NODE_ENV=production electron .",
+		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts electron-vite dev",
+		"start:desktop": "npm run build && cross-env NODE_ENV=production node --import=tsx ./scripts/run-with-clean-electron-env.ts electron .",
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
@@ -37,7 +37,7 @@
 		]
 	},
 	"build": {
-		"productName": "TerraTech Steam Mod Manager EX",
+		"productName": "TTSMM-EX",
 		"appId": "com.hellfrosted.ttsmmex",
 		"afterPack": "./scripts/after-pack-set-win-icon.cjs",
 		"asar": true,
@@ -55,8 +55,8 @@
 			]
 		},
 		"nsis": {
-			"shortcutName": "TerraTech Steam Mod Manager EX",
-			"uninstallDisplayName": "TerraTech Steam Mod Manager EX",
+			"shortcutName": "TTSMM-EX",
+			"uninstallDisplayName": "TTSMM-EX",
 			"installerIcon": "assets/icon.ico",
 			"uninstallerIcon": "assets/icon.ico",
 			"installerHeaderIcon": "assets/icon.ico"

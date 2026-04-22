@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Button, Modal, Typography, Row, Col, Divider, Input, Switch, Form } from 'antd';
+import { Button, Modal, Typography, Row, Col, Input, Switch, Form } from 'antd';
 import {
 	AppConfig,
 	AppState,
@@ -220,6 +220,7 @@ function CollectionManagerModal({
 			return (
 				<Modal
 					key="error-modal"
+					className="CollectionValidationModal"
 					title="Errors Found in Configuration"
 					width={760}
 					open
@@ -255,6 +256,7 @@ function CollectionManagerModal({
 			return (
 				<Modal
 					key="warning-modal"
+					className="CollectionValidationModal"
 					title="Minor Errors Found in Configuration"
 					width={760}
 					open
@@ -292,6 +294,7 @@ function CollectionManagerModal({
 					key="settings-modal"
 					className="CollectionSettingsModal"
 					title="Editing Collection View Settings"
+					width={760}
 					open
 					closable={false}
 					footer={[
@@ -315,8 +318,9 @@ function CollectionManagerModal({
 					]}
 				>
 					<Form className="CollectionSettingsForm">
-						<Row justify="space-between" gutter={16} className="CollectionSettings">
-							<Col span={10} key="misc-settings">
+						<Row justify="space-between" gutter={[16, 16]} className="CollectionSettings CollectionSettings--compact">
+							<Col xs={24} lg={7} key="misc-settings">
+								<Title level={5}>Table layout</Title>
 								<Form.Item key="smallRows" name="smallRows" label="Compact Rows">
 									<Switch
 										size="small"
@@ -330,52 +334,53 @@ function CollectionManagerModal({
 									/>
 								</Form.Item>
 							</Col>
-							<Col span={1} key="divider" style={{ height: '100%' }}>
-								<Divider orientation="vertical" style={{ height: '25em' }} />
+							<Col xs={0} lg={1} key="divider" className="CollectionSettingsDividerCol">
+								<div aria-hidden className="CollectionSettingsDivider" />
 							</Col>
-							<Col span={13} key="columns" className="CollectionColumnSelection">
-								<Paragraph>
-									<Title level={5}>Select visible columns</Title>
-								</Paragraph>
-								{Object.values(MainColumnTitles).map((id: string) => {
-									const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
-									const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
-									const cannotDisable =
-										isChecked &&
-										((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
-											(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
+							<Col xs={24} lg={16} key="columns" className="CollectionColumnSelection">
+								<Title level={5}>Select visible columns</Title>
+								<Row gutter={[16, 0]} className="CollectionColumnSelectionGrid">
+									{Object.values(MainColumnTitles).map((id: string) => {
+										const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
+										const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
+										const cannotDisable =
+											isChecked &&
+											((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
+												(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
 
-									return (
-										<Form.Item
-											key={id}
-											name={id}
-											label={id}
-											tooltip={
-												cannotDisable
-													? {
-															styles: { container: { minWidth: 300 } },
-															title: <Text>{`Must enable either the ${MainColumnTitles.ID} or ${MainColumnTitles.NAME} column`}</Text>
-													  }
-													: undefined
-											}
-										>
-											<Switch
-												size="small"
-												checked={isChecked}
-												disabled={cannotDisable}
-												onChange={(checked: boolean) => {
-													setMainConfigDraft((currentConfig) => ({
-														...currentConfig,
-														columnActiveConfig: {
-															...(currentConfig.columnActiveConfig || {}),
-															[id]: checked
-														}
-													}));
-												}}
-											/>
-										</Form.Item>
-									);
-								})}
+										return (
+											<Col xs={24} md={12} key={id}>
+												<Form.Item
+													name={id}
+													label={id}
+													tooltip={
+														cannotDisable
+															? {
+																	styles: { container: { minWidth: 300 } },
+																	title: <Text>{`Must enable either the ${MainColumnTitles.ID} or ${MainColumnTitles.NAME} column`}</Text>
+															  }
+															: undefined
+													}
+												>
+													<Switch
+														size="small"
+														checked={isChecked}
+														disabled={cannotDisable}
+														onChange={(checked: boolean) => {
+															setMainConfigDraft((currentConfig) => ({
+																...currentConfig,
+																columnActiveConfig: {
+																	...(currentConfig.columnActiveConfig || {}),
+																	[id]: checked
+																}
+															}));
+														}}
+													/>
+												</Form.Item>
+											</Col>
+										);
+									})}
+								</Row>
 							</Col>
 						</Row>
 					</Form>
@@ -390,7 +395,9 @@ function CollectionManagerModal({
 			return (
 				<Modal
 					key="manager-override-modal"
+					className="CollectionOverrideModal"
 					title={`Edit Overrides For ${nextRecord.name}`}
+					width={620}
 					open
 					closable={false}
 					footer={[
@@ -423,20 +430,29 @@ function CollectionManagerModal({
 						</Button>
 					]}
 				>
-					<Form className="ModOverrideForm">
-						<Row justify="space-between" gutter={16} className="ModOverrides">
-							<Col span={10} key="overrides">
-								<Form.Item key="override-id" name="override-id" label="Override ID">
-									<Input
-										value={overrideId}
-										onChange={(event) => {
-											setOverrideId(event.target.value);
-										}}
-									/>
-								</Form.Item>
-								<Form.Item key="customTags" name="customTags" label="User Tags">
-									<Input disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
-								</Form.Item>
+					<Form className="ModOverrideForm" layout="vertical">
+						<Paragraph className="CollectionModalIntro" type="secondary">
+							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod metadata.
+						</Paragraph>
+						<Row gutter={[16, 16]} className="ModOverrides">
+							<Col xs={24} md={12} key="override-id">
+								<div className="ModOverridesPane">
+									<Form.Item key="override-id" name="override-id" label="Override ID">
+										<Input
+											value={overrideId}
+											onChange={(event) => {
+												setOverrideId(event.target.value);
+											}}
+										/>
+									</Form.Item>
+								</div>
+							</Col>
+							<Col xs={24} md={12} key="custom-tags">
+								<div className="ModOverridesPane">
+									<Form.Item key="customTags" name="customTags" label="Current User Tags">
+										<Input disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
+									</Form.Item>
+								</div>
 							</Col>
 						</Row>
 					</Form>

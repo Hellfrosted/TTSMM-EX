@@ -1,6 +1,6 @@
 {
   "name": "terratech-steam-mod-manager-ex",
-  "productName": "TerraTech Steam Mod Manager EX",
+  "productName": "TTSMM-EX",
   "description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
   "version": "2.1.0",
   "main": "./dist/main/main.js",

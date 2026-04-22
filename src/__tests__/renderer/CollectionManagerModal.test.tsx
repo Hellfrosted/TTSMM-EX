@@ -1,9 +1,13 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CollectionManagerModalType, CollectionViewType, ModType, SessionMods } from '../../model';
 import CollectionManagerModal from '../../renderer/components/collections/CollectionManagerModal';
 import { createAppState } from './test-utils';
+
+afterEach(() => {
+	cleanup();
+});
 
 describe('CollectionManagerModal', () => {
 	it('shows per-mod validation details in the configuration error modal', async () => {
@@ -52,4 +56,27 @@ describe('CollectionManagerModal', () => {
 		expect(screen.getByText('Missing dependencies: NuterraSteam (Beta)')).toBeInTheDocument();
 		expect(screen.getByText('Conflicts with: Conflicting Mod')).toBeInTheDocument();
 	}, 10000);
+
+	it('renders the view settings modal in a compact side-by-side layout', async () => {
+		const appState = createAppState();
+
+		render(
+			<CollectionManagerModal
+				appState={appState}
+				modalType={CollectionManagerModalType.VIEW_SETTINGS}
+				launchGameWithErrors={false}
+				currentView={CollectionViewType.MAIN}
+				launchAnyway={vi.fn()}
+				openNotification={vi.fn()}
+				closeModal={vi.fn()}
+				deleteCollection={vi.fn()}
+			/>
+		);
+
+		expect(await screen.findByText('Editing Collection View Settings')).toBeInTheDocument();
+		expect(screen.getByText('Table layout')).toBeInTheDocument();
+		expect(screen.getByText('Select visible columns')).toBeInTheDocument();
+		expect(screen.getByText('Compact Rows')).toBeInTheDocument();
+		expect(screen.getByText('Tags')).toBeInTheDocument();
+	});
 });

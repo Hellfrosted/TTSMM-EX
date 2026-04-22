@@ -4,11 +4,12 @@ import { AppConfig, AppConfigKeys, ModCollection } from 'model';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppState, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
+import { APP_THEME_COLORS } from 'renderer/theme';
 import { tryWriteConfig } from 'renderer/util/config-write';
 import { validateSettingsPath } from 'util/Validation';
 
-const { Footer, Content } = Layout;
-const { Text } = Typography;
+const { Content } = Layout;
+const { Paragraph, Text, Title } = Typography;
 
 function normalizeCurrentPath(currentPath: string | undefined): string {
 	if (!currentPath) {
@@ -315,27 +316,47 @@ export default function ConfigLoading() {
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
 	const bootError = configLoadError || bootPersistenceError || userDataPathError || collectionLoadError;
+	const statusLabel = bootError ? 'Startup needs attention' : 'Preparing your mod manager';
+	const statusDetail = bootError
+		? 'Fix the issue below before the app can continue.'
+		: totalCollections > 0
+			? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
+			: 'Checking your saved settings and creating a default collection if this is your first launch.';
 
 	return (
-		<Layout style={{ minHeight: '100vh', minWidth: '100vw' }}>
-			<Content />
-			<Footer>
-				<Progress
-					strokeColor={{
-						from: '#108ee9',
-						to: '#87d068'
-					}}
-					percent={percent}
-					status={bootError ? 'exception' : undefined}
-				/>
-				{bootError ? (
-					<div style={{ marginTop: 12, textAlign: 'center' }}>
-						<Text code type="danger">
-							{bootError}
+		<Layout className="StartupShell">
+			<Content className="StartupContent">
+				<section aria-labelledby="boot-title" className="StartupCard">
+					<Text type="secondary">Startup</Text>
+					<Title id="boot-title" level={2} style={{ marginTop: 10, marginBottom: 8 }}>
+						Preparing TTSMM-EX
+					</Title>
+					<Paragraph className="StartupIntro">
+						Restoring your saved configuration, checking required paths, and loading your collections before the mod workspace appears.
+					</Paragraph>
+					<div aria-live="polite" role="status" className={`StartupStatusCard${bootError ? ' is-error' : ''}`}>
+						<Text strong className="StartupStatusTitle">
+							{statusLabel}
 						</Text>
+						<Text className="StartupStatusDetail">{statusDetail}</Text>
 					</div>
-				) : null}
-			</Footer>
+					<Progress
+						className="StartupProgress"
+						percent={percent}
+						showInfo={!bootError}
+						status={bootError ? 'exception' : 'active'}
+						strokeColor={APP_THEME_COLORS.primary}
+						railColor={APP_THEME_COLORS.border}
+					/>
+					{bootError ? (
+						<div className="StartupActions">
+							<Text code type="danger">
+								{bootError}
+							</Text>
+						</div>
+					) : null}
+				</section>
+			</Content>
 		</Layout>
 	);
 }

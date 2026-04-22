@@ -26,6 +26,7 @@ describe('CollectionView', () => {
 
 		render(<CollectionView appState={appState} />);
 
+		expect(screen.getByRole('button', { name: 'Validate Collection' })).toBeDisabled();
 		expect(screen.getAllByRole('button', { name: 'Launch Game' }).at(-1)).toBeDisabled();
 	});
 });

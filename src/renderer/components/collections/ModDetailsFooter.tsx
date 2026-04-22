@@ -69,24 +69,40 @@ const { Text, Title } = Typography;
 const DESCRIPTION_LABEL_STYLES = { label: { width: 150 } };
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
 
+function getModTypeLabel(type: ModType) {
+	switch (type) {
+		case ModType.LOCAL:
+			return 'Local mod';
+		case ModType.TTQMM:
+			return 'TTMM mod';
+		case ModType.WORKSHOP:
+			return 'Steam Workshop mod';
+		default:
+			return 'Mod';
+	}
+}
+
 function getImageSrcFromType(type: ModType, size = 15) {
+	const label = getModTypeLabel(type);
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title="This is a local mod">
-					<HddFilled width={size} />
+				<Tooltip title={label}>
+					<span role="img" aria-label={label}>
+						<HddFilled width={size} />
+					</span>
 				</Tooltip>
 			);
 		case ModType.TTQMM:
 			return (
-				<Tooltip title="This is a TTMM mod">
-					<img src={ttmm} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={ttmm} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		case ModType.WORKSHOP:
 			return (
-				<Tooltip title="This is a Steam mod">
-					<img src={steam} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={steam} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		default:
@@ -94,10 +110,10 @@ function getImageSrcFromType(type: ModType, size = 15) {
 	}
 }
 
-function getImagePreview(path?: string) {
+function getImagePreview(path?: string, altText = 'Mod preview image') {
 	return (
 		<Card className="ModDetailFooterPreview" style={{ width: '100%', padding: 10 }}>
-			<Image src={path} fallback={missing} width="100%" />
+			<Image src={path} fallback={missing} alt={altText} width="100%" />
 		</Card>
 	);
 }
@@ -526,7 +542,9 @@ function ModDetailsFooter({
 		const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: ColumnType<DisplayModData> = {
 			title: (
 				<Tooltip title="Which version of the mod did the author say is the canonical dependency?">
-					<QuestionCircleFilled />
+					<span role="img" aria-label="Author-specified dependency column">
+						<QuestionCircleFilled />
+					</span>
 				</Tooltip>
 			),
 			dataIndex: 'workshopID',
@@ -534,7 +552,9 @@ function ModDetailsFooter({
 				if (!!workshopID && currentRecord.steamDependencies?.includes(workshopID)) {
 					return (
 						<Tooltip title="This is the mod the author specified as the canonical dependency">
-							<CheckSquareFilled />
+							<span role="img" aria-label="Author-specified dependency">
+								<CheckSquareFilled />
+							</span>
 						</Tooltip>
 					);
 				}
@@ -674,6 +694,7 @@ function ModDetailsFooter({
 								currentRecordID
 							) : (
 								<Button
+									aria-label={`Edit the override ID for ${currentRecord.name}`}
 									icon={<EditFilled />}
 									onClick={() => {
 										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
@@ -687,6 +708,7 @@ function ModDetailsFooter({
 						{currentRecord?.overrides?.id ? (
 							<Descriptions.Item label={currentRecord.workshopID !== undefined ? 'Mod ID (Override)' : 'ID (Override)'}>
 								<Button
+									aria-label={`Edit the override ID for ${currentRecord.name}`}
 									icon={<EditFilled />}
 									onClick={() => {
 										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
@@ -961,6 +983,7 @@ function ModDetailsFooter({
 	return (
 		<Content className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
 			<div
+				className="ModDetailFooterHeader"
 				style={{
 					width: '100%',
 					minHeight: 48,
@@ -977,29 +1000,37 @@ function ModDetailsFooter({
 					</Title>
 					<Text type="secondary">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</Text>
 				</div>
-				<Space>
+				<Space className="ModDetailFooterHeaderActions">
 					<Tooltip title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}>
 						<Button
+							aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
+							aria-pressed={halfLayoutMode === 'side'}
 							icon={halfLayoutMode === 'side' ? <ColumnHeightOutlined /> : <ColumnWidthOutlined />}
 							type="text"
 							onClick={toggleHalfLayoutCallback}
 						/>
 					</Tooltip>
-					<Button
-						icon={bigDetails ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-						type="text"
-						onClick={() => {
-							expandFooterCallback(!bigDetails);
-						}}
-					/>
-					<Button icon={<CloseOutlined />} type="text" onClick={closeFooterCallback} />
+					<Tooltip title={bigDetails ? 'Return to split details' : 'Expand details to full view'}>
+						<Button
+							aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
+							aria-pressed={bigDetails}
+							icon={bigDetails ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+							type="text"
+							onClick={() => {
+								expandFooterCallback(!bigDetails);
+							}}
+						/>
+					</Tooltip>
+					<Tooltip title="Close details">
+						<Button aria-label="Close details" icon={<CloseOutlined />} type="text" onClick={closeFooterCallback} />
+					</Tooltip>
 				</Space>
 			</div>
-			<Row key="mod-details" justify="space-between" gutter={16} style={{ flex: 1, minHeight: 0 }}>
-				<Col span={2} lg={4} style={{ paddingLeft: 10, minHeight: 0 }}>
-					{getImagePreview(currentRecord.preview)}
+			<Row key="mod-details" className="ModDetailFooterBody" justify="space-between" gutter={16} style={{ flex: 1, minHeight: 0 }}>
+				<Col xs={24} md={7} xl={4} className="ModDetailFooterPreviewCol" style={{ paddingLeft: 10, minHeight: 0 }}>
+					{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}
 				</Col>
-				<Col span={22} lg={20} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+				<Col xs={24} md={17} xl={20} className="ModDetailFooterContentCol" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 					<Content
 						style={{
 							paddingBottom: 10,

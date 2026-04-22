@@ -12,6 +12,17 @@ export interface EditingConfig extends AppConfig {
 	editingLogConfig: LogConfig[];
 }
 
+export type SaveSettingsResult =
+	| {
+			ok: true;
+			reloadRequired: boolean;
+			descriptorsRebuilt: boolean;
+	  }
+	| {
+			ok: false;
+			message: string;
+	  };
+
 export function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
 		loggerID,
@@ -125,7 +136,7 @@ export function useSettingsForm(appState: AppState) {
 				return selectedPath;
 			} catch (error) {
 				api.logger.error(error);
-				return null;
+				throw error instanceof Error ? error : new Error('Failed to browse for a path');
 			} finally {
 				setSelectingDirectory(false);
 			}
@@ -133,7 +144,7 @@ export function useSettingsForm(appState: AppState) {
 		[markConfigEdited, selectingDirectory]
 	);
 
-	const saveChanges = useCallback(async () => {
+	const saveChanges = useCallback(async (): Promise<SaveSettingsResult> => {
 		const { editingLogConfig, logParams: _unusedLogParams, ...nextConfig } = editingConfig;
 		const configToSave: AppConfig = {
 			...nextConfig
@@ -177,8 +188,17 @@ export function useSettingsForm(appState: AppState) {
 			appState.updateState({
 				...nextState
 			});
+			return {
+				ok: true,
+				reloadRequired: shouldReloadMods,
+				descriptorsRebuilt: shouldRebuildDescriptors && !shouldReloadMods
+			};
 		} catch (error) {
 			api.logger.error(error);
+			return {
+				ok: false,
+				message: error instanceof Error ? error.message : 'Failed to save settings'
+			};
 		} finally {
 			appState.updateState({ savingConfig: false });
 		}
