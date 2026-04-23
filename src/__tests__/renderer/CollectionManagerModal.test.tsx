@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CollectionManagerModalType, CollectionViewType, ModType, SessionMods } from '../../model';
 import CollectionManagerModal from '../../renderer/components/collections/CollectionManagerModal';
@@ -51,10 +51,12 @@ describe('CollectionManagerModal', () => {
 		);
 
 		expect(await screen.findByText('Collection has blocking issues')).toBeInTheDocument();
+		const [issueRegion] = screen.getAllByRole('region', { name: 'Mods to review' });
 		expect(screen.getByText('Mods to review')).toBeInTheDocument();
 		expect(screen.getByText('Broken Mod')).toBeInTheDocument();
-		expect(screen.getByText('Missing dependencies: NuterraSteam (Beta)')).toBeInTheDocument();
-		expect(screen.getByText('Conflicts with: Conflicting Mod')).toBeInTheDocument();
+		expect(within(issueRegion).getByText('Missing dependencies: NuterraSteam (Beta)')).toBeInTheDocument();
+		expect(within(issueRegion).getByText('Conflicts with: Conflicting Mod')).toBeInTheDocument();
+		expect(within(issueRegion).getAllByRole('list')).toHaveLength(2);
 	}, 10000);
 
 	it('renders the view settings modal in a dense layout that keeps the controls together', async () => {

@@ -7,35 +7,70 @@ export const APP_DISPLAY_FONT_FAMILY =
 export const APP_FONT_FAMILY = `'Aptos', 'Segoe UI Variable Text', 'Noto Sans', 'Segoe UI', sans-serif`;
 export const APP_CONTROL_HEIGHT = 44;
 
+const APP_THEME_PALETTE = {
+	clay500: '#a05442',
+	clay550: '#96503f',
+	clay650: '#854435',
+	moss500: '#6d9c6c',
+	amber500: '#c08a4f',
+	rose500: '#b86159',
+	rust500: '#b65b47',
+	salmon500: '#c9735d',
+	parchment100: '#f2ede6',
+	parchment200: '#efe8df',
+	parchment300: '#e8e1d7',
+	canvas950: '#131517',
+	canvas925: '#171a1f',
+	canvas900: '#1b1f24',
+	canvas875: '#171b20',
+	canvas850: '#20252b',
+	canvas825: '#111315',
+	canvas800: '#2b323a',
+	canvas790: '#222931',
+	canvas780: '#191d22',
+	canvas770: '#1a2026',
+	canvas760: '#20262d',
+	canvas750: '#242b33',
+	canvas740: '#181c21',
+	canvas730: '#15191d',
+	black: '#000000'
+} as const;
+
+const APP_TEXT_BASE_RGB = '242, 237, 230';
+const APP_BLACK_RGB = '0, 0, 0';
+
 export const APP_THEME_COLORS = {
-	primary: '#a05442',
-	primaryHover: '#96503f',
-	primaryActive: '#854435',
-	success: '#6d9c6c',
-	warning: '#c08a4f',
-	error: '#b86159',
-	info: '#b65b47',
-	link: '#c9735d',
-	text: 'rgba(242, 237, 230, 0.88)',
-	textBase: '#f2ede6',
-	textMuted: 'rgba(242, 237, 230, 0.66)',
-	background: '#131517',
-	surface: '#1b1f24',
-	surfaceAlt: '#171b20',
-	surfaceElevated: '#20252b',
-	sider: '#111315',
-	footer: '#171a1f',
-	border: '#2b323a',
-	split: '#222931',
-	tableHeader: '#191d22',
-	tableHeaderText: '#efe8df',
-	tableRowHover: '#1a2026',
-	tableRowSelected: '#20262d',
-	tableRowSelectedHover: '#242b33',
-	menuHover: '#181c21',
+	primary: APP_THEME_PALETTE.clay500,
+	primaryHover: APP_THEME_PALETTE.clay550,
+	primaryActive: APP_THEME_PALETTE.clay650,
+	success: APP_THEME_PALETTE.moss500,
+	warning: APP_THEME_PALETTE.amber500,
+	error: APP_THEME_PALETTE.rose500,
+	info: APP_THEME_PALETTE.rust500,
+	link: APP_THEME_PALETTE.salmon500,
+	text: `rgba(${APP_TEXT_BASE_RGB}, 0.88)`,
+	textBase: APP_THEME_PALETTE.parchment100,
+	textMuted: `rgba(${APP_TEXT_BASE_RGB}, 0.66)`,
+	textSubtle: `rgba(${APP_TEXT_BASE_RGB}, 0.76)`,
+	tabTextMuted: `rgba(${APP_TEXT_BASE_RGB}, 0.68)`,
+	background: APP_THEME_PALETTE.canvas950,
+	surface: APP_THEME_PALETTE.canvas900,
+	surfaceAlt: APP_THEME_PALETTE.canvas875,
+	surfaceElevated: APP_THEME_PALETTE.canvas850,
+	sider: APP_THEME_PALETTE.canvas825,
+	footer: APP_THEME_PALETTE.canvas925,
+	border: APP_THEME_PALETTE.canvas800,
+	split: APP_THEME_PALETTE.canvas790,
+	tableHeader: APP_THEME_PALETTE.canvas780,
+	tableHeaderText: APP_THEME_PALETTE.parchment200,
+	tableRowHover: APP_THEME_PALETTE.canvas770,
+	tableRowSelected: APP_THEME_PALETTE.canvas760,
+	tableRowSelectedHover: APP_THEME_PALETTE.canvas750,
+	menuHover: APP_THEME_PALETTE.canvas740,
 	fieldHover: '#965141',
-	collapseBody: '#15191d',
-	tagDefaultText: '#e8e1d7'
+	collapseBody: APP_THEME_PALETTE.canvas730,
+	tagDefaultText: APP_THEME_PALETTE.parchment300,
+	shadowSoft: `rgba(${APP_BLACK_RGB}, 0.22)`
 } as const;
 
 export type AppTagTone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
@@ -112,7 +147,7 @@ export const appTheme: ThemeConfig = {
 		borderRadiusLG: 10,
 		borderRadiusSM: 6,
 		controlHeight: APP_CONTROL_HEIGHT,
-		boxShadowSecondary: '0 2px 8px rgba(0, 0, 0, 0.22)'
+		boxShadowSecondary: `0 2px 8px ${APP_THEME_COLORS.shadowSoft}`
 	},
 	components: {
 		Layout: {
@@ -129,7 +164,7 @@ export const appTheme: ThemeConfig = {
 			darkItemSelectedBg: APP_THEME_COLORS.surfaceElevated,
 			darkItemHoverBg: APP_THEME_COLORS.menuHover,
 			darkItemSelectedColor: APP_THEME_COLORS.textBase,
-			darkItemColor: 'rgba(242, 237, 230, 0.76)',
+			darkItemColor: APP_THEME_COLORS.textSubtle,
 			itemBorderRadius: 8,
 			itemMarginInline: 10
 		},
@@ -165,7 +200,7 @@ export const appTheme: ThemeConfig = {
 		},
 		Tabs: {
 			itemActiveColor: APP_THEME_COLORS.textBase,
-			itemColor: 'rgba(242, 237, 230, 0.68)',
+			itemColor: APP_THEME_COLORS.tabTextMuted,
 			itemHoverColor: APP_THEME_COLORS.textBase,
 			inkBarColor: APP_THEME_COLORS.primary
 		},

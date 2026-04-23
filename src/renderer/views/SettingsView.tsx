@@ -16,10 +16,11 @@ interface SettingsViewProps {
 	appState: AppState;
 }
 
-const SETTINGS_COMPACT_CONTROL_STYLE = { width: '100%', maxWidth: 168 };
-const SETTINGS_WORKSHOP_ID_STYLE = { width: '100%', maxWidth: 192 };
+const SETTINGS_COMPACT_CONTROL_STYLE = { width: '100%', minWidth: 0 } as const;
+const SETTINGS_LOGGER_LEVEL_STYLE = { flex: '1 1 12rem', minWidth: 0, width: '100%' } as const;
+const SETTINGS_WORKSHOP_ID_STYLE = { flex: '1 1 12rem', minWidth: 0, width: '100%' } as const;
 const SETTINGS_LOGGER_ROW_STYLE = { display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' } as const;
-const SETTINGS_LOGGER_GROUP_STYLE = { flex: '1 1 220px', minWidth: 0 } as const;
+const SETTINGS_LOGGER_GROUP_STYLE = { flex: '2 1 16rem', minWidth: 0 } as const;
 const SETTINGS_LOGGER_ID_INPUT_STYLE = { flex: '1 1 auto', minWidth: 0 } as const;
 
 const APP_LOG_LEVEL_TAG_STYLE = {
@@ -419,6 +420,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</Form.Item>
 							<Form.Item name="closeOnLaunch" label="Close on Game Launch">
 								<Switch
+									aria-label="Close the app after launching TerraTech"
 									checked={editingConfig.closeOnLaunch}
 									onChange={(checked) => {
 										setField('closeOnLaunch', checked);
@@ -438,6 +440,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								<Switch
+									aria-label="Launch TerraTech without the integrated mod loader when no other mods are enabled"
 									checked={editingConfig.pureVanilla}
 									onChange={(checked) => {
 										setField('pureVanilla', checked);
@@ -460,6 +463,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								rules={[{ required: false }]}
 							>
 								<Select
+									aria-label="App logging level"
 									value={editingConfig.logLevel}
 									onChange={(value) => {
 										setField('logLevel', value);
@@ -500,7 +504,12 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								<Space.Compact style={{ width: '100%' }}>
-									<InputNumber value={editingConfig.workshopID.toString()} disabled style={SETTINGS_WORKSHOP_ID_STYLE} />
+									<InputNumber
+										aria-label="Current mod manager workshop item ID"
+										value={editingConfig.workshopID.toString()}
+										disabled
+										style={SETTINGS_WORKSHOP_ID_STYLE}
+									/>
 									<Button
 										aria-label="Edit the mod manager workshop item ID"
 										icon={<EditFilled />}
@@ -541,11 +550,12 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									>
 										<div style={SETTINGS_LOGGER_ROW_STYLE}>
 											<Select
+												aria-label={`Logging level for override ${index + 1}`}
 												value={config.level}
 												onChange={(value) => {
 													updateLogConfig(index, { level: value as NLogLevel });
 												}}
-												style={SETTINGS_COMPACT_CONTROL_STYLE}
+												style={SETTINGS_LOGGER_LEVEL_STYLE}
 											>
 												<Select.Option value={NLogLevel.OFF}>
 													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.OFF]}>OFF</Tag>

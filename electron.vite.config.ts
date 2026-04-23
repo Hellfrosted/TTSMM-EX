@@ -20,7 +20,6 @@ const matchesNodeModulePackage = (id: string, packageName: string) =>
 
 const REACT_PACKAGE_PATTERN = /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)(?:[\\/]|$)/;
 const REMIX_ROUTER_PATTERN = /[\\/]node_modules[\\/]@remix-run[\\/]router(?:[\\/]|$)/;
-
 function getRendererManualChunk(id: string) {
 	if (!id.includes('node_modules')) {
 		return undefined;
@@ -37,6 +36,18 @@ function getRendererManualChunk(id: string) {
 		matchesNodeModulePackage(id, 'node-html-parser')
 	) {
 		return 'vendor-data';
+	}
+
+	if (
+		matchesNodeModulePackage(id, 'antd') ||
+		matchesNodeModulePackage(id, '@ant-design/colors') ||
+		matchesNodeModulePackage(id, '@ant-design/cssinjs') ||
+		matchesNodeModulePackage(id, '@ant-design/fast-color') ||
+		matchesNodeModulePackage(id, '@ant-design/icons') ||
+		matchesNodeModulePackage(id, '@ant-design/icons-svg') ||
+		/[\\/]node_modules[\\/](rc-[^\\/]+|@rc-component[\\/][^\\/]+)(?:[\\/]|$)/.test(id)
+	) {
+		return 'vendor-ui';
 	}
 
 	return undefined;

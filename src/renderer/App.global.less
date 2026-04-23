@@ -905,6 +905,11 @@ a:hover {
 	max-width: calc(100vw - 32px);
 }
 
+.CollectionValidationModal .ant-modal-body {
+	max-height: calc(100vh - 224px);
+	overflow-y: auto;
+}
+
 .CollectionSettingsModalWrap {
 	padding: 68px 12px 12px;
 }
@@ -921,6 +926,41 @@ a:hover {
 
 .CollectionModalIntro {
 	margin-bottom: 16px;
+}
+
+.CollectionValidationIssueSection {
+	margin-top: 20px;
+}
+
+.CollectionValidationIssueScroller {
+	padding-right: 8px;
+}
+
+.CollectionValidationIssueList,
+.CollectionValidationIssueDetails {
+	margin: 0;
+	padding: 0;
+}
+
+.CollectionValidationIssueList {
+	display: grid;
+	gap: 14px;
+}
+
+.CollectionValidationIssueItem {
+	display: grid;
+	gap: 4px;
+}
+
+.CollectionValidationIssueItem__title,
+.CollectionValidationIssueItem__uid {
+	display: block;
+}
+
+.CollectionValidationIssueDetails {
+	display: grid;
+	gap: 4px;
+	padding-left: 20px;
 }
 
 .CollectionSettingsForm,

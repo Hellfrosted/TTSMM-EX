@@ -19,6 +19,7 @@ import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 
 const { Paragraph, Title, Text } = Typography;
+const VALIDATION_ISSUES_HEADING_ID = 'collection-validation-issues-heading';
 
 interface CollectionManagerModalProps {
 	appState: AppState;
@@ -110,23 +111,32 @@ function CollectionManagerModal({
 		}
 
 		return (
-			<div style={{ marginTop: 20 }}>
-				<Title level={5}>Mods to review</Title>
-				<div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: 8 }}>
-					{validationIssueSummaries.map((summary) => (
-						<div key={summary.uid} style={{ marginBottom: 14 }}>
-							<Text strong>{summary.label}</Text>
-							<br />
-							<Text type="secondary">{summary.uid}</Text>
-							{summary.issues.map((issue) => (
-								<Paragraph key={`${summary.uid}-${issue}`} style={{ marginBottom: 0, marginTop: 4 }}>
-									{issue}
-								</Paragraph>
-							))}
-						</div>
-					))}
+			<section className="CollectionValidationIssueSection" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
+				<Title id={VALIDATION_ISSUES_HEADING_ID} level={5}>
+					Mods to review
+				</Title>
+				<div className="CollectionValidationIssueScroller">
+					<ul className="CollectionValidationIssueList">
+						{validationIssueSummaries.map((summary) => (
+							<li key={summary.uid} className="CollectionValidationIssueItem">
+								<Text strong className="CollectionValidationIssueItem__title">
+									{summary.label}
+								</Text>
+								<Text type="secondary" className="CollectionValidationIssueItem__uid">
+									{summary.uid}
+								</Text>
+								<ul className="CollectionValidationIssueDetails">
+									{summary.issues.map((issue) => (
+										<li key={`${summary.uid}-${issue}`}>
+											<Text>{issue}</Text>
+										</li>
+									))}
+								</ul>
+							</li>
+						))}
+					</ul>
 				</div>
-			</div>
+			</section>
 		);
 	};
 
