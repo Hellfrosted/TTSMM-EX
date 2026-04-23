@@ -15,6 +15,34 @@ interface VerificationMessage {
 	error?: string;
 }
 
+function describeSteamworksError(error: string | undefined) {
+	const normalizedError = (error || '').toLowerCase();
+
+	if (normalizedError.includes('steam unavailable') || normalizedError.includes('steam is not running')) {
+		return {
+			title: 'Steam is not available right now.',
+			detail: 'Start Steam, sign in, then retry the Steamworks check.'
+		};
+	}
+
+	if (
+		normalizedError.includes('dll') ||
+		normalizedError.includes('module') ||
+		normalizedError.includes('greenworks') ||
+		normalizedError.includes('steamworks')
+	) {
+		return {
+			title: 'The Steamworks files are not ready on this machine.',
+			detail: 'Make sure Steamworks dependencies are installed for this build, then retry.'
+		};
+	}
+
+	return {
+		title: 'Steamworks could not be initialized.',
+		detail: 'Start Steam, confirm this build has its Steamworks files available, then retry.'
+	};
+}
+
 export default function SteamworksVerification() {
 	const appState = useAppState();
 	const [verifying, setVerifying] = useState(true);
@@ -122,11 +150,12 @@ export default function SteamworksVerification() {
 		});
 	}
 
-	const statusLabel = verifying ? 'Checking Steamworks integration' : error ? 'Steamworks initialization failed' : 'Steamworks is ready';
+	const describedError = error ? describeSteamworksError(error) : undefined;
+	const statusLabel = verifying ? 'Checking Steamworks integration' : error ? describedError?.title || 'Steamworks initialization failed' : 'Steamworks is ready';
 	const statusDetail = verifying
 		? 'Confirming the manager can talk to Steam before restoring your saved workspace.'
 		: error
-			? 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
+			? describedError?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
 			: 'Continuing to your saved view.';
 
 	return (
@@ -160,15 +189,18 @@ export default function SteamworksVerification() {
 					</div>
 					{error ? (
 						<Row key="error" justify="start" className="StartupActions">
-							<Text code type="danger">
-								{error}
-							</Text>
+							<div className="StatusCallout StatusCallout--error">
+								<Text strong className="StatusCallout__title">
+									{describedError?.title || 'Resolve this before retrying'}
+								</Text>
+								<Text className="StatusCallout__body">{describedError?.detail || error}</Text>
+							</div>
 						</Row>
 					) : null}
 					{error ? (
 						<Row key="retry" justify="start" className="StartupActions">
 							<Button type="primary" onClick={verify} loading={verifying}>
-								Retry Steamworks Initialization
+								Try Steamworks Again
 							</Button>
 						</Row>
 					) : null}

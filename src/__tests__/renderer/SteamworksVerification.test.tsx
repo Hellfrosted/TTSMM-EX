@@ -88,8 +88,11 @@ describe('SteamworksVerification', () => {
 			</MemoryRouter>
 		);
 
-		expect(await screen.findByText('steam unavailable')).toBeInTheDocument();
-		const retryButton = screen.getByRole('button', { name: 'Retry Steamworks Initialization' });
+		await waitFor(() => {
+			expect(screen.getAllByText('Steam is not available right now.').length).toBeGreaterThan(0);
+			expect(screen.getAllByText('Start Steam, sign in, then retry the Steamworks check.').length).toBeGreaterThan(0);
+		});
+		const retryButton = screen.getByRole('button', { name: 'Try Steamworks Again' });
 		retryButton.click();
 
 		await waitFor(() => {

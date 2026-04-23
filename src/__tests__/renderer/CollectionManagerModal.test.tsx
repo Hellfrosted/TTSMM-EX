@@ -76,6 +76,7 @@ describe('CollectionManagerModal', () => {
 		expect(await screen.findByText('Collection table settings')).toBeInTheDocument();
 		expect(screen.getByText('Table layout')).toBeInTheDocument();
 		expect(screen.getByText('Compact rows')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
 		expect(screen.queryByText('Choose which columns stay visible and save widths only where you want a fixed layout.')).not.toBeInTheDocument();
 		expect(screen.queryByText('Uses the tightest spacing in the main table.')).not.toBeInTheDocument();
 		expect(screen.getByLabelText('Show Tags column')).toBeInTheDocument();

@@ -182,7 +182,7 @@ function CollectionManagerModal({
 					key="warning-modal"
 					title={`Delete "${activeCollectionName}"?`}
 					open
-					closable={false}
+					onCancel={closeModal}
 					footer={[
 						<Button
 							key="cancel"
@@ -222,7 +222,7 @@ function CollectionManagerModal({
 					key="manager-warning-modal"
 					title="Mod manager must stay enabled"
 					open
-					closable={false}
+					onCancel={closeModal}
 					footer={[
 						<Button key="launch" type="primary" onClick={closeModal}>
 							OK
@@ -243,7 +243,10 @@ function CollectionManagerModal({
 					title="Collection has blocking issues"
 					width={760}
 					open
-					closable={false}
+					onCancel={() => {
+						appState.updateState({ launchingGame: false });
+						closeModal();
+					}}
 					footer={[
 						<Button
 							key="cancel"
@@ -278,7 +281,10 @@ function CollectionManagerModal({
 					title="Collection has warnings"
 					width={760}
 					open
-					closable={false}
+					onCancel={() => {
+						appState.updateState({ launchingGame: false });
+						closeModal();
+					}}
 					footer={[
 						<Button
 							key="cancel"
@@ -315,8 +321,11 @@ function CollectionManagerModal({
 					title="Collection table settings"
 					width={760}
 					open
-					closable={false}
+					onCancel={closeModal}
 					footer={[
+						<Button key="cancel-settings" disabled={savingConfig} onClick={closeModal}>
+							Cancel
+						</Button>,
 						<Button
 							key="save-settings"
 							loading={savingConfig}
@@ -341,15 +350,14 @@ function CollectionManagerModal({
 							<div className="CollectionSettingsTopCopy">
 								<Title level={5}>Table layout</Title>
 							</div>
-							<div className="CollectionSettingsToggleCard">
-								<div className="CollectionSettingsToggleCopy">
-									<Text strong>Compact rows</Text>
-								</div>
-								<Switch
-									size="small"
-									aria-label="Use extra-compact rows in the main collection table"
-									checked={!!mainConfigDraft.smallRows}
-									onChange={(checked: boolean) => {
+								<div className="CollectionSettingsToggleCard">
+									<div className="CollectionSettingsToggleCopy">
+										<Text strong>Compact rows</Text>
+									</div>
+									<Switch
+										aria-label="Use extra-compact rows in the main collection table"
+										checked={!!mainConfigDraft.smallRows}
+										onChange={(checked: boolean) => {
 										setMainConfigDraft((currentConfig) => ({
 											...currentConfig,
 											smallRows: checked
@@ -389,7 +397,6 @@ function CollectionManagerModal({
 										</div>
 										<div className="CollectionSettingsColumnSwitch">
 											<Switch
-												size="small"
 												aria-label={`Show ${id} column`}
 												checked={isChecked}
 												disabled={cannotDisable}
@@ -407,7 +414,6 @@ function CollectionManagerModal({
 										<div className="CollectionSettingsColumnWidth">
 											<InputNumber
 												aria-label={`Saved width for ${id} column`}
-												size="small"
 												min={minimumWidth}
 												step={16}
 												style={{ width: '100%' }}
@@ -438,8 +444,11 @@ function CollectionManagerModal({
 					title={`Edit Overrides For ${nextRecord.name}`}
 					width={620}
 					open
-					closable={false}
+					onCancel={closeModal}
 					footer={[
+						<Button key="cancel-edit" disabled={savingConfig} onClick={closeModal}>
+							Cancel
+						</Button>,
 						<Button
 							key="save-settings"
 							loading={savingConfig}

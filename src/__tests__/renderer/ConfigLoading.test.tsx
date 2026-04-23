@@ -349,7 +349,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Failed to persist repaired active collection alpha')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not save which collection should open.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -378,7 +378,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Failed to persist the default collection during boot')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not create the default collection it needs to start.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -407,7 +407,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Error: Failed to load collection "broken"')).toBeInTheDocument();
+			expect(screen.getAllByText('One of your saved collections could not be opened.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -429,7 +429,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Error: Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not read your saved settings.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');

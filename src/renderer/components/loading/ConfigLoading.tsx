@@ -37,6 +37,48 @@ function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean)
 	return !hasStoredConfig || configuredPath === DEFAULT_CONFIG.gameExec;
 }
 
+function describeBootError(error: string) {
+	if (error.includes('Failed to load config file')) {
+		return {
+			title: 'TTSMM-EX could not read your saved settings.',
+			detail: 'Check config.json for invalid JSON or restore a known-good copy, then reopen the app.'
+		};
+	}
+
+	if (error.includes('Failed to load collection')) {
+		return {
+			title: 'One of your saved collections could not be opened.',
+			detail: 'Fix or remove the broken collection JSON from the app data folder, then start TTSMM-EX again.'
+		};
+	}
+
+	if (error.includes('Failed to persist repaired active collection')) {
+		return {
+			title: 'TTSMM-EX could not save which collection should open.',
+			detail: 'Check that the app data folder is writable, then retry.'
+		};
+	}
+
+	if (error.includes('Failed to persist the default collection during boot') || error.includes('Failed to persist the default active collection during boot')) {
+		return {
+			title: 'TTSMM-EX could not create the default collection it needs to start.',
+			detail: 'Check that the app data folder is writable, then retry.'
+		};
+	}
+
+	if (error.length > 0) {
+		return {
+			title: 'Startup stopped because a required app file could not be read or written.',
+			detail: 'Review the app data folder and permissions, then try again.'
+		};
+	}
+
+	return {
+		title: 'Startup needs attention.',
+		detail: 'Fix the issue below before the app can continue.'
+	};
+}
+
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
 	const errors: { [field: string]: string } = {};
 	const checks: { field: AppConfigKeys; label: string; task: Promise<string | undefined> | undefined }[] = [
@@ -338,12 +380,13 @@ export default function ConfigLoading() {
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
 	const bootError = configLoadError || bootPersistenceError || userDataPathError || collectionLoadError;
-	const statusLabel = bootError ? 'Startup needs attention' : 'Preparing your mod manager';
+	const describedBootError = bootError ? describeBootError(bootError) : undefined;
+	const statusLabel = bootError ? describedBootError?.title || 'Startup needs attention' : 'Preparing your mod manager';
 	const statusDetail = bootError
-		? 'Fix the issue below before the app can continue.'
-		: totalCollections > 0
-			? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
-			: 'Checking your saved settings and creating a default collection if this is your first launch.';
+		? describedBootError?.detail || 'Fix the issue below before the app can continue.'
+			: totalCollections > 0
+				? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
+				: 'Checking your saved settings and creating a default collection if this is your first launch.';
 
 	return (
 		<Layout className="StartupShell">
@@ -372,9 +415,12 @@ export default function ConfigLoading() {
 					/>
 					{bootError ? (
 						<div className="StartupActions">
-							<Text code type="danger">
-								{bootError}
-							</Text>
+							<div className="StatusCallout StatusCallout--error">
+								<Text strong className="StatusCallout__title">
+									{describedBootError?.title || 'Resolve this before continuing'}
+								</Text>
+								<Text className="StatusCallout__body">{describedBootError?.detail || bootError}</Text>
+							</div>
 						</div>
 					) : null}
 				</section>
