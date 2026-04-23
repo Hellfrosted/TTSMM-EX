@@ -1,7 +1,11 @@
+import type { CSSProperties } from 'react';
 import type { ThemeConfig } from 'antd';
 import { theme as antdTheme } from 'antd';
 
-export const APP_FONT_FAMILY = 'Bahnschrift, Tahoma, sans-serif';
+export const APP_DISPLAY_FONT_FAMILY =
+	`'Bahnschrift SemiCondensed', 'Aptos Narrow', 'Segoe UI Variable Display', 'Ubuntu Condensed', 'Segoe UI', sans-serif`;
+export const APP_FONT_FAMILY = `'Segoe UI', 'Ubuntu', 'Noto Sans', Tahoma, sans-serif`;
+export const APP_CONTROL_HEIGHT = 44;
 
 export const APP_THEME_COLORS = {
 	primary: '#b65b47',
@@ -12,20 +16,58 @@ export const APP_THEME_COLORS = {
 	error: '#b86159',
 	info: '#b65b47',
 	link: '#c9735d',
+	text: 'rgba(242, 237, 230, 0.88)',
 	textBase: '#f2ede6',
-	textMuted: 'rgba(242, 237, 230, 0.72)',
+	textMuted: 'rgba(242, 237, 230, 0.66)',
 	background: '#131517',
 	surface: '#1b1f24',
 	surfaceAlt: '#171b20',
 	surfaceElevated: '#20252b',
 	sider: '#111315',
+	footer: '#171a1f',
 	border: '#2b323a',
 	split: '#222931',
 	tableHeader: '#191d22',
+	tableHeaderText: '#efe8df',
 	tableRowHover: '#1a2026',
 	tableRowSelected: '#20262d',
-	tableRowSelectedHover: '#242b33'
+	tableRowSelectedHover: '#242b33',
+	menuHover: '#181c21',
+	fieldHover: '#965141',
+	collapseBody: '#15191d',
+	tagDefaultText: '#e8e1d7'
 } as const;
+
+export const appCssVariables = {
+	'--app-font-body': APP_FONT_FAMILY,
+	'--app-font-display': APP_DISPLAY_FONT_FAMILY,
+	'--app-control-height': `${APP_CONTROL_HEIGHT}px`,
+	'--app-radius-sm': '6px',
+	'--app-radius-md': '8px',
+	'--app-radius-lg': '10px',
+	'--app-color-primary': APP_THEME_COLORS.primary,
+	'--app-color-primary-hover': APP_THEME_COLORS.primaryHover,
+	'--app-color-primary-active': APP_THEME_COLORS.primaryActive,
+	'--app-color-success': APP_THEME_COLORS.success,
+	'--app-color-warning': APP_THEME_COLORS.warning,
+	'--app-color-error': APP_THEME_COLORS.error,
+	'--app-color-text': APP_THEME_COLORS.text,
+	'--app-color-text-base': APP_THEME_COLORS.textBase,
+	'--app-color-text-muted': APP_THEME_COLORS.textMuted,
+	'--app-color-background': APP_THEME_COLORS.background,
+	'--app-color-surface': APP_THEME_COLORS.surface,
+	'--app-color-surface-alt': APP_THEME_COLORS.surfaceAlt,
+	'--app-color-surface-elevated': APP_THEME_COLORS.surfaceElevated,
+	'--app-color-sider': APP_THEME_COLORS.sider,
+	'--app-color-footer': APP_THEME_COLORS.footer,
+	'--app-color-border': APP_THEME_COLORS.border,
+	'--app-color-split': APP_THEME_COLORS.split,
+	'--app-color-table-header': APP_THEME_COLORS.tableHeader,
+	'--app-color-table-header-text': APP_THEME_COLORS.tableHeaderText,
+	'--app-color-table-row-hover': APP_THEME_COLORS.tableRowHover,
+	'--app-color-table-row-selected': APP_THEME_COLORS.tableRowSelected,
+	'--app-color-table-row-selected-hover': APP_THEME_COLORS.tableRowSelectedHover
+} as CSSProperties;
 
 export const appTheme: ThemeConfig = {
 	algorithm: antdTheme.darkAlgorithm,
@@ -46,7 +88,7 @@ export const appTheme: ThemeConfig = {
 		borderRadius: 8,
 		borderRadiusLG: 10,
 		borderRadiusSM: 6,
-		controlHeight: 34,
+		controlHeight: APP_CONTROL_HEIGHT,
 		boxShadowSecondary: '0 2px 8px rgba(0, 0, 0, 0.22)'
 	},
 	components: {
@@ -54,7 +96,7 @@ export const appTheme: ThemeConfig = {
 			headerBg: APP_THEME_COLORS.surface,
 			siderBg: APP_THEME_COLORS.sider,
 			bodyBg: APP_THEME_COLORS.background,
-			footerBg: '#171a1f',
+			footerBg: APP_THEME_COLORS.footer,
 			triggerBg: APP_THEME_COLORS.sider,
 			triggerColor: APP_THEME_COLORS.textMuted
 		},
@@ -62,7 +104,7 @@ export const appTheme: ThemeConfig = {
 			darkItemBg: APP_THEME_COLORS.sider,
 			darkSubMenuItemBg: APP_THEME_COLORS.sider,
 			darkItemSelectedBg: APP_THEME_COLORS.surfaceElevated,
-			darkItemHoverBg: '#181c21',
+			darkItemHoverBg: APP_THEME_COLORS.menuHover,
 			darkItemSelectedColor: APP_THEME_COLORS.textBase,
 			darkItemColor: 'rgba(242, 237, 230, 0.76)',
 			itemBorderRadius: 8,
@@ -70,20 +112,20 @@ export const appTheme: ThemeConfig = {
 		},
 		Button: {
 			borderRadius: 8,
-			controlHeight: 34,
+			controlHeight: APP_CONTROL_HEIGHT,
 			paddingInline: 14
 		},
 		Input: {
 			activeBorderColor: APP_THEME_COLORS.primary,
-			hoverBorderColor: '#965141'
+			hoverBorderColor: APP_THEME_COLORS.fieldHover
 		},
 		InputNumber: {
 			activeBorderColor: APP_THEME_COLORS.primary,
-			hoverBorderColor: '#965141'
+			hoverBorderColor: APP_THEME_COLORS.fieldHover
 		},
 		Select: {
 			activeBorderColor: APP_THEME_COLORS.primary,
-			hoverBorderColor: '#965141'
+			hoverBorderColor: APP_THEME_COLORS.fieldHover
 		},
 		Switch: {
 			colorPrimary: APP_THEME_COLORS.primary,
@@ -91,7 +133,7 @@ export const appTheme: ThemeConfig = {
 		},
 		Table: {
 			headerBg: APP_THEME_COLORS.tableHeader,
-			headerColor: '#efe8df',
+			headerColor: APP_THEME_COLORS.tableHeaderText,
 			headerBorderRadius: 0,
 			rowHoverBg: APP_THEME_COLORS.tableRowHover,
 			rowSelectedBg: APP_THEME_COLORS.tableRowSelected,
@@ -112,12 +154,12 @@ export const appTheme: ThemeConfig = {
 		Tag: {
 			borderRadiusSM: 4,
 			defaultBg: APP_THEME_COLORS.surfaceElevated,
-			defaultColor: '#e8e1d7'
+			defaultColor: APP_THEME_COLORS.tagDefaultText
 		},
 		Collapse: {
 			headerBg: APP_THEME_COLORS.surfaceAlt,
-			contentBg: '#15191d',
-			borderlessContentBg: '#15191d'
+			contentBg: APP_THEME_COLORS.collapseBody,
+			borderlessContentBg: APP_THEME_COLORS.collapseBody
 		},
 		Descriptions: {
 			labelBg: APP_THEME_COLORS.surfaceAlt

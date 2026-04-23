@@ -1,12 +1,12 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, CollectionManagerModalType, NotificationProps } from 'model';
-import { Button, Col, Row, Select, Space, Input, Modal, Typography } from 'antd';
+import { Button, Col, Row, Select, Space, Input, Modal, Form } from 'antd';
+import type { InputRef } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, SyncOutlined, CopyOutlined, SettingFilled, CodeOutlined } from '@ant-design/icons';
 import { validateCollectionName } from 'shared/collection-name';
 
 const { Option } = Select;
 const { Search } = Input;
-const { Text } = Typography;
 
 enum CollectionManagementToolbarModalType {
 	NEW_COLLECTION = 'new-collection',
@@ -56,22 +56,50 @@ function CollectionManagementToolbarComponent({
 	const [modalText, setModalText] = useState('');
 	const disabledFeatures = !!savingCollection || !!appState.loadingMods || !!modalType;
 	const { activeCollection } = appState;
+	const trimmedModalText = modalText.trim();
+	const collectionNameLabelId = 'collection-name-label';
+	const collectionNameInputId = 'collection-name-input';
+	const collectionNameErrorId = 'collection-name-error';
+	const collectionNameInputRef = useRef<InputRef>(null);
+
+	useEffect(() => {
+		if (!modalType) {
+			return;
+		}
+
+		const animationFrame = window.requestAnimationFrame(() => {
+			collectionNameInputRef.current?.focus();
+		});
+
+		return () => {
+			window.cancelAnimationFrame(animationFrame);
+		};
+	}, [modalType]);
 
 	const modalProps = useMemo(
 		() => ({
 			[CollectionManagementToolbarModalType.NEW_COLLECTION]: {
 				title: 'New Collection',
 				okText: 'Create New Collection',
+				fieldLabel: 'Collection name',
+				fieldHelp: 'Use a short name you can recognize in the collection picker.',
+				placeholder: 'Example: Campaign mods',
 				callback: newCollectionCallback
 			},
 			[CollectionManagementToolbarModalType.DUPLICATE_COLLECTION]: {
 				title: 'Duplicate Collection',
 				okText: 'Duplicate Collection',
+				fieldLabel: 'New collection name',
+				fieldHelp: 'The duplicate keeps the current mod list and saves it under a new name.',
+				placeholder: 'Example: Campaign mods copy',
 				callback: duplicateCollectionCallback
 			},
 			[CollectionManagementToolbarModalType.RENAME_COLLECTION]: {
 				title: 'Rename Collection',
 				okText: 'Rename Collection',
+				fieldLabel: 'New collection name',
+				fieldHelp: 'Rename the saved collection without changing its enabled mods.',
+				placeholder: 'Example: Campaign mods',
 				callback: renameCollectionCallback
 			}
 		}),
@@ -84,21 +112,33 @@ function CollectionManagementToolbarComponent({
 			return undefined;
 		}
 
-		const validationError = validateCollectionName(modalText);
+		const validationError = validateCollectionName(trimmedModalText);
 		if (validationError) {
 			return validationError;
 		}
 
-		if (modalType === CollectionManagementToolbarModalType.RENAME_COLLECTION && modalText === activeCollection?.name) {
+		if (modalType === CollectionManagementToolbarModalType.RENAME_COLLECTION && trimmedModalText === activeCollection?.name) {
 			return 'Collection name is unchanged';
 		}
 
-		if (appState.allCollectionNames.has(modalText)) {
+		if (appState.allCollectionNames.has(trimmedModalText)) {
 			return 'A collection with that name already exists';
 		}
 
 		return undefined;
-	}, [activeCollection?.name, appState.allCollectionNames, modalText, modalType]);
+	}, [activeCollection?.name, appState.allCollectionNames, modalType, trimmedModalText]);
+
+	const openCollectionModal = (nextModalType: CollectionManagementToolbarModalType) => {
+		const nextText =
+			nextModalType === CollectionManagementToolbarModalType.RENAME_COLLECTION
+				? activeCollection?.name || ''
+				: nextModalType === CollectionManagementToolbarModalType.DUPLICATE_COLLECTION && activeCollection
+					? `${activeCollection.name} copy`
+					: '';
+
+		setModalType(nextModalType);
+		setModalText(nextText);
+	};
 
 	const handleCopyCollection = () => {
 		if (!activeCollection) {
@@ -148,20 +188,43 @@ function CollectionManagementToolbarComponent({
 						}
 						setModalType(undefined);
 						setModalText('');
-						currentModal.callback(modalText);
+						currentModal.callback(trimmedModalText);
 					}}
 				>
-					<Input
-						value={modalText}
-						onChange={(event) => {
-							setModalText(event.target.value);
-						}}
-					/>
-					{currentModalError ? (
-						<Text type="danger">
-							{currentModalError}
-						</Text>
-					) : null}
+					<Form layout="vertical">
+						<Form.Item
+							label={<span id={collectionNameLabelId}>{currentModal.fieldLabel}</span>}
+							extra={currentModal.fieldHelp}
+							validateStatus={currentModalError ? 'error' : undefined}
+							help={
+								currentModalError ? (
+									<span id={collectionNameErrorId}>
+										{currentModalError}
+									</span>
+								) : null
+							}
+						>
+							<Input
+								id={collectionNameInputId}
+								ref={collectionNameInputRef}
+								value={modalText}
+								placeholder={currentModal.placeholder}
+								aria-labelledby={collectionNameLabelId}
+								aria-describedby={currentModalError ? collectionNameErrorId : undefined}
+								aria-invalid={currentModalError ? 'true' : 'false'}
+								onChange={(event) => {
+									setModalText(event.target.value);
+								}}
+								onPressEnter={() => {
+									if (!currentModalError) {
+										setModalType(undefined);
+										setModalText('');
+										currentModal.callback(trimmedModalText);
+									}
+								}}
+							/>
+						</Form.Item>
+					</Form>
 				</Modal>
 			)}
 			<Row key="row1" justify="space-between" gutter={16} className="CollectionToolbarRow">
@@ -191,7 +254,7 @@ function CollectionManagementToolbarComponent({
 								key="rename"
 								icon={<EditOutlined />}
 								onClick={() => {
-									setModalType(CollectionManagementToolbarModalType.RENAME_COLLECTION);
+									openCollectionModal(CollectionManagementToolbarModalType.RENAME_COLLECTION);
 								}}
 								disabled={disabledFeatures}
 							>
@@ -202,7 +265,7 @@ function CollectionManagementToolbarComponent({
 								icon={<PlusOutlined />}
 								disabled={disabledFeatures}
 								onClick={() => {
-									setModalType(CollectionManagementToolbarModalType.NEW_COLLECTION);
+									openCollectionModal(CollectionManagementToolbarModalType.NEW_COLLECTION);
 								}}
 							>
 								New
@@ -212,7 +275,7 @@ function CollectionManagementToolbarComponent({
 								icon={<CopyOutlined />}
 								disabled={disabledFeatures}
 								onClick={() => {
-									setModalType(CollectionManagementToolbarModalType.DUPLICATE_COLLECTION);
+									openCollectionModal(CollectionManagementToolbarModalType.DUPLICATE_COLLECTION);
 								}}
 							>
 								Duplicate
@@ -247,10 +310,11 @@ function CollectionManagementToolbarComponent({
 			</Row>
 			<Row key="row2" justify="space-between" align="middle" gutter={16} className="CollectionToolbarRow">
 				<Col flex="auto">
-					<Row gutter={24}>
+					<Row gutter={[24, 12]}>
 						<Col xs={24} xl={16} key="search">
 							<div className="CollectionToolbarSearch">
 								<Search
+									aria-label="Search mods by name, ID, author, or tag"
 									placeholder="Search mods by name, ID, author, or tag"
 									onChange={(event) => {
 										onSearchChangeCallback(event.target.value);

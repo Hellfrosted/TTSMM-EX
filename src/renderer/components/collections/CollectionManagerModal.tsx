@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import { Button, Modal, Typography, Row, Col, Input, Switch, Form } from 'antd';
+import { Button, Modal, Typography, Row, Col, Input, Switch, Form, InputNumber } from 'antd';
 import {
 	AppConfig,
 	AppState,
@@ -12,7 +12,8 @@ import {
 	MainCollectionConfig,
 	ModData,
 	ModType,
-	NotificationProps
+	NotificationProps,
+	getMainColumnMinWidth
 } from 'model';
 import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
@@ -49,6 +50,7 @@ function CollectionManagerModal({
 	const [savingConfig, setSavingConfig] = useState(false);
 	const [mainConfigDraft, setMainConfigDraft] = useState<MainCollectionConfig>(DEFAULT_MAIN_CONFIG);
 	const [overrideId, setOverrideId] = useState('');
+	const activeCollectionName = appState.activeCollection?.name || 'this collection';
 
 	useEffect(() => {
 		if (modalType === CollectionManagerModalType.VIEW_SETTINGS) {
@@ -109,7 +111,7 @@ function CollectionManagerModal({
 
 		return (
 			<div style={{ marginTop: 20 }}>
-				<Title level={5}>Affected Mods</Title>
+				<Title level={5}>Mods to review</Title>
 				<div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: 8 }}>
 					{validationIssueSummaries.map((summary) => (
 						<div key={summary.uid} style={{ marginBottom: 14 }}>
@@ -130,6 +132,23 @@ function CollectionManagerModal({
 
 	const getModManagerUID = () => {
 		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
+	};
+
+	const setDraftColumnWidth = (columnId: MainColumnTitles, width?: number | null) => {
+		const minimumWidth = getMainColumnMinWidth(columnId);
+		setMainConfigDraft((currentConfig) => {
+			const nextColumnWidthConfig = { ...(currentConfig.columnWidthConfig || {}) };
+			if (typeof width === 'number') {
+				nextColumnWidthConfig[columnId] = Math.max(minimumWidth, Math.round(width));
+			} else {
+				delete nextColumnWidthConfig[columnId];
+			}
+
+			return {
+				...currentConfig,
+				columnWidthConfig: Object.keys(nextColumnWidthConfig).length > 0 ? nextColumnWidthConfig : undefined
+			};
+		});
 	};
 
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
@@ -161,7 +180,7 @@ function CollectionManagerModal({
 			return (
 				<Modal
 					key="warning-modal"
-					title="Delete Collection?"
+					title={`Delete "${activeCollectionName}"?`}
 					open
 					closable={false}
 					footer={[
@@ -173,7 +192,7 @@ function CollectionManagerModal({
 								closeModal();
 							}}
 						>
-							Don&apos;t Delete
+							Keep Collection
 						</Button>,
 						<Button
 							key="delete"
@@ -186,12 +205,13 @@ function CollectionManagerModal({
 								closeModal();
 							}}
 						>
-							Delete
+							Delete Collection
 						</Button>
 					]}
 				>
-					<p>Are you sure you want to delete this collection?</p>
-					<p>THIS CANNOT BE UNDONE</p>
+					<p>Delete the saved collection from TTSMM-EX.</p>
+					<p>Your installed mods and Steam subscriptions will stay unchanged.</p>
+					<p>This cannot be undone.</p>
 				</Modal>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
@@ -200,7 +220,7 @@ function CollectionManagerModal({
 			return (
 				<Modal
 					key="manager-warning-modal"
-					title="Useless Operation"
+					title="Mod manager must stay enabled"
 					open
 					closable={false}
 					footer={[
@@ -209,10 +229,9 @@ function CollectionManagerModal({
 						</Button>
 					]}
 				>
-					<p>You are attempting to deselect the mod manager.</p>
-					<p>An external mod manager is current required for TerraTech to load some mods properly.</p>
-					<p>Your current selected manager is {`${managerData.name} (${appState.config.workshopID})`}</p>
-					<p>If you would like to change your manager, do so by entering the workshop file ID in the settings tab.</p>
+					<p>TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.</p>
+					<p>Your current manager is {`${managerData.name} (${appState.config.workshopID})`}.</p>
+					<p>To switch managers, update the workshop item ID in Settings instead of disabling the current one here.</p>
 				</Modal>
 			);
 		}
@@ -221,7 +240,7 @@ function CollectionManagerModal({
 				<Modal
 					key="error-modal"
 					className="CollectionValidationModal"
-					title="Errors Found in Configuration"
+					title="Collection has blocking issues"
 					width={760}
 					open
 					closable={false}
@@ -235,21 +254,20 @@ function CollectionManagerModal({
 								closeModal();
 							}}
 						>
-							Manually Fix
+							Review Issues
 						</Button>,
 						<Button key="launch" danger type="primary" disabled={launchGameWithErrors} loading={launchGameWithErrors} onClick={launchAnyway}>
-							Launch Anyway
+							Launch With Blocking Issues
 						</Button>
 					]}
 				>
-					<p>One or more mods have either missing dependencies, or is selected alongside incompatible mods.</p>
-					<p>Launching the game with this mod list may lead to crashes, or even save game corruption.</p>
+					<p>One or more enabled mods are missing required dependencies or conflict with another selected mod.</p>
+					<p>Launching with this collection can cause missing content, startup failures, or save corruption.</p>
 					<p>
-						Mods that share the same Mod ID (Not the same as Workshop ID) are explicitly incompatible, and only the first one TerraTech loads
-						will be used. All others will be ignored.
+						Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.
 					</p>
 					{renderValidationIssueList()}
-					<p>Do you want to continue anyway?</p>
+					<p>Review the list above before deciding whether to launch anyway.</p>
 				</Modal>
 			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
@@ -257,7 +275,7 @@ function CollectionManagerModal({
 				<Modal
 					key="warning-modal"
 					className="CollectionValidationModal"
-					title="Minor Errors Found in Configuration"
+					title="Collection has warnings"
 					width={760}
 					open
 					closable={false}
@@ -271,17 +289,17 @@ function CollectionManagerModal({
 								closeModal();
 							}}
 						>
-							Manually Fix
+							Review Issues
 						</Button>,
 						<Button key="launch" danger type="primary" disabled={launchGameWithErrors} loading={launchGameWithErrors} onClick={launchAnyway}>
-							Launch Anyway
+							Launch With Warnings
 						</Button>
 					]}
 				>
-					<p>Unable to validate one or more mods in the collection.</p>
-					<p>This is probably because you are not subscribed to them.</p>
+					<p>Some mods could not be fully validated.</p>
+					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
 					{renderValidationIssueList()}
-					<p>Do you want to continue anyway?</p>
+					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
 				</Modal>
 			);
 		case CollectionManagerModalType.VIEW_SETTINGS:
@@ -293,7 +311,8 @@ function CollectionManagerModal({
 				<Modal
 					key="settings-modal"
 					className="CollectionSettingsModal"
-					title="Editing Collection View Settings"
+					wrapClassName="CollectionSettingsModalWrap"
+					title="Collection table settings"
 					width={760}
 					open
 					closable={false}
@@ -313,76 +332,96 @@ function CollectionManagerModal({
 								void saveConfig(nextConfig, closeModal);
 							}}
 						>
-							Save Settings
+							Save Table Settings
 						</Button>
 					]}
 				>
-					<Form className="CollectionSettingsForm">
-						<Row justify="space-between" gutter={[16, 16]} className="CollectionSettings CollectionSettings--compact">
-							<Col xs={24} lg={7} key="misc-settings">
+					<Form className="CollectionSettingsForm CollectionSettingsForm--dense">
+						<div className="CollectionSettingsTopBar">
+							<div className="CollectionSettingsTopCopy">
 								<Title level={5}>Table layout</Title>
-								<Form.Item key="smallRows" name="smallRows" label="Compact Rows">
-									<Switch
-										size="small"
-										checked={!!mainConfigDraft.smallRows}
-										onChange={(checked: boolean) => {
-											setMainConfigDraft((currentConfig) => ({
-												...currentConfig,
-												smallRows: checked
-											}));
-										}}
-									/>
-								</Form.Item>
-							</Col>
-							<Col xs={0} lg={1} key="divider" className="CollectionSettingsDividerCol">
-								<div aria-hidden className="CollectionSettingsDivider" />
-							</Col>
-							<Col xs={24} lg={16} key="columns" className="CollectionColumnSelection">
-								<Title level={5}>Select visible columns</Title>
-								<Row gutter={[16, 0]} className="CollectionColumnSelectionGrid">
-									{Object.values(MainColumnTitles).map((id: string) => {
-										const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
-										const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
-										const cannotDisable =
-											isChecked &&
-											((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
-												(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
+							</div>
+							<div className="CollectionSettingsToggleCard">
+								<div className="CollectionSettingsToggleCopy">
+									<Text strong>Compact rows</Text>
+								</div>
+								<Switch
+									size="small"
+									aria-label="Use extra-compact rows in the main collection table"
+									checked={!!mainConfigDraft.smallRows}
+									onChange={(checked: boolean) => {
+										setMainConfigDraft((currentConfig) => ({
+											...currentConfig,
+											smallRows: checked
+										}));
+									}}
+								/>
+							</div>
+						</div>
+						<div className="CollectionSettingsColumnsHeader" aria-hidden>
+							{[0, 1].map((columnGroupIndex) => (
+								<div className="CollectionSettingsColumnsHeaderGroup" key={columnGroupIndex}>
+									<Text type="secondary">Column</Text>
+									<Text type="secondary">Show</Text>
+									<Text type="secondary">Saved width</Text>
+								</div>
+							))}
+						</div>
+						<div className="CollectionSettingsColumnsList">
+							{Object.values(MainColumnTitles).map((id: string) => {
+								const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
+								const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
+								const cannotDisable =
+									isChecked &&
+									((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
+										(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
+								const minimumWidth = getMainColumnMinWidth(id as MainColumnTitles);
 
-										return (
-											<Col xs={24} md={12} key={id}>
-												<Form.Item
-													name={id}
-													label={id}
-													tooltip={
-														cannotDisable
-															? {
-																	styles: { container: { minWidth: 300 } },
-																	title: <Text>{`Must enable either the ${MainColumnTitles.ID} or ${MainColumnTitles.NAME} column`}</Text>
-															  }
-															: undefined
-													}
-												>
-													<Switch
-														size="small"
-														checked={isChecked}
-														disabled={cannotDisable}
-														onChange={(checked: boolean) => {
-															setMainConfigDraft((currentConfig) => ({
-																...currentConfig,
-																columnActiveConfig: {
-																	...(currentConfig.columnActiveConfig || {}),
-																	[id]: checked
-																}
-															}));
-														}}
-													/>
-												</Form.Item>
-											</Col>
-										);
-									})}
-								</Row>
-							</Col>
-						</Row>
+								return (
+									<div className="CollectionSettingsColumnRow" key={id}>
+										<div className="CollectionSettingsColumnLabel">
+											<Text strong>{id}</Text>
+											{cannotDisable ? (
+												<Text type="secondary" className="CollectionSettingsColumnHint">
+													Name or ID must stay visible.
+												</Text>
+											) : null}
+										</div>
+										<div className="CollectionSettingsColumnSwitch">
+											<Switch
+												size="small"
+												aria-label={`Show ${id} column`}
+												checked={isChecked}
+												disabled={cannotDisable}
+												onChange={(checked: boolean) => {
+													setMainConfigDraft((currentConfig) => ({
+														...currentConfig,
+														columnActiveConfig: {
+															...(currentConfig.columnActiveConfig || {}),
+															[id]: checked
+														}
+													}));
+												}}
+											/>
+										</div>
+										<div className="CollectionSettingsColumnWidth">
+											<InputNumber
+												aria-label={`Saved width for ${id} column`}
+												size="small"
+												min={minimumWidth}
+												step={16}
+												style={{ width: '100%' }}
+												value={mainConfigDraft.columnWidthConfig?.[id]}
+												placeholder={`Auto (${minimumWidth}px min)`}
+												onChange={(value) => {
+													setDraftColumnWidth(id as MainColumnTitles, typeof value === 'number' ? value : undefined);
+												}}
+											/>
+										</div>
+									</div>
+								);
+							})}
+						</div>
 					</Form>
 				</Modal>
 			);

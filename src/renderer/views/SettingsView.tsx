@@ -63,7 +63,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 	const validateFile = useCallback(
 		async (field: string, value: string) => {
 			if (!value || value.length === 0) {
-				if (field === AppConfigKeys.LOCAL_DIR) {
+				if (field === AppConfigKeys.LOCAL_DIR || field === AppConfigKeys.LOGS_DIR) {
 					updateConfigErrors(field);
 					return;
 				}
@@ -255,7 +255,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					name="control-ref"
 				>
 					<Row align="stretch" gutter={[40, 24]} className="CollectionSettings SettingsPaneGrid" style={{ marginBottom: 10 }}>
-						<Col xs={24} xxl={12} key="misc-app-settings" className="SettingsPaneColumn MiscAppSettings">
+						<Col xs={24} lg={12} key="misc-app-settings" className="SettingsPaneColumn MiscAppSettings">
 							<div className="SettingsPane">
 							<Form.Item
 								name="localDir"
@@ -341,11 +341,33 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									/>
 								)}
 							</Form.Item>
-							<Form.Item name="logsDir" label="Logs Directory">
+							<Form.Item
+								name="logsDir"
+								label="Logs Directory"
+								tooltip={{
+									styles: { container: { minWidth: 300 } },
+									title: (
+										<div>
+											<p>Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder.</p>
+											<p>Point it at a folder you can keep between launches while troubleshooting.</p>
+										</div>
+									)
+								}}
+								rules={[
+									{
+										validator: async (_, value) => validateFile(AppConfigKeys.LOGS_DIR, value)
+									}
+								]}
+								help={configErrors?.logsDir}
+								validateStatus={configErrors?.logsDir ? 'error' : undefined}
+							>
 								<Search
-									disabled
+									disabled={selectingDirectory}
 									value={editingConfig.logsDir}
 									enterButton={<Button aria-label="Browse for the logs directory" icon={<FolderOutlined />} />}
+									onChange={(event) => {
+										setField(AppConfigKeys.LOGS_DIR, event.target.value);
+									}}
 									onSearch={() => {
 										void handleSelectPath(AppConfigKeys.LOGS_DIR, true, 'Select directory for logs');
 									}}
@@ -467,7 +489,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</Form.Item>
 							</div>
 						</Col>
-						<Col xs={24} xxl={12} key="additional-commands" className="SettingsPaneColumn">
+						<Col xs={24} lg={12} key="additional-commands" className="SettingsPaneColumn">
 							<div className="SettingsPane">
 							<Form.Item name="extraParams" label="Additional Launch Arguments">
 								<Input
@@ -485,7 +507,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									<Form.Item
 										name={id}
 										key={`${config.loggerID}-${index}`}
-										label={`Config ${index}`}
+										label={`Override ${index + 1}`}
 										rules={[
 											{
 												validator: async () => validateLoggerID(config.loggerID)

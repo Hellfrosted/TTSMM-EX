@@ -66,6 +66,18 @@ function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionVi
 	};
 }
 
+function createRows(count: number) {
+	return Array.from({ length: count }, (_, index) => ({
+		uid: `workshop:${index + 1}`,
+		type: ModType.WORKSHOP,
+		workshopID: BigInt(index + 1),
+		id: `Mod${index + 1}`,
+		name: `Mod ${index + 1}`,
+		subscribed: true,
+		installed: true
+	}));
+}
+
 describe('MainCollectionView', () => {
 	it('uses the lower per-column minimums and gives unsaved extra width to Name instead of Tags', () => {
 		const autoColumnWidths: Record<string, number> = {
@@ -82,7 +94,6 @@ describe('MainCollectionView', () => {
 		};
 
 		const widths = getColumnWidths(undefined, autoColumnWidths, 1400);
-
 		expect(widths[MainColumnTitles.AUTHORS]).toBe(40);
 		expect(widths[MainColumnTitles.STATE]).toBe(40);
 		expect(widths[MainColumnTitles.ID]).toBe(32);
@@ -111,8 +122,50 @@ describe('MainCollectionView', () => {
 		};
 
 		const widths = getColumnWidths(config, autoColumnWidths, 1400);
-
 		expect(widths[MainColumnTitles.NAME]).toBe(320);
+	});
+
+	it('uses tighter fallback widths when auto measurement is unavailable', () => {
+		const widths = getColumnWidths(undefined, {}, 0);
+
+		expect(widths[MainColumnTitles.TYPE]).toBe(56);
+		expect(widths[MainColumnTitles.NAME]).toBe(288);
+		expect(widths[MainColumnTitles.AUTHORS]).toBe(120);
+		expect(widths[MainColumnTitles.STATE]).toBe(112);
+		expect(widths[MainColumnTitles.ID]).toBe(132);
+		expect(widths[MainColumnTitles.SIZE]).toBe(72);
+		expect(widths[MainColumnTitles.LAST_UPDATE]).toBe(116);
+		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBe(116);
+		expect(widths[MainColumnTitles.DATE_ADDED]).toBe(116);
+		expect(widths[MainColumnTitles.TAGS]).toBe(180);
+	});
+
+	it('drops low-priority columns first when the available table width is narrow', () => {
+		const autoColumnWidths: Record<string, number> = {
+			[MainColumnTitles.TYPE]: 65,
+			[MainColumnTitles.NAME]: 300,
+			[MainColumnTitles.AUTHORS]: 80,
+			[MainColumnTitles.STATE]: 120,
+			[MainColumnTitles.ID]: 52,
+			[MainColumnTitles.SIZE]: 52,
+			[MainColumnTitles.LAST_UPDATE]: 130,
+			[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 130,
+			[MainColumnTitles.DATE_ADDED]: 130,
+			[MainColumnTitles.TAGS]: 200
+		};
+
+		const widths = getColumnWidths(undefined, autoColumnWidths, 900);
+
+		expect(widths[MainColumnTitles.TYPE]).toBe(65);
+		expect(widths[MainColumnTitles.NAME]).toBeGreaterThanOrEqual(300);
+		expect(widths[MainColumnTitles.AUTHORS]).toBe(80);
+		expect(widths[MainColumnTitles.STATE]).toBe(120);
+		expect(widths[MainColumnTitles.ID]).toBe(52);
+		expect(widths[MainColumnTitles.SIZE]).toBeUndefined();
+		expect(widths[MainColumnTitles.LAST_UPDATE]).toBeUndefined();
+		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBeUndefined();
+		expect(widths[MainColumnTitles.DATE_ADDED]).toBeUndefined();
+		expect(widths[MainColumnTitles.TAGS]).toBeUndefined();
 	});
 
 	it('shows the mod id in the Name column and the workshop id in the ID column', async () => {
@@ -228,6 +281,8 @@ describe('MainCollectionView', () => {
 		await waitFor(() => {
 			expect(getResizeHandles('ID').length).toBeGreaterThan(0);
 		});
+		const tableRoot = document.querySelector('.MainCollectionTableRoot');
+		const initialWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
 		const resizeHandles = getResizeHandles('ID');
 		resizeHandles.forEach((resizeHandle) => {
 			fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
@@ -236,7 +291,7 @@ describe('MainCollectionView', () => {
 		await waitFor(() => {
 			expect(
 				setMainColumnWidthCallback.mock.calls.some(
-					([column, width]) => column === MainColumnTitles.ID && typeof width === 'number' && width >= 186
+					([column, width]) => column === MainColumnTitles.ID && typeof width === 'number' && width > initialWidth
 				)
 			).toBe(true);
 		});
@@ -263,12 +318,14 @@ describe('MainCollectionView', () => {
 
 		expect(resizeHandle).toBeDefined();
 		expect(tableRoot).not.toBeNull();
+		const initialWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
 
 		fireEvent.mouseDown(resizeHandle, { clientX: 200 });
 		fireEvent.mouseMove(window, { clientX: 236 });
 
 		expect(setMainColumnWidthCallback).not.toHaveBeenCalled();
-		expect(tableRoot?.style.getPropertyValue('--main-collection-column-width-id')).toBe('206px');
+		const previewWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
+		expect(previewWidth).toBeGreaterThan(initialWidth);
 
 		fireEvent.mouseUp(window);
 	});
@@ -388,6 +445,34 @@ describe('MainCollectionView', () => {
 		});
 
 		expect(countMeasurementHosts()).toBe(initialMeasurementCount);
+		appendSpy.mockRestore();
+	});
+
+	it('skips offscreen width measurement for very large collections', async () => {
+		stubResizeObserver();
+
+		const rows = createRows(121);
+		const appendSpy = vi.spyOn(document.body, 'appendChild');
+		const countMeasurementHosts = () =>
+			appendSpy.mock.calls.filter(
+				([node]) => node instanceof HTMLElement && node.className === 'MainCollectionTableMeasureHost'
+			).length;
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: rows.map((row) => row.uid) }
+				})}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(document.querySelectorAll('.CollectionNameButton').length).toBeGreaterThan(0);
+		});
+
+		expect(countMeasurementHosts()).toBe(0);
 		appendSpy.mockRestore();
 	});
 });

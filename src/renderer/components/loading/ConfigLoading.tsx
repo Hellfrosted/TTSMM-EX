@@ -177,15 +177,37 @@ export default function ConfigLoading() {
 
 			const nextCollections = new Map<string, ModCollection>();
 			const nextCollectionNames = new Set<string>();
+			const loadedCollectionResults = await Promise.allSettled(
+				collectionNames.map(async (collectionName) => {
+					try {
+						const collection = await api.readCollection(collectionName);
+						return { collectionName, collection };
+					} finally {
+						setLoadedCollections((current) => current + 1);
+					}
+				})
+			);
 
-			for (const collectionName of collectionNames) {
-				const collection = await api.readCollection(collectionName);
-				if (collection) {
-					nextCollections.set(collection.name, collection);
-					nextCollectionNames.add(collection.name);
-				}
-				setLoadedCollections((current) => current + 1);
+			const rejectedCollectionLoad = loadedCollectionResults.find(
+				(result): result is PromiseRejectedResult => result.status === 'rejected'
+			);
+			if (rejectedCollectionLoad) {
+				throw rejectedCollectionLoad.reason;
 			}
+
+			loadedCollectionResults.forEach((result) => {
+				if (result.status !== 'fulfilled') {
+					return;
+				}
+
+				const { collection } = result.value;
+				if (!collection) {
+					return;
+				}
+
+				nextCollections.set(collection.name, collection);
+				nextCollectionNames.add(collection.name);
+			});
 
 			dispatch(setCollectionsState(nextCollections, nextCollectionNames));
 		} catch (error) {

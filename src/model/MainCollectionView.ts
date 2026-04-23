@@ -11,11 +11,11 @@ export enum MainColumnTitles {
 	TAGS = 'Tags'
 }
 
-const DEFAULT_MAIN_COLUMN_MIN_WIDTH = 80;
+const DEFAULT_MAIN_COLUMN_MIN_WIDTH = 64;
 
 const MAIN_COLUMN_MIN_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
-	[MainColumnTitles.TYPE]: 65,
-	[MainColumnTitles.NAME]: 160,
+	[MainColumnTitles.TYPE]: 56,
+	[MainColumnTitles.NAME]: 144,
 	[MainColumnTitles.AUTHORS]: 40,
 	[MainColumnTitles.STATE]: 40,
 	[MainColumnTitles.ID]: 32,

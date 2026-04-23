@@ -654,6 +654,7 @@ function ModDetailsFooter({
 	}, [activeCollection, disableModCallback, enableModCallback, setModSubsetCallback]);
 
 	const renderInfoTab = () => {
+		const descriptionColumns = bigDetails && halfLayoutMode === 'bottom' ? 2 : 1;
 		const steamTags = currentRecord.tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || [];
 		const userTags =
 			currentRecord.overrides?.tags?.map((tag) => (
@@ -663,12 +664,12 @@ function ModDetailsFooter({
 			)) || [];
 
 		return (
-			<Descriptions column={2} bordered size="small">
+			<Descriptions column={descriptionColumns} bordered size="small">
 				<Descriptions.Item label="Author">{currentRecord.authors}</Descriptions.Item>
 				<Descriptions.Item label="Tags">{steamTags.concat(userTags)}</Descriptions.Item>
 				<Descriptions.Item label="Created">{formatDateStr(currentRecord.dateCreated)}</Descriptions.Item>
 				<Descriptions.Item label="Installed">{formatDateStr(currentRecord.dateAdded)}</Descriptions.Item>
-				<Descriptions.Item label="Description" span={2}>
+				<Descriptions.Item label="Description" span={descriptionColumns}>
 					<WorkshopDescription description={currentRecord.description} />
 				</Descriptions.Item>
 			</Descriptions>

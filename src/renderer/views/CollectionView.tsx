@@ -483,7 +483,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
 			? Math.min(Math.max(220, Math.round(contentSize.height * 0.36)), Math.max(180, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT))
 			: 0;
-	const footerBorderColor = '1px solid rgba(255, 255, 255, 0.08)';
+	const footerBorderColor = '1px solid color-mix(in srgb, var(--app-color-text-base) 8%, transparent)';
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);

@@ -50,14 +50,14 @@ describe('CollectionManagerModal', () => {
 			/>
 		);
 
-		expect(await screen.findByText('Errors Found in Configuration')).toBeInTheDocument();
-		expect(screen.getByText('Affected Mods')).toBeInTheDocument();
+		expect(await screen.findByText('Collection has blocking issues')).toBeInTheDocument();
+		expect(screen.getByText('Mods to review')).toBeInTheDocument();
 		expect(screen.getByText('Broken Mod')).toBeInTheDocument();
 		expect(screen.getByText('Missing dependencies: NuterraSteam (Beta)')).toBeInTheDocument();
 		expect(screen.getByText('Conflicts with: Conflicting Mod')).toBeInTheDocument();
 	}, 10000);
 
-	it('renders the view settings modal in a compact side-by-side layout', async () => {
+	it('renders the view settings modal in a dense layout that keeps the controls together', async () => {
 		const appState = createAppState();
 
 		render(
@@ -73,10 +73,13 @@ describe('CollectionManagerModal', () => {
 			/>
 		);
 
-		expect(await screen.findByText('Editing Collection View Settings')).toBeInTheDocument();
+		expect(await screen.findByText('Collection table settings')).toBeInTheDocument();
 		expect(screen.getByText('Table layout')).toBeInTheDocument();
-		expect(screen.getByText('Select visible columns')).toBeInTheDocument();
-		expect(screen.getByText('Compact Rows')).toBeInTheDocument();
+		expect(screen.getByText('Compact rows')).toBeInTheDocument();
+		expect(screen.queryByText('Choose which columns stay visible and save widths only where you want a fixed layout.')).not.toBeInTheDocument();
+		expect(screen.queryByText('Uses the tightest spacing in the main table.')).not.toBeInTheDocument();
+		expect(screen.getByLabelText('Show Tags column')).toBeInTheDocument();
+		expect(screen.getByLabelText('Saved width for Tags column')).toBeInTheDocument();
 		expect(screen.getByText('Tags')).toBeInTheDocument();
 	});
 });

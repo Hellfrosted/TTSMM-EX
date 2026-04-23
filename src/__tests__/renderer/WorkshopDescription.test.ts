@@ -28,4 +28,11 @@ describe('convertWorkshopDescriptionToHtml', () => {
 		expect(html).toContain('<h1>&lt;script&gt;alert(1)&lt;/script&gt;</h1>');
 		expect(html).not.toContain('<script>');
 	});
+
+	it('exposes workshop images to assistive technologies with a fallback description', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/preview.png[/img]');
+
+		expect(html).toContain('alt="Workshop description image"');
+		expect(html).toContain('decoding="async"');
+	});
 });

@@ -92,7 +92,7 @@ function renderEscapedWorkshopMarkup(value: string): string {
 				return renderEscapedWorkshopMarkup(content.trim());
 			}
 
-			return `<img src="${imageSource}" alt="" loading="lazy" />`;
+			return `<img src="${imageSource}" alt="Workshop description image" loading="lazy" decoding="async" />`;
 		})
 	);
 

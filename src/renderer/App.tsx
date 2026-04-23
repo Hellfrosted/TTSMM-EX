@@ -6,7 +6,7 @@ import type { AppState } from 'model';
 import api from 'renderer/Api';
 import MenuBar from './components/MenuBar';
 import { AppStateProvider, useAppState } from './state/app-state';
-import { appTheme } from './theme';
+import { appCssVariables, appTheme } from './theme';
 import { SettingsView } from './views/SettingsView';
 import { CollectionView } from './views/CollectionView';
 
@@ -136,12 +136,14 @@ export default function App() {
 	const navigate = useNavigate();
 
 	return (
-		<ConfigProvider theme={appTheme}>
-			<AntApp>
-				<AppStateProvider navigate={navigate}>
-					<AppShell />
-				</AppStateProvider>
-			</AntApp>
-		</ConfigProvider>
+		<div className="AppRoot" style={{ ...appCssVariables, width: '100%', height: '100%' }}>
+			<ConfigProvider theme={appTheme}>
+				<AntApp>
+					<AppStateProvider navigate={navigate}>
+						<AppShell />
+					</AppStateProvider>
+				</AntApp>
+			</ConfigProvider>
+		</div>
 	);
 }

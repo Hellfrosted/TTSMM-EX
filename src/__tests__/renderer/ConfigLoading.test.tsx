@@ -281,6 +281,50 @@ describe('ConfigLoading', () => {
 		});
 	});
 
+	it('starts reading saved collections in parallel during boot', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['zeta', 'alpha']);
+
+		let resolveZeta!: (value: { name: string; mods: never[] }) => void;
+		let resolveAlpha!: (value: { name: string; mods: never[] }) => void;
+		const zetaPromise = new Promise<{ name: string; mods: never[] }>((resolve) => {
+			resolveZeta = resolve;
+		});
+		const alphaPromise = new Promise<{ name: string; mods: never[] }>((resolve) => {
+			resolveAlpha = resolve;
+		});
+		vi.mocked(window.electron.readCollection).mockImplementation((collectionName: string) => {
+			return collectionName === 'zeta' ? zetaPromise : alphaPromise;
+		});
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.readCollection).toHaveBeenCalledTimes(2);
+		});
+
+		resolveZeta({ name: 'zeta', mods: [] });
+		resolveAlpha({ name: 'alpha', mods: [] });
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
+		});
+	});
+
 	it('halts boot when persisting a repaired active collection fails', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
