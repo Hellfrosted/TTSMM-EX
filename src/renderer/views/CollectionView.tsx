@@ -16,8 +16,6 @@ import {
 } from 'model';
 import api from 'renderer/Api';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
-import { MainCollectionView } from '../components/collections/MainCollectionComponent';
-import ModLoadingView from '../components/loading/ModLoading';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
 import { useGameRunning } from '../hooks/collections/useGameRunning';
@@ -32,6 +30,8 @@ const { Header, Footer } = Layout;
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
 const loadCollectionManagerModal = () => import('../components/collections/CollectionManagerModal');
+const loadMainCollectionView = () => import('../components/collections/MainCollectionComponent');
+const loadModLoadingView = () => import('../components/loading/ModLoading');
 
 const ModDetailsFooterLazy = lazy(async () => {
 	const module = await loadModDetailsFooter();
@@ -40,6 +40,16 @@ const ModDetailsFooterLazy = lazy(async () => {
 
 const CollectionManagerModalLazy = lazy(async () => {
 	const module = await loadCollectionManagerModal();
+	return { default: module.default };
+});
+
+const MainCollectionViewLazy = lazy(async () => {
+	const module = await loadMainCollectionView();
+	return { default: module.MainCollectionView };
+});
+
+const ModLoadingViewLazy = lazy(async () => {
+	const module = await loadModLoadingView();
 	return { default: module.default };
 });
 
@@ -537,6 +547,31 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			compact
 		/>
 	);
+	const collectionSurfaceFallback = (
+		<ViewStageLoadingFallback
+			title={appState.loadingMods ? 'Loading mod inventory' : 'Loading collection table'}
+			detail={
+				appState.loadingMods
+					? 'Refreshing installed mods, subscriptions, and validation data.'
+					: 'Preparing columns, sorting, and selection controls.'
+			}
+			compact
+		/>
+	);
+	const collectionSurface = appState.loadingMods ? (
+		<Suspense fallback={collectionSurfaceFallback}>
+			<ModLoadingViewLazy
+				appState={appState}
+				modLoadCompleteCallback={() => {
+					recalculateModData();
+				}}
+			/>
+		</Suspense>
+	) : !guidedFixActive ? (
+		<Suspense fallback={collectionSurfaceFallback}>
+			<MainCollectionViewLazy {...collectionComponentProps} />
+		</Suspense>
+	) : null;
 	const fullDetailsFooter = displayedCurrentRecord ? (
 		<Suspense fallback={detailsFallback}>
 			<ModDetailsFooterLazy
@@ -601,17 +636,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						<MeasuredArea onSizeChange={setContentSize}>
 							{() => {
 								let actualContent = null;
-								if (appState.loadingMods) {
-									actualContent = (
-										<ModLoadingView
-											appState={appState}
-											modLoadCompleteCallback={() => {
-												recalculateModData();
-											}}
-										/>
-									);
-								} else if (!guidedFixActive) {
-									const outlet = <MainCollectionView {...collectionComponentProps} />;
+								if (collectionSurface) {
+									const outlet = collectionSurface;
 
 									if (displayedCurrentRecord && currentView === CollectionViewType.MAIN && !bigDetails) {
 										if (showSideBySideDetails) {

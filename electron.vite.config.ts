@@ -38,18 +38,6 @@ function getRendererManualChunk(id: string) {
 		return 'vendor-data';
 	}
 
-	if (
-		matchesNodeModulePackage(id, 'antd') ||
-		matchesNodeModulePackage(id, '@ant-design/colors') ||
-		matchesNodeModulePackage(id, '@ant-design/cssinjs') ||
-		matchesNodeModulePackage(id, '@ant-design/fast-color') ||
-		matchesNodeModulePackage(id, '@ant-design/icons') ||
-		matchesNodeModulePackage(id, '@ant-design/icons-svg') ||
-		/[\\/]node_modules[\\/](rc-[^\\/]+|@rc-component[\\/][^\\/]+)(?:[\\/]|$)/.test(id)
-	) {
-		return 'vendor-ui';
-	}
-
 	return undefined;
 }
 

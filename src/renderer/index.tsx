@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter as Router, Navigate, Routes, Route } from 'react-router-dom';
 
@@ -5,9 +6,36 @@ import 'antd/dist/reset.css';
 import './App.global.less';
 
 import App from './App';
-import ConfigLoadingComponent from './components/loading/ConfigLoading';
 import LoadingView from './views/LoadingView';
-import SteamworksVerification from './components/loading/SteamworksVerification';
+
+const loadConfigLoading = () => import('./components/loading/ConfigLoading');
+const loadSteamworksVerification = () => import('./components/loading/SteamworksVerification');
+
+const ConfigLoadingComponentLazy = lazy(async () => {
+	const module = await loadConfigLoading();
+	return { default: module.default };
+});
+
+const SteamworksVerificationLazy = lazy(async () => {
+	const module = await loadSteamworksVerification();
+	return { default: module.default };
+});
+
+function RouteChunkFallback({ label }: { label: string }) {
+	return (
+		<div
+			aria-live="polite"
+			role="status"
+			style={{
+				padding: '24px 28px',
+				fontSize: 14,
+				color: 'var(--app-color-text-base, rgba(255, 255, 255, 0.88))'
+			}}
+		>
+			{label}
+		</div>
+	);
+}
 
 const rootElement = document.getElementById('root');
 
@@ -33,8 +61,22 @@ createRoot(rootElement).render(
 				<Route path="settings" />
 				{/* Paths that indicate the application is processing request to load something from disk */}
 				<Route path="loading" element={<LoadingView />}>
-					<Route path="config" element={<ConfigLoadingComponent />} />
-					<Route path="steamworks" element={<SteamworksVerification />} />
+					<Route
+						path="config"
+						element={
+							<Suspense fallback={<RouteChunkFallback label="Loading startup checks..." />}>
+								<ConfigLoadingComponentLazy />
+							</Suspense>
+						}
+					/>
+					<Route
+						path="steamworks"
+						element={
+							<Suspense fallback={<RouteChunkFallback label="Loading Steamworks verification..." />}>
+								<SteamworksVerificationLazy />
+							</Suspense>
+						}
+					/>
 				</Route>
 				{/* The actual collection management components */}
 				<Route path="collections">
