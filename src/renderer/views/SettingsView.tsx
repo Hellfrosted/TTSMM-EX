@@ -5,6 +5,7 @@ import { useOutletContext } from 'react-router-dom';
 import { CloseOutlined, EditFilled, FolderOutlined, PlusOutlined } from '@ant-design/icons';
 import { createEditingConfig, useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
+import { APP_TAG_STYLES } from 'renderer/theme';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Content } = Layout;
@@ -14,6 +15,31 @@ const { Paragraph, Title } = Typography;
 interface SettingsViewProps {
 	appState: AppState;
 }
+
+const SETTINGS_COMPACT_CONTROL_STYLE = { width: '100%', maxWidth: 168 };
+const SETTINGS_WORKSHOP_ID_STYLE = { width: '100%', maxWidth: 192 };
+const SETTINGS_LOGGER_ROW_STYLE = { display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' } as const;
+const SETTINGS_LOGGER_GROUP_STYLE = { flex: '1 1 220px', minWidth: 0 } as const;
+const SETTINGS_LOGGER_ID_INPUT_STYLE = { flex: '1 1 auto', minWidth: 0 } as const;
+
+const APP_LOG_LEVEL_TAG_STYLE = {
+	[LogLevel.ERROR]: APP_TAG_STYLES.danger,
+	[LogLevel.WARN]: APP_TAG_STYLES.warning,
+	[LogLevel.INFO]: APP_TAG_STYLES.info,
+	[LogLevel.VERBOSE]: APP_TAG_STYLES.accent,
+	[LogLevel.DEBUG]: APP_TAG_STYLES.neutral,
+	[LogLevel.SILLY]: APP_TAG_STYLES.neutral
+} as const;
+
+const NLOG_LEVEL_TAG_STYLE = {
+	[NLogLevel.OFF]: APP_TAG_STYLES.neutral,
+	[NLogLevel.FATAL]: APP_TAG_STYLES.danger,
+	[NLogLevel.ERROR]: APP_TAG_STYLES.danger,
+	[NLogLevel.WARN]: APP_TAG_STYLES.warning,
+	[NLogLevel.INFO]: APP_TAG_STYLES.info,
+	[NLogLevel.DEBUG]: APP_TAG_STYLES.accent,
+	[NLogLevel.TRACE]: APP_TAG_STYLES.neutral
+} as const;
 
 function SettingsViewComponent({ appState }: SettingsViewProps) {
 	const [form] = Form.useForm();
@@ -133,9 +159,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					message: 'Settings saved',
 					description: result.reloadRequired
 						? 'Mod data will refresh using the updated paths and manager settings.'
-						: result.descriptorsRebuilt
-							? 'Dependency descriptors were rebuilt using the updated settings.'
-							: 'Your changes are available now.',
+						: 'Your changes are available now.',
 					placement: 'bottomLeft',
 					duration: 2
 				},
@@ -162,8 +186,18 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					key="logger-name-modal"
 					title="Edit Logger ID"
 					open
-					closable={false}
+					onCancel={() => {
+						closeModal({ restoreSnapshot: true });
+					}}
 					footer={[
+						<Button
+							key="cancel-settings"
+							onClick={() => {
+								closeModal({ restoreSnapshot: true });
+							}}
+						>
+							Cancel
+						</Button>,
 						<Button
 							key="save-settings"
 							type="primary"
@@ -196,7 +230,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					key="workshop-id-modal"
 					title="Select Mod Manager Workshop Item"
 					open
-					closable={false}
+					onCancel={() => {
+						closeModal({ restoreSnapshot: true });
+					}}
 					footer={[
 						<Button
 							type="primary"
@@ -207,6 +243,14 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							}}
 						>
 							Keep Current Manager
+						</Button>,
+						<Button
+							key="cancel-edit"
+							onClick={() => {
+								closeModal({ restoreSnapshot: true });
+							}}
+						>
+							Cancel
 						</Button>,
 						<Button
 							key="save-settings"
@@ -226,7 +270,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								onChange={(value) => {
 									setField(AppConfigKeys.MANAGER_ID, BigInt(value || 0));
 								}}
-								style={{ width: '200px' }}
+								style={{ width: '100%' }}
 							/>
 						</Form.Item>
 					</Form>
@@ -401,26 +445,6 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								/>
 							</Form.Item>
 							<Form.Item
-								name="treatNuterraSteamBetaAsEquivalent"
-								label="Treat Nuterra Variants as Equivalent"
-								tooltip={{
-									styles: { container: { minWidth: 320 } },
-									title: (
-										<div>
-											<p>Treat NuterraSteam and NuterraSteam (Beta) as the same dependency during validation.</p>
-											<p>Turn this off only if you need strict legacy ID matching.</p>
-										</div>
-									)
-								}}
-							>
-								<Switch
-									checked={editingConfig.treatNuterraSteamBetaAsEquivalent !== false}
-									onChange={(checked) => {
-										setField('treatNuterraSteamBetaAsEquivalent', checked);
-									}}
-								/>
-							</Form.Item>
-							<Form.Item
 								name="logLevel"
 								label="App Logging Level"
 								tooltip={{
@@ -440,25 +464,25 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									onChange={(value) => {
 										setField('logLevel', value);
 									}}
-									style={{ width: 125 }}
+									style={SETTINGS_COMPACT_CONTROL_STYLE}
 								>
 									<Select.Option value={LogLevel.ERROR}>
-										<Tag color="green">ERROR</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.ERROR]}>ERROR</Tag>
 									</Select.Option>
 									<Select.Option value={LogLevel.WARN}>
-										<Tag color="lime">WARN</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.WARN]}>WARN</Tag>
 									</Select.Option>
 									<Select.Option value={LogLevel.INFO}>
-										<Tag color="blue">INFO</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.INFO]}>INFO</Tag>
 									</Select.Option>
 									<Select.Option value={LogLevel.VERBOSE}>
-										<Tag color="yellow">VERBOSE</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.VERBOSE]}>VERBOSE</Tag>
 									</Select.Option>
 									<Select.Option value={LogLevel.DEBUG}>
-										<Tag color="orange">DEBUG</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.DEBUG]}>DEBUG</Tag>
 									</Select.Option>
 									<Select.Option value={LogLevel.SILLY}>
-										<Tag color="red">SILLY</Tag>
+										<Tag style={APP_LOG_LEVEL_TAG_STYLE[LogLevel.SILLY]}>SILLY</Tag>
 									</Select.Option>
 								</Select>
 							</Form.Item>
@@ -476,7 +500,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								<Space.Compact style={{ width: '100%' }}>
-									<InputNumber value={editingConfig.workshopID.toString()} disabled style={{ width: 175 }} />
+									<InputNumber value={editingConfig.workshopID.toString()} disabled style={SETTINGS_WORKSHOP_ID_STYLE} />
 									<Button
 										aria-label="Edit the mod manager workshop item ID"
 										icon={<EditFilled />}
@@ -515,38 +539,38 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 										]}
 										style={{ width: '100%' }}
 									>
-										<Space style={{ width: '100%' }}>
+										<div style={SETTINGS_LOGGER_ROW_STYLE}>
 											<Select
 												value={config.level}
 												onChange={(value) => {
 													updateLogConfig(index, { level: value as NLogLevel });
 												}}
-												style={{ width: 125 }}
+												style={SETTINGS_COMPACT_CONTROL_STYLE}
 											>
 												<Select.Option value={NLogLevel.OFF}>
-													<Tag>OFF</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.OFF]}>OFF</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.FATAL}>
-													<Tag color="green">FATAL</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.FATAL]}>FATAL</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.ERROR}>
-													<Tag color="lime">ERROR</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.ERROR]}>ERROR</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.WARN}>
-													<Tag color="cyan">WARN</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.WARN]}>WARN</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.INFO}>
-													<Tag color="blue">INFO</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.INFO]}>INFO</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.DEBUG}>
-													<Tag color="orange">DEBUG</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.DEBUG]}>DEBUG</Tag>
 												</Select.Option>
 												<Select.Option value={NLogLevel.TRACE}>
-													<Tag color="red">TRACE</Tag>
+													<Tag style={NLOG_LEVEL_TAG_STYLE[NLogLevel.TRACE]}>TRACE</Tag>
 												</Select.Option>
 											</Select>
-											<Space.Compact style={{ width: '100%' }}>
-												<Input style={{ width: 'calc(100% - 50px)' }} value={config.loggerID} disabled />
+											<Space.Compact style={SETTINGS_LOGGER_GROUP_STYLE}>
+												<Input style={SETTINGS_LOGGER_ID_INPUT_STYLE} value={config.loggerID} disabled />
 												<Button
 													aria-label={`Edit logger override ${index + 1}`}
 													icon={<EditFilled />}
@@ -565,7 +589,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													removeLogConfig(index);
 												}}
 											/>
-										</Space>
+										</div>
 									</Form.Item>
 								);
 							})}

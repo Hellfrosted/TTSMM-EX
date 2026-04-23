@@ -3,14 +3,14 @@ import type { ThemeConfig } from 'antd';
 import { theme as antdTheme } from 'antd';
 
 export const APP_DISPLAY_FONT_FAMILY =
-	`'Bahnschrift SemiCondensed', 'Aptos Narrow', 'Segoe UI Variable Display', 'Ubuntu Condensed', 'Segoe UI', sans-serif`;
-export const APP_FONT_FAMILY = `'Segoe UI', 'Ubuntu', 'Noto Sans', Tahoma, sans-serif`;
+	`'Bahnschrift SemiCondensed', 'Aptos Display', 'Segoe UI Variable Display', 'Trebuchet MS', sans-serif`;
+export const APP_FONT_FAMILY = `'Aptos', 'Segoe UI Variable Text', 'Noto Sans', 'Segoe UI', sans-serif`;
 export const APP_CONTROL_HEIGHT = 44;
 
 export const APP_THEME_COLORS = {
-	primary: '#b65b47',
-	primaryHover: '#c9735d',
-	primaryActive: '#9c4d3c',
+	primary: '#a05442',
+	primaryHover: '#96503f',
+	primaryActive: '#854435',
 	success: '#6d9c6c',
 	warning: '#c08a4f',
 	error: '#b86159',
@@ -36,6 +36,29 @@ export const APP_THEME_COLORS = {
 	fieldHover: '#965141',
 	collapseBody: '#15191d',
 	tagDefaultText: '#e8e1d7'
+} as const;
+
+export type AppTagTone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+
+function createTagStyle(baseColor: string): CSSProperties {
+	return {
+		color: `color-mix(in srgb, ${baseColor} 70%, white)`,
+		background: `color-mix(in srgb, ${baseColor} 16%, transparent)`,
+		borderColor: `color-mix(in srgb, ${baseColor} 30%, transparent)`
+	};
+}
+
+export const APP_TAG_STYLES: Record<AppTagTone, CSSProperties> = {
+	accent: createTagStyle(APP_THEME_COLORS.primary),
+	info: createTagStyle(APP_THEME_COLORS.info),
+	success: createTagStyle(APP_THEME_COLORS.success),
+	warning: createTagStyle(APP_THEME_COLORS.warning),
+	danger: createTagStyle(APP_THEME_COLORS.error),
+	neutral: {
+		color: APP_THEME_COLORS.tagDefaultText,
+		background: APP_THEME_COLORS.surfaceElevated,
+		borderColor: APP_THEME_COLORS.border
+	}
 } as const;
 
 export const appCssVariables = {

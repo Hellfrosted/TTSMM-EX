@@ -8,9 +8,9 @@
 @surface-color-alt: var(--app-color-surface-alt);
 @surface-color-elevated: var(--app-color-surface-elevated);
 @border-color: var(--app-color-border);
-@shadow-color: rgba(255, 255, 255, 0.06);
-@background-color-light: color-mix(in srgb, var(--app-color-background) 82%, white);
-@disabled-color: rgba(255, 255, 255, 0.26);
+@shadow-color: color-mix(in srgb, var(--app-color-text-base) 6%, transparent);
+@background-color-light: color-mix(in srgb, var(--app-color-background) 82%, var(--app-color-text-base));
+@disabled-color: color-mix(in srgb, var(--app-color-text-base) 26%, transparent);
 @accent-color: var(--app-color-primary);
 @accent-color-hover: var(--app-color-primary-hover);
 @accent-color-active: var(--app-color-primary-active);
@@ -19,6 +19,13 @@
 @error-color: var(--app-color-error);
 @focus-ring-color: color-mix(in srgb, var(--app-color-primary-hover) 34%, transparent);
 @workshop-accent-color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+@surface-interaction-subtle: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+@surface-outline-strong: color-mix(in srgb, var(--app-color-text-base) 14%, transparent);
+@panel-shadow-color: color-mix(in srgb, var(--app-color-background) 72%, transparent);
+@callout-error-bg: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+@callout-error-border: color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
+@callout-warning-bg: color-mix(in srgb, var(--app-color-warning) 16%, var(--app-color-surface-alt));
+@callout-warning-border: color-mix(in srgb, var(--app-color-warning) 38%, var(--app-color-border));
 @tag-blue-text: color-mix(in srgb, var(--app-color-primary) 62%, white);
 @tag-blue-bg: color-mix(in srgb, var(--app-color-primary) 16%, transparent);
 @tag-blue-border: color-mix(in srgb, var(--app-color-primary) 30%, transparent);
@@ -150,7 +157,7 @@ body {
 }
 
 .CollectionNameButton:hover {
-	background-color: rgba(255, 255, 255, 0.04);
+	background-color: @surface-interaction-subtle;
 }
 
 .CollectionNameButton:focus-visible {
@@ -191,7 +198,7 @@ body {
 	bottom: 18%;
 	left: 50%;
 	width: 2px;
-	background: rgba(242, 237, 230, 0.18);
+	background: @surface-outline-strong;
 	transform: translateX(-50%);
 	transition: background-color 120ms ease;
 }
@@ -372,7 +379,7 @@ a:hover {
 	background: @surface-color;
 	border: 1px solid @border-color;
 	border-radius: 16px;
-	box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+	box-shadow: 0 16px 36px @panel-shadow-color;
 }
 
 .StartupCard--wide {
@@ -415,10 +422,96 @@ a:hover {
 	flex-wrap: wrap;
 	gap: 12px;
 	align-items: flex-start;
+	width: 100%;
 }
 
 .StartupActions.ant-row {
 	margin-top: 16px !important;
+}
+
+.StatusCallout {
+	width: 100%;
+	padding: 12px 14px;
+	background: @surface-color-alt;
+	border: 1px solid @border-color;
+	border-radius: 10px;
+	box-sizing: border-box;
+}
+
+.StatusCallout--error {
+	background: @callout-error-bg;
+	border-color: @callout-error-border;
+}
+
+.StatusCallout--warning {
+	background: @callout-warning-bg;
+	border-color: @callout-warning-border;
+}
+
+.StatusCallout__title {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.StatusCallout__body {
+	display: block;
+	color: @text-color-dark;
+	line-height: 1.45;
+	word-break: break-word;
+}
+
+.ViewStageLoadingFallback {
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	box-sizing: border-box;
+	overflow: auto;
+}
+
+.ViewStageLoadingFallback--compact {
+	padding: 12px;
+}
+
+.ViewStageLoadingFallback__card {
+	width: min(520px, 100%);
+	padding: 18px 20px;
+	background: @surface-color;
+	border: 1px solid @border-color;
+	border-radius: 12px;
+	box-shadow: 0 12px 28px @panel-shadow-color;
+}
+
+.ViewStageLoadingFallback__card--compact {
+	width: 100%;
+	padding: 14px 16px;
+	background: @surface-color-alt;
+	box-shadow: none;
+}
+
+.ViewStageLoadingFallback__body {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+}
+
+.ViewStageLoadingFallback__copy {
+	min-width: 0;
+}
+
+.ViewStageLoadingFallback__title {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.ViewStageLoadingFallback__detail {
+	margin: 0 !important;
+	color: @text-color-muted;
 }
 
 .StartupHeroArtwork {
@@ -440,27 +533,6 @@ a:hover {
 ::-webkit-scrollbar-thumb {
   background-color: @disabled-color;    /* color of the scroll thumb */
   border-radius: 6px;       /* roundness of the scroll thumb */
-}
-
-.image {
-  opacity: 1;
-  display: block;
-  width: 100%;
-  height: auto;
-  transition: .5s ease;
-  backface-visibility: hidden;
-}
-
-.container {
-  position: relative;
-}
-
-.container:hover .image {
-  opacity: 0.3;
-}
-
-.container:hover .middle {
-  opacity: 1;
 }
 
 .CollectionViewLayout {
@@ -756,7 +828,7 @@ a:hover {
 	pre {
 		margin: 12px 0;
 		padding: 12px 16px;
-		background: rgba(255, 255, 255, 0.04);
+		background: @surface-interaction-subtle;
 		border: 1px solid color-mix(in srgb, @workshop-accent-color 32%, transparent);
 		border-radius: 6px;
 	}
@@ -785,7 +857,7 @@ a:hover {
 
 	hr {
 		border: none;
-		border-top: 1px solid rgba(255, 255, 255, 0.12);
+		border-top: 1px solid @surface-outline-strong;
 		margin: 16px 0;
 	}
 }
@@ -909,16 +981,15 @@ a:hover {
 
 .CollectionSettingsColumnsHeader {
 	display: grid;
-	grid-template-columns: repeat(2, 336px);
+	grid-template-columns: repeat(2, minmax(280px, 1fr));
 	gap: 20px;
-	width: max-content;
-	max-width: 100%;
+	width: 100%;
 	padding: 0 0 2px;
 }
 
 .CollectionSettingsColumnsHeaderGroup {
 	display: grid;
-	grid-template-columns: 132px 52px 136px;
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
 	align-items: center;
 	gap: 8px;
 }
@@ -936,15 +1007,14 @@ a:hover {
 
 .CollectionSettingsColumnsList {
 	display: grid;
-	grid-template-columns: repeat(2, 336px);
+	grid-template-columns: repeat(2, minmax(280px, 1fr));
 	gap: 8px 20px;
-	width: max-content;
-	max-width: 100%;
+	width: 100%;
 }
 
 .CollectionSettingsColumnRow {
 	display: grid;
-	grid-template-columns: 132px 52px 136px;
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
 	align-items: center;
 	gap: 8px;
 	padding: 4px 0;
@@ -970,11 +1040,13 @@ a:hover {
 	display: flex;
 	justify-content: flex-start;
 	width: 52px;
+	min-height: 44px;
+	align-items: center;
 }
 
 .CollectionSettingsColumnWidth {
-	width: 136px;
-	max-width: 136px;
+	width: 100%;
+	max-width: none;
 }
 
 .ModOverridesPane {
@@ -1018,9 +1090,11 @@ a:hover {
 .ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .CollectionNameButton {
 	font-size: 13.5px !important;
 	line-height: 1.28;
-	padding-top: 1px !important;
-	padding-bottom: 1px !important;
+	min-height: 30px;
+	padding-top: 4px !important;
+	padding-bottom: 4px !important;
 	padding-left: 6px !important;
+	padding-right: 4px !important;
 }
 
 .ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .ant-tag {
@@ -1059,10 +1133,52 @@ a:hover {
 	.CollectionContentStage,
 	.CollectionSplitDetailsPane,
 	.ModDetailFooterTabs .ant-tabs-tabpane-active,
-	.CollectionNameButton,
-	.image {
+	.CollectionNameButton {
 		animation: none !important;
 		transition: none !important;
+	}
+}
+
+@media (pointer: coarse) {
+	.CollectionSettingsModal .ant-switch {
+		min-width: 52px;
+		height: 28px;
+	}
+
+	.CollectionSettingsModal .ant-switch .ant-switch-handle {
+		width: 22px;
+		height: 22px;
+	}
+
+	.CollectionSettingsModal .ant-input-number,
+	.CollectionSettingsModal .ant-btn {
+		min-height: 44px;
+	}
+
+	.CollectionSettingsModal .ant-input-number-input {
+		height: 42px;
+	}
+
+	.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow > td.ant-table-cell {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow > td.ant-table-cell.CollectionRowModName {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .CollectionNameButton {
+		min-height: 44px;
+		padding-top: 10px !important;
+		padding-bottom: 10px !important;
+	}
+
+	.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .ant-tag {
+		display: inline-flex;
+		align-items: center;
+		min-height: 24px;
 	}
 }
 
@@ -1117,12 +1233,12 @@ a:hover {
 	}
 
 	.CollectionSettingsColumnsList {
-		grid-template-columns: max-content;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 6px;
 	}
 
 	.CollectionSettingsColumnsHeader {
-		grid-template-columns: max-content;
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.CollectionSettingsColumnsHeaderGroup:last-child {

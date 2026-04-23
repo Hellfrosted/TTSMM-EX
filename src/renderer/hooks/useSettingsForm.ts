@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType, cloneSessionMods, setupDescriptors } from 'model';
+import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
 import { writeConfig } from 'renderer/util/config-write';
 
@@ -12,11 +12,19 @@ export interface EditingConfig extends AppConfig {
 	editingLogConfig: LogConfig[];
 }
 
+function cloneEditingConfig(config: EditingConfig): EditingConfig {
+	return {
+		...config,
+		editingLogConfig: config.editingLogConfig.map((logConfig) => ({
+			...logConfig
+		}))
+	};
+}
+
 export type SaveSettingsResult =
 	| {
 			ok: true;
 			reloadRequired: boolean;
-			descriptorsRebuilt: boolean;
 	  }
 	| {
 			ok: false;
@@ -51,12 +59,14 @@ export function useSettingsForm(appState: AppState) {
 	const [selectingDirectory, setSelectingDirectory] = useState(false);
 	const [modalType, setModalType] = useState(SettingsViewModalType.NONE);
 	const [editingContextIndex, setEditingContextIndex] = useState<number>();
+	const [modalSnapshot, setModalSnapshot] = useState<EditingConfig>();
 
 	useEffect(() => {
 		setEditingConfig(createEditingConfig(appState.config));
 		setSelectingDirectory(false);
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
+		setModalSnapshot(undefined);
 	}, [appState.config]);
 
 	const markConfigEdited = useCallback(() => {
@@ -155,8 +165,6 @@ export function useSettingsForm(appState: AppState) {
 		}
 
 		const shouldReloadMods = appState.config.localDir !== configToSave.localDir || appState.config.workshopID !== configToSave.workshopID;
-		const shouldRebuildDescriptors =
-			appState.config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
 		const nextLogLevel = configToSave.logLevel;
 		const shouldUpdateLogLevel = appState.config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 
@@ -170,7 +178,6 @@ export function useSettingsForm(appState: AppState) {
 				config: AppConfig;
 				madeConfigEdits: boolean;
 				configErrors: {};
-				mods?: AppState['mods'];
 				firstModLoad?: boolean;
 			} = {
 				config: { ...configToSave },
@@ -180,18 +187,12 @@ export function useSettingsForm(appState: AppState) {
 			if (shouldReloadMods) {
 				nextState.firstModLoad = false;
 			}
-			if (shouldRebuildDescriptors && !shouldReloadMods) {
-				const nextMods = cloneSessionMods(appState.mods);
-				setupDescriptors(nextMods, configToSave.userOverrides, configToSave);
-				nextState.mods = nextMods;
-			}
 			appState.updateState({
 				...nextState
 			});
 			return {
 				ok: true,
-				reloadRequired: shouldReloadMods,
-				descriptorsRebuilt: shouldRebuildDescriptors && !shouldReloadMods
+				reloadRequired: shouldReloadMods
 			};
 		} catch (error) {
 			api.logger.error(error);
@@ -208,8 +209,18 @@ export function useSettingsForm(appState: AppState) {
 		setEditingConfig(createEditingConfig(appState.config));
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
+		setModalSnapshot(undefined);
 		appState.updateState({ madeConfigEdits: false });
 	}, [appState]);
+
+	const closeModal = useCallback((options?: { restoreSnapshot?: boolean }) => {
+		if (options?.restoreSnapshot && modalSnapshot) {
+			setEditingConfig(cloneEditingConfig(modalSnapshot));
+		}
+		setModalType(SettingsViewModalType.NONE);
+		setEditingContextIndex(undefined);
+		setModalSnapshot(undefined);
+	}, [modalSnapshot]);
 
 	return {
 		editingConfig,
@@ -225,16 +236,15 @@ export function useSettingsForm(appState: AppState) {
 		saveChanges,
 		cancelChanges,
 		openLogEditModal: (index: number) => {
+			setModalSnapshot(cloneEditingConfig(editingConfig));
 			setModalType(SettingsViewModalType.LOG_EDIT);
 			setEditingContextIndex(index);
 		},
 		openWorkshopIdModal: () => {
+			setModalSnapshot(cloneEditingConfig(editingConfig));
 			setModalType(SettingsViewModalType.WORKSHOP_ID_EDIT);
 			setEditingContextIndex(undefined);
 		},
-		closeModal: () => {
-			setModalType(SettingsViewModalType.NONE);
-			setEditingContextIndex(undefined);
-		}
+		closeModal
 	};
 }
