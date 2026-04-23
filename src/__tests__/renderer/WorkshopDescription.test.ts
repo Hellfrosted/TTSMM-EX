@@ -29,10 +29,17 @@ describe('convertWorkshopDescriptionToHtml', () => {
 		expect(html).not.toContain('<script>');
 	});
 
-	it('exposes workshop images to assistive technologies with a fallback description', () => {
-		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/preview.png[/img]');
+	it('treats workshop description images as decorative when no caption exists', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/22f30ba3c6.png[/img]');
 
-		expect(html).toContain('alt="Workshop description image"');
+		expect(html).toContain('alt=""');
+		expect(html).toContain('decoding="async"');
+	});
+
+	it('derives alt text only from specific descriptive image filenames', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/mod-dependency-graph.png[/img]');
+
+		expect(html).toContain('alt="mod dependency graph"');
 		expect(html).toContain('decoding="async"');
 	});
 });

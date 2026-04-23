@@ -59,6 +59,7 @@ import { formatDateStr } from 'util/Date';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
+import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 
 import missing from '../../../../assets/missing.png';
 import steam from '../../../../assets/steam.png';
@@ -186,14 +187,14 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 		if (record.needsUpdate) {
 			updateIcon = (
 				<Tooltip title="Needs update">
-					<WarningTwoTone twoToneColor="red" />
+					<WarningTwoTone twoToneColor={APP_THEME_COLORS.error} />
 				</Tooltip>
 			);
 			updateType = 'danger';
 			if (record.downloadPending) {
 				updateIcon = (
 					<Tooltip title="Download pending">
-						<ClockCircleTwoTone twoToneColor="orange" />
+						<ClockCircleTwoTone twoToneColor={APP_THEME_COLORS.warning} />
 					</Tooltip>
 				);
 				updateType = 'warning';
@@ -201,7 +202,7 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 			if (record.downloading) {
 				updateIcon = (
 					<Tooltip title="Downloading">
-						<StopTwoTone spin twoToneColor="orange" />
+						<StopTwoTone spin twoToneColor={APP_THEME_COLORS.warning} />
 					</Tooltip>
 				);
 				updateType = 'warning';
@@ -272,7 +273,7 @@ const ID_SCHEMA: ColumnType<DisplayModData> = {
 			return null;
 		}
 		if (record.workshopID === undefined && record.overrides?.id) {
-			return <Tag color="gray">{displayID}</Tag>;
+			return <Tag style={APP_TAG_STYLES.neutral}>{displayID}</Tag>;
 		}
 		return displayID;
 	}
@@ -351,12 +352,12 @@ function ModDetailsFooter({
 				return;
 			}
 
+			const message = 'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
 			requestedDependencyLookupUidRef.current = currentRecordUid;
 			setLoadingDependencies(true);
 			try {
 				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
 				if (!loaded) {
-					const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
 					api.logger.warn(message);
 					if (!cancelled) {
 						setDependencyLookupError(message);
@@ -367,7 +368,6 @@ function ModDetailsFooter({
 					setDependencyLookupError(undefined);
 				}
 			} catch (error) {
-				const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
 				api.logger.error(message);
 				api.logger.error(error);
 				if (!cancelled) {
@@ -485,43 +485,43 @@ function ModDetailsFooter({
 					const children = record.children?.map((data) => data.uid) || [];
 					const selectedChildren = children.filter((uid) => selectedMods.includes(uid));
 					if (selectedChildren.length > 1) {
-						return <Tag color="red">Conflicts</Tag>;
+						return <Tag style={APP_TAG_STYLES.danger}>Conflicts</Tag>;
 					}
 				}
 
 				if (!selectedMods.includes(record.uid)) {
 					if (!record.subscribed && record.workshopID && record.workshopID > 0) {
-						return <Tag key="notSubscribed">Not subscribed</Tag>;
+						return <Tag key="notSubscribed" style={APP_TAG_STYLES.warning}>Not subscribed</Tag>;
 					}
 					if (record.subscribed && !record.installed) {
-						return <Tag key="notInstalled">Not installed</Tag>;
+						return <Tag key="notInstalled" style={APP_TAG_STYLES.warning}>Not installed</Tag>;
 					}
 					return null;
 				}
 
-				const errorTags: { text: string; color: string }[] = [];
+				const errorTags: { text: string; tone: keyof typeof APP_TAG_STYLES }[] = [];
 				if (errors) {
 					if (errors.incompatibleMods?.length) {
-						errorTags.push({ text: 'Conflicts', color: 'red' });
+						errorTags.push({ text: 'Conflicts', tone: 'danger' });
 					}
 					if (errors.invalidId) {
-						errorTags.push({ text: 'Invalid ID', color: 'volcano' });
+						errorTags.push({ text: 'Invalid ID', tone: 'danger' });
 					}
 					if (errors.missingDependencies?.length) {
-						errorTags.push({ text: 'Missing dependencies', color: 'orange' });
+						errorTags.push({ text: 'Missing dependencies', tone: 'warning' });
 					}
 					if (errors.notSubscribed) {
-						errorTags.push({ text: 'Not subscribed', color: 'yellow' });
+						errorTags.push({ text: 'Not subscribed', tone: 'warning' });
 					} else if (errors.notInstalled) {
-						errorTags.push({ text: 'Not installed', color: 'yellow' });
+						errorTags.push({ text: 'Not installed', tone: 'warning' });
 					} else if (errors.needsUpdate) {
-						errorTags.push({ text: 'Needs update', color: 'yellow' });
+						errorTags.push({ text: 'Needs update', tone: 'warning' });
 					}
 				}
 
 				if (errorTags.length > 0) {
 					return errorTags.map((tagConfig) => (
-						<Tag key={tagConfig.text} color={tagConfig.color}>
+						<Tag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone]}>
 							{tagConfig.text}
 						</Tag>
 					));
@@ -529,13 +529,13 @@ function ModDetailsFooter({
 
 				if (lastValidationStatus !== undefined) {
 					return (
-						<Tag key="OK" color="green">
+						<Tag key="OK" style={APP_TAG_STYLES.success}>
 							OK
 						</Tag>
 					);
 				}
 
-				return <Tag key="Pending">Pending</Tag>;
+				return <Tag key="Pending" style={APP_TAG_STYLES.neutral}>Pending</Tag>;
 			}
 		};
 
@@ -658,7 +658,7 @@ function ModDetailsFooter({
 		const steamTags = currentRecord.tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || [];
 		const userTags =
 			currentRecord.overrides?.tags?.map((tag) => (
-				<Tag key={tag} color="blue">
+				<Tag key={tag} style={APP_TAG_STYLES.accent}>
 					{tag}
 				</Tag>
 			)) || [];
@@ -796,14 +796,19 @@ function ModDetailsFooter({
 			>
 				{dependencyLookupError ? (
 					<Space orientation="vertical" size={8} style={{ width: '100%', marginBottom: 12 }}>
-						<Text type="warning">{dependencyLookupError}</Text>
+						<div className="StatusCallout StatusCallout--warning">
+							<Text strong className="StatusCallout__title">
+								Workshop dependency refresh failed
+							</Text>
+							<Text className="StatusCallout__body">{dependencyLookupError}</Text>
+						</div>
 						<Button
 							size="small"
 							onClick={() => {
 								setDependencyLookupError(undefined);
 							}}
 						>
-							Retry Dependency Lookup
+							Retry Workshop Dependency Lookup
 						</Button>
 					</Space>
 				) : null}

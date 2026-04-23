@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import App, { AppViewStage } from '../renderer/App';
+import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
 import { useAppState } from '../renderer/state/app-state';
 
 function AppFlowProbe() {
@@ -26,6 +27,16 @@ describe('App', () => {
 		expect(stage).toHaveAttribute('aria-hidden', 'true');
 		expect(stage).toHaveAttribute('data-active', 'false');
 		expect(stage).toHaveAttribute('inert');
+	});
+
+	it('renders an accessible view-stage loading fallback', () => {
+		render(<ViewStageLoadingFallback title="Loading settings" detail="Preparing controls." />);
+
+		const status = screen.getByRole('status');
+		expect(status).toHaveAttribute('aria-live', 'polite');
+		expect(status).toHaveAttribute('aria-busy', 'true');
+		expect(screen.getByText('Loading settings')).toBeInTheDocument();
+		expect(screen.getByText('Preparing controls.')).toBeInTheDocument();
 	});
 
 	it('should render', async () => {

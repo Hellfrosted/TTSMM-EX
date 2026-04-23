@@ -15,6 +15,33 @@ const readDependencies = (relativePath: string) => {
 	return Object.keys(packageJson.dependencies ?? {});
 };
 
+const matchesNodeModulePackage = (id: string, packageName: string) =>
+	new RegExp(`[\\\\/]node_modules[\\\\/]${packageName.replaceAll('/', '[\\\\/]')}(?:[\\\\/]|$)`).test(id);
+
+const REACT_PACKAGE_PATTERN = /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)(?:[\\/]|$)/;
+const REMIX_ROUTER_PATTERN = /[\\/]node_modules[\\/]@remix-run[\\/]router(?:[\\/]|$)/;
+
+function getRendererManualChunk(id: string) {
+	if (!id.includes('node_modules')) {
+		return undefined;
+	}
+
+	if (REACT_PACKAGE_PATTERN.test(id) || REMIX_ROUTER_PATTERN.test(id)) {
+		return 'vendor-react';
+	}
+
+	if (
+		matchesNodeModulePackage(id, 'axios') ||
+		matchesNodeModulePackage(id, 'async-mutex') ||
+		matchesNodeModulePackage(id, 'dateformat') ||
+		matchesNodeModulePackage(id, 'node-html-parser')
+	) {
+		return 'vendor-data';
+	}
+
+	return undefined;
+}
+
 const releaseAppDependencies = new Set(readDependencies('release/app/package.json'));
 const bundledRootDependencies = readDependencies('package.json').filter((dependency) => !releaseAppDependencies.has(dependency));
 const rendererPort = Number.parseInt(process.env.PORT || '1212', 10);
@@ -34,7 +61,7 @@ export default defineConfig({
 		},
 		build: {
 			outDir: 'release/app/dist/main',
-			emptyOutDir: false,
+			emptyOutDir: true,
 			rollupOptions: {
 				input: {
 					main: resolvePath('src/main/main.ts')
@@ -52,7 +79,7 @@ export default defineConfig({
 		},
 		build: {
 			outDir: 'release/app/dist/preload',
-			emptyOutDir: false,
+			emptyOutDir: true,
 			rollupOptions: {
 				input: {
 					preload: resolvePath('src/main/preload.ts')
@@ -82,9 +109,12 @@ export default defineConfig({
 		},
 		build: {
 			outDir: resolvePath('release/app/dist/renderer'),
-			emptyOutDir: false,
+			emptyOutDir: true,
 			rollupOptions: {
-				input: resolvePath('src/renderer/index.html')
+				input: resolvePath('src/renderer/index.html'),
+				output: {
+					manualChunks: getRendererManualChunk
+				}
 			}
 		}
 	}

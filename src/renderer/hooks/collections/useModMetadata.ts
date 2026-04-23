@@ -12,7 +12,7 @@ export function useModMetadata(appState: AppState, onMetadataUpdate: () => void)
 		}
 
 		Object.assign(modData, update);
-		setupDescriptors(nextMods, appState.config.userOverrides, appState.config);
+		setupDescriptors(nextMods, appState.config.userOverrides);
 		appState.updateState({ mods: nextMods });
 		queueMicrotask(() => {
 			onMetadataUpdate();

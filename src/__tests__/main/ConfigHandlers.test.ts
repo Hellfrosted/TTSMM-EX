@@ -19,6 +19,32 @@ describe('config handlers', () => {
 		expect(() => readConfigFile(configPath, true)).toThrow(`Failed to load config file "${configPath}"`);
 	});
 
+	it('drops the removed Nuterra legacy matching flag at the config boundary', () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				closeOnLaunch: false,
+				language: 'en',
+				gameExec: 'TerraTech.exe',
+				workshopID: '1',
+				logsDir: tempDir,
+				steamMaxConcurrency: 1,
+				currentPath: '/collections/main',
+				viewConfigs: {},
+				ignoredValidationErrors: {},
+				userOverrides: {},
+				treatNuterraSteamBetaAsEquivalent: false
+			}),
+			'utf8'
+		);
+
+		const config = readConfigFile(configPath, true);
+		expect(config).not.toBeNull();
+		expect(config).not.toHaveProperty('treatNuterraSteamBetaAsEquivalent');
+	});
+
 	it('keeps the original config when replacing an existing config fails', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');

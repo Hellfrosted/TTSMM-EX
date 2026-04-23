@@ -1,18 +1,13 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useState } from 'react';
 import { AppState, CollectionManagerModalType, NotificationProps } from 'model';
-import { Button, Col, Row, Select, Space, Input, Modal, Form } from 'antd';
-import type { InputRef } from 'antd';
+import { Button, Col, Row, Select, Space, Input } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined, SyncOutlined, CopyOutlined, SettingFilled, CodeOutlined } from '@ant-design/icons';
-import { validateCollectionName } from 'shared/collection-name';
+import type { CollectionNamingModalType } from './CollectionNamingModal';
 
 const { Option } = Select;
 const { Search } = Input;
 
-enum CollectionManagementToolbarModalType {
-	NEW_COLLECTION = 'new-collection',
-	DUPLICATE_COLLECTION = 'duplicate-collection',
-	RENAME_COLLECTION = 'rename-collection'
-}
+const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
 
 interface CollectionManagementToolbarProps {
 	madeEdits: boolean;
@@ -52,87 +47,16 @@ function CollectionManagementToolbarComponent({
 	duplicateCollectionCallback,
 	renameCollectionCallback
 }: CollectionManagementToolbarProps) {
-	const [modalType, setModalType] = useState<CollectionManagementToolbarModalType>();
+	const [modalType, setModalType] = useState<CollectionNamingModalType>();
 	const [modalText, setModalText] = useState('');
 	const disabledFeatures = !!savingCollection || !!appState.loadingMods || !!modalType;
 	const { activeCollection } = appState;
-	const trimmedModalText = modalText.trim();
-	const collectionNameLabelId = 'collection-name-label';
-	const collectionNameInputId = 'collection-name-input';
-	const collectionNameErrorId = 'collection-name-error';
-	const collectionNameInputRef = useRef<InputRef>(null);
 
-	useEffect(() => {
-		if (!modalType) {
-			return;
-		}
-
-		const animationFrame = window.requestAnimationFrame(() => {
-			collectionNameInputRef.current?.focus();
-		});
-
-		return () => {
-			window.cancelAnimationFrame(animationFrame);
-		};
-	}, [modalType]);
-
-	const modalProps = useMemo(
-		() => ({
-			[CollectionManagementToolbarModalType.NEW_COLLECTION]: {
-				title: 'New Collection',
-				okText: 'Create New Collection',
-				fieldLabel: 'Collection name',
-				fieldHelp: 'Use a short name you can recognize in the collection picker.',
-				placeholder: 'Example: Campaign mods',
-				callback: newCollectionCallback
-			},
-			[CollectionManagementToolbarModalType.DUPLICATE_COLLECTION]: {
-				title: 'Duplicate Collection',
-				okText: 'Duplicate Collection',
-				fieldLabel: 'New collection name',
-				fieldHelp: 'The duplicate keeps the current mod list and saves it under a new name.',
-				placeholder: 'Example: Campaign mods copy',
-				callback: duplicateCollectionCallback
-			},
-			[CollectionManagementToolbarModalType.RENAME_COLLECTION]: {
-				title: 'Rename Collection',
-				okText: 'Rename Collection',
-				fieldLabel: 'New collection name',
-				fieldHelp: 'Rename the saved collection without changing its enabled mods.',
-				placeholder: 'Example: Campaign mods',
-				callback: renameCollectionCallback
-			}
-		}),
-		[duplicateCollectionCallback, newCollectionCallback, renameCollectionCallback]
-	);
-
-	const currentModal = modalType ? modalProps[modalType] : undefined;
-	const currentModalError = useMemo(() => {
-		if (!modalType) {
-			return undefined;
-		}
-
-		const validationError = validateCollectionName(trimmedModalText);
-		if (validationError) {
-			return validationError;
-		}
-
-		if (modalType === CollectionManagementToolbarModalType.RENAME_COLLECTION && trimmedModalText === activeCollection?.name) {
-			return 'Collection name is unchanged';
-		}
-
-		if (appState.allCollectionNames.has(trimmedModalText)) {
-			return 'A collection with that name already exists';
-		}
-
-		return undefined;
-	}, [activeCollection?.name, appState.allCollectionNames, modalType, trimmedModalText]);
-
-	const openCollectionModal = (nextModalType: CollectionManagementToolbarModalType) => {
+	const openCollectionModal = (nextModalType: CollectionNamingModalType) => {
 		const nextText =
-			nextModalType === CollectionManagementToolbarModalType.RENAME_COLLECTION
+			nextModalType === 'rename-collection'
 				? activeCollection?.name || ''
-				: nextModalType === CollectionManagementToolbarModalType.DUPLICATE_COLLECTION && activeCollection
+				: nextModalType === 'duplicate-collection' && activeCollection
 					? `${activeCollection.name} copy`
 					: '';
 
@@ -168,64 +92,24 @@ function CollectionManagementToolbarComponent({
 
 	return (
 		<div id="mod-collection-toolbar" className="CollectionToolbar">
-			{!currentModal ? null : (
-				<Modal
-					title={currentModal.title}
-					open
-					closable={false}
-					okText={currentModal.okText}
-					onCancel={() => {
-						setModalType(undefined);
-						setModalText('');
-					}}
-					okButtonProps={{
-						disabled: !!currentModalError,
-						loading: savingCollection
-					}}
-					onOk={() => {
-						if (currentModalError) {
-							return;
-						}
-						setModalType(undefined);
-						setModalText('');
-						currentModal.callback(trimmedModalText);
-					}}
-				>
-					<Form layout="vertical">
-						<Form.Item
-							label={<span id={collectionNameLabelId}>{currentModal.fieldLabel}</span>}
-							extra={currentModal.fieldHelp}
-							validateStatus={currentModalError ? 'error' : undefined}
-							help={
-								currentModalError ? (
-									<span id={collectionNameErrorId}>
-										{currentModalError}
-									</span>
-								) : null
-							}
-						>
-							<Input
-								id={collectionNameInputId}
-								ref={collectionNameInputRef}
-								value={modalText}
-								placeholder={currentModal.placeholder}
-								aria-labelledby={collectionNameLabelId}
-								aria-describedby={currentModalError ? collectionNameErrorId : undefined}
-								aria-invalid={currentModalError ? 'true' : 'false'}
-								onChange={(event) => {
-									setModalText(event.target.value);
-								}}
-								onPressEnter={() => {
-									if (!currentModalError) {
-										setModalType(undefined);
-										setModalText('');
-										currentModal.callback(trimmedModalText);
-									}
-								}}
-							/>
-						</Form.Item>
-					</Form>
-				</Modal>
+			{!modalType ? null : (
+				<Suspense fallback={null}>
+					<CollectionNamingModalLazy
+						activeCollectionName={activeCollection?.name}
+						allCollectionNames={appState.allCollectionNames}
+						modalType={modalType}
+						modalText={modalText}
+						savingCollection={savingCollection}
+						setModalText={setModalText}
+						closeModal={() => {
+							setModalType(undefined);
+							setModalText('');
+						}}
+						newCollectionCallback={newCollectionCallback}
+						duplicateCollectionCallback={duplicateCollectionCallback}
+						renameCollectionCallback={renameCollectionCallback}
+					/>
+				</Suspense>
 			)}
 			<Row key="row1" justify="space-between" gutter={16} className="CollectionToolbarRow">
 				<Col xs={24} flex="auto">
@@ -254,7 +138,7 @@ function CollectionManagementToolbarComponent({
 								key="rename"
 								icon={<EditOutlined />}
 								onClick={() => {
-									openCollectionModal(CollectionManagementToolbarModalType.RENAME_COLLECTION);
+									openCollectionModal('rename-collection');
 								}}
 								disabled={disabledFeatures}
 							>
@@ -265,7 +149,7 @@ function CollectionManagementToolbarComponent({
 								icon={<PlusOutlined />}
 								disabled={disabledFeatures}
 								onClick={() => {
-									openCollectionModal(CollectionManagementToolbarModalType.NEW_COLLECTION);
+									openCollectionModal('new-collection');
 								}}
 							>
 								New
@@ -275,7 +159,7 @@ function CollectionManagementToolbarComponent({
 								icon={<CopyOutlined />}
 								disabled={disabledFeatures}
 								onClick={() => {
-									openCollectionModal(CollectionManagementToolbarModalType.DUPLICATE_COLLECTION);
+									openCollectionModal('duplicate-collection');
 								}}
 							>
 								Duplicate

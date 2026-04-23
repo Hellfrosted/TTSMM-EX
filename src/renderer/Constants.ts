@@ -42,7 +42,6 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 	closeOnLaunch: false,
 	language: 'english',
-	treatNuterraSteamBetaAsEquivalent: true,
 	activeCollection: undefined,
 	steamMaxConcurrency: 5,
 

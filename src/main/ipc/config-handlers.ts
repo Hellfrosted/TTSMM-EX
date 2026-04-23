@@ -26,9 +26,7 @@ export function readConfigFile(filepath: string, isDevelopment: boolean): AppCon
 		if (!appConfig.viewConfigs) {
 			appConfig.viewConfigs = {};
 		}
-		if (appConfig.treatNuterraSteamBetaAsEquivalent === undefined) {
-			appConfig.treatNuterraSteamBetaAsEquivalent = true;
-		}
+		delete (appConfig as { treatNuterraSteamBetaAsEquivalent?: unknown }).treatNuterraSteamBetaAsEquivalent;
 		if (appConfig.ignoredValidationErrors) {
 			const convertedMap: Map<ModErrorType, { [uid: string]: string[] }> = new Map();
 			const castObject = appConfig.ignoredValidationErrors as { [modID: number]: { [uid: string]: string[] } };
@@ -63,6 +61,7 @@ export function readConfigFile(filepath: string, isDevelopment: boolean): AppCon
 export function writeConfigFile(filepath: string, config: AppConfig): boolean {
 	try {
 		const serializedConfig: Record<string, unknown> = { ...config };
+		delete (serializedConfig as { treatNuterraSteamBetaAsEquivalent?: unknown }).treatNuterraSteamBetaAsEquivalent;
 		if (serializedConfig.ignoredValidationErrors) {
 			serializedConfig.ignoredValidationErrors = Object.fromEntries(config.ignoredValidationErrors);
 		}

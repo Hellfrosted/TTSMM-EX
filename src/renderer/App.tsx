@@ -1,16 +1,28 @@
-import { useEffect, useEffectEvent, useState } from 'react';
+import { Suspense, lazy, useEffect, useEffectEvent, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { App as AntApp, ConfigProvider, Layout } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { AppState } from 'model';
 import api from 'renderer/Api';
+import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import MenuBar from './components/MenuBar';
 import { AppStateProvider, useAppState } from './state/app-state';
 import { appCssVariables, appTheme } from './theme';
-import { SettingsView } from './views/SettingsView';
-import { CollectionView } from './views/CollectionView';
 
 const { Sider } = Layout;
+
+const loadCollectionView = () => import('./views/CollectionView');
+const loadSettingsView = () => import('./views/SettingsView');
+
+const CollectionViewLazy = lazy(async () => {
+	const module = await loadCollectionView();
+	return { default: module.CollectionView };
+});
+
+const SettingsViewLazy = lazy(async () => {
+	const module = await loadSettingsView();
+	return { default: module.SettingsView };
+});
 
 interface AppViewStageProps extends PropsWithChildren {
 	active: boolean;
@@ -118,12 +130,30 @@ function AppShell() {
 					</AppViewStage>
 					{mountedCollections && (appState.activeCollection || appState.loadingMods) ? (
 						<AppViewStage active={showCollections} name="collections">
-							<CollectionView appState={appState satisfies AppState} />
+							<Suspense
+								fallback={
+									<ViewStageLoadingFallback
+										title="Loading mod workspace"
+										detail="Preparing collections, filters, and validation controls."
+									/>
+								}
+							>
+								<CollectionViewLazy appState={appState satisfies AppState} />
+							</Suspense>
 						</AppViewStage>
 					) : null}
 					{mountedSettings ? (
 						<AppViewStage active={showSettings} name="settings" overflow="auto">
-							<SettingsView appState={appState satisfies AppState} />
+							<Suspense
+								fallback={
+									<ViewStageLoadingFallback
+										title="Loading settings"
+										detail="Preparing paths, launch options, and logging controls."
+									/>
+								}
+							>
+								<SettingsViewLazy appState={appState satisfies AppState} />
+							</Suspense>
 						</AppViewStage>
 					) : null}
 				</div>

@@ -52,7 +52,6 @@ function getValidationConfigKey(config: AppState['config']) {
 
 	return JSON.stringify({
 		workshopID: config.workshopID.toString(),
-		treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent !== false,
 		ignoredValidationErrors,
 		userOverrides
 	});
@@ -139,7 +138,7 @@ export function useCollectionValidation({
 	const clearRenderedModErrors = useCallback((configOverride?: AppState['config']) => {
 		const nextMods = cloneSessionMods(appState.mods);
 		const validationConfig = configOverride ?? appState.config;
-		setupDescriptors(nextMods, validationConfig.userOverrides, validationConfig);
+		setupDescriptors(nextMods, validationConfig.userOverrides);
 		getRows(nextMods).forEach((mod: DisplayModData) => {
 			mod.errors = undefined;
 		});
@@ -162,7 +161,7 @@ export function useCollectionValidation({
 		const validationConfig = configOverride ?? appState.config;
 		const { ignoredValidationErrors } = validationConfig;
 		const nextMods = cloneSessionMods(mods);
-		setupDescriptors(nextMods, validationConfig.userOverrides, validationConfig);
+		setupDescriptors(nextMods, validationConfig.userOverrides);
 		const rows = getRows(nextMods);
 
 		if (Object.keys(nextCollectionErrors).length > 0) {

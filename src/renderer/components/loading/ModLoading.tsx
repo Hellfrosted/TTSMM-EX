@@ -50,7 +50,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				if (loadRequestIdRef.current !== requestId) {
 					return mods;
 				}
-				setupDescriptors(mods as SessionMods, appState.config.userOverrides, appState.config);
+				setupDescriptors(mods as SessionMods, appState.config.userOverrides);
 				appState.updateState({
 					mods,
 					firstModLoad: true,

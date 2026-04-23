@@ -14,6 +14,30 @@ const TEXT_ESCAPE_MAP: Record<string, string> = {
 	'>': '&gt;'
 };
 
+const GENERIC_IMAGE_LABEL_WORDS = new Set([
+	'image',
+	'img',
+	'screenshot',
+	'screen',
+	'preview',
+	'title',
+	'banner',
+	'hero',
+	'page',
+	'final',
+	'draft',
+	'copy',
+	'shot',
+	'photo',
+	'picture',
+	'pic',
+	'workshop',
+	'steam',
+	'updated',
+	'update',
+	'new'
+]);
+
 function escapeText(value: string): string {
 	return value.replace(/[&<>]/g, (character) => TEXT_ESCAPE_MAP[character] || character);
 }
@@ -45,6 +69,50 @@ function sanitizeUrl(value: string): string | undefined {
 		return escapeAttribute(trimmedValue);
 	} catch {
 		return undefined;
+	}
+}
+
+function deriveImageAltText(value: string): string {
+	const trimmedValue = decodeEntities(value).trim();
+	if (!trimmedValue) {
+		return '';
+	}
+
+	try {
+		const parsed = new URL(trimmedValue, 'https://steamcommunity.com/');
+		const pathSegments = parsed.pathname.split('/').filter(Boolean);
+		const lastSegment = pathSegments.at(-1);
+		if (!lastSegment) {
+			return '';
+		}
+
+		const normalizedLabel = decodeURIComponent(lastSegment)
+			.replace(/\.[a-z0-9]+$/i, '')
+			.replace(/[-_]+/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+		if (!normalizedLabel) {
+			return '';
+		}
+
+		const collapsedAlphaNumeric = normalizedLabel.replace(/[^a-z0-9]/gi, '');
+		if (collapsedAlphaNumeric.length < 3 || /^\d+$/.test(collapsedAlphaNumeric) || /^[a-f0-9]{8,}$/i.test(collapsedAlphaNumeric)) {
+			return '';
+		}
+
+		const normalizedWords = normalizedLabel
+			.toLowerCase()
+			.split(' ')
+			.map((word) => word.replace(/[^a-z0-9]/gi, ''))
+			.filter(Boolean);
+		const meaningfulWords = normalizedWords.filter((word) => word.length > 2 && !GENERIC_IMAGE_LABEL_WORDS.has(word));
+		if (meaningfulWords.length < 2) {
+			return '';
+		}
+
+		return escapeAttribute(normalizedLabel.toLowerCase());
+	} catch {
+		return '';
 	}
 }
 
@@ -92,7 +160,8 @@ function renderEscapedWorkshopMarkup(value: string): string {
 				return renderEscapedWorkshopMarkup(content.trim());
 			}
 
-			return `<img src="${imageSource}" alt="Workshop description image" loading="lazy" decoding="async" />`;
+			const imageAltText = deriveImageAltText(content);
+			return `<img src="${imageSource}" alt="${imageAltText}" loading="lazy" decoding="async" />`;
 		})
 	);
 

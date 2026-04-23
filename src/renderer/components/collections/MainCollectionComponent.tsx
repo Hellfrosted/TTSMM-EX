@@ -7,7 +7,7 @@ import type { MenuProps } from 'antd';
 import { ColumnType } from 'antd/lib/table';
 import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
-import { APP_THEME_COLORS } from 'renderer/theme';
+import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -236,7 +236,7 @@ interface ColumnSchema<T> {
 type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
 
 interface StateTagConfig {
-	color?: string;
+	tone?: keyof typeof APP_TAG_STYLES;
 	rank: number;
 	text: string;
 }
@@ -401,15 +401,15 @@ function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'las
 	const { uid, subscribed, workshopID, installed, id } = record;
 
 	if (installed && id === null) {
-		return [{ text: 'Invalid', color: 'red', rank: 0 }];
+		return [{ text: 'Invalid', tone: 'danger', rank: 0 }];
 	}
 
 	if (!selectedMods.includes(uid)) {
 		if (!subscribed && workshopID && workshopID > 0) {
-			return [{ text: 'Not subscribed', rank: 4 }];
+			return [{ text: 'Not subscribed', tone: 'warning', rank: 4 }];
 		}
 		if (subscribed && !installed) {
-			return [{ text: 'Not installed', rank: 5 }];
+			return [{ text: 'Not installed', tone: 'warning', rank: 5 }];
 		}
 		return [];
 	}
@@ -419,20 +419,20 @@ function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'las
 	if (errors) {
 		const { incompatibleMods, invalidId, missingDependencies, notInstalled, notSubscribed, needsUpdate } = errors;
 		if (incompatibleMods && incompatibleMods.length > 0) {
-			stateTags.push({ text: 'Conflicts', color: 'red', rank: 1 });
+			stateTags.push({ text: 'Conflicts', tone: 'danger', rank: 1 });
 		}
 		if (invalidId) {
-			stateTags.push({ text: 'Invalid ID', color: 'volcano', rank: 0 });
+			stateTags.push({ text: 'Invalid ID', tone: 'danger', rank: 0 });
 		}
 		if (missingDependencies && missingDependencies.length > 0) {
-			stateTags.push({ text: 'Missing dependencies', color: 'orange', rank: 2 });
+			stateTags.push({ text: 'Missing dependencies', tone: 'warning', rank: 2 });
 		}
 		if (notSubscribed) {
-			stateTags.push({ text: 'Not subscribed', color: 'yellow', rank: 4 });
+			stateTags.push({ text: 'Not subscribed', tone: 'warning', rank: 4 });
 		} else if (notInstalled) {
-			stateTags.push({ text: 'Not installed', color: 'yellow', rank: 5 });
+			stateTags.push({ text: 'Not installed', tone: 'warning', rank: 5 });
 		} else if (needsUpdate) {
-			stateTags.push({ text: 'Needs update', color: 'yellow', rank: 6 });
+			stateTags.push({ text: 'Needs update', tone: 'warning', rank: 6 });
 		}
 	}
 
@@ -441,11 +441,11 @@ function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'las
 	}
 
 	if (lastValidationStatus !== undefined) {
-		return [{ text: 'OK', color: 'green', rank: 7 }];
+		return [{ text: 'OK', tone: 'success', rank: 7 }];
 	}
 
 	if (selectedMods.includes(uid)) {
-		return [{ text: 'Pending', rank: 8 }];
+		return [{ text: 'Pending', tone: 'neutral', rank: 8 }];
 	}
 
 	return [];
@@ -504,14 +504,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				if (needsUpdate) {
 					updateIcon = (
 						<Tooltip title="Needs update">
-							<WarningTwoTone twoToneColor="red" />
+							<WarningTwoTone twoToneColor={APP_THEME_COLORS.error} />
 						</Tooltip>
 					);
 					updateType = 'danger';
 					if (downloadPending) {
 						updateIcon = (
 							<Tooltip title="Download pending">
-								<ClockCircleTwoTone twoToneColor="orange" />
+								<ClockCircleTwoTone twoToneColor={APP_THEME_COLORS.warning} />
 							</Tooltip>
 						);
 						updateType = 'warning';
@@ -519,7 +519,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 					if (downloading) {
 						updateIcon = (
 							<Tooltip title="Downloading">
-								<StopTwoTone spin twoToneColor="orange" />
+								<StopTwoTone spin twoToneColor={APP_THEME_COLORS.warning} />
 							</Tooltip>
 						);
 						updateType = 'warning';
@@ -612,7 +612,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				const stateTags = getStateTags(props, record);
 				if (stateTags.length > 0) {
 					return stateTags.map((tagConfig) => (
-						<Tag key={tagConfig.text} color={tagConfig.color}>
+						<Tag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone || 'neutral']}>
 							{tagConfig.text}
 						</Tag>
 					));
@@ -634,7 +634,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				}
 				if (record.workshopID === undefined && record.overrides?.id) {
 					return (
-						<Tag color="gray" key="id">
+						<Tag key="id" style={APP_TAG_STYLES.neutral}>
 							{displayID}
 						</Tag>
 					);
@@ -683,23 +683,21 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 					sizeStr = value + descriptor;
 				}
 
-				let color = 'green';
+				let tone: keyof typeof APP_TAG_STYLES = 'success';
 				if (size > 1000000) {
 					if (size < 5000000) {
-						color = 'cyan';
+						tone = 'info';
 					} else if (size < 50000000) {
-						color = 'blue';
+						tone = 'accent';
 					} else if (size < 1000000000) {
-						color = 'geekblue';
-					} else if (size < 5000000000) {
-						color = 'purple';
+						tone = 'warning';
 					} else {
-						color = 'magenta';
+						tone = 'danger';
 					}
 				}
 
 				return (
-					<Tag color={color} key="size">
+					<Tag key="size" style={APP_TAG_STYLES[tone]}>
 						{sizeStr}
 					</Tag>
 				);
@@ -770,7 +768,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				return [
 					...typeTags.map((type) => getTypeIcon(type, small ? 30 : 40)),
 					...actualTags.map((tag) => (
-						<Tag color="blue" key={tag}>
+						<Tag key={tag} style={APP_TAG_STYLES.accent}>
 							{tag}
 						</Tag>
 					)),

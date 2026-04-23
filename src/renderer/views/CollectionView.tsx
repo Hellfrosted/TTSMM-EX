@@ -1,4 +1,4 @@
-import { ReactNode, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Button, Layout, Popover, Space } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, SyncOutlined } from '@ant-design/icons';
@@ -17,9 +17,8 @@ import {
 import api from 'renderer/Api';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import { MainCollectionView } from '../components/collections/MainCollectionComponent';
-import ModDetailsFooter from '../components/collections/ModDetailsFooter';
 import ModLoadingView from '../components/loading/ModLoading';
-import CollectionManagerModal from '../components/collections/CollectionManagerModal';
+import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
 import { useGameRunning } from '../hooks/collections/useGameRunning';
 import { useGameLaunch } from '../hooks/collections/useGameLaunch';
@@ -30,6 +29,19 @@ import { cloneAppConfig } from '../hooks/collections/utils';
 import { writeConfig } from '../util/config-write';
 
 const { Header, Footer } = Layout;
+
+const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
+const loadCollectionManagerModal = () => import('../components/collections/CollectionManagerModal');
+
+const ModDetailsFooterLazy = lazy(async () => {
+	const module = await loadModDetailsFooter();
+	return { default: module.default };
+});
+
+const CollectionManagerModalLazy = lazy(async () => {
+	const module = await loadCollectionManagerModal();
+	return { default: module.default };
+});
 
 interface MeasuredAreaProps {
 	children: (size: { width: number; height: number }) => ReactNode;
@@ -421,6 +433,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		}
 
 		const warmDetailsLayouts = () => {
+			void loadModDetailsFooter();
 			setPrewarmAlternateDetails(true);
 		};
 
@@ -498,48 +511,51 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	) : (
 		<SyncOutlined />
 	);
-	const fullDetailsFooter = displayedCurrentRecord ? (
-		<ModDetailsFooter
-			key="mod-details-full"
-			lastValidationStatus={currentValidationStatus}
-			appState={appState}
-			bigDetails
-			halfLayoutMode={halfDetailsLayout}
-			currentRecord={displayedCurrentRecord}
-			activeTabKey={detailsActiveTabKey}
-			setActiveTabKey={setDetailsActiveTabKey}
-			closeFooterCallback={handleCloseCurrentRecord}
-			enableModCallback={handleEnableMod}
-			disableModCallback={handleDisableMod}
-			expandFooterCallback={handleExpandFooter}
-			toggleHalfLayoutCallback={handleToggleHalfLayout}
-			setModSubsetCallback={setModSubset}
-			openNotification={openNotification}
-			validateCollection={handleValidateCollection}
-			openModal={setModalType}
+	const sharedDetailsProps = displayedCurrentRecord
+		? {
+				lastValidationStatus: currentValidationStatus,
+				appState,
+				halfLayoutMode: halfDetailsLayout,
+				currentRecord: displayedCurrentRecord,
+				activeTabKey: detailsActiveTabKey,
+				setActiveTabKey: setDetailsActiveTabKey,
+				closeFooterCallback: handleCloseCurrentRecord,
+				enableModCallback: handleEnableMod,
+				disableModCallback: handleDisableMod,
+				expandFooterCallback: handleExpandFooter,
+				toggleHalfLayoutCallback: handleToggleHalfLayout,
+				setModSubsetCallback: setModSubset,
+				openNotification,
+				validateCollection: handleValidateCollection,
+				openModal: setModalType
+			}
+		: undefined;
+	const detailsFallback = (
+		<ViewStageLoadingFallback
+			title="Loading mod details"
+			detail="Preparing metadata, dependencies, and override controls for this mod."
+			compact
 		/>
+	);
+	const fullDetailsFooter = displayedCurrentRecord ? (
+		<Suspense fallback={detailsFallback}>
+			<ModDetailsFooterLazy
+				key="mod-details-full"
+				{...sharedDetailsProps!}
+				bigDetails
+			/>
+		</Suspense>
 	) : null;
 	const halfDetailsFooter = displayedCurrentRecord ? (
-		<ModDetailsFooter
-			key="mod-details-half"
-			lastValidationStatus={currentValidationStatus}
-			appState={appState}
-			bigDetails={false}
-			halfLayoutMode={halfDetailsLayout}
-			currentRecord={displayedCurrentRecord}
-			activeTabKey={detailsActiveTabKey}
-			setActiveTabKey={setDetailsActiveTabKey}
-			closeFooterCallback={handleCloseCurrentRecord}
-			enableModCallback={handleEnableMod}
-			disableModCallback={handleDisableMod}
-			expandFooterCallback={handleExpandFooter}
-			toggleHalfLayoutCallback={handleToggleHalfLayout}
-			setModSubsetCallback={setModSubset}
-			openNotification={openNotification}
-			validateCollection={handleValidateCollection}
-			openModal={setModalType}
+		<Suspense fallback={detailsFallback}>
+			<ModDetailsFooterLazy
+				key="mod-details-half"
+				{...sharedDetailsProps!}
+				bigDetails={false}
 			/>
-		) : null;
+		</Suspense>
+	) : null;
+	const isCollectionModalOpen = modalType !== CollectionManagerModalType.NONE;
 
 	return (
 		<Layout className="CollectionViewLayout" style={{ flex: '1 1 0', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
@@ -563,18 +579,22 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					openModal={setModalType}
 				/>
 			</Header>
-			<CollectionManagerModal
-				appState={appState}
-				launchAnyway={handleLaunchAnyway}
-				modalType={modalType}
-				launchGameWithErrors={!!launchGameWithErrors}
-				currentView={currentView}
-				collectionErrors={currentCollectionErrors}
-				openNotification={openNotification}
-				closeModal={handleCloseModal}
-				currentRecord={displayedCurrentRecord}
-				deleteCollection={handleDeleteCollection}
-			/>
+			{isCollectionModalOpen ? (
+				<Suspense fallback={null}>
+					<CollectionManagerModalLazy
+						appState={appState}
+						launchAnyway={handleLaunchAnyway}
+						modalType={modalType}
+						launchGameWithErrors={!!launchGameWithErrors}
+						currentView={currentView}
+						collectionErrors={currentCollectionErrors}
+						openNotification={openNotification}
+						closeModal={handleCloseModal}
+						currentRecord={displayedCurrentRecord}
+						deleteCollection={handleDeleteCollection}
+					/>
+				</Suspense>
+			) : null}
 			<div style={{ flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 				<div className="CollectionContentStageHost">
 					<div className={`CollectionContentStage${showExpandedDetailsSurface ? '' : ' is-active'}`}>

@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { ModType } from '../../model/Mod';
 import { SessionMods, filterRows, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
-	it('treats NuterraSteam and NuterraSteam(beta) as the same dependency target when enabled', () => {
+	it('treats NuterraSteam and NuterraSteam(beta) as the same dependency target', () => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
@@ -20,10 +19,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependencyDescriptor).toBeDefined();
@@ -31,7 +27,7 @@ describe('session mod descriptors', () => {
 		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
 	});
 
-	it('treats NuterraSteam and NuterraSteam (Beta) as the same dependency target when enabled', () => {
+	it('treats NuterraSteam and NuterraSteam (Beta) as the same dependency target', () => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
@@ -47,10 +43,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependencyDescriptor).toBeDefined();
@@ -58,7 +51,7 @@ describe('session mod descriptors', () => {
 		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
 	});
 
-	it('matches workshop dependency names for Nuterra variants when enabled', async () => {
+	it('matches workshop dependency names for Nuterra variants', async () => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
@@ -79,10 +72,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
@@ -124,10 +114,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [stableDependency, betaDependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		expect(dependent.dependsOn).toEqual([getDescriptor(session, stableDependency)]);
 
@@ -149,7 +136,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -173,7 +160,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -200,7 +187,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(dependent.dependsOn).toHaveLength(1);
 		expect(dependent.dependsOn?.[0]).toMatchObject({
@@ -218,7 +205,7 @@ describe('session mod descriptors', () => {
 			name: 'OmodManager v1.6.1.1'
 		};
 		const session = new SessionMods('', [versionedWorkshopMod]);
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(filterRows(session, 'omodmanager')).toEqual([versionedWorkshopMod]);
 	});
@@ -242,15 +229,14 @@ describe('session mod descriptors', () => {
 						tags: ['utility']
 					}
 				]
-			]),
-			DEFAULT_CONFIG
+			])
 		);
 		expect(mod.overrides).toEqual({
 			id: 'OverrideModId',
 			tags: ['utility']
 		});
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(mod.overrides).toBeUndefined();
 	});
@@ -264,7 +250,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [mod]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
