@@ -222,15 +222,6 @@ a:hover {
 	text-decoration: none;
 }
 
-.Hello {
-	display: flex;
-	height: 100vh;
-	width: 100vw;
-	justify-content: center;
-	align-items: center;
-	min-width: 0;
-}
-
 .ant-form-item-label label {
 	color: @text-color-dark;
 	font-size: 16px;
@@ -451,17 +442,6 @@ a:hover {
   border-radius: 6px;       /* roundness of the scroll thumb */
 }
 
-.image-hover {
-  transition: .5s ease;
-  opacity: 0;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  -ms-transform: translate(-50%, -50%);
-  text-align: center;
-}
-
 .image {
   opacity: 1;
   display: block;
@@ -521,16 +501,10 @@ a:hover {
 }
 
 .CollectionToolbarSearch,
-.CollectionToolbarMeta,
-.CollectionToolbarActionCol {
+.CollectionToolbarMeta {
 	display: flex;
 	align-items: center;
 	min-height: @control-height;
-}
-
-.CollectionToolbarActionCol {
-	justify-content: flex-end;
-	align-self: center;
 }
 
 .CollectionToolbarActions {
@@ -847,7 +821,7 @@ a:hover {
 	padding: 0px;
 }
 
-.ModDetailDependenceis .ant-collapse-item .ant-collapse-header {
+.ModDetailDependencies .ant-collapse-item .ant-collapse-header {
 	padding-top: 4px;
 	padding-bottom: 4px;
 	padding-left: 8px;
@@ -1086,7 +1060,6 @@ a:hover {
 	.CollectionSplitDetailsPane,
 	.ModDetailFooterTabs .ant-tabs-tabpane-active,
 	.CollectionNameButton,
-	.image-hover,
 	.image {
 		animation: none !important;
 		transition: none !important;
@@ -1100,13 +1073,8 @@ a:hover {
 }
 
 @media (max-width: 1199px) {
-	.CollectionToolbarActionCol,
 	.CollectionToolbarMeta {
 		justify-content: flex-start;
-	}
-
-	.CollectionToolbarActionCol {
-		align-self: stretch;
 	}
 
 	.CollectionToolbarActions--secondary {
