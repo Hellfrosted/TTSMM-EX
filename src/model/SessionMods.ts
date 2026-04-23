@@ -1,5 +1,4 @@
 import type Logger from 'electron-log';
-import type { AppConfig } from './AppConfig';
 import { ModData, ModDescriptor, ModType, getModDataId, getModDataDisplayName, ModDataOverride } from './Mod';
 import { ModCollection } from './ModCollection';
 import { CollectionErrors, ModErrors } from './CollectionValidation';
@@ -68,37 +67,20 @@ export function getDescriptor(session: SessionMods, mod: ModData): ModDescriptor
 	return myDescriptor;
 }
 
-function getEquivalentModIds(
-	modID: string | undefined | null,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
-): string[] {
+function normalizeExternalDependencyId(modID: string | undefined | null): string | undefined {
 	if (!modID) {
-		return [];
+		return undefined;
 	}
 
-	const equivalentIds = new Set<string>([modID]);
-	const treatNuterraSteamBetaAsEquivalent = config?.treatNuterraSteamBetaAsEquivalent !== false;
-	if (treatNuterraSteamBetaAsEquivalent) {
-		const normalizedModId = modID.replace(/[^a-z0-9]/gi, '').toLowerCase();
-		if (normalizedModId === 'nuterrasteam' || normalizedModId === 'nuterrasteambeta') {
-			equivalentIds.add('NuterraSteam');
-			equivalentIds.add('NuterraSteam(beta)');
-			equivalentIds.add('NuterraSteam (Beta)');
-		}
+	const normalizedModId = modID.replace(/[^a-z0-9]/gi, '').toLowerCase();
+	// External compatibility boundary:
+	// Published Workshop metadata and dependency names still appear under both
+	// NuterraSteam and NuterraSteam (Beta). Internally we keep one canonical ID.
+	if (normalizedModId === 'nuterrasteam' || normalizedModId === 'nuterrasteambeta') {
+		return 'NuterraSteam';
 	}
 
-	return [...equivalentIds];
-}
-
-function getEquivalentNameIds(
-	name: string | undefined | null,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
-): string[] {
-	const equivalentIds = getEquivalentModIds(name, config);
-	if (!name || equivalentIds.length <= 1) {
-		return [];
-	}
-	return equivalentIds;
+	return modID;
 }
 
 function createDescriptor(): ModDescriptor {
@@ -109,52 +91,52 @@ function createDescriptor(): ModDescriptor {
 
 function ensureDescriptorForModId(
 	modID: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+	modIdToModDescriptor: Map<string, ModDescriptor>
 ) {
-	const descriptorIds = getEquivalentModIds(modID, config);
-	let descriptor = descriptorIds.map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
-	if (!descriptor && modID) {
+	const normalizedModId = normalizeExternalDependencyId(modID);
+	let descriptor = normalizedModId ? modIdToModDescriptor.get(normalizedModId) : undefined;
+	if (!descriptor && normalizedModId) {
 		descriptor = createDescriptor();
-		descriptor.modID = modID;
+		descriptor.modID = normalizedModId;
 	}
 	if (descriptor) {
-		if (modID && !descriptor.modID) {
-			descriptor.modID = modID;
+		if (normalizedModId && !descriptor.modID) {
+			descriptor.modID = normalizedModId;
 		}
-		descriptorIds.forEach((descriptorId) => modIdToModDescriptor.set(descriptorId, descriptor!));
+		if (normalizedModId) {
+			modIdToModDescriptor.set(normalizedModId, descriptor);
+		}
 	}
 	return descriptor;
 }
 
 function ensureDescriptorForEquivalentName(
 	name: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+	modIdToModDescriptor: Map<string, ModDescriptor>
 ) {
-	const descriptorIds = getEquivalentNameIds(name, config);
-	if (descriptorIds.length === 0) {
+	const normalizedName = normalizeExternalDependencyId(name);
+	if (!normalizedName || normalizedName === name) {
 		return undefined;
 	}
 
-	let descriptor = descriptorIds.map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
+	let descriptor = modIdToModDescriptor.get(normalizedName);
 	if (!descriptor) {
 		descriptor = createDescriptor();
-		descriptor.modID = name || descriptorIds[0];
+		descriptor.modID = normalizedName;
 	}
 	if (!descriptor.modID) {
-		descriptor.modID = name || descriptorIds[0];
+		descriptor.modID = normalizedName;
 	}
-	descriptorIds.forEach((descriptorId) => modIdToModDescriptor.set(descriptorId, descriptor!));
+	modIdToModDescriptor.set(normalizedName, descriptor);
 	return descriptor;
 }
 
 function findExistingDescriptorForModId(
 	modID: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+	modIdToModDescriptor: Map<string, ModDescriptor>
 ) {
-	return getEquivalentModIds(modID, config).map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
+	const normalizedModId = normalizeExternalDependencyId(modID);
+	return normalizedModId ? modIdToModDescriptor.get(normalizedModId) : undefined;
 }
 
 function ensureDescriptorForWorkshopId(workshopID: bigint, workshopIdToModDescriptor: Map<bigint, ModDescriptor>) {
@@ -174,8 +156,7 @@ function ensureDescriptorForWorkshopId(workshopID: bigint, workshopIdToModDescri
 // This means that object refs are not carried over, and so relying on it as a unique ID will fail
 export function setupDescriptors(
 	session: SessionMods,
-	overrides: Map<string, ModDataOverride>,
-	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+	overrides: Map<string, ModDataOverride>
 ) {
 	const { foundMods, modIdToModDataMap, modIdToModDescriptor, workshopIdToModDescriptor } = session;
 	modIdToModDataMap.clear();
@@ -196,8 +177,8 @@ export function setupDescriptors(
 			const { workshopID } = mod;
 			const id = getModDataId(mod);
 			const descriptor =
-				ensureDescriptorForModId(id, modIdToModDescriptor, config) ||
-				ensureDescriptorForEquivalentName(mod.name, modIdToModDescriptor, config) ||
+				ensureDescriptorForModId(id, modIdToModDescriptor) ||
+				ensureDescriptorForEquivalentName(mod.name, modIdToModDescriptor) ||
 				ensureDescriptorForWorkshopId(workshopID, workshopIdToModDescriptor);
 			descriptor.workshopID = workshopID;
 			workshopIdToModDescriptor.set(workshopID, descriptor);
@@ -214,7 +195,7 @@ export function setupDescriptors(
 		if (mod.type !== ModType.WORKSHOP) {
 			const id = getModDataId(mod);
 			if (id) {
-				const descriptor = ensureDescriptorForModId(id, modIdToModDescriptor, config);
+				const descriptor = ensureDescriptorForModId(id, modIdToModDescriptor);
 				if (descriptor) {
 					if (!descriptor.name && mod.name) {
 						descriptor.name = mod.name;
@@ -235,7 +216,7 @@ export function setupDescriptors(
 				const dependencyName = mod.steamDependencyNames?.[workshopID.toString()];
 				const descriptor =
 					workshopIdToModDescriptor.get(workshopID) ||
-					findExistingDescriptorForModId(dependencyName, modIdToModDescriptor, config) ||
+					findExistingDescriptorForModId(dependencyName, modIdToModDescriptor) ||
 					ensureDescriptorForWorkshopId(workshopID, workshopIdToModDescriptor);
 				workshopIdToModDescriptor.set(workshopID, descriptor);
 				if (dependencyName && !descriptor.name) {
@@ -244,7 +225,7 @@ export function setupDescriptors(
 				dependencies.add(descriptor);
 			});
 			mod.explicitIDDependencies?.forEach((modID) => {
-				const descriptor = ensureDescriptorForModId(modID, modIdToModDescriptor, config);
+				const descriptor = ensureDescriptorForModId(modID, modIdToModDescriptor);
 				if (descriptor) {
 					if (!descriptor.name) {
 						descriptor.name = modID;
