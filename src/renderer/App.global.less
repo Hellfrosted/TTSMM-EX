@@ -920,6 +920,24 @@ a:hover {
 	color: color-mix(in srgb, var(--app-color-error) 62%, white);
 }
 
+.ant-btn-primary.ant-btn-dangerous {
+	color: var(--app-color-text-base);
+	background: color-mix(in srgb, var(--app-color-error) 88%, black);
+	border-color: color-mix(in srgb, var(--app-color-error) 88%, black);
+}
+
+.ant-btn-primary.ant-btn-dangerous:not(:disabled):hover {
+	color: var(--app-color-text-base);
+	background: color-mix(in srgb, var(--app-color-error) 82%, black);
+	border-color: color-mix(in srgb, var(--app-color-error) 82%, black);
+}
+
+.ant-btn-primary.ant-btn-dangerous:not(:disabled):active {
+	color: var(--app-color-text-base);
+	background: color-mix(in srgb, var(--app-color-error) 76%, black);
+	border-color: color-mix(in srgb, var(--app-color-error) 76%, black);
+}
+
 .ant-btn-default,
 .ant-btn-text {
 	border-color: @border-color;

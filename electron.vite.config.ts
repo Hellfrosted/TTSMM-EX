@@ -20,8 +20,6 @@ const matchesNodeModulePackage = (id: string, packageName: string) =>
 
 const REACT_PACKAGE_PATTERN = /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)(?:[\\/]|$)/;
 const REMIX_ROUTER_PATTERN = /[\\/]node_modules[\\/]@remix-run[\\/]router(?:[\\/]|$)/;
-const ANT_DESIGN_PACKAGE_PATTERN = /[\\/]node_modules[\\/](antd|rc-[^\\/]+)(?:[\\/]|$)/;
-const ANT_DESIGN_SCOPED_PACKAGE_PATTERN = /[\\/]node_modules[\\/]@(ant-design|rc-component)[\\/][^\\/]+(?:[\\/]|$)/;
 const ANT_DESIGN_ICON_DEPENDENCIES = [
 	'@ant-design/icons',
 	'@ant-design/icons-svg',
@@ -41,11 +39,6 @@ function getRendererManualChunk(id: string) {
 
 	if (ANT_DESIGN_ICON_DEPENDENCIES.some((packageName) => matchesNodeModulePackage(id, packageName))) {
 		return 'vendor-icons';
-	}
-
-	// Ant Design and rc-* dependencies dominate the cold-start renderer weight.
-	if (ANT_DESIGN_PACKAGE_PATTERN.test(id) || ANT_DESIGN_SCOPED_PACKAGE_PATTERN.test(id)) {
-		return 'vendor-antd';
 	}
 
 	if (

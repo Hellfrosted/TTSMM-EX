@@ -20,6 +20,7 @@ import { writeConfig } from 'renderer/util/config-write';
 const { Content, Header } = Layout;
 const { Text, Title } = Typography;
 const MAX_SEARCH_RESULTS = 1000;
+const BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH = 72;
 
 type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'modTitle' | 'blockId' | 'sourceKind';
 type BlockLookupSortKey = 'relevance' | BlockLookupColumnKey;
@@ -41,6 +42,8 @@ const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
 	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
 	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
 ];
+const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = ['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind'];
+const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['spawnCommand', 'blockName']);
 
 interface BlockLookupViewProps {
 	appState: AppState;
@@ -156,6 +159,60 @@ function columnsToConfig(columns: BlockLookupColumnConfig[], smallRows?: boolean
 	};
 }
 
+export function getResponsiveBlockLookupColumns(columns: BlockLookupColumnConfig[], availableTableWidth = 0): BlockLookupColumnConfig[] {
+	const visibleColumns = columns.filter((column) => column.visible);
+	if (availableTableWidth <= 0 || visibleColumns.length <= 1) {
+		return visibleColumns;
+	}
+
+	const availableColumnWidth = Math.max(0, availableTableWidth - BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH - 32);
+	const visibleMinWidth = visibleColumns.reduce((totalWidth, column) => totalWidth + column.minWidth, 0);
+	if (visibleMinWidth <= availableColumnWidth) {
+		const visibleConfiguredWidth = visibleColumns.reduce((totalWidth, column) => totalWidth + column.width, 0);
+		if (visibleConfiguredWidth <= availableColumnWidth) {
+			return visibleColumns;
+		}
+
+		let remainingWidth = availableColumnWidth - visibleMinWidth;
+		return visibleColumns.map((column) => {
+			const extraWidth = Math.min(Math.max(0, column.width - column.minWidth), remainingWidth);
+			remainingWidth -= extraWidth;
+			return { ...column, width: column.minWidth + extraWidth };
+		});
+	}
+
+	const visibleByKey = new Map(visibleColumns.map((column) => [column.key, column]));
+	const selectedKeys = new Set<BlockLookupColumnKey>();
+	let selectedMinWidth = 0;
+
+	BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY.forEach((key) => {
+		const column = visibleByKey.get(key);
+		if (!column || !BLOCK_LOOKUP_CORE_COLUMN_KEYS.has(key)) {
+			return;
+		}
+
+		selectedKeys.add(key);
+		selectedMinWidth += column.minWidth;
+	});
+
+	if (selectedKeys.size === 0 && visibleColumns[0]) {
+		selectedKeys.add(visibleColumns[0].key);
+		selectedMinWidth += visibleColumns[0].minWidth;
+	}
+
+	BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY.forEach((key) => {
+		const column = visibleByKey.get(key);
+		if (!column || selectedKeys.has(key) || selectedMinWidth + column.minWidth > availableColumnWidth) {
+			return;
+		}
+
+		selectedKeys.add(key);
+		selectedMinWidth += column.minWidth;
+	});
+
+	return visibleColumns.filter((column) => selectedKeys.has(column.key)).map((column) => ({ ...column, width: column.minWidth }));
+}
+
 function collectBlockLookupModSources(appState: AppState): BlockLookupModSource[] {
 	return getRows(appState.mods)
 		.filter((modData) => !!modData.path)
@@ -193,6 +250,8 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const [sortKey, setSortKey] = useState<BlockLookupSortKey>('relevance');
 	const [sortDirection, setSortDirection] = useState<BlockLookupSortDirection>('ascend');
 	const [tableOptionsOpen, setTableOptionsOpen] = useState(false);
+	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const searchRequestIdRef = useRef(0);
 	const modSources = useMemo(() => collectBlockLookupModSources(appState), [appState]);
 	const selectedRecord = useMemo(() => rows.find((record) => getRecordKey(record) === selectedRowKey), [rows, selectedRowKey]);
@@ -288,6 +347,38 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			window.clearTimeout(timeoutId);
 		};
 	}, [query, refreshResults]);
+
+	useEffect(() => {
+		const tablePane = tablePaneRef.current;
+		if (!tablePane) {
+			return;
+		}
+
+		const syncWidth = (nextWidth: number) => {
+			const roundedWidth = Math.round(nextWidth);
+			setAvailableTableWidth((currentWidth) => (currentWidth === roundedWidth ? currentWidth : roundedWidth));
+		};
+
+		syncWidth(tablePane.clientWidth);
+
+		if (typeof ResizeObserver === 'undefined') {
+			const handleWindowResize = () => {
+				syncWidth(tablePane.clientWidth);
+			};
+			window.addEventListener('resize', handleWindowResize);
+			return () => {
+				window.removeEventListener('resize', handleWindowResize);
+			};
+		}
+
+		const resizeObserver = new ResizeObserver((entries) => {
+			syncWidth(entries[0]?.contentRect.width ?? tablePane.clientWidth);
+		});
+		resizeObserver.observe(tablePane);
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
 
 	const handleSaveSettings = useCallback(async () => {
 		try {
@@ -559,19 +650,21 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 
 	const columns = useMemo<TableProps<BlockLookupRecord>['columns']>(
 		() =>
-			columnConfig
-				.filter((column) => column.visible)
+			getResponsiveBlockLookupColumns(columnConfig, availableTableWidth)
 				.map((column) => ({
 					...columnDefinitions[column.key],
 					width: column.width
 				})),
-		[columnConfig, columnDefinitions]
+		[availableTableWidth, columnConfig, columnDefinitions]
 	);
 
-	const tableScrollX = useMemo(
-		() => Math.max(1040, columnConfig.filter((column) => column.visible).reduce((totalWidth, column) => totalWidth + column.width, 72)),
-		[columnConfig]
-	);
+	const tableScrollX = useMemo(() => {
+		const visibleColumnWidth = getResponsiveBlockLookupColumns(columnConfig, availableTableWidth).reduce(
+			(totalWidth, column) => totalWidth + column.width,
+			BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH
+		);
+		return Math.max(visibleColumnWidth, availableTableWidth);
+	}, [availableTableWidth, columnConfig]);
 
 	return (
 		<Layout className="BlockLookupViewLayout">
@@ -649,7 +742,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 				</div>
 			</Header>
 			<Content className="BlockLookupContent">
-				<div className="BlockLookupTablePane">
+				<div ref={tablePaneRef} className="BlockLookupTablePane">
 					<Table
 						className="BlockLookupTable"
 						size={blockLookupConfig?.smallRows ? 'small' : 'middle'}

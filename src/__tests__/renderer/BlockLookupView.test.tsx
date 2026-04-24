@@ -2,8 +2,8 @@ import React from 'react';
 import { App as AntApp } from 'antd';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ModType, SessionMods, setupDescriptors } from '../../model';
-import { BlockLookupView } from '../../renderer/views/BlockLookupView';
+import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
+import { BlockLookupView, getResponsiveBlockLookupColumns } from '../../renderer/views/BlockLookupView';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState } from './test-utils';
 
@@ -89,6 +89,22 @@ afterEach(() => {
 });
 
 describe('BlockLookupView', () => {
+	it('keeps Block Lookup columns within constrained desktop widths', () => {
+		const responsiveColumns = getResponsiveBlockLookupColumns(
+			[
+				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, minWidth: 180 },
+				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, minWidth: 120 },
+				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, minWidth: 120 },
+				{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
+				{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
+			],
+			640
+		);
+
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId']);
+		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + column.width, 72)).toBeLessThanOrEqual(640);
+	});
+
 	it('searches indexed block aliases and copies the selected command', async () => {
 		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
