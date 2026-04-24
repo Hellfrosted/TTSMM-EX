@@ -1,4 +1,5 @@
 import { LogLevel } from './Api';
+import { BlockLookupViewConfig } from './BlockLookupView';
 import { ModErrorType } from './CollectionValidation';
 import { MainCollectionConfig } from './MainCollectionView';
 import { ModDataOverride } from './Mod';
@@ -43,6 +44,7 @@ export interface AppConfig {
 
 	viewConfigs: {
 		main?: MainCollectionConfig;
+		blockLookup?: BlockLookupViewConfig;
 	};
 
 	ignoredValidationErrors: Map<ModErrorType, { [uid: string]: string[] }>;

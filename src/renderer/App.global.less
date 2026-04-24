@@ -111,6 +111,8 @@ body {
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
+	contain: layout paint style;
+	content-visibility: hidden;
 	transition:
 		opacity 140ms ease,
 		visibility 0s linear 140ms;
@@ -121,6 +123,7 @@ body {
 	opacity: 1;
 	visibility: visible;
 	pointer-events: auto;
+	content-visibility: visible;
 	transition:
 		opacity 140ms ease,
 		visibility 0s;
@@ -830,57 +833,23 @@ a:hover {
 	color: @text-color-dark;
 }
 
-.BlockLookupOptionsForm {
-	display: flex;
-	flex-direction: column;
-	gap: 16px;
+.BlockLookupSettingsColumnsHeader,
+.BlockLookupSettingsColumnsList {
+	grid-template-columns: minmax(560px, 1fr);
 }
 
-.BlockLookupOptionsTopBar {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(160px, 0.45fr);
-	gap: 12px;
+.BlockLookupSettingsColumnsHeader .CollectionSettingsColumnsHeaderGroup,
+.BlockLookupSettingsColumnRow {
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px) 96px;
 }
 
-.BlockLookupOptionsField {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	min-width: 0;
+.BlockLookupSettingsColumnOrder {
+	justify-self: start;
 }
 
-.BlockLookupOptionsColumnsHeader,
-.BlockLookupOptionsColumnRow {
-	display: grid;
-	grid-template-columns: minmax(180px, 1fr) 72px minmax(120px, 0.55fr) 96px;
-	gap: 12px;
-	align-items: center;
-}
-
-.BlockLookupOptionsColumnsHeader {
-	padding: 0 10px;
-}
-
-.BlockLookupOptionsColumnsList {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.BlockLookupOptionsColumnRow {
-	min-height: 48px;
-	padding: 8px 10px;
-	border: 1px solid @border-color;
-	border-radius: 8px;
-	background: @surface-color;
-}
-
-.BlockLookupOptionsColumnLabel {
-	min-width: 0;
-}
-
-.BlockLookupOptionsColumnRow .ant-input-number {
-	width: 100%;
+.ant-table.ant-table-small .ant-table-tbody > tr.CompactBlockLookupRow > td.ant-table-cell {
+	padding-top: 4px;
+	padding-bottom: 4px;
 }
 
 .CollectionToolbar .ant-btn {
@@ -1713,16 +1682,16 @@ a:hover {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.BlockLookupOptionsTopBar,
-	.BlockLookupOptionsColumnRow {
+	.BlockLookupSettingsColumnsHeader,
+	.BlockLookupSettingsColumnsList {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.BlockLookupSettingsColumnRow {
 		grid-template-columns: minmax(0, 1fr) auto;
 	}
 
-	.BlockLookupOptionsColumnsHeader {
-		display: none;
-	}
-
-	.BlockLookupOptionsColumnRow .ant-input-number {
+	.BlockLookupSettingsColumnOrder {
 		grid-column: 1 / -1;
 	}
 }

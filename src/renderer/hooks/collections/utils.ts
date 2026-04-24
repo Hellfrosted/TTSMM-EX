@@ -32,6 +32,18 @@ export function cloneAppConfig(config: AppConfig): AppConfig {
 							? { ...config.viewConfigs.main.columnWidthConfig }
 							: undefined
 				  }
+				: undefined,
+			blockLookup: config.viewConfigs.blockLookup
+				? {
+						...config.viewConfigs.blockLookup,
+						columnActiveConfig: config.viewConfigs.blockLookup.columnActiveConfig
+							? { ...config.viewConfigs.blockLookup.columnActiveConfig }
+							: undefined,
+						columnWidthConfig: config.viewConfigs.blockLookup.columnWidthConfig
+							? { ...config.viewConfigs.blockLookup.columnWidthConfig }
+							: undefined,
+						columnOrder: config.viewConfigs.blockLookup.columnOrder ? [...config.viewConfigs.blockLookup.columnOrder] : undefined
+				  }
 				: undefined
 		},
 		ignoredValidationErrors: new Map(

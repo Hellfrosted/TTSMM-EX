@@ -73,11 +73,14 @@ function renderBlockLookupView() {
 	const appState = createAppState({ mods });
 	setupDescriptors(mods, appState.config.userOverrides);
 
-	return render(
-		<AntApp>
-			<BlockLookupView appState={appState} />
-		</AntApp>
-	);
+	return {
+		appState,
+		...render(
+			<AntApp>
+				<BlockLookupView appState={appState} />
+			</AntApp>
+		)
+	};
 }
 
 afterEach(() => {
@@ -151,6 +154,7 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 
 		await screen.findByText('Block 125');
+		expect(screen.getByText('125 indexed blocks from 1 source')).toBeInTheDocument();
 		expect(screen.queryByTitle('Next Page')).toBeNull();
 	});
 
@@ -164,7 +168,7 @@ describe('BlockLookupView', () => {
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 
-		const { container } = renderBlockLookupView();
+		const { appState, container } = renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
 		const table = container.querySelector('.BlockLookupTable');
@@ -184,13 +188,29 @@ describe('BlockLookupView', () => {
 
 		fireEvent.click(screen.getByRole('button', { name: /Table Options/ }));
 		fireEvent.click(await screen.findByRole('button', { name: 'Move SpawnBlock Command right' }));
-		fireEvent.click(screen.getByRole('button', { name: 'Apply Table Options' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Save Table Settings' }));
 
 		await waitFor(() => {
-			const headers = Array.from(container.querySelectorAll('.BlockLookupTable thead th'))
-				.map((header) => header.textContent?.trim() ?? '')
-				.filter(Boolean);
-			expect(headers.indexOf('Block')).toBeLessThan(headers.indexOf('SpawnBlock Command'));
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					viewConfigs: expect.objectContaining({
+						blockLookup: expect.objectContaining({
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+						})
+					})
+				})
+			);
+			expect(appState.updateState).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						viewConfigs: expect.objectContaining({
+							blockLookup: expect.objectContaining({
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							})
+						})
+					})
+				})
+			);
 		});
 	});
 });

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useEffectEvent, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useEffectEvent, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { App as AntApp, ConfigProvider, Layout } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -48,7 +48,6 @@ export function AppViewStage({ active, children, name, overflow = 'hidden' }: Ap
 			className={`AppViewStage${active ? ' is-active' : ''}`}
 			data-active={active ? 'true' : 'false'}
 			data-view-stage={name}
-			inert={!active}
 			style={{
 				overflow
 			}}
@@ -199,12 +198,18 @@ function AppShell() {
 
 export default function App() {
 	const navigate = useNavigate();
+	const navigateApp = useCallback(
+		(path: string) => {
+			navigate(path);
+		},
+		[navigate]
+	);
 
 	return (
 		<div className="AppRoot" style={{ ...appCssVariables, width: '100%', height: '100%' }}>
 			<ConfigProvider theme={appTheme}>
 				<AntApp>
-					<AppStateProvider navigate={navigate}>
+					<AppStateProvider navigate={navigateApp}>
 						<AppShell />
 					</AppStateProvider>
 				</AntApp>

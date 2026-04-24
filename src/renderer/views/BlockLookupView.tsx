@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Input, InputNumber, Layout, Modal, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Form, Input, InputNumber, Layout, Modal, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import ArrowLeftOutlined from '@ant-design/icons/es/icons/ArrowLeftOutlined';
@@ -10,14 +10,15 @@ import FolderOutlined from '@ant-design/icons/es/icons/FolderOutlined';
 import ReloadOutlined from '@ant-design/icons/es/icons/ReloadOutlined';
 import SearchOutlined from '@ant-design/icons/es/icons/SearchOutlined';
 import SettingFilled from '@ant-design/icons/es/icons/SettingFilled';
-import type { AppState } from 'model';
-import { getRows } from 'model';
+import { BlockLookupColumnTitles, getRows, type AppState, type BlockLookupViewConfig } from 'model';
 import type { BlockLookupBuildRequest, BlockLookupModSource, BlockLookupRecord, BlockLookupSettings, BlockLookupIndexStats } from 'shared/block-lookup';
 import api from 'renderer/Api';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
+import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import { writeConfig } from 'renderer/util/config-write';
 
 const { Content, Header } = Layout;
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const MAX_SEARCH_RESULTS = 1000;
 
 type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'modTitle' | 'blockId' | 'sourceKind';
@@ -27,31 +28,18 @@ type BlockLookupColumn = NonNullable<TableProps<BlockLookupRecord>['columns']>[n
 
 interface BlockLookupColumnConfig {
 	key: BlockLookupColumnKey;
-	title: string;
+	title: BlockLookupColumnTitles;
 	visible: boolean;
 	width: number;
+	minWidth: number;
 }
 
 const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
-	{ key: 'spawnCommand', title: 'SpawnBlock Command', visible: true, width: 360 },
-	{ key: 'blockName', title: 'Block', visible: true, width: 220 },
-	{ key: 'modTitle', title: 'Mod', visible: true, width: 200 },
-	{ key: 'blockId', title: 'Block ID', visible: true, width: 110 },
-	{ key: 'sourceKind', title: 'Source', visible: true, width: 130 }
-];
-
-const ROW_ORDER_OPTIONS: { label: string; value: BlockLookupSortKey }[] = [
-	{ label: 'Search relevance', value: 'relevance' },
-	{ label: 'SpawnBlock Command', value: 'spawnCommand' },
-	{ label: 'Block', value: 'blockName' },
-	{ label: 'Mod', value: 'modTitle' },
-	{ label: 'Block ID', value: 'blockId' },
-	{ label: 'Source', value: 'sourceKind' }
-];
-
-const ROW_DIRECTION_OPTIONS: { label: string; value: BlockLookupSortDirection }[] = [
-	{ label: 'Ascending', value: 'ascend' },
-	{ label: 'Descending', value: 'descend' }
+	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, minWidth: 180 },
+	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, minWidth: 120 },
+	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, minWidth: 120 },
+	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
+	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
 ];
 
 interface BlockLookupViewProps {
@@ -115,6 +103,59 @@ function moveColumn(columns: BlockLookupColumnConfig[], fromIndex: number, toInd
 	return nextColumns;
 }
 
+function getConfiguredColumns(config?: BlockLookupViewConfig): BlockLookupColumnConfig[] {
+	const defaultColumns = cloneColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS);
+	const columnByTitle = new Map(defaultColumns.map((column) => [column.title, column]));
+	const configuredOrder = config?.columnOrder || [];
+	const configuredTitleSet = new Set<BlockLookupColumnTitles>();
+	const configuredTitles = configuredOrder.filter((title): title is BlockLookupColumnTitles => {
+		if (!columnByTitle.has(title as BlockLookupColumnTitles) || configuredTitleSet.has(title as BlockLookupColumnTitles)) {
+			return false;
+		}
+		configuredTitleSet.add(title as BlockLookupColumnTitles);
+		return true;
+	});
+	const orderedTitles = [
+		...configuredTitles,
+		...defaultColumns.map((column) => column.title).filter((title) => !configuredTitleSet.has(title))
+	];
+
+	return orderedTitles.map((title) => {
+		const column = columnByTitle.get(title) ?? defaultColumns[0];
+		const configuredWidth = config?.columnWidthConfig?.[title];
+		return {
+			...column,
+			visible: config?.columnActiveConfig?.[title] !== false,
+			width: Math.max(column.minWidth, typeof configuredWidth === 'number' ? Math.round(configuredWidth) : column.width)
+		};
+	});
+}
+
+function columnsToConfig(columns: BlockLookupColumnConfig[], smallRows?: boolean): BlockLookupViewConfig {
+	const columnActiveConfig = columns.reduce<Record<string, boolean>>((config, column) => {
+		if (!column.visible) {
+			config[column.title] = false;
+		}
+		return config;
+	}, {});
+	const columnWidthConfig = columns.reduce<Record<string, number>>((config, column) => {
+		const defaultColumn = DEFAULT_BLOCK_LOOKUP_COLUMNS.find((defaultColumnConfig) => defaultColumnConfig.title === column.title);
+		if (!defaultColumn || column.width !== defaultColumn.width) {
+			config[column.title] = Math.max(column.minWidth, Math.round(column.width));
+		}
+		return config;
+	}, {});
+	const columnOrder = columns.map((column) => column.title);
+	const defaultOrder = DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.title);
+
+	return {
+		smallRows: smallRows || undefined,
+		columnActiveConfig: Object.keys(columnActiveConfig).length > 0 ? columnActiveConfig : undefined,
+		columnWidthConfig: Object.keys(columnWidthConfig).length > 0 ? columnWidthConfig : undefined,
+		columnOrder: columnOrder.some((title, index) => title !== defaultOrder[index]) ? columnOrder : undefined
+	};
+}
+
 function collectBlockLookupModSources(appState: AppState): BlockLookupModSource[] {
 	return getRows(appState.mods)
 		.filter((modData) => !!modData.path)
@@ -144,12 +185,13 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const [loadingResults, setLoadingResults] = useState(false);
 	const [buildingIndex, setBuildingIndex] = useState(false);
 	const [selectedRowKey, setSelectedRowKey] = useState<string>();
-	const [columnConfig, setColumnConfig] = useState<BlockLookupColumnConfig[]>(() => cloneColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS));
-	const [draftColumnConfig, setDraftColumnConfig] = useState<BlockLookupColumnConfig[]>(() => cloneColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS));
+	const blockLookupConfig = appState.config.viewConfigs.blockLookup;
+	const columnConfig = useMemo(() => getConfiguredColumns(blockLookupConfig), [blockLookupConfig]);
+	const [draftColumnConfig, setDraftColumnConfig] = useState<BlockLookupColumnConfig[]>(() => getConfiguredColumns(blockLookupConfig));
+	const [draftSmallRows, setDraftSmallRows] = useState(!!blockLookupConfig?.smallRows);
+	const [savingTableOptions, setSavingTableOptions] = useState(false);
 	const [sortKey, setSortKey] = useState<BlockLookupSortKey>('relevance');
 	const [sortDirection, setSortDirection] = useState<BlockLookupSortDirection>('ascend');
-	const [draftSortKey, setDraftSortKey] = useState<BlockLookupSortKey>('relevance');
-	const [draftSortDirection, setDraftSortDirection] = useState<BlockLookupSortDirection>('ascend');
 	const [tableOptionsOpen, setTableOptionsOpen] = useState(false);
 	const searchRequestIdRef = useRef(0);
 	const modSources = useMemo(() => collectBlockLookupModSources(appState), [appState]);
@@ -425,19 +467,35 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	}, [openNotification, sortedRows]);
 
 	const openTableOptions = useCallback(() => {
-		setDraftColumnConfig(cloneColumnConfig(columnConfig));
-		setDraftSortKey(sortKey);
-		setDraftSortDirection(sortDirection);
+		setDraftColumnConfig(getConfiguredColumns(blockLookupConfig));
+		setDraftSmallRows(!!blockLookupConfig?.smallRows);
 		setTableOptionsOpen(true);
-	}, [columnConfig, sortDirection, sortKey]);
+	}, [blockLookupConfig]);
 
-	const applyTableOptions = useCallback(() => {
-		const hasVisibleColumn = draftColumnConfig.some((column) => column.visible);
-		setColumnConfig(hasVisibleColumn ? cloneColumnConfig(draftColumnConfig) : cloneColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS));
-		setSortKey(draftSortKey);
-		setSortDirection(draftSortDirection);
-		setTableOptionsOpen(false);
-	}, [draftColumnConfig, draftSortDirection, draftSortKey]);
+	const saveTableOptions = useCallback(async () => {
+		const nextConfig = cloneAppConfig(appState.config);
+		const nextColumns = draftColumnConfig.some((column) => column.visible) ? draftColumnConfig : getConfiguredColumns();
+		nextConfig.viewConfigs.blockLookup = columnsToConfig(nextColumns, draftSmallRows);
+		setSavingTableOptions(true);
+		try {
+			await writeConfig(nextConfig);
+			appState.updateState({ config: nextConfig });
+			setTableOptionsOpen(false);
+		} catch (error) {
+			api.logger.error(error);
+			openNotification(
+				{
+					message: 'Failed to update view settings',
+					description: String(error),
+					placement: 'bottomLeft',
+					duration: null
+				},
+				'error'
+			);
+		} finally {
+			setSavingTableOptions(false);
+		}
+	}, [appState, draftColumnConfig, draftSmallRows, openNotification]);
 
 	const handleTableChange = useCallback<NonNullable<TableProps<BlockLookupRecord>['onChange']>>((_pagination, _filters, sorter) => {
 		const nextSorter = Array.isArray(sorter) ? sorter[0] : sorter;
@@ -510,7 +568,10 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		[columnConfig, columnDefinitions]
 	);
 
-	const tableScrollX = useMemo(() => columnConfig.filter((column) => column.visible).reduce((totalWidth, column) => totalWidth + column.width, 72), [columnConfig]);
+	const tableScrollX = useMemo(
+		() => Math.max(1040, columnConfig.filter((column) => column.visible).reduce((totalWidth, column) => totalWidth + column.width, 72)),
+		[columnConfig]
+	);
 
 	return (
 		<Layout className="BlockLookupViewLayout">
@@ -591,7 +652,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 				<div className="BlockLookupTablePane">
 					<Table
 						className="BlockLookupTable"
-						size="small"
+						size={blockLookupConfig?.smallRows ? 'small' : 'middle'}
 						rowKey={getRecordKey}
 						columns={columns}
 						dataSource={sortedRows}
@@ -599,6 +660,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 						pagination={false}
 						scroll={{ x: tableScrollX, y: 'calc(100vh - 390px)' }}
 						onChange={handleTableChange}
+						rowClassName={() => (blockLookupConfig?.smallRows ? 'CompactBlockLookupRow' : '')}
 						rowSelection={{
 							type: 'radio',
 							selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
@@ -669,7 +731,8 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 				</div>
 			</Content>
 			<Modal
-				className="BlockLookupOptionsModal"
+				className="CollectionSettingsModal"
+				wrapClassName="CollectionSettingsModalWrap"
 				title="Block lookup table options"
 				width={760}
 				open={tableOptionsOpen}
@@ -678,98 +741,99 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 				}}
 				footer={[
 					<Button
-						key="reset"
-						onClick={() => {
-							setDraftColumnConfig(cloneColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS));
-							setDraftSortKey('relevance');
-							setDraftSortDirection('ascend');
-						}}
-					>
-						Reset
-					</Button>,
-					<Button
-						key="cancel"
+						key="cancel-settings"
+						disabled={savingTableOptions}
 						onClick={() => {
 							setTableOptionsOpen(false);
 						}}
 					>
 						Cancel
 					</Button>,
-					<Button key="apply" type="primary" onClick={applyTableOptions}>
-						Apply Table Options
+					<Button
+						key="save-settings"
+						loading={savingTableOptions}
+						disabled={savingTableOptions}
+						type="primary"
+						onClick={() => {
+							void saveTableOptions();
+						}}
+					>
+						Save Table Settings
 					</Button>
 				]}
 			>
-				<div className="BlockLookupOptionsForm">
-					<div className="BlockLookupOptionsTopBar">
-						<div className="BlockLookupOptionsField">
-							<Text strong>Row order</Text>
-							<Select<BlockLookupSortKey>
-								aria-label="Block lookup row order"
-								value={draftSortKey}
-								options={ROW_ORDER_OPTIONS}
-								onChange={(value) => {
-									setDraftSortKey(value);
-								}}
-							/>
+				<Form className="CollectionSettingsForm CollectionSettingsForm--dense">
+					<div className="CollectionSettingsTopBar">
+						<div className="CollectionSettingsTopCopy">
+							<Title level={5}>Table layout</Title>
 						</div>
-						<div className="BlockLookupOptionsField">
-							<Text strong>Direction</Text>
-							<Select<BlockLookupSortDirection>
-								aria-label="Block lookup row order direction"
-								value={draftSortDirection}
-								options={ROW_DIRECTION_OPTIONS}
-								disabled={draftSortKey === 'relevance'}
-								onChange={(value) => {
-									setDraftSortDirection(value);
+						<div className="CollectionSettingsToggleCard">
+							<div className="CollectionSettingsToggleCopy">
+								<Text strong>Compact rows</Text>
+							</div>
+							<Switch
+								aria-label="Use extra-compact rows in the block lookup table"
+								checked={draftSmallRows}
+								onChange={(checked) => {
+									setDraftSmallRows(checked);
 								}}
 							/>
 						</div>
 					</div>
-					<div className="BlockLookupOptionsColumnsHeader" aria-hidden>
-						<Text type="secondary">Column</Text>
-						<Text type="secondary">Show</Text>
-						<Text type="secondary">Width</Text>
-						<Text type="secondary">Order</Text>
+					<div className="CollectionSettingsColumnsHeader BlockLookupSettingsColumnsHeader" aria-hidden>
+						<div className="CollectionSettingsColumnsHeaderGroup">
+							<Text type="secondary">Column</Text>
+							<Text type="secondary">Show</Text>
+							<Text type="secondary">Saved width</Text>
+							<Text type="secondary">Order</Text>
+						</div>
 					</div>
-					<div className="BlockLookupOptionsColumnsList">
+					<div className="CollectionSettingsColumnsList BlockLookupSettingsColumnsList">
 						{draftColumnConfig.map((column, index) => {
 							const visibleColumns = draftColumnConfig.filter((draftColumn) => draftColumn.visible).length;
 							const cannotHide = column.visible && visibleColumns <= 1;
 							return (
-								<div className="BlockLookupOptionsColumnRow" key={column.key}>
-									<div className="BlockLookupOptionsColumnLabel">
+								<div className="CollectionSettingsColumnRow BlockLookupSettingsColumnRow" key={column.key}>
+									<div className="CollectionSettingsColumnLabel">
 										<Text strong>{column.title}</Text>
 									</div>
-									<Switch
-										aria-label={`Show ${column.title} column`}
-										checked={column.visible}
-										disabled={cannotHide}
-										onChange={(checked) => {
-											setDraftColumnConfig((currentColumns) =>
-												currentColumns.map((currentColumn) => (currentColumn.key === column.key ? { ...currentColumn, visible: checked } : currentColumn))
-											);
-										}}
-									/>
-									<InputNumber
-										aria-label={`Width for ${column.title} column`}
-										min={80}
-										max={720}
-										step={10}
-										value={column.width}
-										disabled={!column.visible}
-										onChange={(value) => {
-											setDraftColumnConfig((currentColumns) =>
-												currentColumns.map((currentColumn) => {
-													if (currentColumn.key !== column.key || typeof value !== 'number') {
-														return currentColumn;
-													}
-													return { ...currentColumn, width: value };
-												})
-											);
-										}}
-									/>
-									<Space size={6}>
+									<div className="CollectionSettingsColumnSwitch">
+										<Switch
+											aria-label={`Show ${column.title} column`}
+											checked={column.visible}
+											disabled={cannotHide}
+											onChange={(checked) => {
+												setDraftColumnConfig((currentColumns) =>
+													currentColumns.map((currentColumn) =>
+														currentColumn.key === column.key ? { ...currentColumn, visible: checked } : currentColumn
+													)
+												);
+											}}
+										/>
+									</div>
+									<div className="CollectionSettingsColumnWidth">
+										<InputNumber
+											aria-label={`Saved width for ${column.title} column`}
+											min={column.minWidth}
+											max={720}
+											step={10}
+											style={{ width: '100%' }}
+											value={column.width}
+											placeholder={`Auto (${column.minWidth}px min)`}
+											disabled={!column.visible}
+											onChange={(value) => {
+												setDraftColumnConfig((currentColumns) =>
+													currentColumns.map((currentColumn) => {
+														if (currentColumn.key !== column.key || typeof value !== 'number') {
+															return currentColumn;
+														}
+														return { ...currentColumn, width: value };
+													})
+												);
+											}}
+										/>
+									</div>
+									<Space className="BlockLookupSettingsColumnOrder" size={6}>
 										<Tooltip title={`Move ${column.title} left`}>
 											<Button
 												aria-label={`Move ${column.title} left`}
@@ -795,7 +859,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							);
 						})}
 					</div>
-				</div>
+				</Form>
 			</Modal>
 		</Layout>
 	);

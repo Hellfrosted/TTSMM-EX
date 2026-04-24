@@ -1,6 +1,5 @@
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
 import type { PropsWithChildren } from 'react';
-import type { NavigateFunction } from 'react-router-dom';
 import { SessionMods } from 'model';
 import type { AppConfig, AppState, ModCollection } from 'model';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
@@ -144,18 +143,20 @@ export function appReducer(state: AppStateData, action: AppAction): AppStateData
 const AppStateContext = createContext<AppState | null>(null);
 const AppDispatchContext = createContext<React.Dispatch<AppAction> | null>(null);
 
-export function AppStateProvider({ children, navigate }: PropsWithChildren<{ navigate: NavigateFunction }>) {
+export function AppStateProvider({ children, navigate }: PropsWithChildren<{ navigate: (path: string) => void }>) {
 	const [state, dispatch] = useReducer(appReducer, undefined, createInitialAppState);
 
-	const appState: AppState = {
-		...state,
-		navigate: (path: string) => {
-			navigate(path);
-		},
-		updateState: (props) => {
-			dispatch(mergeAppState(props));
-		}
-	};
+	const updateState = useCallback((props: Parameters<AppState['updateState']>[0]) => {
+		dispatch(mergeAppState(props));
+	}, []);
+	const appState: AppState = useMemo(
+		() => ({
+			...state,
+			navigate,
+			updateState
+		}),
+		[navigate, state, updateState]
+	);
 
 	return (
 		<AppDispatchContext.Provider value={dispatch}>
