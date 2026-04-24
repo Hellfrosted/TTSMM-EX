@@ -17,7 +17,11 @@
 @success-color: var(--app-color-success);
 @warning-color: var(--app-color-warning);
 @error-color: var(--app-color-error);
-@focus-ring-color: color-mix(in srgb, var(--app-color-primary-hover) 34%, transparent);
+@focus-ring-color: color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+@focus-ring-offset-color: color-mix(in srgb, var(--app-color-background) 92%, black);
+@dense-control-size: 44px;
+@compact-row-target-size: 44px;
+@touch-target-size: 44px;
 @workshop-accent-color: color-mix(in srgb, var(--app-color-primary) 76%, white);
 @surface-interaction-subtle: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
 @surface-outline-strong: color-mix(in srgb, var(--app-color-text-base) 14%, transparent);
@@ -146,13 +150,16 @@ body {
 
 .CollectionNameButton {
 	background-color: transparent;
+	min-height: @dense-control-size;
 	padding: 8px 12px;
 	border-radius: 6px;
 	border: none;
 	appearance: none;
 	font-size: 1.3rem;
 	box-shadow: none;
-	transition: background-color 120ms ease, color 120ms ease;
+	transition:
+		background-color 120ms ease,
+		color 120ms ease;
 	cursor: pointer;
 }
 
@@ -162,8 +169,10 @@ body {
 
 .CollectionNameButton:focus-visible {
 	outline: none;
-	background-color: color-mix(in srgb, var(--app-color-primary) 12%, transparent);
-	box-shadow: inset 0 0 0 2px @focus-ring-color;
+	background-color: color-mix(in srgb, var(--app-color-primary) 18%, transparent);
+	box-shadow:
+		0 0 0 2px @focus-ring-offset-color,
+		0 0 0 4px @focus-ring-color;
 }
 
 .CollectionTableHeaderCell {
@@ -171,8 +180,17 @@ body {
 	width: 100%;
 }
 
+.CollectionTableHeaderInner {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-width: 0;
+}
+
 .CollectionTableHeaderContextTarget {
 	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
 	width: 100%;
 	height: 100%;
 }
@@ -180,8 +198,8 @@ body {
 .CollectionTableResizeHandle {
 	position: absolute;
 	top: 0;
-	right: -14px;
-	width: 28px;
+	right: -(@dense-control-size / 2);
+	width: @dense-control-size;
 	height: 100%;
 	cursor: col-resize;
 	z-index: 2;
@@ -204,8 +222,10 @@ body {
 }
 
 .CollectionTableResizeHandle:focus-visible {
-	border-radius: 6px;
-	box-shadow: inset 0 0 0 2px @focus-ring-color;
+	border-radius: 8px;
+	box-shadow:
+		0 0 0 2px @focus-ring-offset-color,
+		0 0 0 4px @focus-ring-color;
 }
 
 th:hover .CollectionTableResizeHandle::after,
@@ -318,10 +338,10 @@ a:hover {
 }
 
 .SettingsPane {
-	padding: 18px 20px;
+	padding: 16px 18px;
 	background: @surface-color;
 	border: 1px solid @border-color;
-	border-radius: 10px;
+	border-radius: 8px;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -338,6 +358,43 @@ a:hover {
 
 .SettingsPaneColumn > .SettingsPane {
 	flex: 1 1 auto;
+}
+
+.SettingsDisclosure {
+	margin-top: 2px;
+	padding-top: 4px;
+	border-top: 1px solid @border-color;
+}
+
+.SettingsDisclosureSummary {
+	min-height: 38px;
+	padding: 9px 0;
+	color: @text-color-dark;
+	font-weight: 650;
+	line-height: 1.25;
+	cursor: pointer;
+	user-select: none;
+}
+
+.SettingsDisclosureSummary::marker {
+	color: @text-color-muted;
+}
+
+.SettingsDisclosureSummary:focus-visible {
+	outline: none;
+	border-radius: 6px;
+	box-shadow:
+		0 0 0 2px @focus-ring-offset-color,
+		0 0 0 4px @focus-ring-color;
+}
+
+.SettingsDisclosureBody {
+	padding-top: 12px;
+}
+
+.SettingsDisclosureActions {
+	display: flex;
+	justify-content: flex-start;
 }
 
 .Settings .ant-form-item-label > label.ant-form-item-required::before {
@@ -525,14 +582,14 @@ a:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: @shadow-color;        /* color of the tracking area */
+	background: @shadow-color; /* color of the tracking area */
 	border-radius: 6px;
 	border-color: @background-color-light;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: @disabled-color;    /* color of the scroll thumb */
-  border-radius: 6px;       /* roundness of the scroll thumb */
+	background-color: @disabled-color; /* color of the scroll thumb */
+	border-radius: 6px; /* roundness of the scroll thumb */
 }
 
 .CollectionViewLayout {
@@ -560,6 +617,7 @@ a:hover {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 12px 16px;
+	width: 100%;
 }
 
 .CollectionToolbarCollectionSelector {
@@ -586,8 +644,28 @@ a:hover {
 	min-height: 38px;
 }
 
+.CollectionToolbarActionGroup {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.CollectionToolbarActionGroup--collection {
+	flex: 0 1 auto;
+}
+
+.CollectionToolbarActionGroup--utility {
+	margin-left: auto;
+	padding-left: 16px;
+	border-left: 1px solid @border-color;
+}
+
 .CollectionToolbarActions--primary {
 	flex: 1 1 auto;
+}
+
+.CollectionToolbarActions--utility {
+	justify-content: flex-end;
 }
 
 .CollectionToolbarActions--secondary {
@@ -597,6 +675,8 @@ a:hover {
 .CollectionToolbarActions .ant-space-item {
 	display: flex;
 	align-items: center;
+	flex: 0 0 auto;
+	min-width: 0;
 }
 
 .CollectionToolbar .ant-select-selector,
@@ -631,16 +711,27 @@ a:hover {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	flex: 0 0 auto;
 	gap: 8px;
 	min-height: @control-height;
 	padding-top: 0;
 	padding-bottom: 0;
 	line-height: 1;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .CollectionToolbar .ant-btn > span {
 	display: inline-flex;
 	align-items: center;
+}
+
+.CollectionToolbarButtonLabel {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .CollectionToolbar .ant-btn .anticon {
@@ -793,29 +884,45 @@ a:hover {
 
 .WorkshopDescription {
 	color: @text-color-dark;
-	line-height: 1.6;
+	font-size: 0.95rem;
+	line-height: 1.55;
 	word-break: break-word;
 
 	h1,
 	h2,
 	h3 {
 		color: @workshop-accent-color;
-		font-weight: 400;
-		line-height: 1.15;
-		margin-top: 0;
-		margin-bottom: 16px;
+		font-family: @body-font-family;
+		font-weight: 650;
+		line-height: 1.25;
+		margin-top: 18px;
+		margin-bottom: 8px;
 	}
 
 	h1 {
-		font-size: 1.95rem;
+		font-size: 1.28rem;
 	}
 
 	h2 {
-		font-size: 1.55rem;
+		font-size: 1.12rem;
 	}
 
 	h3 {
-		font-size: 1.25rem;
+		font-size: 1rem;
+	}
+
+	h1:first-child,
+	h2:first-child,
+	h3:first-child {
+		margin-top: 0;
+	}
+
+	p,
+	ul,
+	ol,
+	blockquote,
+	pre {
+		max-width: 88ch;
 	}
 
 	a {
@@ -1130,11 +1237,11 @@ a:hover {
 .ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .CollectionNameButton {
 	font-size: 13.5px !important;
 	line-height: 1.28;
-	min-height: 30px;
-	padding-top: 4px !important;
-	padding-bottom: 4px !important;
-	padding-left: 6px !important;
-	padding-right: 4px !important;
+	min-height: @compact-row-target-size;
+	padding-top: 6px !important;
+	padding-bottom: 6px !important;
+	padding-left: 8px !important;
+	padding-right: 6px !important;
 }
 
 .ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .ant-tag {
@@ -1180,6 +1287,11 @@ a:hover {
 }
 
 @media (pointer: coarse) {
+	.CollectionTableResizeHandle {
+		right: -(@touch-target-size / 2);
+		width: @touch-target-size;
+	}
+
 	.CollectionSettingsModal .ant-switch {
 		min-width: 52px;
 		height: 28px;
@@ -1210,7 +1322,7 @@ a:hover {
 	}
 
 	.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .CollectionNameButton {
-		min-height: 44px;
+		min-height: @touch-target-size;
 		padding-top: 10px !important;
 		padding-bottom: 10px !important;
 	}
@@ -1249,9 +1361,32 @@ a:hover {
 		margin-inline: 20px;
 	}
 
+	.CollectionToolbarPrimaryBar {
+		column-gap: 10px;
+	}
+
 	.CollectionToolbarCollectionSelector {
 		flex-basis: 100%;
 		max-width: none;
+	}
+
+	.CollectionToolbarActionGroup--utility {
+		margin-left: auto;
+		padding-left: 12px;
+	}
+
+	.CollectionToolbarActions {
+		gap: 8px !important;
+	}
+
+	.CollectionToolbarActions .ant-btn {
+		width: @control-height;
+		min-width: @control-height;
+		padding-inline: 0 !important;
+	}
+
+	.CollectionToolbar .CollectionToolbarActions .CollectionToolbarButtonLabel {
+		display: none;
 	}
 
 	.StartupContent {
@@ -1310,12 +1445,35 @@ a:hover {
 }
 
 @media (max-width: 720px) {
+	.CollectionHeader {
+		min-height: 0 !important;
+		padding: 12px 16px;
+		gap: 8px;
+	}
+
+	.CollectionToolbar,
+	.CollectionToolbarPrimaryBar {
+		gap: 8px;
+	}
+
+	.CollectionToolbarActionGroup--utility {
+		padding-left: 10px;
+	}
+
+	.CollectionToolbarCollectionSelector {
+		min-width: 0;
+	}
+
 	.CollectionToolbar .ant-btn,
 	.CollectionToolbar .ant-input-affix-wrapper,
 	.CollectionToolbar .ant-input-group-addon > button,
 	.CollectionToolbar .ant-input-group .ant-input,
 	.CollectionToolbar .ant-select-selector {
 		min-height: @control-height;
+	}
+
+	.CollectionToolbar .ant-input-group-addon > button {
+		min-width: @control-height;
 	}
 
 	.SettingsActions {

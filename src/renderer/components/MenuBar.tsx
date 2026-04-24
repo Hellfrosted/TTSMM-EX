@@ -1,7 +1,8 @@
 import { startTransition, useCallback, useEffect, useRef } from 'react';
 import { Menu } from 'antd';
 import type { MenuProps as AntdMenuProps } from 'antd';
-import { AppstoreOutlined, SettingOutlined } from '@ant-design/icons';
+import AppstoreOutlined from '@ant-design/icons/es/icons/AppstoreOutlined';
+import SettingOutlined from '@ant-design/icons/es/icons/SettingOutlined';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppState } from 'model';
 import api from 'renderer/Api';

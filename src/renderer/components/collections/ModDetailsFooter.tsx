@@ -18,21 +18,19 @@ import {
 	Tooltip,
 	ConfigProvider
 } from 'antd';
-import {
-	CheckSquareFilled,
-	ClockCircleTwoTone,
-	ColumnHeightOutlined,
-	ColumnWidthOutlined,
-	CloseOutlined,
-	EditFilled,
-	FolderOpenFilled,
-	FullscreenExitOutlined,
-	FullscreenOutlined,
-	HddFilled,
-	QuestionCircleFilled,
-	StopTwoTone,
-	WarningTwoTone
-} from '@ant-design/icons';
+import CheckSquareFilled from '@ant-design/icons/es/icons/CheckSquareFilled';
+import ClockCircleTwoTone from '@ant-design/icons/es/icons/ClockCircleTwoTone';
+import ColumnHeightOutlined from '@ant-design/icons/es/icons/ColumnHeightOutlined';
+import ColumnWidthOutlined from '@ant-design/icons/es/icons/ColumnWidthOutlined';
+import CloseOutlined from '@ant-design/icons/es/icons/CloseOutlined';
+import EditFilled from '@ant-design/icons/es/icons/EditFilled';
+import FolderOpenFilled from '@ant-design/icons/es/icons/FolderOpenFilled';
+import FullscreenExitOutlined from '@ant-design/icons/es/icons/FullscreenExitOutlined';
+import FullscreenOutlined from '@ant-design/icons/es/icons/FullscreenOutlined';
+import HddFilled from '@ant-design/icons/es/icons/HddFilled';
+import QuestionCircleFilled from '@ant-design/icons/es/icons/QuestionCircleFilled';
+import StopTwoTone from '@ant-design/icons/es/icons/StopTwoTone';
+import WarningTwoTone from '@ant-design/icons/es/icons/WarningTwoTone';
 import { ColumnType } from 'antd/lib/table';
 import { TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
@@ -670,7 +668,10 @@ function ModDetailsFooter({
 				<Descriptions.Item label="Created">{formatDateStr(currentRecord.dateCreated)}</Descriptions.Item>
 				<Descriptions.Item label="Installed">{formatDateStr(currentRecord.dateAdded)}</Descriptions.Item>
 				<Descriptions.Item label="Description" span={descriptionColumns}>
-					<WorkshopDescription description={currentRecord.description} />
+					<WorkshopDescription
+						description={currentRecord.description}
+						imageAltFallback={`${getModDataDisplayName(currentRecord) || currentRecord.uid} workshop description image`}
+					/>
 				</Descriptions.Item>
 			</Descriptions>
 		);

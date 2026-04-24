@@ -1,11 +1,16 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../model';
 import MainCollectionComponent from '../../renderer/components/collections/MainCollectionComponent';
 import CollectionRoute from '../../renderer/views/CollectionView';
 import { createAppState } from './test-utils';
+
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
 
 function CollectionRouteHarness({ appState }: { appState: AppState }) {
 	const location = useLocation();
@@ -29,6 +34,7 @@ describe('CollectionRoute', () => {
 		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 			return {
 				observe: vi.fn(),
+				unobserve: vi.fn(),
 				disconnect: vi.fn()
 			};
 		});
@@ -66,6 +72,7 @@ describe('CollectionRoute', () => {
 		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 			return {
 				observe: vi.fn(),
+				unobserve: vi.fn(),
 				disconnect: vi.fn()
 			};
 		});

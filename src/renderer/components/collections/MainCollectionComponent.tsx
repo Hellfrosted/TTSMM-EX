@@ -1,13 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Dropdown, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import type { CSSProperties, Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ThHTMLAttributes } from 'react';
 import type { MenuProps } from 'antd';
 import { ColumnType } from 'antd/lib/table';
-import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
+import { SortOrder, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
-import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
+import { APP_FONT_FAMILY, APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -23,7 +22,11 @@ import {
 	CorpType,
 	getCorpType
 } from 'model';
-import { WarningTwoTone, ClockCircleTwoTone, StopTwoTone, HddFilled, CodeFilled } from '@ant-design/icons';
+import ClockCircleTwoTone from '@ant-design/icons/es/icons/ClockCircleTwoTone';
+import CodeFilled from '@ant-design/icons/es/icons/CodeFilled';
+import HddFilled from '@ant-design/icons/es/icons/HddFilled';
+import StopTwoTone from '@ant-design/icons/es/icons/StopTwoTone';
+import WarningTwoTone from '@ant-design/icons/es/icons/WarningTwoTone';
 import { formatDateStr } from 'util/Date';
 
 import steam from '../../../../assets/steam.png';
@@ -43,11 +46,92 @@ const { Content } = Layout;
 const { Text } = Typography;
 const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 const KEYBOARD_RESIZE_STEP = 16;
-const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
 const COLUMN_MEASUREMENT_SAMPLE_SIZE = 24;
 const COLUMN_AUTO_MEASURE_MAX_ROWS = 120;
+const COLUMN_MEASUREMENT_CACHE_LIMIT = 12;
+const NAME_CELL_ICON_WIDTH = 18;
+const SIZE_COLOR_MIN_BYTES = 10 * 1024;
+const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
+const KILOBYTE = 1024;
+const MEGABYTE = 1024 * 1024;
 const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
 const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+const columnMeasurementCache = new Map<string, Record<string, number>>();
+const AUTO_MEASURE_COLUMN_TITLES = new Set<MainColumnTitles>([
+	MainColumnTitles.NAME,
+	MainColumnTitles.AUTHORS,
+	MainColumnTitles.STATE,
+	MainColumnTitles.ID,
+	MainColumnTitles.SIZE,
+	MainColumnTitles.TAGS
+]);
+interface SizeColorBand {
+	upperBound: number;
+	startColor: string;
+	endColor: string;
+	backgroundStartMix: number;
+	borderMix: number;
+	textMix: number;
+}
+
+const SIZE_COLOR_BANDS: readonly SizeColorBand[] = [
+	{
+		upperBound: 128 * KILOBYTE,
+		startColor: APP_THEME_COLORS.success,
+		endColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.warning, 0.18),
+		backgroundStartMix: 0.22,
+		borderMix: 0.5,
+		textMix: 0.12
+	},
+	{
+		upperBound: 512 * KILOBYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.primary, 0.34),
+		endColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.warning, 0.44),
+		backgroundStartMix: 0.24,
+		borderMix: 0.54,
+		textMix: 0.14
+	},
+	{
+		upperBound: 2 * MEGABYTE,
+		startColor: APP_THEME_COLORS.primary,
+		endColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.16),
+		backgroundStartMix: 0.26,
+		borderMix: 0.58,
+		textMix: 0.16
+	},
+	{
+		upperBound: 8 * MEGABYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.26),
+		endColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.48),
+		backgroundStartMix: 0.29,
+		borderMix: 0.62,
+		textMix: 0.18
+	},
+	{
+		upperBound: 24 * MEGABYTE,
+		startColor: APP_THEME_COLORS.warning,
+		endColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.16),
+		backgroundStartMix: 0.32,
+		borderMix: 0.67,
+		textMix: 0.2
+	},
+	{
+		upperBound: 64 * MEGABYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.32),
+		endColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.58),
+		backgroundStartMix: 0.36,
+		borderMix: 0.72,
+		textMix: 0.24
+	},
+	{
+		upperBound: Number.POSITIVE_INFINITY,
+		startColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.7),
+		endColor: APP_THEME_COLORS.error,
+		backgroundStartMix: 0.42,
+		borderMix: 0.78,
+		textMix: 0.28
+	}
+] as const;
 const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
 	[MainColumnTitles.AUTHORS]: 760,
 	[MainColumnTitles.STATE]: 860,
@@ -57,6 +141,194 @@ const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, numbe
 	[MainColumnTitles.DATE_ADDED]: 1280,
 	[MainColumnTitles.TAGS]: 1380
 };
+
+function areColumnWidthMapsEqual(left: Record<string, number>, right: Record<string, number>) {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	return leftKeys.every((key) => left[key] === right[key]);
+}
+
+function getColumnMeasurementCacheKey(measurementInputKey: string, activeColumnTitles: string[]) {
+	return `${measurementInputKey}::${activeColumnTitles.join('|')}`;
+}
+
+function cacheColumnMeasurements(cacheKey: string, widths: Record<string, number>) {
+	columnMeasurementCache.delete(cacheKey);
+	columnMeasurementCache.set(cacheKey, widths);
+	if (columnMeasurementCache.size <= COLUMN_MEASUREMENT_CACHE_LIMIT) {
+		return;
+	}
+
+	const oldestCacheKey = columnMeasurementCache.keys().next().value;
+	if (oldestCacheKey) {
+		columnMeasurementCache.delete(oldestCacheKey);
+	}
+}
+
+export function resetColumnMeasurementCache() {
+	columnMeasurementCache.clear();
+}
+
+function clampNumber(value: number, min: number, max: number) {
+	return Math.min(Math.max(value, min), max);
+}
+
+function parseRgbColor(color: string): [number, number, number] {
+	const normalized = color.trim();
+	if (normalized.startsWith('#')) {
+		const hexValue = normalized.slice(1);
+		const expanded = hexValue.length === 3 ? hexValue.split('').map((value) => `${value}${value}`).join('') : hexValue;
+		return [
+			Number.parseInt(expanded.slice(0, 2), 16),
+			Number.parseInt(expanded.slice(2, 4), 16),
+			Number.parseInt(expanded.slice(4, 6), 16)
+		];
+	}
+
+	const rgbMatch = normalized.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+	if (rgbMatch) {
+		return [Number.parseFloat(rgbMatch[1]), Number.parseFloat(rgbMatch[2]), Number.parseFloat(rgbMatch[3])].map((channel) =>
+			Math.round(channel)
+		) as [number, number, number];
+	}
+
+	throw new Error(`Unsupported color format: ${color}`);
+}
+
+function mixRgbChannels(left: [number, number, number], right: [number, number, number], amount: number): [number, number, number] {
+	return left.map((channel, index) => {
+		return Math.round(channel + (right[index] - channel) * amount);
+	}) as [number, number, number];
+}
+
+function rgbString([red, green, blue]: [number, number, number]) {
+	return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function blendHexColors(left: string, right: string, amount: number) {
+	return rgbString(mixRgbChannels(parseRgbColor(left), parseRgbColor(right), amount));
+}
+
+function parsePixelValue(value: string | null | undefined) {
+	const parsed = Number.parseFloat(value || '');
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getHorizontalInsets(element: Element) {
+	const style = window.getComputedStyle(element);
+	return (
+		parsePixelValue(style.paddingLeft) +
+		parsePixelValue(style.paddingRight) +
+		parsePixelValue(style.borderLeftWidth) +
+		parsePixelValue(style.borderRightWidth)
+	);
+}
+
+function getHorizontalMargins(element: Element) {
+	const style = window.getComputedStyle(element);
+	return parsePixelValue(style.marginLeft) + parsePixelValue(style.marginRight);
+}
+
+function buildFontShorthand(style: CSSStyleDeclaration) {
+	if (style.font) {
+		return style.font;
+	}
+
+	return `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize} / ${style.lineHeight} ${style.fontFamily}`
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function getElementFont(element: Element | null, fallbackFont: string) {
+	if (!element) {
+		return fallbackFont;
+	}
+
+	const font = buildFontShorthand(window.getComputedStyle(element));
+	return font || fallbackFont;
+}
+
+function getFallbackTextWidth(text: string, font: string) {
+	const fontSizeMatch = /(\d+(?:\.\d+)?)px/.exec(font);
+	const fontSize = fontSizeMatch ? Number.parseFloat(fontSizeMatch[1]) : 14;
+	return text.length * fontSize * 0.56;
+}
+
+let textMeasurementCanvas: HTMLCanvasElement | null = null;
+let canUseCanvasTextMeasurement: boolean | null = null;
+
+function measureTextWidth(text: string, font: string) {
+	if (!text) {
+		return 0;
+	}
+
+	if (canUseCanvasTextMeasurement === null) {
+		canUseCanvasTextMeasurement = !window.navigator.userAgent.toLowerCase().includes('jsdom');
+	}
+
+	if (!canUseCanvasTextMeasurement) {
+		return Math.ceil(getFallbackTextWidth(text, font));
+	}
+
+	if (!textMeasurementCanvas) {
+		textMeasurementCanvas = document.createElement('canvas');
+	}
+
+	const context = textMeasurementCanvas.getContext('2d');
+	if (!context) {
+		return Math.ceil(getFallbackTextWidth(text, font));
+	}
+
+	context.font = font;
+	return Math.ceil(context.measureText(text).width);
+}
+
+function getRenderedElementWidth(element: HTMLElement) {
+	return Math.ceil(Math.max(element.getBoundingClientRect().width, element.scrollWidth, element.offsetWidth));
+}
+
+function getInlineChildrenWidth(container: HTMLElement) {
+	const childElements = Array.from(container.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
+	if (childElements.length === 0) {
+		return 0;
+	}
+
+	return childElements.reduce((totalWidth, childElement) => {
+		return totalWidth + getRenderedElementWidth(childElement) + getHorizontalMargins(childElement);
+	}, 0);
+}
+
+function getSizeColorBandIndex(size: number) {
+	const normalizedSize = Math.max(size, SIZE_COLOR_MIN_BYTES);
+	return SIZE_COLOR_BANDS.findIndex((band) => normalizedSize <= band.upperBound);
+}
+
+function getSizeBandProgress(size: number, bandIndex: number) {
+	const lowerBound = bandIndex === 0 ? SIZE_COLOR_MIN_BYTES : SIZE_COLOR_BANDS[bandIndex - 1].upperBound;
+	const upperBound = Number.isFinite(SIZE_COLOR_BANDS[bandIndex].upperBound) ? SIZE_COLOR_BANDS[bandIndex].upperBound : SIZE_COLOR_MAX_BYTES;
+	const clampedSize = clampNumber(size, lowerBound, upperBound);
+	return (Math.log(clampedSize) - Math.log(lowerBound)) / (Math.log(upperBound) - Math.log(lowerBound) || 1);
+}
+
+function getSizeTagStyle(size: number): CSSProperties {
+	const bandIndex = getSizeColorBandIndex(size);
+	const band = SIZE_COLOR_BANDS[bandIndex];
+	const bandProgress = clampNumber(getSizeBandProgress(size, bandIndex), 0, 1);
+	const baseColor = parseRgbColor(blendHexColors(band.startColor, band.endColor, bandProgress));
+	const surfaceColor = parseRgbColor(APP_THEME_COLORS.surfaceElevated);
+	const textColor = parseRgbColor(APP_THEME_COLORS.textBase);
+	const backgroundColor = mixRgbChannels(surfaceColor, baseColor, band.backgroundStartMix + bandProgress * 0.04);
+
+	return {
+		color: rgbString(mixRgbChannels(textColor, baseColor, band.textMix + bandProgress * 0.05)),
+		background: rgbString(backgroundColor),
+		borderColor: rgbString(mixRgbChannels(surfaceColor, baseColor, band.borderMix + bandProgress * 0.04))
+	};
+}
 
 function getModTypeLabel(type: ModType) {
 	switch (type) {
@@ -211,7 +483,7 @@ function getTypeTag(tag: string): TypeTag | null {
 	return null;
 }
 
-interface ColumnSchema<T> {
+interface ColumnSchema {
 	title: string;
 	dataIndex: string;
 	className?: string;
@@ -221,16 +493,9 @@ interface ColumnSchema<T> {
 	filters?: ColumnType<DisplayModData>['filters'];
 	filtersSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['filters'];
 	onFilter?: ColumnType<DisplayModData>['onFilter'];
-	sorter?:
-		| boolean
-		| CompareFn<DisplayModData>
-		| {
-				compare?: CompareFn<DisplayModData> | undefined;
-				multiple?: number | undefined;
-		  }
-		| undefined;
+	sorter?: ColumnType<DisplayModData>['sorter'];
 	sorterSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['sorter'];
-	renderSetup?: (props: MainCollectionSchemaProps) => (value: any, record: T, index: number) => ReactNode;
+	renderSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['render'];
 }
 
 type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
@@ -275,12 +540,28 @@ function ResizableHeaderCell({
 	...rest
 }: ResizableHeaderCellProps) {
 	const cleanupRef = useRef<(() => void) | null>(null);
-	const widthRef = useRef(resizeWidth ?? (typeof width === 'number' ? width : minWidth));
+	const currentResizeWidth = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
+	const widthRef = useRef(currentResizeWidth);
 	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
+	const syncResizeHandleValue = useCallback(
+		(nextWidth: number) => {
+			widthRef.current = nextWidth;
+			const resizeHandle = resizeHandleRef.current;
+			if (!resizeHandle) {
+				return;
+			}
+
+			resizeHandle.setAttribute('aria-valuenow', `${nextWidth}`);
+			resizeHandle.setAttribute('aria-valuetext', `${nextWidth}px wide`);
+			resizeHandle.setAttribute('aria-valuemax', `${Math.max(minWidth, nextWidth + 1024)}`);
+		},
+		[minWidth]
+	);
 
 	useEffect(() => {
-		widthRef.current = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
-	}, [minWidth, resizeWidth, width]);
+		syncResizeHandleValue(currentResizeWidth);
+	}, [currentResizeWidth, syncResizeHandleValue]);
 
 	useEffect(() => {
 		return () => {
@@ -297,6 +578,7 @@ function ResizableHeaderCell({
 
 			const updateWidth = (clientX: number) => {
 				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
+				syncResizeHandleValue(nextWidth);
 				onResize?.(nextWidth);
 			};
 
@@ -323,7 +605,7 @@ function ResizableHeaderCell({
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
 		},
-		[minWidth, onResize, onResizeEnd]
+		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
 	);
 
 	const handleMouseDown = useCallback(
@@ -345,28 +627,38 @@ function ResizableHeaderCell({
 			event.stopPropagation();
 			const direction = event.key === 'ArrowRight' ? 1 : -1;
 			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * KEYBOARD_RESIZE_STEP));
+			syncResizeHandleValue(nextWidth);
 			onResize?.(nextWidth);
 			onResizeEnd?.(nextWidth);
 		},
-		[minWidth, onResize, onResizeEnd]
+		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
 	);
+
+	const headerContent = <div className="CollectionTableHeaderCell">{children}</div>;
 
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
-			{headerMenu ? (
-				<Dropdown menu={headerMenu} trigger={['contextMenu']}>
-					<div className="CollectionTableHeaderContextTarget">
-						<div className="CollectionTableHeaderCell">{children}</div>
-					</div>
-				</Dropdown>
-			) : (
-				<div className="CollectionTableHeaderCell">{children}</div>
-			)}
+			<div className="CollectionTableHeaderInner">
+				{headerMenu ? (
+					<Dropdown menu={headerMenu} trigger={['contextMenu']}>
+						<div className="CollectionTableHeaderContextTarget">{headerContent}</div>
+					</Dropdown>
+				) : (
+					headerContent
+				)}
+			</div>
 			{width ? (
 				<button
 					type="button"
+					ref={resizeHandleRef}
 					className="CollectionTableResizeHandle"
+					role="slider"
 					aria-label={`Resize ${resizeLabel}`}
+					aria-orientation="horizontal"
+					aria-valuemin={minWidth}
+					aria-valuenow={currentResizeWidth}
+					aria-valuemax={Math.max(minWidth, currentResizeWidth + 1024)}
+					aria-valuetext={`${currentResizeWidth}px wide`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
@@ -463,6 +755,139 @@ function compareStateTags(leftTags: StateTagConfig[], rightTags: StateTagConfig[
 	return leftLabel.localeCompare(rightLabel);
 }
 
+function formatSizeLabel(size?: number) {
+	if (!size || size <= 0) {
+		return undefined;
+	}
+
+	const strNum = `${size}`;
+	const power = strNum.length;
+	const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
+	let digit3 = digit3Raw;
+	if (!digit4) {
+		return `${strNum} B`;
+	}
+
+	digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
+
+	let descriptor = ' B';
+	if (power > 3) {
+		if (power > 6) {
+			descriptor = power > 9 ? ' GB' : ' MB';
+		} else {
+			descriptor = ' KB';
+		}
+	}
+
+	let value = `${digit1}${digit2}${digit3}`;
+	const decimal = power % 3;
+	if (decimal === 1) {
+		value = `${digit1}.${digit2}${digit3}`;
+	} else if (decimal === 2) {
+		value = `${digit1}${digit2}.${digit3}`;
+	}
+
+	return value + descriptor;
+}
+
+interface RenderedColumnBodyCell {
+	cell: HTMLElement;
+	row: DisplayModData;
+}
+
+function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {
+	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
+	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
+	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const sampledBodyRows = bodyRows.slice(0, sampledRows.length);
+	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
+	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
+
+	return activeColumnTitles.reduce(
+		(acc, columnTitle, columnIndex) => {
+			const renderedColumnIndex = columnIndex + leadingCellCount;
+			const renderedCells: RenderedColumnBodyCell[] = [];
+			sampledBodyCells.forEach((bodyCells, rowIndex) => {
+				const bodyCell = bodyCells[renderedColumnIndex];
+				const row = sampledRows[rowIndex];
+				if (bodyCell && row) {
+					renderedCells.push({ cell: bodyCell, row });
+				}
+			});
+			acc[columnTitle] = renderedCells;
+			return acc;
+		},
+		{} as Record<string, RenderedColumnBodyCell[]>
+	);
+}
+
+function measureInlineChildrenCellWidth(cell: HTMLElement) {
+	return Math.ceil(getHorizontalInsets(cell) + getInlineChildrenWidth(cell));
+}
+
+function measureNameCellWidth(cell: HTMLElement, row: DisplayModData) {
+	const button = cell.querySelector<HTMLElement>('.CollectionNameButton');
+	const labelElement = cell.querySelector<HTMLElement>('.ant-typography');
+	const displayName = getModDataDisplayName(row) || row.uid;
+	const fallbackFont = `${row.needsUpdate ? 700 : 400} 14px ${APP_FONT_FAMILY}`;
+	let width = getHorizontalInsets(cell);
+
+	if (button) {
+		width += getHorizontalInsets(button);
+	}
+
+	width += measureTextWidth(` ${displayName} `, getElementFont(labelElement || button, fallbackFont));
+	if (row.needsUpdate) {
+		width += NAME_CELL_ICON_WIDTH;
+	}
+	if (row.hasCode) {
+		width += NAME_CELL_ICON_WIDTH;
+	}
+
+	return Math.ceil(width);
+}
+
+function measureIdCellWidth(cell: HTMLElement, row: DisplayModData) {
+	const tag = cell.querySelector<HTMLElement>('.ant-tag');
+	if (tag) {
+		return Math.ceil(getHorizontalInsets(cell) + getRenderedElementWidth(tag) + getHorizontalMargins(tag));
+	}
+
+	const displayId = getModDataDisplayId(row);
+	if (!displayId) {
+		return 0;
+	}
+
+	return Math.ceil(getHorizontalInsets(cell) + measureTextWidth(displayId, getElementFont(cell, `400 14px ${APP_FONT_FAMILY}`)));
+}
+
+function measureBodyCellWidth(columnTitle: MainColumnTitles, renderedCell: RenderedColumnBodyCell) {
+	const { cell, row } = renderedCell;
+	switch (columnTitle) {
+		case MainColumnTitles.NAME:
+			return measureNameCellWidth(cell, row);
+		case MainColumnTitles.AUTHORS:
+		case MainColumnTitles.STATE:
+		case MainColumnTitles.TAGS:
+			return measureInlineChildrenCellWidth(cell);
+		case MainColumnTitles.ID:
+			return measureIdCellWidth(cell, row);
+		case MainColumnTitles.SIZE:
+			return cell.querySelector<HTMLElement>('.ant-tag')
+				? measureInlineChildrenCellWidth(cell)
+				: Math.ceil(
+						getHorizontalInsets(cell) +
+							measureTextWidth(formatSizeLabel(row.size) || '', getElementFont(cell, `500 14px ${APP_FONT_FAMILY}`))
+				  );
+		default:
+			if (columnTitle === MainColumnTitles.TYPE) {
+				return getMainColumnMinWidth(columnTitle);
+			}
+			return 0;
+	}
+}
+
 function getMeasurementRowSignature(rows: DisplayModData[]) {
 	if (rows.length === 0) {
 		return 'empty';
@@ -470,12 +895,28 @@ function getMeasurementRowSignature(rows: DisplayModData[]) {
 
 	return rows
 		.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE)
-		.map((row) => row.uid)
+		.map((row) => {
+			return [
+				row.uid,
+				getModDataDisplayName(row) || '',
+				getModDataDisplayId(row) || '',
+				(row.authors || []).join(','),
+				formatSizeLabel(row.size) || '',
+				getAllTags(row).sort((left, right) => left.localeCompare(right)).join(','),
+				row.subscribed ? '1' : '0',
+				row.installed ? '1' : '0',
+				row.needsUpdate ? '1' : '0',
+				row.downloadPending ? '1' : '0',
+				row.downloading ? '1' : '0',
+				row.hasCode ? '1' : '0',
+				JSON.stringify(row.errors || {})
+			].join('::');
+		})
 		.sort((left, right) => left.localeCompare(right))
 		.join('|');
 }
 
-const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
+const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 	{
 		title: MainColumnTitles.TYPE,
 		dataIndex: 'type',
@@ -650,54 +1091,13 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		sorter: (a, b) => (a.size || 0) - (b.size || 0),
 		renderSetup: () => {
 			return (size?: number) => {
-				if (!size || size <= 0) {
+				const sizeStr = formatSizeLabel(size);
+				if (!sizeStr || !size) {
 					return null;
 				}
 
-				const strNum = `${size}`;
-				const power = strNum.length;
-				const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
-				let digit3 = digit3Raw;
-				let sizeStr = '';
-				if (!digit4) {
-					sizeStr = `${strNum} B`;
-				} else {
-					digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
-
-					let descriptor = ' B';
-					if (power > 3) {
-						if (power > 6) {
-							descriptor = power > 9 ? ' GB' : ' MB';
-						} else {
-							descriptor = ' KB';
-						}
-					}
-
-					let value = `${digit1}${digit2}${digit3}`;
-					const decimal = power % 3;
-					if (decimal === 1) {
-						value = `${digit1}.${digit2}${digit3}`;
-					} else if (decimal === 2) {
-						value = `${digit1}${digit2}.${digit3}`;
-					}
-					sizeStr = value + descriptor;
-				}
-
-				let tone: keyof typeof APP_TAG_STYLES = 'success';
-				if (size > 1000000) {
-					if (size < 5000000) {
-						tone = 'info';
-					} else if (size < 50000000) {
-						tone = 'accent';
-					} else if (size < 1000000000) {
-						tone = 'warning';
-					} else {
-						tone = 'danger';
-					}
-				}
-
 				return (
-					<Tag key="size" style={APP_TAG_STYLES[tone]}>
+					<Tag key="size" style={getSizeTagStyle(size)}>
 						{sizeStr}
 					</Tag>
 				);
@@ -779,8 +1179,8 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	}
 ];
 
-function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
-	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
+function getActiveColumnSchemas(config: MainCollectionConfig | undefined): ColumnSchema[] {
+	let activeColumns: ColumnSchema[] = MAIN_COLUMN_SCHEMA;
 	const columnActiveConfig = config?.columnActiveConfig;
 	if (columnActiveConfig) {
 		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
@@ -788,7 +1188,7 @@ function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
 	return activeColumns;
 }
 
-function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0) {
+function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0): ColumnSchema[] {
 	const activeColumns = getActiveColumnSchemas(config);
 	if (availableTableWidth <= 0) {
 		return activeColumns;
@@ -809,6 +1209,7 @@ function getRowSelection(
 	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
 
 	const rowSelection: TableRowSelection<DisplayModData> = {
+		columnWidth: DEFAULT_SELECTION_COLUMN_WIDTH,
 		selections: [Table.SELECTION_INVERT],
 		selectedRowKeys: collection.mods,
 		onChange: (selectedRowKeys: Key[]) => {
@@ -857,6 +1258,12 @@ function getRowSelection(
 				selected.delete(mod);
 			});
 			setEnabledModsCallback(selected);
+		},
+		getCheckboxProps: (record: DisplayModData) => {
+			const displayName = getModDataDisplayName(record) || record.uid;
+			return {
+				'aria-label': `Include ${displayName} in collection`
+			} as ReturnType<NonNullable<TableRowSelection<DisplayModData>['getCheckboxProps']>>;
 		}
 	};
 
@@ -865,7 +1272,7 @@ function getRowSelection(
 
 export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
 	const configuredWidths = config?.columnWidthConfig || {};
-	const columnWidths = getResponsiveActiveColumnSchemas(config, availableTableWidth).reduce(
+	const columnWidths = getResponsiveActiveColumnSchemas(config, availableTableWidth).reduce<Record<string, number>>(
 		(acc, column) => {
 			if (column.width) {
 				const minWidth = getMainColumnMinWidth(column.title as MainColumnTitles);
@@ -874,7 +1281,7 @@ export function getColumnWidths(config: MainCollectionConfig | undefined, autoCo
 			}
 			return acc;
 		},
-		{} as Record<string, number>
+		{}
 	);
 
 	const nameWidth = columnWidths[MainColumnTitles.NAME];
@@ -888,90 +1295,6 @@ export function getColumnWidths(config: MainCollectionConfig | undefined, autoCo
 	}
 
 	return columnWidths;
-}
-
-function createColumnMeasurementHost() {
-	const measurementHost = document.createElement('div');
-	measurementHost.className = COLUMN_MEASUREMENT_HOST_CLASS;
-	Object.assign(measurementHost.style, {
-		position: 'fixed',
-		left: '-100000px',
-		top: '0',
-		visibility: 'hidden',
-		pointerEvents: 'none',
-		whiteSpace: 'nowrap',
-		width: 'max-content',
-		maxWidth: 'none',
-		overflow: 'visible',
-		contain: 'layout style size'
-	});
-	document.body.appendChild(measurementHost);
-	return measurementHost;
-}
-
-function prepareMeasurementClone(root: HTMLElement) {
-	root.querySelectorAll('.CollectionTableResizeHandle').forEach((handle) => handle.remove());
-	const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
-	elements.forEach((element) => {
-		element.style.width = element.classList.contains('CollectionNameButton') || element.style.width === '100%' ? 'auto' : element.style.width;
-		element.style.minWidth = '0';
-		element.style.maxWidth = 'none';
-		element.style.whiteSpace = 'nowrap';
-		element.style.overflow = 'visible';
-		if (element === root) {
-			element.style.position = 'static';
-			element.style.left = 'auto';
-			element.style.right = 'auto';
-			element.style.top = 'auto';
-			element.style.bottom = 'auto';
-			element.style.transform = 'none';
-			if (element.tagName === 'TH' || element.tagName === 'TD') {
-				element.style.display = 'inline-block';
-			}
-		}
-		if (element.classList.contains('CollectionNameButton')) {
-			element.style.display = 'inline-block';
-		}
-	});
-}
-
-function measureNaturalCellWidth(cell: HTMLElement, measurementHost: HTMLElement) {
-	const clone = cell.cloneNode(true) as HTMLElement;
-	prepareMeasurementClone(clone);
-	measurementHost.appendChild(clone);
-	const width = Math.ceil(clone.getBoundingClientRect().width);
-	measurementHost.removeChild(clone);
-	return width;
-}
-
-function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: string[]) {
-	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
-	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
-	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
-	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
-	const sampledBodyRows = bodyRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE);
-	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
-	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
-
-	return activeColumnTitles.reduce(
-		(acc, columnTitle, columnIndex) => {
-			const renderedColumnIndex = columnIndex + leadingCellCount;
-			const renderedCells: HTMLElement[] = [];
-			const headerCell = headerCells[renderedColumnIndex];
-			if (headerCell) {
-				renderedCells.push(headerCell);
-			}
-			sampledBodyCells.forEach((bodyCells) => {
-				const bodyCell = bodyCells[renderedColumnIndex];
-				if (bodyCell) {
-					renderedCells.push(bodyCell);
-				}
-			});
-			acc[columnTitle] = renderedCells;
-			return acc;
-		},
-		{} as Record<string, HTMLElement[]>
-	);
 }
 
 function getColumnWidthVariableName(columnTitle: string) {
@@ -997,7 +1320,7 @@ function getColumnSchema(
 	const { config } = props;
 	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
-	return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
+	return activeColumns.map((colSchema: ColumnSchema) => {
 		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
 		return {
 			title,
@@ -1052,9 +1375,23 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !manuallyActiveColumnTitles.includes(columnTitle)),
 		[manuallyActiveColumnTitles]
 	);
+	const sampledRows = useMemo(() => deferredRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE), [deferredRows]);
 	const measurementInputKey = useMemo(
 		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
 		[deferredRows, small]
+	);
+	const measuredColumnTitles = useMemo(
+		() => activeColumnTitles.filter((columnTitle) => AUTO_MEASURE_COLUMN_TITLES.has(columnTitle as MainColumnTitles)),
+		[activeColumnTitles]
+	);
+	const selectedModMeasurementKey = useMemo(() => [...collection.mods].sort((left, right) => left.localeCompare(right)).join('|'), [collection.mods]);
+	const measurementStateKey = useMemo(
+		() => `${measurementInputKey}::mods=${selectedModMeasurementKey}::validated=${lastValidationStatus ? '1' : '0'}`,
+		[lastValidationStatus, measurementInputKey, selectedModMeasurementKey]
+	);
+	const measurementCacheKey = useMemo(
+		() => getColumnMeasurementCacheKey(measurementStateKey, measuredColumnTitles),
+		[measuredColumnTitles, measurementStateKey]
 	);
 	const resolvedColumnWidths = useMemo(
 		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
@@ -1111,70 +1448,77 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 	useEffect(() => {
 		const tableRoot = tableRootRef.current;
-		const missingColumnTitles = activeColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
+		const missingColumnTitles = measuredColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
 		const shouldAutoMeasureColumns = deferredRows.length > 0 && deferredRows.length <= COLUMN_AUTO_MEASURE_MAX_ROWS;
+		let cancelled = false;
 
 		if (!tableRoot) {
 			return;
 		}
 
+		const applyAutoColumnWidthUpdate = (nextWidths: Record<string, number>) => {
+			setAutoColumnWidths((currentWidths) => (areColumnWidthMapsEqual(currentWidths, nextWidths) ? currentWidths : nextWidths));
+		};
+
 		if (!shouldAutoMeasureColumns) {
-			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			applyAutoColumnWidthUpdate({});
 			return;
 		}
 
 		if (missingColumnTitles.length === 0) {
-			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			applyAutoColumnWidthUpdate({});
 			return;
 		}
 
-		const animationFrame = window.requestAnimationFrame(() => {
-			const measurementHost = createColumnMeasurementHost();
+		const cachedColumnWidths = columnMeasurementCache.get(measurementCacheKey);
+		if (cachedColumnWidths) {
+			applyAutoColumnWidthUpdate(cachedColumnWidths);
+			return;
+		}
 
-			try {
-				const renderedColumnCells = getRenderedColumnCells(tableRoot, activeColumnTitles);
-				const nextMeasuredWidths: Record<string, number> = {};
-
-				missingColumnTitles.forEach((columnTitle) => {
-					const matchingCells = renderedColumnCells[columnTitle] || [];
-					const measuredWidth = matchingCells.reduce((largestWidth, cell) => {
-						return Math.max(largestWidth, measureNaturalCellWidth(cell, measurementHost));
-					}, 0);
-
-					if (measuredWidth > 0) {
-						nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
-					}
-				});
-
-				setAutoColumnWidths((currentWidths) => {
-					const nextWidths: Record<string, number> = {};
-					let changed = false;
-
-					missingColumnTitles.forEach((columnTitle) => {
-						const nextWidth = nextMeasuredWidths[columnTitle] ?? currentWidths[columnTitle];
-						if (nextWidth !== undefined) {
-							nextWidths[columnTitle] = nextWidth;
-							if (currentWidths[columnTitle] !== nextWidth) {
-								changed = true;
-							}
-						}
-					});
-
-					if (!changed && Object.keys(currentWidths).length === Object.keys(nextWidths).length) {
-						return currentWidths;
-					}
-
-					return nextWidths;
-				});
-			} finally {
-				measurementHost.remove();
+		const runMeasurement = () => {
+			if (cancelled) {
+				return;
 			}
-		});
+
+			const renderedColumnCells = getRenderedColumnBodyCells(tableRoot, activeColumnTitles, sampledRows);
+			const nextMeasuredWidths: Record<string, number> = {};
+
+			missingColumnTitles.forEach((columnTitle) => {
+				const measuredWidth = (renderedColumnCells[columnTitle] || []).reduce((largestWidth, renderedCell) => {
+					return Math.max(largestWidth, measureBodyCellWidth(columnTitle as MainColumnTitles, renderedCell));
+				}, 0);
+
+				if (measuredWidth > 0) {
+					nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
+				}
+			});
+
+			if (cancelled) {
+				return;
+			}
+
+			cacheColumnMeasurements(measurementCacheKey, nextMeasuredWidths);
+			setAutoColumnWidths((currentWidths) => {
+				return areColumnWidthMapsEqual(currentWidths, nextMeasuredWidths) ? currentWidths : nextMeasuredWidths;
+			});
+		};
+
+		if (typeof window.requestIdleCallback === 'function') {
+			const idleHandle = window.requestIdleCallback(runMeasurement, { timeout: 200 });
+			return () => {
+				cancelled = true;
+				window.cancelIdleCallback(idleHandle);
+			};
+		}
+
+		const timeout = window.setTimeout(runMeasurement, 0);
 
 		return () => {
-			window.cancelAnimationFrame(animationFrame);
+			cancelled = true;
+			window.clearTimeout(timeout);
 		};
-	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measurementInputKey]);
+	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measuredColumnTitles, measurementCacheKey, sampledRows]);
 
 	const rowSelection = useMemo(
 		() =>
@@ -1307,11 +1651,14 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								restorePersistedColumnWidth();
 							})();
 						}
-					}) as any,
+					}) as ReturnType<NonNullable<ColumnType<DisplayModData>['onHeaderCell']>>,
 				onCell: () =>
 					({
-						'data-column-title': columnTitle
-					}) as any
+						'data-column-title': columnTitle,
+						style: {
+							width: getColumnWidthStyle(columnTitle, currentWidth)
+						}
+					}) as ReturnType<NonNullable<ColumnType<DisplayModData>['onCell']>>
 			};
 		});
 	}, [
@@ -1324,6 +1671,9 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback
 	]);
+	const tableScrollX = useMemo(() => {
+		return Object.values(resolvedColumnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
+	}, [resolvedColumnWidths]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -1348,7 +1698,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						columns={columns}
 						sortDirections={TABLE_SORT_DIRECTIONS}
 						sticky
-						scroll={{ x: 'max-content' }}
+						scroll={{ x: tableScrollX }}
 						onRow={handleRow}
 						rowClassName={() => (small ? 'CompactModRow' : '')}
 					/>

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Layout, Button, Typography, Row, Col, Space } from 'antd';
-import { CheckOutlined, CloseOutlined, Loading3QuartersOutlined } from '@ant-design/icons';
+import CheckOutlined from '@ant-design/icons/es/icons/CheckOutlined';
+import CloseOutlined from '@ant-design/icons/es/icons/CloseOutlined';
+import Loading3QuartersOutlined from '@ant-design/icons/es/icons/Loading3QuartersOutlined';
 import api from 'renderer/Api';
 import { APP_THEME_COLORS } from 'renderer/theme';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';

@@ -3,7 +3,9 @@ import { Button, Layout, Progress, Space, Typography } from 'antd';
 import { AppConfig, ModType, AppState, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
 import { APP_THEME_COLORS } from 'renderer/theme';
-import { CheckCircleFilled, CloseCircleFilled, Loading3QuartersOutlined } from '@ant-design/icons';
+import CheckCircleFilled from '@ant-design/icons/es/icons/CheckCircleFilled';
+import CloseCircleFilled from '@ant-design/icons/es/icons/CloseCircleFilled';
+import Loading3QuartersOutlined from '@ant-design/icons/es/icons/Loading3QuartersOutlined';
 
 const { Content } = Layout;
 const { Paragraph, Text, Title } = Typography;

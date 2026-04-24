@@ -5,7 +5,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { AppState } from 'model';
 import api from 'renderer/Api';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
-import MenuBar from './components/MenuBar';
 import { AppStateProvider, useAppState } from './state/app-state';
 import { appCssVariables, appTheme } from './theme';
 
@@ -13,6 +12,7 @@ const { Sider } = Layout;
 
 const loadCollectionView = () => import('./views/CollectionView');
 const loadSettingsView = () => import('./views/SettingsView');
+const loadMenuBar = () => import('./components/MenuBar');
 
 const CollectionViewLazy = lazy(async () => {
 	const module = await loadCollectionView();
@@ -22,6 +22,11 @@ const CollectionViewLazy = lazy(async () => {
 const SettingsViewLazy = lazy(async () => {
 	const module = await loadSettingsView();
 	return { default: module.SettingsView };
+});
+
+const MenuBarLazy = lazy(async () => {
+	const module = await loadMenuBar();
+	return { default: module.default };
 });
 
 interface AppViewStageProps extends PropsWithChildren {
@@ -113,16 +118,18 @@ function AppShell() {
 					}}
 				>
 					<div className="logo" />
-					<MenuBar
-						disableNavigation={
-							launchingGame ||
-							location.pathname.includes('loading') ||
-							savingConfig ||
-							madeConfigEdits ||
-							(!!configErrors && Object.keys(configErrors).length > 0)
-						}
-						appState={appState}
-					/>
+					<Suspense fallback={null}>
+						<MenuBarLazy
+							disableNavigation={
+								launchingGame ||
+								location.pathname.includes('loading') ||
+								savingConfig ||
+								madeConfigEdits ||
+								(!!configErrors && Object.keys(configErrors).length > 0)
+							}
+							appState={appState}
+						/>
+					</Suspense>
 				</Sider>
 				<div className="AppViewHost">
 					<AppViewStage active={isLoadingRoute} name="loading">

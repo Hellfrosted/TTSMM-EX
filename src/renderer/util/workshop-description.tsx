@@ -38,6 +38,8 @@ const GENERIC_IMAGE_LABEL_WORDS = new Set([
 	'new'
 ]);
 
+const DEFAULT_WORKSHOP_DESCRIPTION_IMAGE_ALT = 'Workshop description image';
+
 function escapeText(value: string): string {
 	return value.replace(/[&<>]/g, (character) => TEXT_ESCAPE_MAP[character] || character);
 }
@@ -72,10 +74,10 @@ function sanitizeUrl(value: string): string | undefined {
 	}
 }
 
-function deriveImageAltText(value: string): string {
+function deriveImageAltText(value: string, fallbackAltText: string): string {
 	const trimmedValue = decodeEntities(value).trim();
 	if (!trimmedValue) {
-		return '';
+		return escapeAttribute(fallbackAltText);
 	}
 
 	try {
@@ -83,7 +85,7 @@ function deriveImageAltText(value: string): string {
 		const pathSegments = parsed.pathname.split('/').filter(Boolean);
 		const lastSegment = pathSegments.at(-1);
 		if (!lastSegment) {
-			return '';
+			return escapeAttribute(fallbackAltText);
 		}
 
 		const normalizedLabel = decodeURIComponent(lastSegment)
@@ -92,12 +94,12 @@ function deriveImageAltText(value: string): string {
 			.replace(/\s+/g, ' ')
 			.trim();
 		if (!normalizedLabel) {
-			return '';
+			return escapeAttribute(fallbackAltText);
 		}
 
 		const collapsedAlphaNumeric = normalizedLabel.replace(/[^a-z0-9]/gi, '');
 		if (collapsedAlphaNumeric.length < 3 || /^\d+$/.test(collapsedAlphaNumeric) || /^[a-f0-9]{8,}$/i.test(collapsedAlphaNumeric)) {
-			return '';
+			return escapeAttribute(fallbackAltText);
 		}
 
 		const normalizedWords = normalizedLabel
@@ -107,12 +109,12 @@ function deriveImageAltText(value: string): string {
 			.filter(Boolean);
 		const meaningfulWords = normalizedWords.filter((word) => word.length > 2 && !GENERIC_IMAGE_LABEL_WORDS.has(word));
 		if (meaningfulWords.length < 2) {
-			return '';
+			return escapeAttribute(fallbackAltText);
 		}
 
 		return escapeAttribute(normalizedLabel.toLowerCase());
 	} catch {
-		return '';
+		return escapeAttribute(fallbackAltText);
 	}
 }
 
@@ -130,7 +132,7 @@ function normalizeLineBreaks(value: string): string {
 	return value.replace(/\r\n?/g, '\n');
 }
 
-function renderEscapedWorkshopMarkup(value: string): string {
+function renderEscapedWorkshopMarkup(value: string, imageAltFallback: string): string {
 	let renderedValue = value;
 
 	renderedValue = replaceLoop(renderedValue, (currentValue) =>
@@ -145,10 +147,10 @@ function renderEscapedWorkshopMarkup(value: string): string {
 				.map((item) => item.trim())
 				.filter(Boolean);
 			if (rawItems.length === 0) {
-				return `<${tagName}><li>${renderEscapedWorkshopMarkup(content.trim())}</li></${tagName}>`;
+				return `<${tagName}><li>${renderEscapedWorkshopMarkup(content.trim(), imageAltFallback)}</li></${tagName}>`;
 			}
 
-			const items = rawItems.map((item) => `<li>${renderEscapedWorkshopMarkup(item)}</li>`).join('');
+			const items = rawItems.map((item) => `<li>${renderEscapedWorkshopMarkup(item, imageAltFallback)}</li>`).join('');
 			return `<${tagName}>${items}</${tagName}>`;
 		})
 	);
@@ -157,10 +159,10 @@ function renderEscapedWorkshopMarkup(value: string): string {
 		currentValue.replace(/\[img\]([\s\S]*?)\[\/img\]/gi, (_match, content: string) => {
 			const imageSource = sanitizeUrl(content);
 			if (!imageSource) {
-				return renderEscapedWorkshopMarkup(content.trim());
+				return renderEscapedWorkshopMarkup(content.trim(), imageAltFallback);
 			}
 
-			const imageAltText = deriveImageAltText(content);
+			const imageAltText = deriveImageAltText(content, imageAltFallback);
 			return `<img src="${imageSource}" alt="${imageAltText}" loading="lazy" decoding="async" />`;
 		})
 	);
@@ -168,7 +170,7 @@ function renderEscapedWorkshopMarkup(value: string): string {
 	renderedValue = replaceLoop(renderedValue, (currentValue) =>
 		currentValue.replace(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/gi, (_match, href: string, content: string) => {
 			const sanitizedUrl = sanitizeUrl(href);
-			const linkBody = renderEscapedWorkshopMarkup(content.trim());
+			const linkBody = renderEscapedWorkshopMarkup(content.trim(), imageAltFallback);
 			if (!sanitizedUrl) {
 				return linkBody;
 			}
@@ -180,7 +182,7 @@ function renderEscapedWorkshopMarkup(value: string): string {
 	renderedValue = replaceLoop(renderedValue, (currentValue) =>
 		currentValue.replace(/\[url\]([\s\S]*?)\[\/url\]/gi, (_match, content: string) => {
 			const sanitizedUrl = sanitizeUrl(content);
-			const linkBody = renderEscapedWorkshopMarkup(content.trim());
+			const linkBody = renderEscapedWorkshopMarkup(content.trim(), imageAltFallback);
 			if (!sanitizedUrl) {
 				return linkBody;
 			}
@@ -204,7 +206,7 @@ function renderEscapedWorkshopMarkup(value: string): string {
 	pairedTags.forEach(([bbCodeTag, htmlTag]) => {
 		renderedValue = replaceLoop(renderedValue, (currentValue) =>
 			currentValue.replace(new RegExp(`\\[${bbCodeTag}\\]([\\s\\S]*?)\\[\\/${bbCodeTag}\\]`, 'gi'), (_match, content: string) => {
-				return `<${htmlTag}>${renderEscapedWorkshopMarkup(content.trim())}</${htmlTag}>`;
+				return `<${htmlTag}>${renderEscapedWorkshopMarkup(content.trim(), imageAltFallback)}</${htmlTag}>`;
 			})
 		);
 	});
@@ -223,7 +225,10 @@ function renderEscapedWorkshopMarkup(value: string): string {
 	return renderedValue;
 }
 
-export function convertWorkshopDescriptionToHtml(description?: string): string {
+export function convertWorkshopDescriptionToHtml(
+	description?: string,
+	options: { imageAltFallback?: string } = {}
+): string {
 	if (!description) {
 		return '';
 	}
@@ -233,15 +238,20 @@ export function convertWorkshopDescriptionToHtml(description?: string): string {
 		return '';
 	}
 
-	return renderEscapedWorkshopMarkup(escapeText(normalizedDescription));
+	const imageAltFallback = options.imageAltFallback?.trim() || DEFAULT_WORKSHOP_DESCRIPTION_IMAGE_ALT;
+	return renderEscapedWorkshopMarkup(escapeText(normalizedDescription), imageAltFallback);
 }
 
 interface WorkshopDescriptionProps {
 	description?: string;
+	imageAltFallback?: string;
 }
 
-function WorkshopDescriptionComponent({ description }: WorkshopDescriptionProps) {
-	const renderedDescription = useMemo(() => convertWorkshopDescriptionToHtml(description), [description]);
+function WorkshopDescriptionComponent({ description, imageAltFallback }: WorkshopDescriptionProps) {
+	const renderedDescription = useMemo(
+		() => convertWorkshopDescriptionToHtml(description, { imageAltFallback }),
+		[description, imageAltFallback]
+	);
 	if (!renderedDescription) {
 		return null;
 	}

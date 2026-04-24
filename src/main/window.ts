@@ -9,6 +9,12 @@ import { resolveHtmlPath, resolvePreloadPath } from './util';
 
 const STEAM_APP_ID = '285920\n';
 const STEAM_APP_ID_VALUE = '285920';
+export const MAIN_WINDOW_DEFAULT_BOUNDS = Object.freeze({
+	width: 1280,
+	height: 820,
+	minWidth: 720,
+	minHeight: 600
+});
 
 export interface WindowOptions {
 	isDevelopment: boolean;
@@ -142,10 +148,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 
 	const mainWindow = new BrowserWindow({
 		show: false,
-		width: 1080,
-		height: 728,
-		minWidth: 1080,
-		minHeight: 728,
+		...MAIN_WINDOW_DEFAULT_BOUNDS,
 		autoHideMenuBar: process.platform !== 'darwin',
 		icon: getAssetPath('icon.png'),
 		webPreferences: {
@@ -201,7 +204,6 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		log.info(`App Version: ${app.getVersion()}`);
 		log.info(`App Name: ${app.getName()}`);
 		mainWindow.setTitle(`${name} v${app.getVersion()}`);
-		mainWindow.maximize();
 		ensureSteamAppIdFile();
 		onDidFinishLoad();
 		if (!isDevelopment) {

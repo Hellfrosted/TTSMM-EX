@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ensureSteamAppIdFile, forwardRendererConsoleMessage, resolveSteamAppIdFilePath } from '../../main/window';
+import { MAIN_WINDOW_DEFAULT_BOUNDS, ensureSteamAppIdFile, forwardRendererConsoleMessage, resolveSteamAppIdFilePath } from '../../main/window';
 import { createTempDir } from './test-utils';
 
 describe('window helpers', () => {
@@ -59,6 +59,15 @@ describe('window helpers', () => {
 			})
 		).toBe(false);
 		expect(logger.error).toHaveBeenCalled();
+	});
+
+	it('keeps responsive renderer layouts reachable with narrower default bounds', () => {
+		expect(MAIN_WINDOW_DEFAULT_BOUNDS).toEqual({
+			width: 1280,
+			height: 820,
+			minWidth: 720,
+			minHeight: 600
+		});
 	});
 
 	it('swallows broken pipe errors while mirroring renderer console output', () => {

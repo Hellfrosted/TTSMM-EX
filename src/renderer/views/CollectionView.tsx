@@ -1,7 +1,9 @@
 import { ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Button, Layout, Popover, Space } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, SyncOutlined } from '@ant-design/icons';
+import CheckCircleOutlined from '@ant-design/icons/es/icons/CheckCircleOutlined';
+import CloseCircleOutlined from '@ant-design/icons/es/icons/CloseCircleOutlined';
+import SyncOutlined from '@ant-design/icons/es/icons/SyncOutlined';
 import {
 	AppState,
 	CollectionManagerModalType,
@@ -433,6 +435,10 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	useEffect(() => {
 		if (!displayedCurrentRecord || appState.loadingMods || currentView !== CollectionViewType.MAIN) {
+			if (!prewarmAlternateDetails) {
+				return;
+			}
+
 			const resetTimeout = window.setTimeout(() => {
 				setPrewarmAlternateDetails(false);
 			}, 0);
@@ -442,7 +448,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			};
 		}
 
+		if (prewarmAlternateDetails) {
+			return;
+		}
+
+		let cancelled = false;
 		const warmDetailsLayouts = () => {
+			if (cancelled) {
+				return;
+			}
+
 			void loadModDetailsFooter();
 			setPrewarmAlternateDetails(true);
 		};
@@ -450,15 +465,17 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		if (typeof window.requestIdleCallback === 'function') {
 			const idleHandle = window.requestIdleCallback(warmDetailsLayouts, { timeout: 1000 });
 			return () => {
+				cancelled = true;
 				window.cancelIdleCallback(idleHandle);
 			};
 		}
 
 		const timeout = window.setTimeout(warmDetailsLayouts, 250);
 		return () => {
+			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [appState.loadingMods, currentView, displayedCurrentRecord]);
+	}, [appState.loadingMods, currentView, displayedCurrentRecord, prewarmAlternateDetails]);
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({

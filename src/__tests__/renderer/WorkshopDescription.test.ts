@@ -29,10 +29,10 @@ describe('convertWorkshopDescriptionToHtml', () => {
 		expect(html).not.toContain('<script>');
 	});
 
-	it('treats workshop description images as decorative when no caption exists', () => {
+	it('falls back to a meaningful generic alt label when no caption can be derived', () => {
 		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/22f30ba3c6.png[/img]');
 
-		expect(html).toContain('alt=""');
+		expect(html).toContain('alt="Workshop description image"');
 		expect(html).toContain('decoding="async"');
 	});
 
@@ -41,5 +41,13 @@ describe('convertWorkshopDescriptionToHtml', () => {
 
 		expect(html).toContain('alt="mod dependency graph"');
 		expect(html).toContain('decoding="async"');
+	});
+
+	it('lets callers provide a more specific image alt fallback', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/22f30ba3c6.png[/img]', {
+			imageAltFallback: 'NuterraSteam workshop description image'
+		});
+
+		expect(html).toContain('alt="NuterraSteam workshop description image"');
 	});
 });
