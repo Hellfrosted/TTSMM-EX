@@ -17,7 +17,7 @@ function normalizeCurrentPath(currentPath: string | undefined): string {
 	}
 
 	const normalizedPath = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
-	if (normalizedPath === '/collections') {
+	if (normalizedPath === '/collections' || normalizedPath.startsWith('/block-lookup') || normalizedPath.startsWith('/settings')) {
 		return '/collections/main';
 	}
 

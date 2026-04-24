@@ -30,7 +30,8 @@ export function cloneAppConfig(config: AppConfig): AppConfig {
 							: undefined,
 						columnWidthConfig: config.viewConfigs.main.columnWidthConfig
 							? { ...config.viewConfigs.main.columnWidthConfig }
-							: undefined
+							: undefined,
+						columnOrder: config.viewConfigs.main.columnOrder ? [...config.viewConfigs.main.columnOrder] : undefined
 				  }
 				: undefined,
 			blockLookup: config.viewConfigs.blockLookup

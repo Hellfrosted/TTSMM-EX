@@ -346,7 +346,8 @@ function CollectionManagerModal({
 								nextConfig.viewConfigs.main = {
 									...mainConfigDraft,
 									columnActiveConfig: mainConfigDraft.columnActiveConfig ? { ...mainConfigDraft.columnActiveConfig } : undefined,
-									columnWidthConfig: mainConfigDraft.columnWidthConfig ? { ...mainConfigDraft.columnWidthConfig } : undefined
+									columnWidthConfig: mainConfigDraft.columnWidthConfig ? { ...mainConfigDraft.columnWidthConfig } : undefined,
+									columnOrder: mainConfigDraft.columnOrder ? [...mainConfigDraft.columnOrder] : undefined
 								};
 								void saveConfig(nextConfig, closeModal);
 							}}

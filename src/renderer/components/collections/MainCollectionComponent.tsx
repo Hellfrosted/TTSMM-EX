@@ -56,6 +56,7 @@ const KILOBYTE = 1024;
 const MEGABYTE = 1024 * 1024;
 const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
 const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+const mainColumnTitleSet = new Set<string>(ALL_MAIN_COLUMN_TITLES);
 const columnMeasurementCache = new Map<string, Record<string, number>>();
 const AUTO_MEASURE_COLUMN_TITLES = new Set<MainColumnTitles>([
 	MainColumnTitles.NAME,
@@ -687,6 +688,22 @@ function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: bool
 	return true;
 }
 
+function isMainColumnTitle(value: string): value is MainColumnTitles {
+	return mainColumnTitleSet.has(value);
+}
+
+function getConfiguredMainColumnTitles(config: MainCollectionConfig | undefined) {
+	const configuredColumnSet = new Set<MainColumnTitles>();
+	const configuredOrder = (config?.columnOrder || []).filter((column): column is MainColumnTitles => {
+		if (!isMainColumnTitle(column) || configuredColumnSet.has(column)) {
+			return false;
+		}
+		configuredColumnSet.add(column);
+		return true;
+	});
+	return [...configuredOrder, ...ALL_MAIN_COLUMN_TITLES.filter((column) => !configuredColumnSet.has(column))];
+}
+
 function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
@@ -1180,7 +1197,10 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 ];
 
 function getActiveColumnSchemas(config: MainCollectionConfig | undefined): ColumnSchema[] {
-	let activeColumns: ColumnSchema[] = MAIN_COLUMN_SCHEMA;
+	const columnSchemaByTitle = new Map(MAIN_COLUMN_SCHEMA.map((column) => [column.title, column]));
+	let activeColumns = getConfiguredMainColumnTitles(config)
+		.map((columnTitle) => columnSchemaByTitle.get(columnTitle))
+		.filter((column): column is ColumnSchema => !!column);
 	const columnActiveConfig = config?.columnActiveConfig;
 	if (columnActiveConfig) {
 		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
@@ -1353,6 +1373,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setEnabledModsCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback,
+		setMainColumnOrderCallback,
 		width
 	} = props;
 	const mainConfig = config as MainCollectionConfig | undefined;
@@ -1363,6 +1384,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const configuredColumnWidths = useMemo(() => columnWidthConfig || {}, [columnWidthConfig]);
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
 	const manuallyActiveColumnTitles = useMemo(
 		() => getActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined).map((column) => column.title),
 		[columnActiveConfig]
@@ -1609,6 +1631,30 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						width: getColumnWidthStyle(columnTitle, currentWidth),
 						resizeWidth: currentWidth,
 						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+						draggable: true,
+						className: draggingColumnTitle === typedColumnTitle ? 'is-dragging' : undefined,
+						onDragStart: (event) => {
+							event.dataTransfer.effectAllowed = 'move';
+							event.dataTransfer.setData('text/plain', typedColumnTitle);
+							setDraggingColumnTitle(typedColumnTitle);
+						},
+						onDragOver: (event) => {
+							if (draggingColumnTitle && draggingColumnTitle !== typedColumnTitle) {
+								event.preventDefault();
+								event.dataTransfer.dropEffect = 'move';
+							}
+						},
+						onDrop: (event) => {
+							event.preventDefault();
+							const sourceTitle = event.dataTransfer.getData('text/plain');
+							setDraggingColumnTitle(undefined);
+							if (isMainColumnTitle(sourceTitle)) {
+								void Promise.resolve(setMainColumnOrderCallback?.(sourceTitle, typedColumnTitle));
+							}
+						},
+						onDragEnd: () => {
+							setDraggingColumnTitle(undefined);
+						},
 						headerMenu: {
 							items: contextMenuItems,
 							onClick: (info: { key: Key }) => {
@@ -1664,10 +1710,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	}, [
 		columnActiveConfig,
 		columnSchemaProps,
+		draggingColumnTitle,
 		hiddenColumnTitles,
 		openMainViewSettingsCallback,
 		availableTableWidth,
 		resolvedColumnWidths,
+		setMainColumnOrderCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback
 	]);

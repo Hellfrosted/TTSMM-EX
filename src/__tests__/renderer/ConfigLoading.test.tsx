@@ -201,7 +201,7 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each(['collections/main', '/collections'])('normalizes saved collection route "%s" during boot', async (currentPath) => {
+	it.each(['collections/main', '/collections', '/block-lookup', '/settings'])('starts on mod collections from saved route "%s" during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
 			...DEFAULT_CONFIG,

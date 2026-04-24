@@ -40,6 +40,18 @@ function getRenderedNameOrder() {
 		.map((button) => button.getAttribute('aria-label')?.replace('Open details for ', '') || '');
 }
 
+function createDataTransfer() {
+	const data = new Map<string, string>();
+	return {
+		effectAllowed: '',
+		dropEffect: '',
+		setData: vi.fn((type: string, value: string) => {
+			data.set(type, value);
+		}),
+		getData: vi.fn((type: string) => data.get(type) || '')
+	};
+}
+
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
 	const rows = [
 		{
@@ -359,6 +371,32 @@ describe('MainCollectionView', () => {
 		fireEvent.click(await screen.findByText('Show Tags'));
 
 		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, true);
+	});
+
+	it('reorders columns by dragging collection table headers', async () => {
+		stubResizeObserver();
+
+		const setMainColumnOrderCallback = vi.fn();
+		const { container } = render(
+			<MainCollectionView
+				{...createProps({
+					setMainColumnOrderCallback
+				})}
+			/>
+		);
+
+		await screen.findByText('HumanReadableModId');
+		const idHeader = container.querySelector('th[data-column-title="ID"]');
+		const nameHeader = container.querySelector('th[data-column-title="Name"]');
+		expect(idHeader).toBeDefined();
+		expect(nameHeader).toBeDefined();
+
+		const dataTransfer = createDataTransfer();
+		fireEvent.dragStart(idHeader as Element, { dataTransfer });
+		fireEvent.dragOver(nameHeader as Element, { dataTransfer });
+		fireEvent.drop(nameHeader as Element, { dataTransfer });
+
+		expect(setMainColumnOrderCallback).toHaveBeenCalledWith(MainColumnTitles.ID, MainColumnTitles.NAME);
 	});
 
 	it('auto-sizes from rendered cells and keeps the measured width when sampled rows are reordered', async () => {

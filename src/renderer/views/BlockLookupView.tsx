@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ThHTMLAttributes } from 'react';
 import { Button, Form, Input, InputNumber, Layout, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { useOutletContext } from 'react-router-dom';
@@ -18,7 +19,8 @@ import { writeConfig } from 'renderer/util/config-write';
 const { Content, Header } = Layout;
 const { Text, Title } = Typography;
 const MAX_SEARCH_RESULTS = 1000;
-const BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH = 72;
+const BLOCK_LOOKUP_TABLE_HEADER_HEIGHT = 48;
+const BLOCK_LOOKUP_KEYBOARD_RESIZE_STEP = 16;
 
 type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'modTitle' | 'blockId' | 'sourceKind';
 type BlockLookupSortKey = 'relevance' | BlockLookupColumnKey;
@@ -30,26 +32,35 @@ interface BlockLookupColumnConfig {
 	key: BlockLookupColumnKey;
 	title: BlockLookupColumnTitles;
 	visible: boolean;
-	width: number;
+	width?: number;
+	defaultWidth: number;
 	minWidth: number;
 }
 
 const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
-	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, minWidth: 180 },
-	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, minWidth: 120 },
-	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, minWidth: 120 },
-	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
-	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
+	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, defaultWidth: 360, minWidth: 180 },
+	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, defaultWidth: 220, minWidth: 120 },
+	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, defaultWidth: 200, minWidth: 120 },
+	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, defaultWidth: 110, minWidth: 90 },
+	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, defaultWidth: 130, minWidth: 90 }
 ];
 const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = ['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind'];
 const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['spawnCommand', 'blockName']);
+const blockLookupCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+const recordKeyCache = new WeakMap<BlockLookupRecord, string>();
 
 interface BlockLookupViewProps {
 	appState: AppState;
 }
 
 function getRecordKey(record: BlockLookupRecord) {
-	return `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
+	const cachedKey = recordKeyCache.get(record);
+	if (cachedKey) {
+		return cachedKey;
+	}
+	const key = `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
+	recordKeyCache.set(record, key);
+	return key;
 }
 
 function formatIndexStatus(stats: BlockLookupIndexStats | null, resultCount: number, query: string) {
@@ -92,7 +103,173 @@ function compareSortValues(leftValue: string, rightValue: string) {
 	if (leftValue && rightValue && Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
 		return leftNumber - rightNumber;
 	}
-	return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
+	return blockLookupCollator.compare(leftValue, rightValue);
+}
+
+function resolveColumnWidth(column: BlockLookupColumnConfig) {
+	return Math.max(column.minWidth, column.width ?? column.defaultWidth);
+}
+
+function getBlockLookupColumnWidthVariableName(columnKey: string) {
+	return `--block-lookup-column-width-${columnKey
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')}`;
+}
+
+function getBlockLookupColumnWidthStyle(columnKey: string, width: number) {
+	return `var(${getBlockLookupColumnWidthVariableName(columnKey)}, ${width}px)`;
+}
+
+function setBlockLookupColumnWidthVariable(container: HTMLElement | null, columnKey: string, width: number) {
+	container?.style.setProperty(getBlockLookupColumnWidthVariableName(columnKey), `${width}px`);
+}
+
+interface BlockLookupHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
+	'data-column-key'?: string;
+	label?: string;
+	width?: number | string;
+	resizeWidth?: number;
+	minWidth?: number;
+	onResize?: (nextWidth: number) => void;
+	onResizeEnd?: (nextWidth: number) => void;
+}
+
+function BlockLookupHeaderCell({
+	label,
+	width,
+	resizeWidth,
+	minWidth = 80,
+	onResize,
+	onResizeEnd,
+	children,
+	style,
+	...rest
+}: BlockLookupHeaderCellProps) {
+	const cleanupRef = useRef<(() => void) | null>(null);
+	const currentResizeWidth = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
+	const widthRef = useRef(currentResizeWidth);
+	const resizeLabel = label ?? (typeof rest['data-column-key'] === 'string' ? rest['data-column-key'] : 'column');
+	const syncResizeHandleValue = useCallback(
+		(nextWidth: number) => {
+			widthRef.current = nextWidth;
+			const resizeHandle = resizeHandleRef.current;
+			if (!resizeHandle) {
+				return;
+			}
+
+			resizeHandle.setAttribute('aria-valuenow', `${nextWidth}`);
+			resizeHandle.setAttribute('aria-valuetext', `${nextWidth}px wide`);
+			resizeHandle.setAttribute('aria-valuemax', `${Math.max(minWidth, nextWidth + 1024)}`);
+		},
+		[minWidth]
+	);
+
+	useEffect(() => {
+		syncResizeHandleValue(currentResizeWidth);
+	}, [currentResizeWidth, syncResizeHandleValue]);
+
+	useEffect(() => {
+		return () => {
+			cleanupRef.current?.();
+		};
+	}, []);
+
+	const startResize = useCallback(
+		(startX: number) => {
+			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
+			let nextWidth = startWidth;
+			const previousCursor = document.body.style.cursor;
+			const previousUserSelect = document.body.style.userSelect;
+
+			const updateWidth = (clientX: number) => {
+				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
+				syncResizeHandleValue(nextWidth);
+				onResize?.(nextWidth);
+			};
+
+			const stopResize = () => {
+				window.removeEventListener('mousemove', handleMouseMove);
+				window.removeEventListener('mouseup', handleMouseUp);
+				document.body.style.cursor = previousCursor;
+				document.body.style.userSelect = previousUserSelect;
+				cleanupRef.current = null;
+				onResizeEnd?.(nextWidth);
+			};
+
+			const handleMouseMove = (event: MouseEvent) => {
+				updateWidth(event.clientX);
+			};
+
+			const handleMouseUp = () => {
+				stopResize();
+			};
+
+			document.body.style.cursor = 'col-resize';
+			document.body.style.userSelect = 'none';
+			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('mouseup', handleMouseUp);
+			cleanupRef.current = stopResize;
+		},
+		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
+	);
+
+	const handleMouseDown = useCallback(
+		(event: ReactMouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			startResize(event.clientX);
+		},
+		[startResize]
+	);
+
+	const handleKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			const direction = event.key === 'ArrowRight' ? 1 : -1;
+			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * BLOCK_LOOKUP_KEYBOARD_RESIZE_STEP));
+			syncResizeHandleValue(nextWidth);
+			onResize?.(nextWidth);
+			onResizeEnd?.(nextWidth);
+		},
+		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
+	);
+
+	return (
+		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
+			<div className="CollectionTableHeaderInner">
+				<div className="CollectionTableHeaderContextTarget">
+					<div className="BlockLookupTableHeaderCell">{children}</div>
+				</div>
+			</div>
+			{width ? (
+				<button
+					type="button"
+					ref={resizeHandleRef}
+					className="CollectionTableResizeHandle"
+					role="slider"
+					aria-label={`Resize ${resizeLabel}`}
+					aria-orientation="horizontal"
+					aria-valuemin={minWidth}
+					aria-valuenow={currentResizeWidth}
+					aria-valuemax={Math.max(minWidth, currentResizeWidth + 1024)}
+					aria-valuetext={`${currentResizeWidth}px wide`}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+					}}
+					onMouseDown={handleMouseDown}
+					onKeyDown={handleKeyDown}
+				/>
+			) : null}
+		</th>
+	);
 }
 
 function moveColumn(columns: BlockLookupColumnConfig[], fromIndex: number, toIndex: number) {
@@ -137,7 +314,7 @@ function getConfiguredColumns(config?: BlockLookupViewConfig): BlockLookupColumn
 		return {
 			...column,
 			visible: config?.columnActiveConfig?.[title] !== false,
-			width: Math.max(column.minWidth, typeof configuredWidth === 'number' ? Math.round(configuredWidth) : column.width)
+			width: typeof configuredWidth === 'number' ? Math.max(column.minWidth, Math.round(configuredWidth)) : undefined
 		};
 	});
 }
@@ -150,8 +327,7 @@ function columnsToConfig(columns: BlockLookupColumnConfig[], smallRows?: boolean
 		return config;
 	}, {});
 	const columnWidthConfig = columns.reduce<Record<string, number>>((config, column) => {
-		const defaultColumn = DEFAULT_BLOCK_LOOKUP_COLUMNS.find((defaultColumnConfig) => defaultColumnConfig.title === column.title);
-		if (!defaultColumn || column.width !== defaultColumn.width) {
+		if (typeof column.width === 'number') {
 			config[column.title] = Math.max(column.minWidth, Math.round(column.width));
 		}
 		return config;
@@ -173,17 +349,17 @@ export function getResponsiveBlockLookupColumns(columns: BlockLookupColumnConfig
 		return visibleColumns;
 	}
 
-	const availableColumnWidth = Math.max(0, availableTableWidth - BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH - 32);
+	const availableColumnWidth = Math.max(0, availableTableWidth - 32);
 	const visibleMinWidth = visibleColumns.reduce((totalWidth, column) => totalWidth + column.minWidth, 0);
 	if (visibleMinWidth <= availableColumnWidth) {
-		const visibleConfiguredWidth = visibleColumns.reduce((totalWidth, column) => totalWidth + column.width, 0);
+		const visibleConfiguredWidth = visibleColumns.reduce((totalWidth, column) => totalWidth + resolveColumnWidth(column), 0);
 		if (visibleConfiguredWidth <= availableColumnWidth) {
 			return visibleColumns;
 		}
 
 		let remainingWidth = availableColumnWidth - visibleMinWidth;
 		return visibleColumns.map((column) => {
-			const extraWidth = Math.min(Math.max(0, column.width - column.minWidth), remainingWidth);
+			const extraWidth = Math.min(Math.max(0, resolveColumnWidth(column) - column.minWidth), remainingWidth);
 			remainingWidth -= extraWidth;
 			return { ...column, width: column.minWidth + extraWidth };
 		});
@@ -259,9 +435,11 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const [sortDirection, setSortDirection] = useState<BlockLookupSortDirection>('ascend');
 	const [tableOptionsOpen, setTableOptionsOpen] = useState(false);
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const [availableTableHeight, setAvailableTableHeight] = useState(0);
 	const [draggingHeaderColumnKey, setDraggingHeaderColumnKey] = useState<BlockLookupColumnKey>();
 	const [draggingDraftColumnKey, setDraggingDraftColumnKey] = useState<BlockLookupColumnKey>();
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
+	const syncedColumnKeysRef = useRef<string[]>([]);
 	const searchRequestIdRef = useRef(0);
 	const modSources = useMemo(() => collectBlockLookupModSources(appState), [appState]);
 	const selectedRecord = useMemo(() => rows.find((record) => getRecordKey(record) === selectedRowKey), [rows, selectedRowKey]);
@@ -270,13 +448,15 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			return rows;
 		}
 		const directionMultiplier = sortDirection === 'ascend' ? 1 : -1;
-		return [...rows].sort((leftRecord, rightRecord) => {
+		const sortedRecords = [...rows];
+		sortedRecords.sort((leftRecord, rightRecord) => {
 			const compared = compareSortValues(getSortValue(leftRecord, sortKey), getSortValue(rightRecord, sortKey));
 			if (compared !== 0) {
 				return compared * directionMultiplier;
 			}
-			return getRecordKey(leftRecord).localeCompare(getRecordKey(rightRecord));
+			return blockLookupCollator.compare(getRecordKey(leftRecord), getRecordKey(rightRecord));
 		});
+		return sortedRecords;
 	}, [rows, sortDirection, sortKey]);
 
 	const buildRequest = useCallback(
@@ -364,16 +544,18 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			return;
 		}
 
-		const syncWidth = (nextWidth: number) => {
+		const syncSize = (nextWidth: number, nextHeight: number) => {
 			const roundedWidth = Math.round(nextWidth);
+			const roundedHeight = Math.round(nextHeight);
 			setAvailableTableWidth((currentWidth) => (currentWidth === roundedWidth ? currentWidth : roundedWidth));
+			setAvailableTableHeight((currentHeight) => (currentHeight === roundedHeight ? currentHeight : roundedHeight));
 		};
 
-		syncWidth(tablePane.clientWidth);
+		syncSize(tablePane.clientWidth, tablePane.clientHeight);
 
 		if (typeof ResizeObserver === 'undefined') {
 			const handleWindowResize = () => {
-				syncWidth(tablePane.clientWidth);
+				syncSize(tablePane.clientWidth, tablePane.clientHeight);
 			};
 			window.addEventListener('resize', handleWindowResize);
 			return () => {
@@ -382,13 +564,28 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		}
 
 		const resizeObserver = new ResizeObserver((entries) => {
-			syncWidth(entries[0]?.contentRect.width ?? tablePane.clientWidth);
+			const contentRect = entries[0]?.contentRect;
+			syncSize(contentRect?.width ?? tablePane.clientWidth, contentRect?.height ?? tablePane.clientHeight);
 		});
 		resizeObserver.observe(tablePane);
 		return () => {
 			resizeObserver.disconnect();
 		};
 	}, []);
+
+	useEffect(() => {
+		const nextColumnKeys = columnConfig.map((column) => column.key);
+		const visibleColumnKeys = new Set(nextColumnKeys);
+		syncedColumnKeysRef.current.forEach((columnKey) => {
+			if (!visibleColumnKeys.has(columnKey as BlockLookupColumnKey)) {
+				tablePaneRef.current?.style.removeProperty(getBlockLookupColumnWidthVariableName(columnKey));
+			}
+		});
+		columnConfig.forEach((column) => {
+			setBlockLookupColumnWidthVariable(tablePaneRef.current, column.key, resolveColumnWidth(column));
+		});
+		syncedColumnKeysRef.current = nextColumnKeys;
+	}, [columnConfig]);
 
 	const handleSaveSettings = useCallback(async () => {
 		try {
@@ -629,17 +826,48 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		},
 		[appState, blockLookupConfig?.smallRows, columnConfig, openNotification]
 	);
+	const persistColumnWidth = useCallback(
+		async (columnKey: BlockLookupColumnKey, width: number) => {
+			const nextColumns = columnConfig.map((column) =>
+				column.key === columnKey ? { ...column, width: Math.max(column.minWidth, Math.round(width)) } : column
+			);
+			const nextConfig = cloneAppConfig(appState.config);
+			nextConfig.viewConfigs.blockLookup = columnsToConfig(nextColumns, blockLookupConfig?.smallRows);
+			try {
+				await writeConfig(nextConfig);
+				appState.updateState({ config: nextConfig });
+				return true;
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update column width',
+						description: String(error),
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+				return false;
+			}
+		},
+		[appState, blockLookupConfig?.smallRows, columnConfig, openNotification]
+	);
 
 	const handleTableChange = useCallback<NonNullable<TableProps<BlockLookupRecord>['onChange']>>((_pagination, _filters, sorter) => {
 		const nextSorter = Array.isArray(sorter) ? sorter[0] : sorter;
 		const columnKey = nextSorter?.columnKey;
 		if (typeof columnKey === 'string' && isBlockLookupColumnKey(columnKey) && nextSorter.order) {
-			setSortKey(columnKey);
-			setSortDirection(nextSorter.order === 'descend' ? 'descend' : 'ascend');
+			startTransition(() => {
+				setSortKey(columnKey);
+				setSortDirection(nextSorter.order === 'descend' ? 'descend' : 'ascend');
+			});
 			return;
 		}
-		setSortKey('relevance');
-		setSortDirection('ascend');
+		startTransition(() => {
+			setSortKey('relevance');
+			setSortDirection('ascend');
+		});
 	}, []);
 
 	const columnDefinitions = useMemo<Record<BlockLookupColumnKey, BlockLookupColumn>>(
@@ -693,49 +921,102 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const columns = useMemo<TableProps<BlockLookupRecord>['columns']>(
 		() =>
 			getResponsiveBlockLookupColumns(columnConfig, availableTableWidth)
-				.map((column) => ({
-					...columnDefinitions[column.key],
-					title: <span className="BlockLookupTableHeaderLabel">{columnDefinitions[column.key].title as string}</span>,
-					width: column.width,
-					onHeaderCell: () =>
-						({
-							draggable: true,
-							'data-column-key': column.key,
-							className: draggingHeaderColumnKey === column.key ? 'BlockLookupTableHeaderCell is-dragging' : 'BlockLookupTableHeaderCell',
-							onDragStart: (event) => {
-								event.dataTransfer.effectAllowed = 'move';
-								event.dataTransfer.setData('text/plain', column.key);
-								setDraggingHeaderColumnKey(column.key);
-							},
-							onDragOver: (event) => {
-								if (draggingHeaderColumnKey && draggingHeaderColumnKey !== column.key) {
+				.map((column) => {
+					const resolvedWidth = resolveColumnWidth(column);
+					const widthStyle = getBlockLookupColumnWidthStyle(column.key, resolvedWidth);
+					const restorePersistedColumnWidth = () => {
+						setBlockLookupColumnWidthVariable(tablePaneRef.current, column.key, resolvedWidth);
+					};
+					return {
+						...columnDefinitions[column.key],
+						title: <span className="BlockLookupTableHeaderLabel">{columnDefinitions[column.key].title as string}</span>,
+						width: widthStyle,
+						onHeaderCell: () =>
+							({
+								label: column.title,
+								draggable: true,
+								'data-column-key': column.key,
+								className: draggingHeaderColumnKey === column.key ? 'BlockLookupTableHeaderCell is-dragging' : 'BlockLookupTableHeaderCell',
+								width: widthStyle,
+								resizeWidth: resolvedWidth,
+								minWidth: column.minWidth,
+								onDragStart: (event) => {
+									event.dataTransfer.effectAllowed = 'move';
+									event.dataTransfer.setData('text/plain', column.key);
+									setDraggingHeaderColumnKey(column.key);
+								},
+								onDragOver: (event) => {
+									if (draggingHeaderColumnKey && draggingHeaderColumnKey !== column.key) {
+										event.preventDefault();
+										event.dataTransfer.dropEffect = 'move';
+									}
+								},
+								onDrop: (event) => {
 									event.preventDefault();
-									event.dataTransfer.dropEffect = 'move';
+									const sourceKey = event.dataTransfer.getData('text/plain') as BlockLookupColumnKey;
+									setDraggingHeaderColumnKey(undefined);
+									if (isBlockLookupColumnKey(sourceKey)) {
+										void persistColumnOrder(sourceKey, column.key);
+									}
+								},
+								onDragEnd: () => {
+									setDraggingHeaderColumnKey(undefined);
+								},
+								onResize: (nextWidth: number) => {
+									setBlockLookupColumnWidthVariable(tablePaneRef.current, column.key, nextWidth);
+								},
+								onResizeEnd: (nextWidth: number) => {
+									setBlockLookupColumnWidthVariable(tablePaneRef.current, column.key, nextWidth);
+									void (async () => {
+										const persisted = await persistColumnWidth(column.key, nextWidth);
+										if (!persisted) {
+											restorePersistedColumnWidth();
+										}
+									})();
 								}
-							},
-							onDrop: (event) => {
-								event.preventDefault();
-								const sourceKey = event.dataTransfer.getData('text/plain') as BlockLookupColumnKey;
-								setDraggingHeaderColumnKey(undefined);
-								if (isBlockLookupColumnKey(sourceKey)) {
-									void persistColumnOrder(sourceKey, column.key);
+							}) as ReturnType<NonNullable<BlockLookupColumn['onHeaderCell']>>,
+						onCell: () =>
+							({
+								'data-column-key': column.key,
+								style: {
+									width: widthStyle
 								}
-							},
-							onDragEnd: () => {
-								setDraggingHeaderColumnKey(undefined);
-							}
-						}) as ReturnType<NonNullable<BlockLookupColumn['onHeaderCell']>>
-				})),
-		[availableTableWidth, columnConfig, columnDefinitions, draggingHeaderColumnKey, persistColumnOrder]
+							}) as ReturnType<NonNullable<BlockLookupColumn['onCell']>>
+					};
+			}),
+		[availableTableWidth, columnConfig, columnDefinitions, draggingHeaderColumnKey, persistColumnOrder, persistColumnWidth]
 	);
 
 	const tableScrollX = useMemo(() => {
 		const visibleColumnWidth = getResponsiveBlockLookupColumns(columnConfig, availableTableWidth).reduce(
-			(totalWidth, column) => totalWidth + column.width,
-			BLOCK_LOOKUP_SELECTION_COLUMN_WIDTH
+			(totalWidth, column) => totalWidth + resolveColumnWidth(column),
+			0
 		);
 		return Math.max(visibleColumnWidth, availableTableWidth);
 	}, [availableTableWidth, columnConfig]);
+	const tableScrollY = useMemo(() => Math.max(240, availableTableHeight - BLOCK_LOOKUP_TABLE_HEADER_HEIGHT), [availableTableHeight]);
+	const handleRow = useCallback(
+		(record: BlockLookupRecord) => ({
+			onClick: () => {
+				setSelectedRowKey(getRecordKey(record));
+			},
+			onDoubleClick: () => {
+				setSelectedRowKey(getRecordKey(record));
+				void copyToClipboard(record.spawnCommand).catch((error) => {
+					openNotification(
+						{
+							message: 'Could not copy command',
+							description: String(error),
+							placement: 'topRight',
+							duration: 3
+						},
+						'error'
+					);
+				});
+			}
+		}),
+		[openNotification]
+	);
 
 	return (
 		<Layout className="BlockLookupViewLayout">
@@ -818,40 +1099,21 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 						className="BlockLookupTable"
 						size={blockLookupConfig?.smallRows ? 'small' : 'middle'}
 						rowKey={getRecordKey}
+						components={{ header: { cell: BlockLookupHeaderCell } }}
 						columns={columns}
 						dataSource={sortedRows}
 						loading={loadingResults || buildingIndex}
 						pagination={false}
-						scroll={{ x: tableScrollX, y: 'calc(100vh - 390px)' }}
+						scroll={{ x: tableScrollX, y: tableScrollY }}
 						sortDirections={BLOCK_LOOKUP_SORT_DIRECTIONS}
+						sticky
+						tableLayout="fixed"
+						virtual
 						onChange={handleTableChange}
-						rowClassName={() => (blockLookupConfig?.smallRows ? 'CompactBlockLookupRow' : '')}
-						rowSelection={{
-							type: 'radio',
-							selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
-							onChange: (keys) => {
-								setSelectedRowKey(keys[0]?.toString());
-							}
-						}}
-						onRow={(record) => ({
-							onClick: () => {
-								setSelectedRowKey(getRecordKey(record));
-							},
-							onDoubleClick: () => {
-								setSelectedRowKey(getRecordKey(record));
-								void copyToClipboard(record.spawnCommand).catch((error) => {
-									openNotification(
-										{
-											message: 'Could not copy command',
-											description: String(error),
-											placement: 'topRight',
-											duration: 3
-										},
-										'error'
-									);
-								});
-							}
-						})}
+						rowClassName={(record) =>
+							`${blockLookupConfig?.smallRows ? 'CompactBlockLookupRow' : ''}${getRecordKey(record) === selectedRowKey ? ' is-selected' : ''}`.trim()
+						}
+						onRow={handleRow}
 					/>
 				</div>
 				<div className="BlockLookupDetailsPane">
@@ -1014,10 +1276,10 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 											onChange={(value) => {
 												setDraftColumnConfig((currentColumns) =>
 													currentColumns.map((currentColumn) => {
-														if (currentColumn.key !== column.key || typeof value !== 'number') {
+														if (currentColumn.key !== column.key) {
 															return currentColumn;
 														}
-														return { ...currentColumn, width: value };
+														return { ...currentColumn, width: typeof value === 'number' ? value : undefined };
 													})
 												);
 											}}

@@ -403,6 +403,59 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		},
 		[appState, openNotification]
 	);
+	const handleSetMainColumnOrder = useCallback(
+		async (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => {
+			if (fromColumn === toColumn) {
+				return true;
+			}
+
+			const defaultOrder = Object.values(MainColumnTitles) as MainColumnTitles[];
+			const configuredOrder = appState.config.viewConfigs.main?.columnOrder || [];
+			const configuredColumnSet = new Set<MainColumnTitles>();
+			const currentOrder = [
+				...(configuredOrder.filter((column): column is MainColumnTitles => {
+					if (!defaultOrder.includes(column as MainColumnTitles) || configuredColumnSet.has(column as MainColumnTitles)) {
+						return false;
+					}
+					configuredColumnSet.add(column as MainColumnTitles);
+					return true;
+				}) as MainColumnTitles[]),
+				...defaultOrder.filter((column) => !configuredColumnSet.has(column))
+			];
+			const fromIndex = currentOrder.indexOf(fromColumn);
+			const toIndex = currentOrder.indexOf(toColumn);
+			if (fromIndex === -1 || toIndex === -1) {
+				return false;
+			}
+
+			const nextOrder = [...currentOrder];
+			const [movedColumn] = nextOrder.splice(fromIndex, 1);
+			nextOrder.splice(toIndex, 0, movedColumn);
+
+			const nextConfig = cloneAppConfig(appState.config);
+			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
+			currentMainConfig.columnOrder = nextOrder.some((column, index) => column !== defaultOrder[index]) ? nextOrder : undefined;
+			nextConfig.viewConfigs.main = currentMainConfig;
+
+			try {
+				await writeConfig(nextConfig);
+				appState.updateState({ config: nextConfig });
+				return true;
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update view settings',
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+				return false;
+			}
+		},
+		[appState, openNotification]
+	);
 	const handleLaunchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
 		const modList = (appState.activeCollection ? appState.activeCollection.mods.map((mod) => getByUID(appState.mods, mod)) : []).filter(
@@ -493,6 +546,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setDisabledCallback: handleDisableMod,
 			setMainColumnWidthCallback: handleSetMainColumnWidth,
 			setMainColumnVisibilityCallback: handleSetMainColumnVisibility,
+			setMainColumnOrderCallback: handleSetMainColumnOrder,
 			openMainViewSettingsCallback: handleOpenViewSettings,
 			getModDetails: handleGetModDetails
 		}),
@@ -505,6 +559,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleGetModDetails,
 			handleSetMainColumnWidth,
 			handleSetMainColumnVisibility,
+			handleSetMainColumnOrder,
 			handleOpenViewSettings,
 			currentValidationStatus,
 			madeEdits,

@@ -183,6 +183,14 @@ body {
 	width: 100%;
 }
 
+.MainCollectionTableRoot .CollectionTableHeaderCell {
+	cursor: grab;
+}
+
+.MainCollectionTableRoot th.is-dragging {
+	opacity: 0.62;
+}
+
 .CollectionTableHeaderInner {
 	display: flex;
 	align-items: center;
@@ -793,6 +801,8 @@ a:hover {
 }
 
 .BlockLookupTableHeaderCell {
+	min-width: 0;
+	width: 100%;
 	cursor: grab;
 }
 
@@ -805,6 +815,11 @@ a:hover {
 	display: inline-flex;
 	align-items: center;
 	min-width: 0;
+}
+
+.BlockLookupTable .ant-table-row.is-selected > .ant-table-cell,
+.BlockLookupTable .ant-table-row.is-selected > .ant-table-cell-row-hover {
+	background: color-mix(in srgb, var(--app-color-primary) 14%, transparent);
 }
 
 .BlockLookupCommand {

@@ -7,7 +7,6 @@ import api from 'renderer/Api';
 import { APP_THEME_COLORS } from 'renderer/theme';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppState } from 'renderer/state/app-state';
-import { getStoredViewPath } from 'renderer/util/view-path';
 
 const { Content } = Layout;
 const { Paragraph, Text, Title } = Typography;
@@ -80,8 +79,8 @@ export default function SteamworksVerification() {
 			return;
 		}
 
-		const nextPath = getStoredViewPath(config.currentPath);
-		if (nextPath !== config.currentPath) {
+		const nextPath = '/collections/main';
+		if (config.currentPath !== nextPath) {
 			updateState({
 				config: {
 					...config,
@@ -158,7 +157,7 @@ export default function SteamworksVerification() {
 		? 'Confirming the manager can talk to Steam before restoring your saved workspace.'
 		: error
 			? describedError?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
-			: 'Continuing to your saved view.';
+			: 'Continuing to mod collections.';
 
 	return (
 		<Layout className="StartupShell">

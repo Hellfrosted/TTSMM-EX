@@ -7,12 +7,14 @@ import { AppStateProvider, useAppState } from '../../renderer/state/app-state';
 
 function AppStateSeeder({ currentPath, initializedConfigs }: { currentPath: string; initializedConfigs: boolean }) {
 	const appState = useAppState();
+	const seededRef = React.useRef(false);
 
 	useEffect(() => {
-		if (appState.config.currentPath === currentPath && appState.initializedConfigs === initializedConfigs) {
+		if (seededRef.current) {
 			return;
 		}
 
+		seededRef.current = true;
 		appState.updateState({
 			initializedConfigs,
 			config: {
@@ -20,7 +22,7 @@ function AppStateSeeder({ currentPath, initializedConfigs }: { currentPath: stri
 				currentPath
 			}
 		});
-	}, [appState, appState.config, appState.config.currentPath, appState.initializedConfigs, appState.updateState, currentPath, initializedConfigs]);
+	}, [appState, appState.config, appState.updateState, currentPath, initializedConfigs]);
 
 	return null;
 }
@@ -54,7 +56,7 @@ describe('SteamworksVerification', () => {
 		cleanup();
 	});
 
-	it('returns to the saved route after reloading Steamworks', async () => {
+	it('returns to mod collections after reloading Steamworks', async () => {
 		vi.mocked(window.electron.steamworksInited).mockResolvedValue({ inited: true });
 
 		render(
@@ -70,8 +72,8 @@ describe('SteamworksVerification', () => {
 		});
 
 		await waitFor(() => {
-			expect(screen.getByTestId('location')).toHaveTextContent('/settings');
-			expect(screen.getByTestId('current-path')).toHaveTextContent('/settings');
+			expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
+			expect(screen.getByTestId('current-path')).toHaveTextContent('/collections/main');
 		});
 	}, 10000);
 
@@ -97,7 +99,7 @@ describe('SteamworksVerification', () => {
 
 		await waitFor(() => {
 			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(2);
-			expect(screen.getByTestId('location')).toHaveTextContent('/settings');
+			expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
 		});
 	}, 10000);
 

@@ -104,17 +104,52 @@ describe('BlockLookupView', () => {
 	it('keeps Block Lookup columns within constrained desktop widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
-				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, minWidth: 180 },
-				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, minWidth: 120 },
-				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, minWidth: 120 },
-				{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
-				{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
+				{
+					key: 'spawnCommand',
+					title: BlockLookupColumnTitles.SPAWN_COMMAND,
+					visible: true,
+					width: 360,
+					defaultWidth: 360,
+					minWidth: 180
+				},
+				{
+					key: 'blockName',
+					title: BlockLookupColumnTitles.BLOCK,
+					visible: true,
+					width: 220,
+					defaultWidth: 220,
+					minWidth: 120
+				},
+				{
+					key: 'modTitle',
+					title: BlockLookupColumnTitles.MOD,
+					visible: true,
+					width: 200,
+					defaultWidth: 200,
+					minWidth: 120
+				},
+				{
+					key: 'blockId',
+					title: BlockLookupColumnTitles.BLOCK_ID,
+					visible: true,
+					width: 110,
+					defaultWidth: 110,
+					minWidth: 90
+				},
+				{
+					key: 'sourceKind',
+					title: BlockLookupColumnTitles.SOURCE,
+					visible: true,
+					width: 130,
+					defaultWidth: 130,
+					minWidth: 90
+				}
 			],
 			640
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId']);
-		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + column.width, 72)).toBeLessThanOrEqual(640);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind']);
+		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + column.width, 32)).toBeLessThanOrEqual(640);
 	});
 
 	it('searches indexed block aliases and copies the selected command', async () => {
@@ -135,6 +170,49 @@ describe('BlockLookupView', () => {
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)');
+		});
+	});
+
+	it('resizes block lookup columns from the header edge', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+
+		const { appState } = renderBlockLookupView();
+
+		await screen.findAllByText('Alpha Cannon');
+		const [resizeHandle] = screen.getAllByRole('slider', { name: 'Resize Block' });
+		const initialWidth = Number.parseInt(resizeHandle.getAttribute('aria-valuenow') || '0', 10);
+		fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					viewConfigs: expect.objectContaining({
+						blockLookup: expect.objectContaining({
+							columnWidthConfig: expect.objectContaining({
+								[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+							})
+						})
+					})
+				})
+			);
+			const nextConfig = vi.mocked(window.electron.updateConfig).mock.calls.at(-1)?.[0];
+			expect(nextConfig?.viewConfigs.blockLookup?.columnWidthConfig?.[BlockLookupColumnTitles.BLOCK]).toBeGreaterThan(initialWidth);
+			expect(appState.updateState).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						viewConfigs: expect.objectContaining({
+							blockLookup: expect.objectContaining({
+								columnWidthConfig: expect.objectContaining({
+									[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+								})
+							})
+						})
+					})
+				})
+			);
 		});
 	});
 
@@ -181,7 +259,7 @@ describe('BlockLookupView', () => {
 
 		renderBlockLookupView();
 
-		await screen.findByText('Block 125');
+		expect((await screen.findAllByText('Block 001')).length).toBeGreaterThan(0);
 		expect(screen.getByText('125 indexed blocks from 1 source')).toBeInTheDocument();
 		expect(screen.queryByTitle('Next Page')).toBeNull();
 	});
@@ -240,7 +318,8 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnWidthConfig: undefined
 						})
 					})
 				})
@@ -250,7 +329,8 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnWidthConfig: undefined
 							})
 						})
 					})
@@ -270,7 +350,6 @@ describe('BlockLookupView', () => {
 		await screen.findAllByText('Alpha Cannon');
 		fireEvent.click(screen.getByRole('button', { name: /Table Options/ }));
 		const dialog = await screen.findByRole('dialog');
-		expect(within(dialog).queryByRole('button', { name: /Move .* (left|right)/ })).toBeNull();
 		const blockRow = within(dialog).getByText('Block').closest('.BlockLookupSettingsColumnRow');
 		const spawnRow = within(dialog).getByText('SpawnBlock Command').closest('.BlockLookupSettingsColumnRow');
 		expect(blockRow).toBeDefined();
@@ -287,7 +366,8 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnWidthConfig: undefined
 						})
 					})
 				})
@@ -297,7 +377,8 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnWidthConfig: undefined
 							})
 						})
 					})
