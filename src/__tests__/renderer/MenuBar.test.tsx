@@ -25,6 +25,10 @@ function getCollectionsMenuItem(container: HTMLElement) {
 	return container.querySelector('li[data-menu-id$="/collections/main"]') as HTMLElement;
 }
 
+function getBlockLookupMenuItem(container: HTMLElement) {
+	return container.querySelector('li[data-menu-id$="/block-lookup"]') as HTMLElement;
+}
+
 function getHarness(container: HTMLElement) {
 	return within(container);
 }
@@ -92,6 +96,35 @@ describe('MenuBar', () => {
 			expect(appState.config.currentPath).toBe('/collections/main');
 			expect(harness.getByTestId('location')).toHaveTextContent('/collections/main');
 			expect(appState.loadingMods).toBe(false);
+		});
+	}, 10000);
+
+	it('navigates to the block lookup workspace from the sidebar', async () => {
+		const appState = createAppState({
+			config: {
+				...createAppState().config,
+				currentPath: '/collections/main'
+			}
+		});
+
+		const view = render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<Routes>
+					<Route path="*" element={<MenuBarHarness appState={appState} />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		fireEvent.click(getBlockLookupMenuItem(view.container));
+		const harness = getHarness(view.container);
+
+		await waitFor(() => {
+			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
+			expect(harness.getByTestId('persisted-path')).toHaveTextContent('/block-lookup');
+		});
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ currentPath: '/block-lookup' }));
 		});
 	}, 10000);
 

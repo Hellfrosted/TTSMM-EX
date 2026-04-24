@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef } from 'react';
 import { Menu } from 'antd';
 import type { MenuProps as AntdMenuProps } from 'antd';
 import AppstoreOutlined from '@ant-design/icons/es/icons/AppstoreOutlined';
+import SearchOutlined from '@ant-design/icons/es/icons/SearchOutlined';
 import SettingOutlined from '@ant-design/icons/es/icons/SettingOutlined';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppState } from 'model';
@@ -121,6 +122,12 @@ export default function MenuBar({ disableNavigation, appState }: MenuProps) {
 			style: menuItemStyle,
 			icon: <AppstoreOutlined style={menuIconStyle} />,
 			label: 'Mod Collections'
+		},
+		{
+			key: '/block-lookup',
+			style: menuItemStyle,
+			icon: <SearchOutlined style={menuIconStyle} />,
+			label: 'Block Lookup'
 		},
 		{
 			key: '/settings',

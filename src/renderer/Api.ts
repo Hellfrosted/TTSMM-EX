@@ -2,6 +2,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AppConfig, LogLevel, ModCollection, ModData, NLogLevel, PathType, SessionMods } from 'model';
+import type {
+	BlockLookupBuildRequest,
+	BlockLookupBuildResult,
+	BlockLookupIndexStats,
+	BlockLookupSearchRequest,
+	BlockLookupSearchResult,
+	BlockLookupSettings
+} from 'shared/block-lookup';
 import type { ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
 
@@ -163,6 +171,30 @@ class API {
 
 	selectPath(directory: boolean, title: string): Promise<string | null> {
 		return window.electron.selectPath(directory, title);
+	}
+
+	readBlockLookupSettings(): Promise<BlockLookupSettings> {
+		return window.electron.readBlockLookupSettings();
+	}
+
+	saveBlockLookupSettings(settings: BlockLookupSettings): Promise<BlockLookupSettings> {
+		return window.electron.saveBlockLookupSettings(settings);
+	}
+
+	buildBlockLookupIndex(request: BlockLookupBuildRequest): Promise<BlockLookupBuildResult> {
+		return window.electron.buildBlockLookupIndex(request);
+	}
+
+	searchBlockLookup(request: BlockLookupSearchRequest): Promise<BlockLookupSearchResult> {
+		return window.electron.searchBlockLookup(request);
+	}
+
+	getBlockLookupStats(): Promise<BlockLookupIndexStats | null> {
+		return window.electron.getBlockLookupStats();
+	}
+
+	autoDetectBlockLookupWorkshopRoot(request: BlockLookupBuildRequest): Promise<string | null> {
+		return window.electron.autoDetectBlockLookupWorkshopRoot(request);
 	}
 
 	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods> {

@@ -30,6 +30,23 @@ function createElectronMock() {
 		pathExists: vi.fn(async () => true),
 		discoverGameExecutable: vi.fn(async () => null),
 		selectPath: vi.fn(async () => null),
+		readBlockLookupSettings: vi.fn(async () => ({ workshopRoot: '' })),
+		saveBlockLookupSettings: vi.fn(async (settings) => settings),
+		buildBlockLookupIndex: vi.fn(async () => ({
+			settings: { workshopRoot: '' },
+			stats: {
+				sources: 0,
+				scanned: 0,
+				skipped: 0,
+				removed: 0,
+				blocks: 0,
+				updatedBlocks: 0,
+				builtAt: new Date(0).toISOString()
+			}
+		})),
+		searchBlockLookup: vi.fn(async () => ({ rows: [], stats: null })),
+		getBlockLookupStats: vi.fn(async () => null),
+		autoDetectBlockLookupWorkshopRoot: vi.fn(async () => null),
 		launchGame: vi.fn(async () => true),
 		isGameRunning: vi.fn(async () => false),
 		readModMetadata: vi.fn(async () => new SessionMods('', [])),

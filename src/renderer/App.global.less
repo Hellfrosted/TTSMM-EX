@@ -707,6 +707,182 @@ a:hover {
 	width: 100%;
 }
 
+.BlockLookupViewLayout {
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: @layout-header-background;
+}
+
+.BlockLookupHeader {
+	height: auto !important;
+	min-height: 138px;
+	padding: 14px 20px 12px !important;
+	background: @surface-color !important;
+	border-bottom: 1px solid @border-color;
+	line-height: 1.4 !important;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.BlockLookupToolbar,
+.BlockLookupPathBar,
+.BlockLookupStatus {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	gap: 10px;
+}
+
+.BlockLookupToolbar {
+	flex-wrap: wrap;
+}
+
+.BlockLookupSearch {
+	flex: 1 1 340px;
+	min-width: 280px;
+	max-width: 560px;
+}
+
+.BlockLookupActions {
+	margin-left: auto;
+}
+
+.BlockLookupPathBar .ant-input {
+	min-width: 260px;
+}
+
+.BlockLookupPathBar .ant-input-affix-wrapper,
+.BlockLookupPathBar > .ant-input,
+.BlockLookupToolbar .ant-input-affix-wrapper,
+.BlockLookupHeader .ant-btn {
+	border-radius: 8px !important;
+}
+
+.BlockLookupPathBar > .ant-input {
+	flex: 1 1 auto;
+}
+
+.BlockLookupStatus {
+	justify-content: space-between;
+	color: @text-color-muted;
+}
+
+.BlockLookupContent {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.BlockLookupTablePane {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 12px 16px 0;
+	overflow: hidden;
+}
+
+.BlockLookupTable {
+	height: 100%;
+}
+
+.BlockLookupCommand {
+	font-family: 'Cascadia Mono', 'Consolas', monospace;
+	font-size: 12.5px;
+}
+
+.BlockLookupDetailsPane {
+	flex: 0 0 auto;
+	min-height: 112px;
+	max-height: 184px;
+	padding: 12px 16px 14px;
+	border-top: 1px solid @border-color;
+	background: @surface-color;
+	overflow: auto;
+}
+
+.BlockLookupDetailsGrid {
+	display: grid;
+	grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1.4fr) repeat(4, minmax(120px, 0.8fr));
+	gap: 10px 16px;
+	align-items: start;
+}
+
+.BlockLookupDetailsGrid > div {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.BlockLookupDetailsGrid__source {
+	grid-column: 1 / -1;
+}
+
+.BlockLookupDetailsValue {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: @text-color-dark;
+}
+
+.BlockLookupOptionsForm {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.BlockLookupOptionsTopBar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(160px, 0.45fr);
+	gap: 12px;
+}
+
+.BlockLookupOptionsField {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 0;
+}
+
+.BlockLookupOptionsColumnsHeader,
+.BlockLookupOptionsColumnRow {
+	display: grid;
+	grid-template-columns: minmax(180px, 1fr) 72px minmax(120px, 0.55fr) 96px;
+	gap: 12px;
+	align-items: center;
+}
+
+.BlockLookupOptionsColumnsHeader {
+	padding: 0 10px;
+}
+
+.BlockLookupOptionsColumnsList {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.BlockLookupOptionsColumnRow {
+	min-height: 48px;
+	padding: 8px 10px;
+	border: 1px solid @border-color;
+	border-radius: 8px;
+	background: @surface-color;
+}
+
+.BlockLookupOptionsColumnLabel {
+	min-width: 0;
+}
+
+.BlockLookupOptionsColumnRow .ant-input-number {
+	width: 100%;
+}
+
 .CollectionToolbar .ant-btn {
 	display: inline-flex;
 	align-items: center;
@@ -1442,6 +1618,14 @@ a:hover {
 	.ModDetailFooterContentCol > .ant-layout-content {
 		padding-right: 0 !important;
 	}
+
+	.BlockLookupActions {
+		margin-left: 0;
+	}
+
+	.BlockLookupDetailsGrid {
+		grid-template-columns: repeat(2, minmax(180px, 1fr));
+	}
 }
 
 @media (max-width: 720px) {
@@ -1506,5 +1690,39 @@ a:hover {
 
 	.SettingsActions .ant-btn {
 		width: 100%;
+	}
+
+	.BlockLookupHeader {
+		padding: 12px 14px !important;
+	}
+
+	.BlockLookupSearch,
+	.BlockLookupPathBar,
+	.BlockLookupPathBar > .ant-input {
+		flex-basis: 100%;
+		min-width: 0;
+	}
+
+	.BlockLookupStatus {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.BlockLookupDetailsGrid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.BlockLookupOptionsTopBar,
+	.BlockLookupOptionsColumnRow {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.BlockLookupOptionsColumnsHeader {
+		display: none;
+	}
+
+	.BlockLookupOptionsColumnRow .ant-input-number {
+		grid-column: 1 / -1;
 	}
 }

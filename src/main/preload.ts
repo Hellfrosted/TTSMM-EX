@@ -28,6 +28,12 @@ const electronApi = {
 	pathExists: (targetPath: string, expectedType?: number) => ipcRenderer.invoke(ValidChannel.PATH_EXISTS, targetPath, expectedType),
 	discoverGameExecutable: () => ipcRenderer.invoke(ValidChannel.DISCOVER_GAME_EXEC),
 	selectPath: (directory: boolean, title: string) => ipcRenderer.invoke(ValidChannel.SELECT_PATH, directory, title),
+	readBlockLookupSettings: () => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_READ_SETTINGS),
+	saveBlockLookupSettings: (settings) => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings),
+	buildBlockLookupIndex: (request) => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
+	searchBlockLookup: (request) => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_SEARCH, request),
+	getBlockLookupStats: () => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_STATS),
+	autoDetectBlockLookupWorkshopRoot: (request) => ipcRenderer.invoke(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, request),
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) =>
 		ipcRenderer.invoke(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args),
 	isGameRunning: () => ipcRenderer.invoke(ValidChannel.GAME_RUNNING),

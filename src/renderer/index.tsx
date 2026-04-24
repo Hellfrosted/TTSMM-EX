@@ -59,6 +59,7 @@ createRoot(rootElement).render(
 		<Routes>
 			<Route path="/" element={<App />}>
 				<Route path="settings" />
+				<Route path="block-lookup" />
 				{/* Paths that indicate the application is processing request to load something from disk */}
 				<Route path="loading" element={<LoadingView />}>
 					<Route

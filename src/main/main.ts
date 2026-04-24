@@ -5,6 +5,7 @@ import log from 'electron-log';
 import path from 'path';
 
 import Steamworks from './steamworks';
+import { registerBlockLookupHandlers } from './ipc/block-lookup-handlers';
 import { registerCollectionHandlers } from './ipc/collection-handlers';
 import { registerConfigHandlers } from './ipc/config-handlers';
 import { registerGameHandlers } from './ipc/game-handlers';
@@ -102,6 +103,9 @@ app.on('window-all-closed', () => {
 });
 
 registerConfigHandlers(ipcMain, isDevelopment);
+registerBlockLookupHandlers(ipcMain, {
+	getUserDataPath: () => app.getPath('userData')
+});
 registerCollectionHandlers(ipcMain);
 registerGameHandlers(ipcMain);
 registerModHandlers(

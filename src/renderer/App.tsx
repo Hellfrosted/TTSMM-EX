@@ -12,6 +12,7 @@ const { Sider } = Layout;
 
 const loadCollectionView = () => import('./views/CollectionView');
 const loadSettingsView = () => import('./views/SettingsView');
+const loadBlockLookupView = () => import('./views/BlockLookupView');
 const loadMenuBar = () => import('./components/MenuBar');
 
 const CollectionViewLazy = lazy(async () => {
@@ -24,6 +25,11 @@ const SettingsViewLazy = lazy(async () => {
 	return { default: module.SettingsView };
 });
 
+const BlockLookupViewLazy = lazy(async () => {
+	const module = await loadBlockLookupView();
+	return { default: module.BlockLookupView };
+});
+
 const MenuBarLazy = lazy(async () => {
 	const module = await loadMenuBar();
 	return { default: module.default };
@@ -31,7 +37,7 @@ const MenuBarLazy = lazy(async () => {
 
 interface AppViewStageProps extends PropsWithChildren {
 	active: boolean;
-	name: 'loading' | 'collections' | 'settings';
+	name: 'loading' | 'collections' | 'settings' | 'block-lookup';
 	overflow?: 'auto' | 'hidden';
 }
 
@@ -57,8 +63,9 @@ function AppShell() {
 	const appState = useAppState();
 	const { launchingGame, sidebarCollapsed, savingConfig, madeConfigEdits, configErrors } = appState;
 	const [mountedSettings, setMountedSettings] = useState(location.pathname.startsWith('/settings'));
+	const [mountedBlockLookup, setMountedBlockLookup] = useState(location.pathname.startsWith('/block-lookup'));
 	const [mountedCollections, setMountedCollections] = useState(
-		!location.pathname.includes('/loading') && !location.pathname.startsWith('/settings')
+		!location.pathname.includes('/loading') && !location.pathname.startsWith('/settings') && !location.pathname.startsWith('/block-lookup')
 	);
 	const navigateToSteamworks = useEffectEvent(() => {
 		appState.navigate('/loading/steamworks');
@@ -84,8 +91,10 @@ function AppShell() {
 
 	const isLoadingRoute = location.pathname.includes('/loading');
 	const isSettingsRoute = location.pathname.startsWith('/settings');
-	const showCollections = !isLoadingRoute && !isSettingsRoute;
+	const isBlockLookupRoute = location.pathname.startsWith('/block-lookup');
+	const showCollections = !isLoadingRoute && !isSettingsRoute && !isBlockLookupRoute;
 	const showSettings = !isLoadingRoute && isSettingsRoute;
+	const showBlockLookup = !isLoadingRoute && isBlockLookupRoute;
 
 	useEffect(() => {
 		if (isLoadingRoute) {
@@ -98,13 +107,18 @@ function AppShell() {
 				return;
 			}
 
+			if (isBlockLookupRoute) {
+				setMountedBlockLookup(true);
+				return;
+			}
+
 			setMountedCollections(true);
 		}, 0);
 
 		return () => {
 			window.clearTimeout(timeoutId);
 		};
-	}, [isLoadingRoute, isSettingsRoute]);
+	}, [isBlockLookupRoute, isLoadingRoute, isSettingsRoute]);
 
 	return (
 		<div style={{ display: 'flex', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
@@ -160,6 +174,20 @@ function AppShell() {
 								}
 							>
 								<SettingsViewLazy appState={appState satisfies AppState} />
+							</Suspense>
+						</AppViewStage>
+					) : null}
+					{mountedBlockLookup ? (
+						<AppViewStage active={showBlockLookup} name="block-lookup">
+							<Suspense
+								fallback={
+									<ViewStageLoadingFallback
+										title="Loading block lookup"
+										detail="Preparing the block alias index and search controls."
+									/>
+								}
+							>
+								<BlockLookupViewLazy appState={appState satisfies AppState} />
 							</Suspense>
 						</AppViewStage>
 					) : null}

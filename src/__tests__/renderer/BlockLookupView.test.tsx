@@ -1,0 +1,196 @@
+import React from 'react';
+import { App as AntApp } from 'antd';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ModType, SessionMods, setupDescriptors } from '../../model';
+import { BlockLookupView } from '../../renderer/views/BlockLookupView';
+import type { BlockLookupRecord } from '../../shared/block-lookup';
+import { createAppState } from './test-utils';
+
+const TEST_STATS = {
+	sources: 1,
+	scanned: 1,
+	skipped: 0,
+	removed: 0,
+	blocks: 1,
+	updatedBlocks: 1,
+	builtAt: new Date(0).toISOString()
+};
+
+const TEST_RECORD: BlockLookupRecord = {
+	blockName: 'Alpha Cannon',
+	internalName: 'TestCannon',
+	blockId: '42',
+	modTitle: 'Test Blocks',
+	workshopId: '12345',
+	sourceKind: 'json',
+	sourcePath: 'C:\\Steam\\steamapps\\workshop\\content\\285920\\12345\\BlockJSON\\TestCannon.json',
+	preferredAlias: 'Alpha_Cannon(Test_Blocks)',
+	fallbackAlias: 'Alpha_Cannon(Test_Blocks)',
+	spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)',
+	fallbackSpawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
+};
+
+function createBlockLookupRecord(index: number, overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
+	return {
+		blockName: `Block ${index.toString().padStart(3, '0')}`,
+		internalName: `TestBlock${index}`,
+		blockId: index.toString(),
+		modTitle: 'Test Blocks',
+		workshopId: '12345',
+		sourceKind: 'json',
+		sourcePath: `C:\\Steam\\steamapps\\workshop\\content\\285920\\12345\\BlockJSON\\TestBlock${index}.json`,
+		preferredAlias: `Block_${index}(Test_Blocks)`,
+		fallbackAlias: `Block_${index}(Test_Blocks)`,
+		spawnCommand: `SpawnBlock Block_${index}(Test_Blocks)`,
+		fallbackSpawnCommand: `SpawnBlock Block_${index}(Test_Blocks)`,
+		...overrides
+	};
+}
+
+function stubResizeObserver() {
+	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
+		return {
+			observe: vi.fn(),
+			unobserve: vi.fn(),
+			disconnect: vi.fn()
+		};
+	});
+	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+}
+
+function renderBlockLookupView() {
+	const mods = new SessionMods('', [
+		{
+			uid: 'workshop:12345',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(12345),
+			id: 'TestBlocks',
+			name: 'Test Blocks',
+			path: 'C:\\Steam\\steamapps\\workshop\\content\\285920\\12345'
+		}
+	]);
+	const appState = createAppState({ mods });
+	setupDescriptors(mods, appState.config.userOverrides);
+
+	return render(
+		<AntApp>
+			<BlockLookupView appState={appState} />
+		</AntApp>
+	);
+}
+
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
+
+describe('BlockLookupView', () => {
+	it('searches indexed block aliases and copies the selected command', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		expect((await screen.findAllByText('SpawnBlock Alpha_Cannon(Test_Blocks)')).length).toBeGreaterThan(0);
+		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)');
+		});
+	});
+
+	it('builds the index from the configured workshop root and loaded mods', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
+		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
+			settings: { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' },
+			stats: TEST_STATS
+		});
+
+		renderBlockLookupView();
+
+		await screen.findByRole('button', { name: /Update Index/ });
+		fireEvent.click(screen.getByRole('button', { name: /Update Index/ }));
+
+		await waitFor(() => {
+			expect(window.electron.buildBlockLookupIndex).toHaveBeenCalledWith(
+				expect.objectContaining({
+					workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920',
+					gameExec: expect.any(String),
+					forceRebuild: false,
+					modSources: [
+						expect.objectContaining({
+							uid: 'workshop:12345',
+							name: 'Test Blocks',
+							path: 'C:\\Steam\\steamapps\\workshop\\content\\285920\\12345',
+							workshopID: '12345'
+						})
+					]
+				})
+			);
+		});
+	});
+
+	it('shows block lookup results on one sortable page', async () => {
+		stubResizeObserver();
+		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+
+		renderBlockLookupView();
+
+		await screen.findByText('Block 125');
+		expect(screen.queryByTitle('Next Page')).toBeNull();
+	});
+
+	it('sorts rows and reorders columns from table options', async () => {
+		stubResizeObserver();
+		const records = [
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', blockId: '' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+
+		const { container } = renderBlockLookupView();
+
+		await screen.findAllByText('Beta Shield');
+		const table = container.querySelector('.BlockLookupTable');
+		const initialTableText = table?.textContent ?? '';
+		expect(initialTableText.indexOf('Beta Shield')).toBeLessThan(initialTableText.indexOf('Alpha Cannon'));
+
+		const blockHeader = Array.from(container.querySelectorAll('.BlockLookupTable thead th')).find((header) => header.textContent?.trim() === 'Block');
+		expect(blockHeader).toBeDefined();
+		fireEvent.click(blockHeader as Element);
+
+		await waitFor(() => {
+			const tableText = table?.textContent ?? '';
+			expect(tableText.indexOf('Alpha Cannon')).toBeGreaterThanOrEqual(0);
+			expect(tableText.indexOf('Alpha Cannon')).toBeLessThan(tableText.indexOf('Beta Shield'));
+		});
+		expect(screen.getByText('Not declared')).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole('button', { name: /Table Options/ }));
+		fireEvent.click(await screen.findByRole('button', { name: 'Move SpawnBlock Command right' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Apply Table Options' }));
+
+		await waitFor(() => {
+			const headers = Array.from(container.querySelectorAll('.BlockLookupTable thead th'))
+				.map((header) => header.textContent?.trim() ?? '')
+				.filter(Boolean);
+			expect(headers.indexOf('Block')).toBeLessThan(headers.indexOf('SpawnBlock Command'));
+		});
+	});
+});
