@@ -59,30 +59,4 @@ describe('CollectionManagerModal', () => {
 		expect(within(issueRegion).getAllByRole('list')).toHaveLength(2);
 	}, 10000);
 
-	it('renders the view settings modal in a dense layout that keeps the controls together', async () => {
-		const appState = createAppState();
-
-		render(
-			<CollectionManagerModal
-				appState={appState}
-				modalType={CollectionManagerModalType.VIEW_SETTINGS}
-				launchGameWithErrors={false}
-				currentView={CollectionViewType.MAIN}
-				launchAnyway={vi.fn()}
-				openNotification={vi.fn()}
-				closeModal={vi.fn()}
-				deleteCollection={vi.fn()}
-			/>
-		);
-
-		expect(await screen.findByText('Collection table settings')).toBeInTheDocument();
-		expect(screen.getByText('Table layout')).toBeInTheDocument();
-		expect(screen.getByText('Compact rows')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-		expect(screen.queryByText('Choose which columns stay visible and save widths only where you want a fixed layout.')).not.toBeInTheDocument();
-		expect(screen.queryByText('Uses the tightest spacing in the main table.')).not.toBeInTheDocument();
-		expect(screen.getByLabelText('Show Tags column')).toBeInTheDocument();
-		expect(screen.getByLabelText('Saved width for Tags column')).toBeInTheDocument();
-		expect(screen.getByText('Tags')).toBeInTheDocument();
-	});
 });

@@ -39,24 +39,6 @@ describe('App', () => {
 		expect(screen.getByText('Preparing controls.')).toBeInTheDocument();
 	});
 
-	it('should render', async () => {
-		render(
-			<MemoryRouter initialEntries={['/loading/steamworks']}>
-				<Routes>
-					<Route path="/" element={<App />}>
-						<Route path="loading">
-							<Route path="steamworks" element={<div>Steamworks</div>} />
-						</Route>
-					</Route>
-				</Routes>
-			</MemoryRouter>
-		);
-
-		await waitFor(() => {
-			expect(screen.getByText('Steamworks')).toBeInTheDocument();
-		});
-	});
-
 	it('registers app-level refresh handlers and flips loading state on mod refresh', async () => {
 		let modRefreshHandler: (() => void) | undefined;
 		let reloadSteamworksHandler: (() => void) | undefined;

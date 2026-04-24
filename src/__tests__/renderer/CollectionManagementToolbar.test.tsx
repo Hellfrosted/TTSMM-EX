@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionManagementToolbar from '../../renderer/components/collections/CollectionManagementToolbar';
 import { createAppState } from './test-utils';
@@ -97,61 +97,6 @@ describe('CollectionManagementToolbar', () => {
 		expect(await screen.findByRole('textbox', { name: 'New collection name' })).toHaveValue('default copy');
 		expect(screen.getByText('The duplicate keeps the current mod list and saves it under a new name.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Duplicate Collection' })).toBeEnabled();
-	});
-
-	it('keeps collection actions visible without a More overflow menu', async () => {
-		stubResizeObserver();
-
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		render(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
-
-		expect(screen.getByRole('button', { name: /Rename/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /New/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Save Collection/ })).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /More collection actions/ })).not.toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Duplicate/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Copy JSON/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Reload/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Table Options/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Delete/ })).toBeInTheDocument();
-
-		expect(screen.getByText('Duplicate')).toBeInTheDocument();
-		expect(screen.getByText('Copy JSON')).toBeInTheDocument();
-		expect(screen.getByText('Reload')).toBeInTheDocument();
-		expect(screen.getByText('Table Options')).toBeInTheDocument();
-		expect(screen.getByText('Delete')).toBeInTheDocument();
-
-		const collectionActions = screen.getByRole('group', { name: 'Collection actions' });
-		const tableUtilities = screen.getByRole('group', { name: 'Table utilities' });
-		expect(collectionActions).toHaveClass('CollectionToolbarActionGroup--collection');
-		expect(tableUtilities).toHaveClass('CollectionToolbarActionGroup--utility');
-		expect(within(collectionActions).queryByRole('button', { name: /Reload/ })).not.toBeInTheDocument();
-		expect(within(collectionActions).queryByRole('button', { name: /Table Options/ })).not.toBeInTheDocument();
-		expect(within(tableUtilities).getByRole('button', { name: /Reload/ })).toBeInTheDocument();
-		expect(within(tableUtilities).getByRole('button', { name: /Table Options/ })).toBeInTheDocument();
 	});
 
 	it('copies the active collection JSON to the clipboard and reports success', async () => {

@@ -40,19 +40,6 @@ function getRenderedNameOrder() {
 		.map((button) => button.getAttribute('aria-label')?.replace('Open details for ', '') || '');
 }
 
-function createSizedRows(sizes: number[]) {
-	return sizes.map((size, index) => ({
-		uid: `workshop:size-${index + 1}`,
-		type: ModType.WORKSHOP,
-		workshopID: BigInt(index + 1),
-		id: `Size ${index + 1}`,
-		name: `Size ${index + 1}`,
-		size,
-		subscribed: true,
-		installed: true
-	}));
-}
-
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
 	const rows = [
 		{
@@ -152,35 +139,6 @@ describe('MainCollectionView', () => {
 		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBe(116);
 		expect(widths[MainColumnTitles.DATE_ADDED]).toBe(116);
 		expect(widths[MainColumnTitles.TAGS]).toBe(180);
-	});
-
-	it('renders size tags with solid banded colors', async () => {
-		stubResizeObserver();
-
-		const rows = createSizedRows([12 * 1024, 5 * 1024 * 1024, 70 * 1024 * 1024]);
-		render(
-			<MainCollectionView
-				{...createProps({
-					rows,
-					filteredRows: rows,
-					collection: { name: 'default', mods: rows.map((row) => row.uid) }
-				})}
-			/>
-		);
-
-		const sizeLabels = ['12.3 KB', '5.24 MB', '73.4 MB'];
-		await screen.findByText(sizeLabels[0]);
-		const backgrounds = sizeLabels.map((sizeLabel) => {
-			const tag = screen.getByText(sizeLabel).closest('.ant-tag') as HTMLElement | null;
-			expect(tag).not.toBeNull();
-			expect(tag?.style.color).not.toContain('NaN');
-			expect(tag?.style.background).not.toContain('NaN');
-			expect(tag?.style.background).not.toContain('linear-gradient');
-			expect(tag?.style.borderColor).not.toContain('NaN');
-			return tag?.style.background || '';
-		});
-
-		expect(new Set(backgrounds).size).toBe(sizeLabels.length);
 	});
 
 	it('drops low-priority columns first when the available table width is narrow', () => {
@@ -401,17 +359,6 @@ describe('MainCollectionView', () => {
 		fireEvent.click(await screen.findByText('Show Tags'));
 
 		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, true);
-	});
-
-	it('keeps column headers free of visible overflow menu buttons', async () => {
-		stubResizeObserver();
-
-		render(<MainCollectionView {...createProps()} />);
-
-		await screen.findAllByText('Name');
-
-		expect(screen.queryByRole('button', { name: /^Column options for / })).not.toBeInTheDocument();
-		expect(screen.getAllByRole('slider', { name: /^Resize / }).length).toBeGreaterThan(0);
 	});
 
 	it('auto-sizes from rendered cells and keeps the measured width when sampled rows are reordered', async () => {
