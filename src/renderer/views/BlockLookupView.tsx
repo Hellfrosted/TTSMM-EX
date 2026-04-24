@@ -1,9 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Form, Input, InputNumber, Layout, Modal, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Form, Input, InputNumber, Layout, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import ArrowLeftOutlined from '@ant-design/icons/es/icons/ArrowLeftOutlined';
-import ArrowRightOutlined from '@ant-design/icons/es/icons/ArrowRightOutlined';
 import CopyOutlined from '@ant-design/icons/es/icons/CopyOutlined';
 import DatabaseOutlined from '@ant-design/icons/es/icons/DatabaseOutlined';
 import FolderOutlined from '@ant-design/icons/es/icons/FolderOutlined';
@@ -26,6 +24,7 @@ type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'modTitle' | 'blockId
 type BlockLookupSortKey = 'relevance' | BlockLookupColumnKey;
 type BlockLookupSortDirection = 'ascend' | 'descend';
 type BlockLookupColumn = NonNullable<TableProps<BlockLookupRecord>['columns']>[number];
+const BLOCK_LOOKUP_SORT_DIRECTIONS: NonNullable<TableProps<BlockLookupRecord>['sortDirections']> = ['ascend', 'descend', 'ascend'];
 
 interface BlockLookupColumnConfig {
 	key: BlockLookupColumnKey;
@@ -104,6 +103,15 @@ function moveColumn(columns: BlockLookupColumnConfig[], fromIndex: number, toInd
 	const [column] = nextColumns.splice(fromIndex, 1);
 	nextColumns.splice(toIndex, 0, column);
 	return nextColumns;
+}
+
+function moveColumnByKey(columns: BlockLookupColumnConfig[], fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) {
+	const fromIndex = columns.findIndex((column) => column.key === fromKey);
+	const toIndex = columns.findIndex((column) => column.key === toKey);
+	if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+		return columns;
+	}
+	return moveColumn(columns, fromIndex, toIndex);
 }
 
 function getConfiguredColumns(config?: BlockLookupViewConfig): BlockLookupColumnConfig[] {
@@ -251,6 +259,8 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const [sortDirection, setSortDirection] = useState<BlockLookupSortDirection>('ascend');
 	const [tableOptionsOpen, setTableOptionsOpen] = useState(false);
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const [draggingHeaderColumnKey, setDraggingHeaderColumnKey] = useState<BlockLookupColumnKey>();
+	const [draggingDraftColumnKey, setDraggingDraftColumnKey] = useState<BlockLookupColumnKey>();
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const searchRequestIdRef = useRef(0);
 	const modSources = useMemo(() => collectBlockLookupModSources(appState), [appState]);
@@ -588,6 +598,38 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		}
 	}, [appState, draftColumnConfig, draftSmallRows, openNotification]);
 
+	const persistColumnOrder = useCallback(
+		async (fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) => {
+			if (fromKey === toKey) {
+				return;
+			}
+
+			const nextColumns = moveColumnByKey(columnConfig, fromKey, toKey);
+			if (nextColumns === columnConfig) {
+				return;
+			}
+
+			const nextConfig = cloneAppConfig(appState.config);
+			nextConfig.viewConfigs.blockLookup = columnsToConfig(nextColumns, blockLookupConfig?.smallRows);
+			try {
+				await writeConfig(nextConfig);
+				appState.updateState({ config: nextConfig });
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update column order',
+						description: String(error),
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+			}
+		},
+		[appState, blockLookupConfig?.smallRows, columnConfig, openNotification]
+	);
+
 	const handleTableChange = useCallback<NonNullable<TableProps<BlockLookupRecord>['onChange']>>((_pagination, _filters, sorter) => {
 		const nextSorter = Array.isArray(sorter) ? sorter[0] : sorter;
 		const columnKey = nextSorter?.columnKey;
@@ -653,9 +695,38 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			getResponsiveBlockLookupColumns(columnConfig, availableTableWidth)
 				.map((column) => ({
 					...columnDefinitions[column.key],
-					width: column.width
+					title: <span className="BlockLookupTableHeaderLabel">{columnDefinitions[column.key].title as string}</span>,
+					width: column.width,
+					onHeaderCell: () =>
+						({
+							draggable: true,
+							'data-column-key': column.key,
+							className: draggingHeaderColumnKey === column.key ? 'BlockLookupTableHeaderCell is-dragging' : 'BlockLookupTableHeaderCell',
+							onDragStart: (event) => {
+								event.dataTransfer.effectAllowed = 'move';
+								event.dataTransfer.setData('text/plain', column.key);
+								setDraggingHeaderColumnKey(column.key);
+							},
+							onDragOver: (event) => {
+								if (draggingHeaderColumnKey && draggingHeaderColumnKey !== column.key) {
+									event.preventDefault();
+									event.dataTransfer.dropEffect = 'move';
+								}
+							},
+							onDrop: (event) => {
+								event.preventDefault();
+								const sourceKey = event.dataTransfer.getData('text/plain') as BlockLookupColumnKey;
+								setDraggingHeaderColumnKey(undefined);
+								if (isBlockLookupColumnKey(sourceKey)) {
+									void persistColumnOrder(sourceKey, column.key);
+								}
+							},
+							onDragEnd: () => {
+								setDraggingHeaderColumnKey(undefined);
+							}
+						}) as ReturnType<NonNullable<BlockLookupColumn['onHeaderCell']>>
 				})),
-		[availableTableWidth, columnConfig, columnDefinitions]
+		[availableTableWidth, columnConfig, columnDefinitions, draggingHeaderColumnKey, persistColumnOrder]
 	);
 
 	const tableScrollX = useMemo(() => {
@@ -752,6 +823,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 						loading={loadingResults || buildingIndex}
 						pagination={false}
 						scroll={{ x: tableScrollX, y: 'calc(100vh - 390px)' }}
+						sortDirections={BLOCK_LOOKUP_SORT_DIRECTIONS}
 						onChange={handleTableChange}
 						rowClassName={() => (blockLookupConfig?.smallRows ? 'CompactBlockLookupRow' : '')}
 						rowSelection={{
@@ -878,15 +950,40 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							<Text type="secondary">Column</Text>
 							<Text type="secondary">Show</Text>
 							<Text type="secondary">Saved width</Text>
-							<Text type="secondary">Order</Text>
 						</div>
 					</div>
 					<div className="CollectionSettingsColumnsList BlockLookupSettingsColumnsList">
-						{draftColumnConfig.map((column, index) => {
+						{draftColumnConfig.map((column) => {
 							const visibleColumns = draftColumnConfig.filter((draftColumn) => draftColumn.visible).length;
 							const cannotHide = column.visible && visibleColumns <= 1;
 							return (
-								<div className="CollectionSettingsColumnRow BlockLookupSettingsColumnRow" key={column.key}>
+								<div
+									className={`CollectionSettingsColumnRow BlockLookupSettingsColumnRow${draggingDraftColumnKey === column.key ? ' is-dragging' : ''}`}
+									key={column.key}
+									draggable
+									onDragStart={(event) => {
+										event.dataTransfer.effectAllowed = 'move';
+										event.dataTransfer.setData('text/plain', column.key);
+										setDraggingDraftColumnKey(column.key);
+									}}
+									onDragOver={(event) => {
+										if (draggingDraftColumnKey && draggingDraftColumnKey !== column.key) {
+											event.preventDefault();
+											event.dataTransfer.dropEffect = 'move';
+										}
+									}}
+									onDrop={(event) => {
+										event.preventDefault();
+										const sourceKey = event.dataTransfer.getData('text/plain') as BlockLookupColumnKey;
+										setDraggingDraftColumnKey(undefined);
+										if (isBlockLookupColumnKey(sourceKey)) {
+											setDraftColumnConfig((currentColumns) => moveColumnByKey(currentColumns, sourceKey, column.key));
+										}
+									}}
+									onDragEnd={() => {
+										setDraggingDraftColumnKey(undefined);
+									}}
+								>
 									<div className="CollectionSettingsColumnLabel">
 										<Text strong>{column.title}</Text>
 									</div>
@@ -926,28 +1023,6 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 											}}
 										/>
 									</div>
-									<Space className="BlockLookupSettingsColumnOrder" size={6}>
-										<Tooltip title={`Move ${column.title} left`}>
-											<Button
-												aria-label={`Move ${column.title} left`}
-												icon={<ArrowLeftOutlined />}
-												disabled={index === 0}
-												onClick={() => {
-													setDraftColumnConfig((currentColumns) => moveColumn(currentColumns, index, index - 1));
-												}}
-											/>
-										</Tooltip>
-										<Tooltip title={`Move ${column.title} right`}>
-											<Button
-												aria-label={`Move ${column.title} right`}
-												icon={<ArrowRightOutlined />}
-												disabled={index === draftColumnConfig.length - 1}
-												onClick={() => {
-													setDraftColumnConfig((currentColumns) => moveColumn(currentColumns, index, index + 1));
-												}}
-											/>
-										</Tooltip>
-									</Space>
 								</div>
 							);
 						})}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { App as AntApp } from 'antd';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
 import { BlockLookupView, getResponsiveBlockLookupColumns } from '../../renderer/views/BlockLookupView';
@@ -57,6 +57,18 @@ function stubResizeObserver() {
 		};
 	});
 	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+}
+
+function createDataTransfer() {
+	const data = new Map<string, string>();
+	return {
+		effectAllowed: '',
+		dropEffect: '',
+		setData: vi.fn((type: string, value: string) => {
+			data.set(type, value);
+		}),
+		getData: vi.fn((type: string) => data.get(type) || '')
+	};
 }
 
 function renderBlockLookupView() {
@@ -174,7 +186,7 @@ describe('BlockLookupView', () => {
 		expect(screen.queryByTitle('Next Page')).toBeNull();
 	});
 
-	it('sorts rows and reorders columns from table options', async () => {
+	it('sorts rows without canceling and reorders columns from table headers', async () => {
 		stubResizeObserver();
 		const records = [
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
@@ -200,10 +212,74 @@ describe('BlockLookupView', () => {
 			expect(tableText.indexOf('Alpha Cannon')).toBeGreaterThanOrEqual(0);
 			expect(tableText.indexOf('Alpha Cannon')).toBeLessThan(tableText.indexOf('Beta Shield'));
 		});
+		fireEvent.click(blockHeader as Element);
+		await waitFor(() => {
+			const tableText = table?.textContent ?? '';
+			expect(tableText.indexOf('Beta Shield')).toBeGreaterThanOrEqual(0);
+			expect(tableText.indexOf('Beta Shield')).toBeLessThan(tableText.indexOf('Alpha Cannon'));
+		});
+		fireEvent.click(blockHeader as Element);
+		await waitFor(() => {
+			const tableText = table?.textContent ?? '';
+			expect(tableText.indexOf('Alpha Cannon')).toBeGreaterThanOrEqual(0);
+			expect(tableText.indexOf('Alpha Cannon')).toBeLessThan(tableText.indexOf('Beta Shield'));
+		});
 		expect(screen.getByText('Not declared')).toBeInTheDocument();
 
+		const spawnHeader = Array.from(container.querySelectorAll('.BlockLookupTable thead th')).find((header) =>
+			header.textContent?.includes('SpawnBlock Command')
+		);
+		expect(spawnHeader).toBeDefined();
+		const tableHeaderDrag = createDataTransfer();
+		fireEvent.dragStart(spawnHeader as Element, { dataTransfer: tableHeaderDrag });
+		fireEvent.dragOver(blockHeader as Element, { dataTransfer: tableHeaderDrag });
+		fireEvent.drop(blockHeader as Element, { dataTransfer: tableHeaderDrag });
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					viewConfigs: expect.objectContaining({
+						blockLookup: expect.objectContaining({
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+						})
+					})
+				})
+			);
+			expect(appState.updateState).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						viewConfigs: expect.objectContaining({
+							blockLookup: expect.objectContaining({
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							})
+						})
+					})
+				})
+			);
+		});
+	});
+
+	it('reorders table option rows by drag and drop', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+
+		const { appState } = renderBlockLookupView();
+
+		await screen.findAllByText('Alpha Cannon');
 		fireEvent.click(screen.getByRole('button', { name: /Table Options/ }));
-		fireEvent.click(await screen.findByRole('button', { name: 'Move SpawnBlock Command right' }));
+		const dialog = await screen.findByRole('dialog');
+		expect(within(dialog).queryByRole('button', { name: /Move .* (left|right)/ })).toBeNull();
+		const blockRow = within(dialog).getByText('Block').closest('.BlockLookupSettingsColumnRow');
+		const spawnRow = within(dialog).getByText('SpawnBlock Command').closest('.BlockLookupSettingsColumnRow');
+		expect(blockRow).toBeDefined();
+		expect(spawnRow).toBeDefined();
+
+		const modalDrag = createDataTransfer();
+		fireEvent.dragStart(spawnRow as Element, { dataTransfer: modalDrag });
+		fireEvent.dragOver(blockRow as Element, { dataTransfer: modalDrag });
+		fireEvent.drop(blockRow as Element, { dataTransfer: modalDrag });
 		fireEvent.click(screen.getByRole('button', { name: 'Save Table Settings' }));
 
 		await waitFor(() => {

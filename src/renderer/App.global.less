@@ -792,6 +792,21 @@ a:hover {
 	height: 100%;
 }
 
+.BlockLookupTableHeaderCell {
+	cursor: grab;
+}
+
+.BlockLookupTableHeaderCell.is-dragging,
+.BlockLookupSettingsColumnRow.is-dragging {
+	opacity: 0.62;
+}
+
+.BlockLookupTableHeaderLabel {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
 .BlockLookupCommand {
 	font-family: 'Cascadia Mono', 'Consolas', monospace;
 	font-size: 12.5px;
@@ -840,11 +855,8 @@ a:hover {
 
 .BlockLookupSettingsColumnsHeader .CollectionSettingsColumnsHeaderGroup,
 .BlockLookupSettingsColumnRow {
-	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px) 96px;
-}
-
-.BlockLookupSettingsColumnOrder {
-	justify-self: start;
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
+	cursor: grab;
 }
 
 .ant-table.ant-table-small .ant-table-tbody > tr.CompactBlockLookupRow > td.ant-table-cell {
@@ -1707,9 +1719,5 @@ a:hover {
 
 	.BlockLookupSettingsColumnRow {
 		grid-template-columns: minmax(0, 1fr) auto;
-	}
-
-	.BlockLookupSettingsColumnOrder {
-		grid-column: 1 / -1;
 	}
 }
