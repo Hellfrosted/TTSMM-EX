@@ -3,43 +3,30 @@ import { ModType } from '../../model/Mod';
 import { SessionMods, filterRows, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
-	it('treats NuterraSteam and NuterraSteam(beta) as the same dependency target', () => {
+	it.each([
+		{
+			dependencyId: 'NuterraSteam(beta)',
+			dependencyName: 'NuterraSteam(beta)',
+			explicitDependency: 'NuterraSteam'
+		},
+		{
+			dependencyId: 'NuterraSteam',
+			dependencyName: 'NuterraSteam',
+			explicitDependency: 'NuterraSteam (Beta)'
+		}
+	])('treats $dependencyName and $explicitDependency as the same dependency target', ({ dependencyId, dependencyName, explicitDependency }) => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
 			workshopID: BigInt(1),
-			id: 'NuterraSteam(beta)',
-			name: 'NuterraSteam(beta)'
+			id: dependencyId,
+			name: dependencyName
 		};
 		const dependent = {
 			uid: `${ModType.LOCAL}:dependent-mod`,
 			type: ModType.LOCAL,
 			id: 'DependentMod',
-			explicitIDDependencies: ['NuterraSteam']
-		};
-		const session = new SessionMods('', [dependency, dependent]);
-
-		setupDescriptors(session, new Map());
-
-		const dependencyDescriptor = getDescriptor(session, dependency);
-		expect(dependencyDescriptor).toBeDefined();
-		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
-		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
-	});
-
-	it('treats NuterraSteam and NuterraSteam (Beta) as the same dependency target', () => {
-		const dependency = {
-			uid: `${ModType.WORKSHOP}:1`,
-			type: ModType.WORKSHOP,
-			workshopID: BigInt(1),
-			id: 'NuterraSteam',
-			name: 'NuterraSteam'
-		};
-		const dependent = {
-			uid: `${ModType.LOCAL}:dependent-mod`,
-			type: ModType.LOCAL,
-			id: 'DependentMod',
-			explicitIDDependencies: ['NuterraSteam (Beta)']
+			explicitIDDependencies: [explicitDependency]
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 

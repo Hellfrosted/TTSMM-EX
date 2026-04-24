@@ -201,36 +201,11 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it('normalizes legacy relative collection routes during boot', async () => {
+	it.each(['collections/main', '/collections'])('normalizes saved collection route "%s" during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
 			...DEFAULT_CONFIG,
-			currentPath: 'collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
-		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
-		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
-
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
-
-		await waitFor(() => {
-			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
-		});
-	});
-
-	it('normalizes the bare collections route during boot', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections',
+			currentPath,
 			viewConfigs: {},
 			ignoredValidationErrors: new Map(),
 			userOverrides: new Map()
