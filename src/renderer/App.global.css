@@ -1356,11 +1356,6 @@ a:hover {
 	gap: 2px;
 }
 
-.CollectionSettingsColumnHint {
-	font-size: 12px;
-	line-height: 1.35;
-}
-
 .CollectionSettingsColumnSwitch {
 	display: flex;
 	justify-content: flex-start;
