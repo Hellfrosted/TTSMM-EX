@@ -29,8 +29,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run cross-platform regression suites
-        run: npm test -- src/__tests__/main src/__tests__/renderer
-
-      - name: Build app
-        run: npm run build
+      - name: Validate app
+        run: npm run validate
