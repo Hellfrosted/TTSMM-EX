@@ -170,17 +170,19 @@ Use the existing app theme variables from `src/renderer/theme.ts` and `src/rende
 - `npm run help`: list root and `release/app` npm scripts
 - `npm run dev`: development app
 - `npm run start:desktop`: build and launch the production desktop entrypoint
-- `npm run lint`: ESLint and Biome unused-code lint
-- `npm run lint:eslint`: ESLint
-- `npm run lint:eslint:fix`: ESLint with autofix
-- `npm run lint:biome`: Biome unused-code lint
-- `npm run lint:biome:fix`: Biome unused-code autofix
-- `npm run lint:fix`: ESLint autofix and Biome unsafe autofix
+- `npm run lint`: Biome check followed by supplemental ESLint rules
+- `npm run lint:eslint`: supplemental ESLint checks for React hooks, accessibility, promises, restricted imports, and explicit `any`
+- `npm run lint:eslint:fix`: supplemental ESLint checks with autofix
+- `npm run lint:biome`: Biome formatting and primary lint check
+- `npm run lint:biome:fix`: Biome formatting and primary lint autofix
+- `npm run lint:fix`: supplemental ESLint autofix followed by Biome autofix
 - `npm run deadcode`: Knip unused files, exports, and dependencies check
 - `npm run typecheck`: TypeScript build check
 - `npm test`: Vitest
 - `npm run build`: build main, preload, and renderer
 - `npm run validate`: lint, Knip dead-code check, typecheck, tests, and build
+- `npm audit --audit-level=moderate`: dependency security audit
+- `npm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `npm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`
