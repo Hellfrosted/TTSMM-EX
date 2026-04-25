@@ -573,105 +573,6 @@ a:hover {
 	border-radius: 6px; /* roundness of the scroll thumb */
 }
 
-.CollectionViewLayout {
-	flex: 1 1 0;
-	display: flex;
-	flex-direction: column;
-	width: 100%;
-	height: 100%;
-	min-width: 0;
-	min-height: 0;
-	background: var(--app-color-background);
-	overflow: hidden;
-}
-
-.CollectionHeader {
-	min-height: 120px;
-	height: auto;
-	background: var(--app-color-surface);
-	border-bottom: 1px solid var(--app-color-border);
-	padding: 16px 24px 14px;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	gap: 12px;
-}
-
-.CollectionFooterActions {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	flex-wrap: wrap;
-	gap: 12px;
-}
-
-.CollectionFooterButton {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	min-height: var(--app-control-height);
-	padding: 0 14px;
-	color: var(--app-color-text);
-	font-weight: 650;
-	background: var(--app-color-surface);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	cursor: pointer;
-}
-
-.CollectionFooterButton:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
-}
-
-.CollectionFooterButton:focus-visible {
-	outline: none;
-	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
-		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
-}
-
-.CollectionFooterButton:disabled {
-	opacity: 0.55;
-	cursor: not-allowed;
-}
-
-.CollectionFooterButton--primary {
-	background: var(--app-color-primary);
-	border-color: var(--app-color-primary);
-}
-
-.CollectionFooterButton--primary:hover:not(:disabled) {
-	background: var(--app-color-primary-hover);
-	border-color: var(--app-color-primary-hover);
-}
-
-.CollectionFooterButton--danger {
-	border-color: var(--app-color-error);
-}
-
-.CollectionFooterButton--danger:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
-}
-
-.CollectionFooterButtonIcon,
-.CollectionFooterButtonSpinner {
-	flex: 0 0 auto;
-}
-
-.CollectionFooterButtonIcon--spinning {
-	animation: spin 900ms linear infinite;
-}
-
-.CollectionFooterButtonSpinner {
-	width: 14px;
-	height: 14px;
-	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
-	border-top-color: currentColor;
-	border-radius: 999px;
-	animation: spin 700ms linear infinite;
-}
-
 .CollectionToolbar {
 	display: flex;
 	flex-direction: column;
@@ -2092,12 +1993,6 @@ a:hover {
 }
 
 @media (max-width: 720px) {
-	.CollectionHeader {
-		min-height: 0;
-		padding: 12px 16px;
-		gap: 8px;
-	}
-
 	.CollectionToolbar,
 	.CollectionToolbarPrimaryBar {
 		gap: 8px;

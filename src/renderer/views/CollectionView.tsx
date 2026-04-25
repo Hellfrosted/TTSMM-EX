@@ -124,6 +124,23 @@ function collectionSplitSizeStyle(size: number): CSSProperties {
 	} as CSSProperties;
 }
 
+const collectionFooterFocusClassName =
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const collectionFooterButtonClassName = [
+	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 font-[650] text-text',
+	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
+	'disabled:cursor-not-allowed disabled:opacity-55',
+	collectionFooterFocusClassName
+].join(' ');
+const collectionFooterPrimaryButtonClassName = [
+	collectionFooterButtonClassName,
+	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
+].join(' ');
+const collectionFooterDangerButtonClassName = [
+	collectionFooterButtonClassName,
+	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
+].join(' ');
+
 type HalfDetailsLayout = 'bottom' | 'side';
 const MIN_SIDE_BY_SIDE_WIDTH = 1120;
 const MIN_COLLECTION_TABLE_WIDTH = 640;
@@ -550,11 +567,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		) : currentValidationStatus === false ? (
 			<XCircle size={16} aria-hidden="true" />
 		) : (
-			<RefreshCw
-				className={validatingMods ? 'CollectionFooterButtonIcon CollectionFooterButtonIcon--spinning' : 'CollectionFooterButtonIcon'}
-				size={16}
-				aria-hidden="true"
-			/>
+			<RefreshCw className={validatingMods ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
 		);
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
@@ -631,8 +644,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			: undefined;
 
 	return (
-		<div className="CollectionViewLayout">
-			<header className="CollectionHeader">
+		<div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
+			<header className="flex-none border-b border-border bg-surface px-5 py-3 max-[720px]:px-4">
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
@@ -729,10 +742,10 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			</div>
 			{showExpandedDetails ? null : (
 				<footer className="MainFooter">
-					<div className="CollectionFooterActions">
+					<div className="flex w-full items-center justify-end gap-3">
 						<button
 							aria-label="Validate Collection"
-							className={`CollectionFooterButton${currentValidationStatus === false ? ' CollectionFooterButton--danger' : ''}`}
+							className={currentValidationStatus === false ? collectionFooterDangerButtonClassName : collectionFooterButtonClassName}
 							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
 							onClick={() => {
 								handleValidateCollection();
@@ -744,14 +757,19 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						</button>
 						<span title={launchDisabledReason}>
 							<button
-								className="CollectionFooterButton CollectionFooterButton--primary"
+								className={collectionFooterPrimaryButtonClassName}
 								disabled={launchDisabled}
 								onClick={() => {
 									void launchGame();
 								}}
 								type="button"
 							>
-								{appState.launchingGame ? <span className="CollectionFooterButtonSpinner" aria-hidden="true" /> : null}
+								{appState.launchingGame ? (
+									<span
+										className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+										aria-hidden="true"
+									/>
+								) : null}
 								Launch Game
 							</button>
 						</span>
