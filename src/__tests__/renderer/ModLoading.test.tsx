@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionMods, type AppState } from '../../model';
 import ModLoadingComponent from '../../renderer/components/loading/ModLoading';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { createAppState } from './test-utils';
 
 function renderModLoading(appState: ReturnType<typeof createAppState>, modLoadCompleteCallback: () => void) {
@@ -101,5 +102,32 @@ describe('ModLoading', () => {
 
 		expect(sharedState.mods).toBe(freshMods);
 		expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+	});
+
+	it('refreshes mod metadata without changing the active collection', async () => {
+		const activeCollection = { name: 'default', mods: ['local:kept'] };
+		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
+		vi.mocked(window.electron.readModMetadata).mockResolvedValueOnce(refreshedMods);
+		const appState = createAppState({
+			activeCollection,
+			allCollectionNames: new Set(['default']),
+			allCollections: new Map([['default', activeCollection]]),
+			forceReloadMods: true,
+			loadingMods: true,
+			mods: new SessionMods('', [])
+		});
+		const modLoadCompleteCallback = vi.fn();
+
+		renderModLoading(appState, modLoadCompleteCallback);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		});
+
+		expect(window.electron.readModMetadata).toHaveBeenCalledWith(undefined, [`workshop:${DEFAULT_CONFIG.workshopID}`]);
+		expect(appState.activeCollection).toBe(activeCollection);
+		expect(appState.mods).toBe(refreshedMods);
+		expect(appState.loadingMods).toBe(false);
+		expect(appState.forceReloadMods).toBe(false);
 	});
 });
