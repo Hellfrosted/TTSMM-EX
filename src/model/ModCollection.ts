@@ -26,6 +26,7 @@ export interface CollectionViewProps {
 	setDisabledCallback: (mod: string) => void;
 	setMainColumnWidthCallback?: (column: MainColumnTitles, width: number) => boolean | void | Promise<boolean | void>;
 	setMainColumnVisibilityCallback?: (column: MainColumnTitles, visible: boolean) => boolean | void | Promise<boolean | void>;
+	setMainColumnOrderCallback?: (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => boolean | void | Promise<boolean | void>;
 	openMainViewSettingsCallback?: () => void;
 	getModDetails: (mod: string, modData: ModData, bigData?: boolean) => void;
 }

@@ -1,8 +1,9 @@
 import { useEffect, useEffectEvent } from 'react';
-import { cloneSessionMods, setupDescriptors, type AppState, type ModData } from 'model';
+import { cloneSessionMods, setupDescriptors, type ModData } from 'model';
 import api from 'renderer/Api';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
-export function useModMetadata(appState: AppState, onMetadataUpdate: () => void) {
+export function useModMetadata(appState: CollectionWorkspaceAppState, onMetadataUpdate: () => void) {
 	const handleModMetadataUpdate = useEffectEvent((uid: string, update: Partial<ModData>) => {
 		const { mods } = appState;
 		const nextMods = cloneSessionMods(mods);

@@ -2,6 +2,8 @@ import { AppConfig } from './AppConfig';
 import { ModCollection } from './ModCollection';
 import { SessionMods } from './SessionMods';
 
+export type AppStateUpdate = Partial<Omit<AppState, 'navigate' | 'updateState'>>;
+
 export interface AppState {
 	config: AppConfig;
 	userDataPath: string;
@@ -15,8 +17,7 @@ export interface AppState {
 
 	// General initialization
 	initializedConfigs?: boolean; // Did we go load configs yet?
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	updateState: (props: any) => void;
+	updateState: (props: AppStateUpdate) => void;
 	navigate: (path: string) => void;
 
 	// Settings

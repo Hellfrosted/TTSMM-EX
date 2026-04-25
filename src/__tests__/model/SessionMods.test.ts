@@ -246,4 +246,23 @@ describe('session mod descriptors', () => {
 
 		expect(errors[mod.uid]?.incompatibleMods).toEqual([mod.uid]);
 	});
+
+	it('reports loaded mods without any dependency identity as invalid', async () => {
+		const mod = {
+			uid: `${ModType.LOCAL}:missing-id`,
+			type: ModType.LOCAL,
+			id: null,
+			name: 'Missing ID Mod'
+		};
+		const session = new SessionMods('', [mod]);
+
+		setupDescriptors(session, new Map());
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [mod.uid]
+		});
+
+		expect(errors[mod.uid]?.invalidId).toBe(true);
+	});
 });

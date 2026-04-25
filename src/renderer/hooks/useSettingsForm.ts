@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType } from 'model';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
+import type { Path, PathValue } from 'react-hook-form';
+import type { AppState } from 'model';
+import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
 import { writeConfig } from 'renderer/util/config-write';
+import { settingsFormSchema } from 'renderer/settings-validation';
 
 export interface LogConfig {
 	level: NLogLevel;
@@ -49,46 +54,60 @@ function createLogParams(editingLogConfig: LogConfig[]) {
 	}
 
 	return editingLogConfig.reduce<{ [loggerID: string]: NLogLevel }>((nextLogParams, logConfig) => {
-		nextLogParams[logConfig.loggerID] = logConfig.level;
+		nextLogParams[logConfig.loggerID.trim()] = logConfig.level;
 		return nextLogParams;
 	}, {});
 }
 
-export function useSettingsForm(appState: AppState) {
-	const [editingConfig, setEditingConfig] = useState<EditingConfig>(() => createEditingConfig(appState.config));
+export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState'>) {
+	const { config, updateState } = appState;
+	const form = useForm<EditingConfig>({
+		defaultValues: createEditingConfig(config),
+		mode: 'onSubmit',
+		resolver: zodResolver(settingsFormSchema)
+	});
+	const watchedEditingConfig = useWatch({ control: form.control });
+	const editingConfig = useMemo(
+		() =>
+			({
+				...createEditingConfig(config),
+				...watchedEditingConfig,
+				editingLogConfig: watchedEditingConfig.editingLogConfig ?? []
+			}) as EditingConfig,
+		[config, watchedEditingConfig]
+	);
 	const [selectingDirectory, setSelectingDirectory] = useState(false);
 	const [modalType, setModalType] = useState(SettingsViewModalType.NONE);
 	const [editingContextIndex, setEditingContextIndex] = useState<number>();
 	const [modalSnapshot, setModalSnapshot] = useState<EditingConfig>();
 
 	useEffect(() => {
-		setEditingConfig(createEditingConfig(appState.config));
+		form.reset(createEditingConfig(config));
 		setSelectingDirectory(false);
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		setModalSnapshot(undefined);
-	}, [appState.config]);
+	}, [config, form]);
 
 	const markConfigEdited = useCallback(() => {
-		appState.updateState({ madeConfigEdits: true });
-	}, [appState]);
+		updateState({ madeConfigEdits: true });
+	}, [updateState]);
 
 	const setField = useCallback(
 		<K extends keyof EditingConfig>(field: K, value: EditingConfig[K]) => {
-			setEditingConfig((currentConfig) => ({
-				...currentConfig,
-				[field]: value
-			}));
+			const formField = field as Path<EditingConfig>;
+			form.setValue(formField, value as PathValue<EditingConfig, typeof formField>, { shouldDirty: true, shouldValidate: false });
 			markConfigEdited();
 		},
-		[markConfigEdited]
+		[form, markConfigEdited]
 	);
 
 	const updateLogConfig = useCallback(
 		(index: number, updates: Partial<LogConfig>) => {
-			setEditingConfig((currentConfig) => ({
-				...currentConfig,
-				editingLogConfig: currentConfig.editingLogConfig.map((logConfig, currentIndex) => {
+			const currentEditingConfig = form.getValues();
+			form.setValue(
+				'editingLogConfig',
+				currentEditingConfig.editingLogConfig.map((logConfig, currentIndex) => {
 					if (currentIndex !== index) {
 						return logConfig;
 					}
@@ -97,34 +116,38 @@ export function useSettingsForm(appState: AppState) {
 						...logConfig,
 						...updates
 					};
-				})
-			}));
+				}),
+				{ shouldDirty: true, shouldValidate: false }
+			);
 			markConfigEdited();
 		},
-		[markConfigEdited]
+		[form, markConfigEdited]
 	);
 
 	const addLogConfig = useCallback(() => {
-		setEditingConfig((currentConfig) => ({
-			...currentConfig,
-			editingLogConfig: [...currentConfig.editingLogConfig, { loggerID: '', level: NLogLevel.ERROR }]
-		}));
+		const currentEditingConfig = form.getValues();
+		form.setValue('editingLogConfig', [...currentEditingConfig.editingLogConfig, { loggerID: '', level: NLogLevel.ERROR }], {
+			shouldDirty: true,
+			shouldValidate: false
+		});
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		markConfigEdited();
-	}, [markConfigEdited]);
+	}, [form, markConfigEdited]);
 
 	const removeLogConfig = useCallback(
 		(index: number) => {
-			setEditingConfig((currentConfig) => ({
-				...currentConfig,
-				editingLogConfig: currentConfig.editingLogConfig.filter((_, currentIndex) => currentIndex !== index)
-			}));
+			const currentEditingConfig = form.getValues();
+			form.setValue(
+				'editingLogConfig',
+				currentEditingConfig.editingLogConfig.filter((_, currentIndex) => currentIndex !== index),
+				{ shouldDirty: true, shouldValidate: false }
+			);
 			setModalType(SettingsViewModalType.NONE);
 			setEditingContextIndex(undefined);
 			markConfigEdited();
 		},
-		[markConfigEdited]
+		[form, markConfigEdited]
 	);
 
 	const selectPath = useCallback(
@@ -137,10 +160,7 @@ export function useSettingsForm(appState: AppState) {
 			try {
 				const selectedPath = await api.selectPath(directory, title);
 				if (selectedPath) {
-					setEditingConfig((currentConfig) => ({
-						...currentConfig,
-						[target]: selectedPath
-					}));
+					form.setValue(target, selectedPath, { shouldDirty: true, shouldValidate: false });
 					markConfigEdited();
 				}
 				return selectedPath;
@@ -151,10 +171,19 @@ export function useSettingsForm(appState: AppState) {
 				setSelectingDirectory(false);
 			}
 		},
-		[markConfigEdited, selectingDirectory]
+		[form, markConfigEdited, selectingDirectory]
 	);
 
 	const saveChanges = useCallback(async (): Promise<SaveSettingsResult> => {
+		const valid = await form.trigger();
+		if (!valid) {
+			return {
+				ok: false,
+				message: 'Fix highlighted settings first'
+			};
+		}
+
+		const editingConfig = form.getValues();
 		const { editingLogConfig, logParams: _unusedLogParams, ...nextConfig } = editingConfig;
 		const configToSave: AppConfig = {
 			...nextConfig
@@ -164,11 +193,11 @@ export function useSettingsForm(appState: AppState) {
 			configToSave.logParams = nextLogParams;
 		}
 
-		const shouldReloadMods = appState.config.localDir !== configToSave.localDir || appState.config.workshopID !== configToSave.workshopID;
+		const shouldReloadMods = config.localDir !== configToSave.localDir || config.workshopID !== configToSave.workshopID;
 		const nextLogLevel = configToSave.logLevel;
-		const shouldUpdateLogLevel = appState.config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
+		const shouldUpdateLogLevel = config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 
-		appState.updateState({ savingConfig: true });
+		updateState({ savingConfig: true });
 		try {
 			await writeConfig(configToSave);
 			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
@@ -187,7 +216,7 @@ export function useSettingsForm(appState: AppState) {
 			if (shouldReloadMods) {
 				nextState.firstModLoad = false;
 			}
-			appState.updateState({
+			updateState({
 				...nextState
 			});
 			return {
@@ -201,28 +230,29 @@ export function useSettingsForm(appState: AppState) {
 				message: error instanceof Error ? error.message : 'Failed to save settings'
 			};
 		} finally {
-			appState.updateState({ savingConfig: false });
+			updateState({ savingConfig: false });
 		}
-	}, [appState, editingConfig]);
+	}, [config.localDir, config.logLevel, config.workshopID, form, updateState]);
 
 	const cancelChanges = useCallback(() => {
-		setEditingConfig(createEditingConfig(appState.config));
+		form.reset(createEditingConfig(config));
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		setModalSnapshot(undefined);
-		appState.updateState({ madeConfigEdits: false });
-	}, [appState]);
+		updateState({ madeConfigEdits: false });
+	}, [config, form, updateState]);
 
 	const closeModal = useCallback((options?: { restoreSnapshot?: boolean }) => {
 		if (options?.restoreSnapshot && modalSnapshot) {
-			setEditingConfig(cloneEditingConfig(modalSnapshot));
+			form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
 		}
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		setModalSnapshot(undefined);
-	}, [modalSnapshot]);
+	}, [form, modalSnapshot]);
 
 	return {
+		form,
 		editingConfig,
 		selectingDirectory,
 		modalType,
