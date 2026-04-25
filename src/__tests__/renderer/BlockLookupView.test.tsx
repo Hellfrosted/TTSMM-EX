@@ -1,8 +1,8 @@
 import React from 'react';
-import { App as AntApp } from 'antd';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
+import { AppQueryProvider, queryClient } from '../../renderer/query-client';
 import { BlockLookupView, getResponsiveBlockLookupColumns } from '../../renderer/views/BlockLookupView';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState } from './test-utils';
@@ -88,15 +88,16 @@ function renderBlockLookupView() {
 	return {
 		appState,
 		...render(
-			<AntApp>
+			<AppQueryProvider>
 				<BlockLookupView appState={appState} />
-			</AntApp>
+			</AppQueryProvider>
 		)
 	};
 }
 
 afterEach(() => {
 	cleanup();
+	queryClient.clear();
 	vi.unstubAllGlobals();
 });
 
@@ -104,17 +105,17 @@ describe('BlockLookupView', () => {
 	it('keeps Block Lookup columns within constrained desktop widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
-				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, minWidth: 180 },
-				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, minWidth: 120 },
-				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, minWidth: 120 },
-				{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, minWidth: 90 },
-				{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, minWidth: 90 }
+				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
+				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, defaultWidth: 220, minWidth: 120 },
+				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 },
+				{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, defaultWidth: 110, minWidth: 90 },
+				{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, defaultWidth: 130, minWidth: 90 }
 			],
 			640
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId']);
-		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + column.width, 72)).toBeLessThanOrEqual(640);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind']);
+		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(640);
 	});
 
 	it('searches indexed block aliases and copies the selected command', async () => {
@@ -135,6 +136,49 @@ describe('BlockLookupView', () => {
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)');
+		});
+	});
+
+	it('resizes block lookup columns from the header edge', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+
+		const { appState } = renderBlockLookupView();
+
+		await screen.findAllByText('Alpha Cannon');
+		const [resizeHandle] = screen.getAllByRole('slider', { name: 'Resize Block' });
+		const initialWidth = Number.parseInt(resizeHandle.getAttribute('aria-valuenow') || '0', 10);
+		fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					viewConfigs: expect.objectContaining({
+						blockLookup: expect.objectContaining({
+							columnWidthConfig: expect.objectContaining({
+								[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+							})
+						})
+					})
+				})
+			);
+			const nextConfig = vi.mocked(window.electron.updateConfig).mock.calls.at(-1)?.[0];
+			expect(nextConfig?.viewConfigs.blockLookup?.columnWidthConfig?.[BlockLookupColumnTitles.BLOCK]).toBeGreaterThan(initialWidth);
+			expect(appState.updateState).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						viewConfigs: expect.objectContaining({
+							blockLookup: expect.objectContaining({
+								columnWidthConfig: expect.objectContaining({
+									[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+								})
+							})
+						})
+					})
+				})
+			);
 		});
 	});
 
@@ -172,18 +216,28 @@ describe('BlockLookupView', () => {
 		});
 	});
 
-	it('shows block lookup results on one sortable page', async () => {
+	it('shows block lookup results without paginating the virtual table', async () => {
 		stubResizeObserver();
 		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
 
 		renderBlockLookupView();
 
-		await screen.findByText('Block 125');
+		expect((await screen.findAllByText('Block 001')).length).toBeGreaterThan(0);
 		expect(screen.getByText('125 indexed blocks from 1 source')).toBeInTheDocument();
 		expect(screen.queryByTitle('Next Page')).toBeNull();
+		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(expect.stringContaining('SpawnBlock Block_125(Test_Blocks)'));
+		});
 	});
 
 	it('sorts rows without canceling and reorders columns from table headers', async () => {
@@ -203,22 +257,23 @@ describe('BlockLookupView', () => {
 		const initialTableText = table?.textContent ?? '';
 		expect(initialTableText.indexOf('Beta Shield')).toBeLessThan(initialTableText.indexOf('Alpha Cannon'));
 
-		const blockHeader = Array.from(container.querySelectorAll('.BlockLookupTable thead th')).find((header) => header.textContent?.trim() === 'Block');
+		const blockHeaderButton = screen.getByRole('button', { name: 'Block' });
+		const blockHeader = blockHeaderButton.closest('th');
 		expect(blockHeader).toBeDefined();
-		fireEvent.click(blockHeader as Element);
+		fireEvent.click(blockHeaderButton);
 
 		await waitFor(() => {
 			const tableText = table?.textContent ?? '';
 			expect(tableText.indexOf('Alpha Cannon')).toBeGreaterThanOrEqual(0);
 			expect(tableText.indexOf('Alpha Cannon')).toBeLessThan(tableText.indexOf('Beta Shield'));
 		});
-		fireEvent.click(blockHeader as Element);
+		fireEvent.click(blockHeaderButton);
 		await waitFor(() => {
 			const tableText = table?.textContent ?? '';
 			expect(tableText.indexOf('Beta Shield')).toBeGreaterThanOrEqual(0);
 			expect(tableText.indexOf('Beta Shield')).toBeLessThan(tableText.indexOf('Alpha Cannon'));
 		});
-		fireEvent.click(blockHeader as Element);
+		fireEvent.click(blockHeaderButton);
 		await waitFor(() => {
 			const tableText = table?.textContent ?? '';
 			expect(tableText.indexOf('Alpha Cannon')).toBeGreaterThanOrEqual(0);
@@ -240,7 +295,8 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnWidthConfig: undefined
 						})
 					})
 				})
@@ -250,7 +306,8 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnWidthConfig: undefined
 							})
 						})
 					})
@@ -287,7 +344,8 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnWidthConfig: undefined
 						})
 					})
 				})
@@ -297,7 +355,8 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source']
+								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnWidthConfig: undefined
 							})
 						})
 					})
