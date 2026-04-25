@@ -159,6 +159,12 @@ The pacman target needs `bsdtar`.
 - if Steamworks does not return dependency children for a Workshop item, the app falls back to the public Workshop page `Required items` section
 - `Treat NuterraSteam and NuterraSteam (Beta) as equivalent` affects both explicit mod-ID dependencies and unresolved Workshop dependency names
 
+## Renderer Styling
+
+Tailwind is the default tool for new renderer UI layout, spacing, typography, state styling, and simple controls. Keep the app dense, desktop-first, and utilitarian: prefer compact tool surfaces, predictable alignment, and scan-friendly controls over marketing-style sections.
+
+Use the existing app theme variables from `src/renderer/theme.ts` and `src/renderer/App.tailwind.css` for color, radius, and typography. Custom CSS remains appropriate for measured virtualized tables, resize handles, split-pane sizing, Electron shell surfaces, and durable design tokens that Tailwind utilities cannot express cleanly.
+
 ## Scripts
 
 - `npm run help`: list root and `release/app` npm scripts

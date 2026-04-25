@@ -279,8 +279,8 @@ This plan is intentionally broader than a normal refactor because it resolves st
 ## Current Progress
 
 - Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
-- Active React Query follow-up block: commits 26 through 28 should tighten user-visible error behavior and add explicit behavior coverage for config, collection, and mod refresh query flows.
-- Next stack phase after React Query follow-up coverage: Tailwind usage conventions and design-token mapping.
+- Completed React Query follow-up coverage through commit 28: user-visible collection mutation errors, config and collection cache behavior, and forced mod metadata refresh behavior are covered.
+- Active Tailwind phase: commit 29 records the renderer styling convention; commit 30 maps app design tokens into Tailwind theme values.
 
 ## Work Notes
 
@@ -291,3 +291,4 @@ This plan is intentionally broader than a normal refactor because it resolves st
 - 2026-04-25 IPC sender validation: added shared IPC sender validation, covered accepted app-origin senders plus rejected unexpected origins/missing frame metadata, and applied the guard to every registered IPC handler before payload parsing or side effects. `npm run validate` passed with 50 test files / 259 tests.
 - 2026-04-25 renderer query conventions: added `renderer/async-cache.ts` for canonical query keys and Block Lookup cache helpers; Block Lookup no longer owns raw query keys or direct search invalidation keys.
 - 2026-04-25 renderer async cache expansion: config reads/writes, startup collection reads, collection mutations, mod metadata scans, and game-running polling now go through `renderer/async-cache.ts` query options or mutation hooks. `npm run validate` passed after each committed phase with 50 test files / 259 tests.
+- 2026-04-25 React Query follow-up coverage: added behavior coverage for collection mutation error notifications, config and collection query cache effects, and forced mod metadata refresh. `npm run validate` passed with 51 test files / 268 tests.
