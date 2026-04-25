@@ -55,27 +55,47 @@ function SettingsButton({
 	variant = 'default',
 	...props
 }: SettingsButtonProps) {
+	const buttonToneClassName = danger
+		? 'border-error bg-error'
+		: variant === 'primary'
+			? 'border-primary bg-primary'
+			: 'border-border bg-surface-elevated enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]';
+	const buttonClassName = [
+		'SettingsButton box-border inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border px-3.5 font-[650] text-text',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		'disabled:cursor-not-allowed disabled:opacity-[0.55]',
+		buttonToneClassName,
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
 	return (
-		<button
-			{...props}
-			type={type}
-			disabled={disabled || loading}
-			className={`SettingsButton${variant === 'primary' ? ' SettingsButton--primary' : ''}${danger ? ' SettingsButton--danger' : ''}${
-				className ? ` ${className}` : ''
-			}`}
-		>
+		<button {...props} type={type} disabled={disabled || loading} className={buttonClassName}>
 			{loading ? (
-				<span className="SettingsButtonSpinner" aria-hidden="true" />
+				<span
+					className="size-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+					aria-hidden="true"
+				/>
 			) : icon ? (
-				<span className="SettingsButtonIcon">{icon}</span>
+				<span className="inline-flex items-center">{icon}</span>
 			) : null}
-			{children ? <span className="SettingsButtonText">{children}</span> : null}
+			{children ? <span className="inline-flex items-center">{children}</span> : null}
 		</button>
 	);
 }
 
 function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	return <input {...props} className={`SettingsInput${className ? ` ${className}` : ''}`} />;
+	const inputClassName = [
+		'SettingsInput box-border min-h-control w-full min-w-0 rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
+		'focus:border-primary focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus:ring-offset-2 focus:ring-offset-background',
+		'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <input {...props} className={inputClassName} />;
 }
 
 function SettingsDialog({

@@ -663,32 +663,6 @@ a:hover {
 	min-width: 0;
 }
 
-.SettingsInput {
-	width: 100%;
-	min-width: 0;
-	min-height: var(--app-control-height);
-	padding: 0 11px;
-	color: var(--app-color-text);
-	background: var(--app-color-surface-elevated);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-sizing: border-box;
-	outline: none;
-}
-
-.SettingsInput:focus {
-	border-color: var(--app-color-primary);
-	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
-		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
-}
-
-.SettingsInput:disabled {
-	color: var(--app-color-text-muted);
-	background: var(--app-color-surface);
-	cursor: not-allowed;
-}
-
 .SettingsPathControl .SettingsInput,
 .SettingsInlineControls .SettingsInput {
 	min-width: 0;
@@ -701,64 +675,6 @@ a:hover {
 	flex: 0 0 auto;
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
-}
-
-.SettingsButton {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	min-height: var(--app-control-height);
-	padding: 0 14px;
-	color: var(--app-color-text);
-	font-weight: 650;
-	background: var(--app-color-surface-elevated);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	cursor: pointer;
-	box-sizing: border-box;
-}
-
-.SettingsButton:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
-}
-
-.SettingsButton:focus-visible {
-	outline: none;
-	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
-		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
-}
-
-.SettingsButton:disabled {
-	opacity: 0.55;
-	cursor: not-allowed;
-}
-
-.SettingsButton--primary {
-	color: var(--app-color-text);
-	background: var(--app-color-primary);
-	border-color: var(--app-color-primary);
-}
-
-.SettingsButton--danger {
-	background: var(--app-color-error);
-	border-color: var(--app-color-error);
-}
-
-.SettingsButtonIcon,
-.SettingsButtonText {
-	display: inline-flex;
-	align-items: center;
-}
-
-.SettingsButtonSpinner {
-	width: 14px;
-	height: 14px;
-	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
-	border-top-color: currentColor;
-	border-radius: 999px;
-	animation: spin 700ms linear infinite;
 }
 
 @keyframes spin {
