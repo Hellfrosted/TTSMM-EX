@@ -1042,57 +1042,6 @@ a:hover {
 	margin-top: 16px;
 }
 
-.StartupErrorText {
-	display: block;
-	max-width: 100%;
-	padding: 10px 12px;
-	color: var(--app-color-error);
-	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
-	border: 1px solid color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
-	border-radius: 8px;
-	overflow-wrap: anywhere;
-}
-
-.StartupActions {
-	margin-top: 16px;
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12px;
-	align-items: flex-start;
-	width: 100%;
-}
-
-.StatusCallout {
-	width: 100%;
-	padding: 12px 14px;
-	background: var(--app-color-surface-alt);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-sizing: border-box;
-}
-
-.StatusCallout--error {
-	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
-	border-color: color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
-}
-
-.StatusCallout--warning {
-	background: color-mix(in srgb, var(--app-color-warning) 16%, var(--app-color-surface-alt));
-	border-color: color-mix(in srgb, var(--app-color-warning) 38%, var(--app-color-border));
-}
-
-.StatusCallout__title {
-	display: block;
-	margin-bottom: 4px;
-}
-
-.StatusCallout__body {
-	display: block;
-	color: var(--app-color-text);
-	line-height: 1.45;
-	word-break: break-word;
-}
-
 .NotificationViewport {
 	position: fixed;
 	z-index: 2000;

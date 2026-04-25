@@ -8,7 +8,7 @@ import api from 'renderer/Api';
 import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { ProgressTypes } from 'shared/ipc';
-import { StartupButton, StartupProgressBar, StartupStatusIcon } from './StartupPrimitives';
+import { StartupActions, StartupButton, StartupErrorText, StartupProgressBar, StartupStatusIcon } from './StartupPrimitives';
 
 interface ModLoadingProps {
 	appState: CollectionWorkspaceAppState;
@@ -111,8 +111,8 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 					</div>
 					<StartupProgressBar percent={progressPercent} status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'} />
 					{loadError ? (
-						<div className="StartupActions">
-							<code className="StartupErrorText">{loadError}</code>
+						<StartupActions>
+							<StartupErrorText>{loadError}</StartupErrorText>
 							<StartupButton
 								variant="primary"
 								onClick={() => {
@@ -124,7 +124,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 							>
 								Retry Mod Scan
 							</StartupButton>
-						</div>
+						</StartupActions>
 					) : null}
 				</section>
 			</main>

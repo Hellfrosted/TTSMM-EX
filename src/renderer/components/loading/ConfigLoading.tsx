@@ -5,7 +5,8 @@ import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
-import { StartupProgressBar } from './StartupPrimitives';
+import StatusCallout from '../StatusCallout';
+import { StartupActions, StartupProgressBar } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
 import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions, useUpdateCollectionMutation } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
@@ -330,12 +331,11 @@ export default function ConfigLoading() {
 					</div>
 					<StartupProgressBar percent={percent} showInfo={!bootError} status={bootError ? 'exception' : 'active'} />
 					{bootError ? (
-						<div className="StartupActions">
-							<div className="StatusCallout StatusCallout--error">
-								<strong className="StatusCallout__title">{describedBootError?.title || 'Resolve this before continuing'}</strong>
-								<span className="StatusCallout__body">{describedBootError?.detail || bootError}</span>
-							</div>
-						</div>
+						<StartupActions>
+							<StatusCallout tone="error" heading={describedBootError?.title || 'Resolve this before continuing'}>
+								{describedBootError?.detail || bootError}
+							</StatusCallout>
+						</StartupActions>
 					) : null}
 				</section>
 			</main>

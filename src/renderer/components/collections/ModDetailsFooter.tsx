@@ -15,6 +15,7 @@ import {
 	X
 } from 'lucide-react';
 import api from 'renderer/Api';
+import StatusCallout from '../StatusCallout';
 import {
 	DisplayModData,
 	getDescriptor,
@@ -1140,10 +1141,9 @@ function ModDetailsFooter({
 			<div className="ModDetailDependenciesPane">
 				{dependencyLookupError ? (
 					<div className="ModDetailDependencyError">
-						<div className="StatusCallout StatusCallout--warning">
-							<strong className="StatusCallout__title">Workshop dependency refresh failed</strong>
-							<span className="StatusCallout__body">{dependencyLookupError}</span>
-						</div>
+						<StatusCallout tone="warning" heading="Workshop dependency refresh failed">
+							{dependencyLookupError}
+						</StatusCallout>
 						<DetailButton
 							onClick={() => {
 								setDependencyLookupError(undefined);

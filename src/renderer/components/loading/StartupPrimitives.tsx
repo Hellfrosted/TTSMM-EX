@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ComponentType } from 'react';
+import type { ButtonHTMLAttributes, ComponentType, HTMLAttributes, ReactNode } from 'react';
 import { Check, LoaderCircle, X } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
@@ -16,6 +16,14 @@ interface StartupStatusIconProps {
 interface StartupButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 	loading?: boolean;
 	variant?: 'default' | 'primary';
+}
+
+interface StartupActionsProps extends HTMLAttributes<HTMLDivElement> {
+	children: ReactNode;
+}
+
+interface StartupErrorTextProps extends HTMLAttributes<HTMLElement> {
+	children: ReactNode;
 }
 
 export function StartupProgressBar({ percent, showInfo = true, status = 'active' }: StartupProgressBarProps) {
@@ -80,5 +88,30 @@ export function StartupButton({
 			) : null}
 			{children}
 		</button>
+	);
+}
+
+export function StartupActions({ children, className, ...props }: StartupActionsProps) {
+	const actionsClassName = ['mt-4 flex w-full flex-wrap items-start gap-3', className].filter(Boolean).join(' ');
+	return (
+		<div {...props} className={actionsClassName}>
+			{children}
+		</div>
+	);
+}
+
+export function StartupErrorText({ children, className, ...props }: StartupErrorTextProps) {
+	const errorClassName = [
+		'block max-w-full rounded-md border border-[color-mix(in_srgb,var(--app-color-error)_40%,var(--app-color-border))]',
+		'bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))] px-3 py-2.5 text-error [overflow-wrap:anywhere]',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return (
+		<code {...props} className={errorClassName}>
+			{children}
+		</code>
 	);
 }

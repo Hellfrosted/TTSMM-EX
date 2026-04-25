@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppStateSelector } from 'renderer/state/app-state';
-import { StartupButton, StartupStatusIcon } from './StartupPrimitives';
+import StatusCallout from '../StatusCallout';
+import { StartupActions, StartupButton, StartupStatusIcon } from './StartupPrimitives';
 
 interface VerificationMessage {
 	inited: boolean;
@@ -190,19 +191,18 @@ export default function SteamworksVerification() {
 						</div>
 					</div>
 					{error ? (
-						<div key="error" className="StartupActions">
-							<div className="StatusCallout StatusCallout--error">
-								<strong className="StatusCallout__title">{describedError?.title || 'Resolve this before retrying'}</strong>
-								<span className="StatusCallout__body">{describedError?.detail || error}</span>
-							</div>
-						</div>
+						<StartupActions key="error">
+							<StatusCallout tone="error" heading={describedError?.title || 'Resolve this before retrying'}>
+								{describedError?.detail || error}
+							</StatusCallout>
+						</StartupActions>
 					) : null}
 					{error ? (
-						<div key="retry" className="StartupActions">
+						<StartupActions key="retry">
 							<StartupButton variant="primary" onClick={verify} loading={verifying}>
 								Try Steamworks Again
 							</StartupButton>
-						</div>
+						</StartupActions>
 					) : null}
 				</section>
 			</main>
