@@ -7,7 +7,7 @@ import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import { StartupProgressBar } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
-import { configQueryOptions } from 'renderer/async-cache';
+import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
 import {
 	describeStartupBootError,
@@ -156,7 +156,7 @@ export default function ConfigLoading() {
 
 	const loadCollections = useEffectEvent(async () => {
 		try {
-			const collectionNames = (await api.readCollectionsList()) || [];
+			const collectionNames = await queryClient.fetchQuery(collectionsListQueryOptions());
 			setTotalCollections(collectionNames.length);
 
 			const nextCollections = new Map<string, ModCollection>();
@@ -164,7 +164,7 @@ export default function ConfigLoading() {
 			const loadedCollectionResults = await Promise.allSettled(
 				collectionNames.map(async (collectionName) => {
 					try {
-						const collection = await api.readCollection(collectionName);
+						const collection = await queryClient.fetchQuery(collectionQueryOptions(collectionName));
 						return { collectionName, collection };
 					} finally {
 						setLoadedCollections((current) => current + 1);

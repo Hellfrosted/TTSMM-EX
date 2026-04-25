@@ -10,6 +10,11 @@ export const queryKeys = {
 		root: () => ['config'] as const,
 		current: () => [...queryKeys.config.root(), 'current'] as const
 	},
+	collections: {
+		root: () => ['collections'] as const,
+		list: () => [...queryKeys.collections.root(), 'list'] as const,
+		detail: (collectionName: string) => [...queryKeys.collections.root(), 'detail', collectionName] as const
+	},
 	blockLookup: {
 		root: () => ['blockLookup'] as const,
 		bootstrap: () => [...queryKeys.blockLookup.root(), 'bootstrap'] as const,
@@ -45,6 +50,20 @@ export function useWriteConfigMutation() {
 		onSuccess: (nextConfig) => {
 			setConfigQueryData(queryClient, nextConfig);
 		}
+	});
+}
+
+export function collectionsListQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.collections.list(),
+		queryFn: async () => (await api.readCollectionsList()) || []
+	});
+}
+
+export function collectionQueryOptions(collectionName: string) {
+	return queryOptions({
+		queryKey: queryKeys.collections.detail(collectionName),
+		queryFn: () => api.readCollection(collectionName)
 	});
 }
 
