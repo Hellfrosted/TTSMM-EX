@@ -280,7 +280,7 @@ This plan is intentionally broader than a normal refactor because it resolves st
 
 - Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
 - Completed React Query follow-up coverage through commit 28: user-visible collection mutation errors, config and collection cache behavior, and forced mod metadata refresh behavior are covered.
-- Active Tailwind phase: commits 29-34 have established Tailwind conventions, mapped app tokens, converted shared loading primitives, migrated startup/loading screens, converted notification UI, and migrated settings form layout. Commit 35 is in progress: `CollectionManagerModal` is migrated, with the remaining collection naming/entry surfaces next.
+- Active Tailwind phase: commits 29-35 have established Tailwind conventions, mapped app tokens, converted shared loading primitives, migrated startup/loading screens, converted notification UI, migrated settings form layout, and converted collection management modal UI. Next up is commit 36: Block Lookup shell UI.
 
 ## Work Notes
 
@@ -306,3 +306,4 @@ This plan is intentionally broader than a normal refactor because it resolves st
 - 2026-04-25 Tailwind settings shell: the settings page shell, header, intro, form margins, pane grid/cards, responsive pane stacking, and save/reset action row now use Tailwind utilities while preserving the `.SettingsView` fill-contract CSS. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind settings grouped controls: path pickers, workshop ID controls, and logger override rows now use Tailwind utilities through `SettingsInlineControls`; obsolete grouped-control CSS hooks were removed. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind collection manager modal: `CollectionManagerModal` now owns its modal shell, validation list, table settings controls, override form, and native modal button/input/switch primitives through Tailwind utilities; unused CollectionManager-only CSS hooks were removed while shared Block Lookup modal CSS stayed in place. `npm run validate` passed with 51 test files / 268 tests.
+- 2026-04-25 Tailwind collection naming modal: the collection create/duplicate/rename modal overlay, panel, form field, validation copy, actions, focus states, and loading spinner now use Tailwind utilities; obsolete `CollectionNamingModal*` CSS selectors were removed. `npm run validate` passed with 51 test files / 268 tests.
