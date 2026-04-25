@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { MainColumnTitles, type MainCollectionConfig } from '../../model';
 import {
+	DEFAULT_SELECTION_COLUMN_WIDTH,
+	getColumnPixelWidth,
 	getColumnWidthStyle,
 	getColumnWidthVariableName,
 	getColumnWidths,
+	getMainCollectionTableScrollWidth,
 	getResponsiveMainColumnTitles,
 	isMainColumnTitle,
 	setColumnWidthVariable
@@ -126,5 +129,21 @@ describe('main-collection-table-layout', () => {
 
 		setColumnWidthVariable(element, MainColumnTitles.LAST_WORKSHOP_UPDATE, 144);
 		expect(element.style.getPropertyValue('--main-collection-column-width-workshop-update')).toBe('144px');
+	});
+
+	it('resolves rendered column pixel widths from resize, number, css variable, and fallback values', () => {
+		expect(getColumnPixelWidth({ resizeWidth: 222, width: 111 })).toBe(222);
+		expect(getColumnPixelWidth({ width: 144 })).toBe(144);
+		expect(getColumnPixelWidth({ width: 'var(--main-collection-column-width-name, 288px)' })).toBe(288);
+		expect(getColumnPixelWidth({ width: 'min-content' })).toBe(120);
+	});
+
+	it('adds the selection column when calculating virtual table scroll width', () => {
+		expect(
+			getMainCollectionTableScrollWidth({
+				[MainColumnTitles.NAME]: 320,
+				[MainColumnTitles.ID]: 132
+			})
+		).toBe(DEFAULT_SELECTION_COLUMN_WIDTH + 320 + 132);
 	});
 });

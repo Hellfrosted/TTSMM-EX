@@ -29,10 +29,12 @@ import {
 	getAllTags,
 	getCachedColumnMeasurements,
 	getColumnMeasurementCacheKey,
+	getColumnPixelWidth,
 	getColumnWidthStyle,
 	getColumnWidthVariableName,
 	getColumnWidths,
 	getDefaultMainColumnWidth,
+	getMainCollectionTableScrollWidth,
 	getMeasurementRowSignature,
 	getRenderedColumnBodyCells,
 	getResponsiveMainColumnTitles,
@@ -1124,25 +1126,6 @@ function renderCellValue(column: MainCollectionTableColumn, record: DisplayModDa
 	return value as ReactNode;
 }
 
-function getColumnPixelWidth(column: MainCollectionTableColumn) {
-	if (typeof column.resizeWidth === 'number') {
-		return column.resizeWidth;
-	}
-
-	if (typeof column.width === 'number') {
-		return column.width;
-	}
-
-	if (typeof column.width === 'string') {
-		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
-		if (match) {
-			return Number.parseFloat(match[1]);
-		}
-	}
-
-	return 120;
-}
-
 function getHeaderCellProps(column: MainCollectionTableColumn) {
 	return column.onHeaderCell?.(column);
 }
@@ -1554,10 +1537,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	});
 	const tableRows = table.getRowModel().rows;
 	const tableScrollX = useMemo(() => {
-		return Object.values(resolvedColumnWidths).reduce(
-			(totalWidth, columnWidth) => totalWidth + columnWidth,
-			DEFAULT_SELECTION_COLUMN_WIDTH
-		);
+		return getMainCollectionTableScrollWidth(resolvedColumnWidths);
 	}, [resolvedColumnWidths]);
 	const scrollParentRef = useRef<HTMLDivElement | null>(null);
 	const rowVirtualizer = useVirtualizer({

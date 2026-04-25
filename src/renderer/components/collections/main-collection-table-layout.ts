@@ -421,3 +421,31 @@ export function getColumnWidthStyle(columnTitle: string, width: number) {
 export function setColumnWidthVariable(container: HTMLElement | null, columnTitle: string, width: number) {
 	container?.style.setProperty(getColumnWidthVariableName(columnTitle), `${width}px`);
 }
+
+interface MainCollectionColumnWidthLike {
+	resizeWidth?: number;
+	width?: number | string;
+}
+
+export function getColumnPixelWidth(column: MainCollectionColumnWidthLike) {
+	if (typeof column.resizeWidth === 'number') {
+		return column.resizeWidth;
+	}
+
+	if (typeof column.width === 'number') {
+		return column.width;
+	}
+
+	if (typeof column.width === 'string') {
+		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
+		if (match) {
+			return Number.parseFloat(match[1]);
+		}
+	}
+
+	return 120;
+}
+
+export function getMainCollectionTableScrollWidth(columnWidths: Record<string, number>) {
+	return Object.values(columnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
+}
