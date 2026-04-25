@@ -8,5 +8,5 @@
 		"moduleResolution": "Bundler",
 		"types": ["node"]
 	},
-	"include": ["electron.vite.config.ts", "vitest.config.ts", "scripts/**/*.ts"]
+	"include": ["electron.vite.config.ts", "vitest.config.ts", "scripts/**/*.ts", "src/shared/renderer-csp.ts"]
 }

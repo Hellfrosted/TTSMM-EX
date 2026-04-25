@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
+import type { PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { applyRendererContentSecurityPolicy } from './src/shared/renderer-csp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +55,16 @@ const alias = {
 	util: resolvePath('src/util')
 };
 
-export default defineConfig({
+function rendererContentSecurityPolicyPlugin(isDevelopment: boolean): PluginOption {
+	return {
+		name: 'ttsmm-renderer-csp',
+		transformIndexHtml(html) {
+			return applyRendererContentSecurityPolicy(html, { isDevelopment });
+		}
+	};
+}
+
+export default defineConfig(({ command }) => ({
 	main: {
 		plugins: [externalizeDepsPlugin({ exclude: bundledRootDependencies })],
 		resolve: {
@@ -95,7 +106,7 @@ export default defineConfig({
 		resolve: {
 			alias
 		},
-		plugins: [react(), tailwindcss()],
+		plugins: [rendererContentSecurityPolicyPlugin(command === 'serve'), react(), tailwindcss()],
 		server: {
 			port: Number.isNaN(rendererPort) ? 1212 : rendererPort,
 			strictPort: true
@@ -111,4 +122,4 @@ export default defineConfig({
 			}
 		}
 	}
-});
+}));
