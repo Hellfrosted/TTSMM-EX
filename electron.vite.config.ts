@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,16 +21,6 @@ const matchesNodeModulePackage = (id: string, packageName: string) =>
 
 const REACT_PACKAGE_PATTERN = /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)(?:[\\/]|$)/;
 const REMIX_ROUTER_PATTERN = /[\\/]node_modules[\\/]@remix-run[\\/]router(?:[\\/]|$)/;
-const ANT_DESIGN_PACKAGE_PATTERN = /[\\/]node_modules[\\/](antd|rc-[^\\/]+)(?:[\\/]|$)/;
-const ANT_DESIGN_SCOPED_PACKAGE_PATTERN = /[\\/]node_modules[\\/]@(ant-design|rc-component)[\\/][^\\/]+(?:[\\/]|$)/;
-const ANT_DESIGN_ICON_DEPENDENCIES = [
-	'@ant-design/icons',
-	'@ant-design/icons-svg',
-	'@ant-design/colors',
-	'@ant-design/fast-color',
-	'@rc-component/util',
-	'clsx'
-] as const;
 function getRendererManualChunk(id: string) {
 	if (!id.includes('node_modules')) {
 		return undefined;
@@ -37,15 +28,6 @@ function getRendererManualChunk(id: string) {
 
 	if (REACT_PACKAGE_PATTERN.test(id) || REMIX_ROUTER_PATTERN.test(id)) {
 		return 'vendor-react';
-	}
-
-	if (ANT_DESIGN_ICON_DEPENDENCIES.some((packageName) => matchesNodeModulePackage(id, packageName))) {
-		return 'vendor-icons';
-	}
-
-	// Keep Ant Design in one eagerly reusable renderer vendor chunk; splitting it creates route-time waterfalls.
-	if (ANT_DESIGN_PACKAGE_PATTERN.test(id) || ANT_DESIGN_SCOPED_PACKAGE_PATTERN.test(id)) {
-		return 'vendor-antd';
 	}
 
 	if (
@@ -113,17 +95,10 @@ export default defineConfig({
 		resolve: {
 			alias
 		},
-		plugins: react(),
+		plugins: [react(), tailwindcss()],
 		server: {
 			port: Number.isNaN(rendererPort) ? 1212 : rendererPort,
 			strictPort: true
-		},
-		css: {
-			preprocessorOptions: {
-				less: {
-					javascriptEnabled: true
-				}
-			}
 		},
 		build: {
 			outDir: resolvePath('release/app/dist/renderer'),
