@@ -1,21 +1,13 @@
 import { Profiler, memo, useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useOutletContext } from 'react-router-dom';
 import { Copy, Database, Folder, RefreshCw, Search, Settings2, X } from 'lucide-react';
 import type { AppState } from 'model';
-import type { BlockLookupRecord, BlockLookupSettings } from 'shared/block-lookup';
+import type { BlockLookupRecord } from 'shared/block-lookup';
 import api from 'renderer/Api';
-import {
-	collectBlockLookupModSources,
-	createBlockLookupBuildRequest,
-	formatBlockLookupIndexStatus,
-	retainSelectedBlockLookupRow
-} from 'renderer/block-lookup-workspace';
-import { invalidateBlockLookupSearchQueries, queryKeys, setBlockLookupBootstrapQueryData } from 'renderer/async-cache';
-import { useNotifications } from 'renderer/hooks/collections/useNotifications';
-import { logProfilerRender, markPerfInteraction, measurePerf, measurePerfAsync } from 'renderer/perf';
+import { formatBlockLookupIndexStatus } from 'renderer/block-lookup-workspace';
+import { logProfilerRender, markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import {
 	getConfiguredBlockLookupColumns,
@@ -35,17 +27,12 @@ import {
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
 } from './block-lookup-table-layout';
-
-const MAX_SEARCH_RESULTS = 1000;
+import { getBlockLookupRecordKey, useBlockLookupWorkflow } from './use-block-lookup-workflow';
 
 type BlockLookupViewAppState = Pick<AppState, 'config' | 'mods' | 'updateState'>;
 
 interface BlockLookupViewProps {
 	appState: BlockLookupViewAppState;
-}
-
-function getRecordKey(record: BlockLookupRecord) {
-	return `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
 }
 
 function getSortValue(record: BlockLookupRecord, sortKey: BlockLookupColumnKey) {
@@ -249,24 +236,28 @@ function renderBlockLookupCell(columnKey: BlockLookupColumnKey, record: BlockLoo
 }
 
 function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
-	const { openNotification } = useNotifications();
-	const queryClient = useQueryClient();
-	const [settings, setSettings] = useState<BlockLookupSettings>({ workshopRoot: '' });
-	const [workshopRoot, setWorkshopRoot] = useState('');
-	const query = useBlockLookupStore((state) => state.query);
-	const setQuery = useBlockLookupStore((state) => state.setQuery);
-	const rows = useBlockLookupStore((state) => state.rows);
-	const setRows = useBlockLookupStore((state) => state.setRows);
-	const stats = useBlockLookupStore((state) => state.stats);
-	const setStats = useBlockLookupStore((state) => state.setStats);
-	const loadingResults = useBlockLookupStore((state) => state.loadingResults);
-	const setLoadingResults = useBlockLookupStore((state) => state.setLoadingResults);
-	const buildingIndex = useBlockLookupStore((state) => state.buildingIndex);
-	const setBuildingIndex = useBlockLookupStore((state) => state.setBuildingIndex);
-	const selectedRowKey = useBlockLookupStore((state) => state.selectedRowKey);
-	const setSelectedRowKey = useBlockLookupStore((state) => state.setSelectedRowKey);
-	const { config: appConfig, mods, updateState } = appState;
-	const { gameExec } = appConfig;
+	const {
+		buildingIndex,
+		handleAutoDetectWorkshopRoot,
+		handleBrowseWorkshopRoot,
+		handleBuildIndex,
+		handleSaveSettings,
+		loadingResults,
+		modSources,
+		openNotification,
+		query,
+		refreshResults,
+		rows,
+		selectedRecord,
+		selectedRowKey,
+		setQuery,
+		setSelectedRowKey,
+		setWorkshopRoot,
+		settings,
+		stats,
+		workshopRoot
+	} = useBlockLookupWorkflow({ appState });
+	const { config: appConfig, updateState } = appState;
 	const blockLookupConfig = appConfig.viewConfigs.blockLookup;
 	const columnConfig = useMemo(() => getConfiguredBlockLookupColumns(blockLookupConfig), [blockLookupConfig]);
 	const [draftColumnConfig, setDraftColumnConfig] = useState<BlockLookupColumnConfig[]>(() =>
@@ -284,9 +275,6 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const [draggingDraftColumnKey, setDraggingDraftColumnKey] = useState<BlockLookupColumnKey>();
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const tableScrollRef = useRef<HTMLDivElement | null>(null);
-	const searchRequestIdRef = useRef(0);
-	const modSources = useMemo(() => collectBlockLookupModSources({ mods }), [mods]);
-	const selectedRecord = useMemo(() => rows.find((record) => getRecordKey(record) === selectedRowKey), [rows, selectedRowKey]);
 	const sortedRows = useMemo(() => {
 		return measurePerf(
 			'blockLookup.table.sortRows',
@@ -300,7 +288,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 					if (compared !== 0) {
 						return compared * directionMultiplier;
 					}
-					return getRecordKey(leftRecord).localeCompare(getRecordKey(rightRecord));
+					return getBlockLookupRecordKey(leftRecord).localeCompare(getBlockLookupRecordKey(rightRecord));
 				});
 			},
 			{
@@ -310,94 +298,6 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			}
 		);
 	}, [rows, sortDirection, sortKey]);
-
-	const buildRequest = useCallback(
-		(forceRebuild = false) => createBlockLookupBuildRequest({ gameExec }, workshopRoot, modSources, forceRebuild),
-		[gameExec, modSources, workshopRoot]
-	);
-	const buildIndexMutation = useMutation({
-		mutationFn: (forceRebuild: boolean) =>
-			measurePerfAsync('blockLookup.buildIndex.ipc', () => api.buildBlockLookupIndex(buildRequest(forceRebuild)), {
-				forceRebuild,
-				modSources: modSources.length
-			})
-	});
-
-	const refreshResults = useCallback(
-		async (nextQuery: string) => {
-			const requestId = searchRequestIdRef.current + 1;
-			searchRequestIdRef.current = requestId;
-			setLoadingResults(true);
-			try {
-				const result = await queryClient.fetchQuery({
-					queryKey: queryKeys.blockLookup.search(nextQuery, MAX_SEARCH_RESULTS),
-					queryFn: () =>
-						measurePerfAsync('blockLookup.search.ipc', () => api.searchBlockLookup({ query: nextQuery, limit: MAX_SEARCH_RESULTS }), {
-							queryLength: nextQuery.length,
-							limit: MAX_SEARCH_RESULTS
-						})
-				});
-				if (requestId !== searchRequestIdRef.current) {
-					return;
-				}
-				setRows(result.rows);
-				setStats(result.stats);
-				setSelectedRowKey((current) => {
-					return retainSelectedBlockLookupRow(result.rows, current, getRecordKey);
-				});
-			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message: 'Block lookup search failed',
-						description: String(error),
-						placement: 'topRight',
-						duration: 3
-					},
-					'error'
-				);
-			} finally {
-				if (requestId === searchRequestIdRef.current) {
-					setLoadingResults(false);
-				}
-			}
-		},
-		[openNotification, queryClient, setLoadingResults, setRows, setSelectedRowKey, setStats]
-	);
-
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			try {
-				const [nextSettings, nextStats] = await queryClient.fetchQuery({
-					queryKey: queryKeys.blockLookup.bootstrap(),
-					queryFn: () => Promise.all([api.readBlockLookupSettings(), api.getBlockLookupStats()])
-				});
-				if (cancelled) {
-					return;
-				}
-				setSettings(nextSettings);
-				setWorkshopRoot(nextSettings.workshopRoot);
-				setStats(nextStats);
-				await refreshResults('');
-			} catch (error) {
-				api.logger.error(error);
-			}
-		})();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [queryClient, refreshResults, setStats]);
-
-	useEffect(() => {
-		const timeoutId = window.setTimeout(() => {
-			void refreshResults(query);
-		}, 180);
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [query, refreshResults]);
 
 	useEffect(() => {
 		const tablePane = tablePaneRef.current;
@@ -430,110 +330,6 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			resizeObserver.disconnect();
 		};
 	}, []);
-
-	const handleSaveSettings = useCallback(async () => {
-		try {
-			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
-			setSettings(nextSettings);
-			setWorkshopRoot(nextSettings.workshopRoot);
-			setBlockLookupBootstrapQueryData(queryClient, [nextSettings, stats]);
-			openNotification(
-				{
-					message: 'Block lookup path saved',
-					description: nextSettings.workshopRoot || 'Workshop root cleared.',
-					placement: 'topRight',
-					duration: 2
-				},
-				'success'
-			);
-		} catch (error) {
-			api.logger.error(error);
-			openNotification(
-				{
-					message: 'Could not save block lookup path',
-					description: String(error),
-					placement: 'topRight',
-					duration: 3
-				},
-				'error'
-			);
-		}
-	}, [openNotification, queryClient, stats, workshopRoot]);
-
-	const handleBrowseWorkshopRoot = useCallback(async () => {
-		const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
-		if (selectedPath) {
-			setWorkshopRoot(selectedPath);
-		}
-	}, []);
-
-	const handleAutoDetectWorkshopRoot = useCallback(async () => {
-		try {
-			const detectedRoot = await api.autoDetectBlockLookupWorkshopRoot(buildRequest(false));
-			if (!detectedRoot) {
-				openNotification(
-					{
-						message: 'Workshop root not found',
-						description: 'No TerraTech workshop content folder was detected from the loaded mods or Steam libraries.',
-						placement: 'topRight',
-						duration: 3
-					},
-					'warn'
-				);
-				return;
-			}
-			setWorkshopRoot(detectedRoot);
-		} catch (error) {
-			api.logger.error(error);
-			openNotification(
-				{
-					message: 'Auto-detect failed',
-					description: String(error),
-					placement: 'topRight',
-					duration: 3
-				},
-				'error'
-			);
-		}
-	}, [buildRequest, openNotification]);
-
-	const handleBuildIndex = useCallback(
-		async (forceRebuild = false) => {
-			setBuildingIndex(true);
-			try {
-				const result = await buildIndexMutation.mutateAsync(forceRebuild);
-				setSettings(result.settings);
-				setWorkshopRoot(result.settings.workshopRoot);
-				setStats(result.stats);
-				setBlockLookupBootstrapQueryData(queryClient, [result.settings, result.stats]);
-				await invalidateBlockLookupSearchQueries(queryClient);
-				await refreshResults(query);
-				openNotification(
-					{
-						message: forceRebuild ? 'Block index rebuilt' : 'Block index updated',
-						description: `${result.stats.blocks} blocks indexed from ${result.stats.sources} sources.`,
-						placement: 'topRight',
-						duration: 2
-					},
-					'success'
-				);
-			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message: 'Block index update failed',
-						description: String(error),
-						placement: 'topRight',
-						duration: 4
-					},
-					'error'
-				);
-			} finally {
-				setBuildingIndex(false);
-			}
-		},
-		[buildIndexMutation, openNotification, query, queryClient, refreshResults, setBuildingIndex, setStats]
-	);
 
 	const handleCopySelected = useCallback(async () => {
 		if (!selectedRecord) {
@@ -713,7 +509,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		data: sortedRows,
 		columns: tableColumnDefs,
 		getCoreRowModel: getCoreRowModel(),
-		getRowId: getRecordKey
+		getRowId: getBlockLookupRecordKey
 	});
 	const tableRows = table.getRowModel().rows;
 	const rowVirtualizer = useVirtualizer({
