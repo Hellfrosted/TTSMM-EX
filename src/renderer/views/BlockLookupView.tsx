@@ -18,10 +18,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useOutletContext } from 'react-router-dom';
 import { Copy, Database, Folder, RefreshCw, Search, Settings2, X } from 'lucide-react';
 import type { AppState } from 'model';
-import type {
-	BlockLookupRecord,
-	BlockLookupSettings
-} from 'shared/block-lookup';
+import type { BlockLookupRecord, BlockLookupSettings } from 'shared/block-lookup';
 import api from 'renderer/Api';
 import {
 	collectBlockLookupModSources,
@@ -29,6 +26,7 @@ import {
 	formatBlockLookupIndexStatus,
 	retainSelectedBlockLookupRow
 } from 'renderer/block-lookup-workspace';
+import { invalidateBlockLookupSearchQueries, queryKeys, setBlockLookupBootstrapQueryData } from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { logProfilerRender, markPerfInteraction, measurePerf, measurePerfAsync } from 'renderer/perf';
 import {
@@ -50,8 +48,6 @@ import {
 
 const MAX_SEARCH_RESULTS = 1000;
 const BLOCK_LOOKUP_KEYBOARD_RESIZE_STEP = 16;
-const BLOCK_LOOKUP_BOOTSTRAP_QUERY_KEY = ['blockLookup', 'bootstrap'] as const;
-const blockLookupSearchQueryKey = (query: string) => ['blockLookup', 'search', query, MAX_SEARCH_RESULTS] as const;
 
 const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = ['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind'];
 const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['spawnCommand', 'blockName']);
@@ -499,15 +495,13 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 	const setBuildingIndex = useBlockLookupStore((state) => state.setBuildingIndex);
 	const selectedRowKey = useBlockLookupStore((state) => state.selectedRowKey);
 	const setSelectedRowKey = useBlockLookupStore((state) => state.setSelectedRowKey);
-	const {
-		config: appConfig,
-		mods,
-		updateState
-	} = appState;
+	const { config: appConfig, mods, updateState } = appState;
 	const { gameExec } = appConfig;
 	const blockLookupConfig = appConfig.viewConfigs.blockLookup;
 	const columnConfig = useMemo(() => getConfiguredBlockLookupColumns(blockLookupConfig), [blockLookupConfig]);
-	const [draftColumnConfig, setDraftColumnConfig] = useState<BlockLookupColumnConfig[]>(() => getConfiguredBlockLookupColumns(blockLookupConfig));
+	const [draftColumnConfig, setDraftColumnConfig] = useState<BlockLookupColumnConfig[]>(() =>
+		getConfiguredBlockLookupColumns(blockLookupConfig)
+	);
 	const [draftSmallRows, setDraftSmallRows] = useState(!!blockLookupConfig?.smallRows);
 	const [savingTableOptions, setSavingTableOptions] = useState(false);
 	const sortKey = useBlockLookupStore((state) => state.sortKey);
@@ -566,7 +560,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			setLoadingResults(true);
 			try {
 				const result = await queryClient.fetchQuery({
-					queryKey: blockLookupSearchQueryKey(nextQuery),
+					queryKey: queryKeys.blockLookup.search(nextQuery, MAX_SEARCH_RESULTS),
 					queryFn: () =>
 						measurePerfAsync('blockLookup.search.ipc', () => api.searchBlockLookup({ query: nextQuery, limit: MAX_SEARCH_RESULTS }), {
 							queryLength: nextQuery.length,
@@ -606,7 +600,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 		void (async () => {
 			try {
 				const [nextSettings, nextStats] = await queryClient.fetchQuery({
-					queryKey: BLOCK_LOOKUP_BOOTSTRAP_QUERY_KEY,
+					queryKey: queryKeys.blockLookup.bootstrap(),
 					queryFn: () => Promise.all([api.readBlockLookupSettings(), api.getBlockLookupStats()])
 				});
 				if (cancelled) {
@@ -672,7 +666,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
 			setSettings(nextSettings);
 			setWorkshopRoot(nextSettings.workshopRoot);
-			queryClient.setQueryData(BLOCK_LOOKUP_BOOTSTRAP_QUERY_KEY, [nextSettings, stats]);
+			setBlockLookupBootstrapQueryData(queryClient, [nextSettings, stats]);
 			openNotification(
 				{
 					message: 'Block lookup path saved',
@@ -741,8 +735,8 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 				setSettings(result.settings);
 				setWorkshopRoot(result.settings.workshopRoot);
 				setStats(result.stats);
-				queryClient.setQueryData(BLOCK_LOOKUP_BOOTSTRAP_QUERY_KEY, [result.settings, result.stats]);
-				await queryClient.invalidateQueries({ queryKey: ['blockLookup', 'search'] });
+				setBlockLookupBootstrapQueryData(queryClient, [result.settings, result.stats]);
+				await invalidateBlockLookupSearchQueries(queryClient);
 				await refreshResults(query);
 				openNotification(
 					{
