@@ -134,6 +134,11 @@ function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAtt
 	return <input {...props} type={type} className={switchClassName} />;
 }
 
+function SettingsInlineControls({ children, className }: { children: ReactNode; className?: string }) {
+	const controlsClassName = ['flex w-full min-w-0 items-stretch', className].filter(Boolean).join(' ');
+	return <div className={controlsClassName}>{children}</div>;
+}
+
 function SettingsDialog({
 	children,
 	footer,
@@ -541,7 +546,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									error={configErrors?.localDir}
 									tooltip="Optional. Use this only when you develop or test local mods."
 								>
-									<div className="SettingsPathControl">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="localDir"
 											disabled={selectingDirectory}
@@ -563,7 +568,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												void handleSelectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory');
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 								<SettingsField
 									id="gameExec"
@@ -575,7 +580,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									{isLinux ? (
 										<SettingsInput id="gameExec" disabled value="Launched through Steam on Linux" />
 									) : (
-										<div className="SettingsPathControl">
+										<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 											<SettingsInput
 												id="gameExec"
 												disabled={selectingDirectory}
@@ -597,7 +602,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
 												}}
 											/>
-										</div>
+										</SettingsInlineControls>
 									)}
 								</SettingsField>
 								<SettingsField
@@ -606,7 +611,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									error={configErrors?.logsDir}
 									tooltip="Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder."
 								>
-									<div className="SettingsPathControl">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="logsDir"
 											disabled={selectingDirectory}
@@ -628,7 +633,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												void handleSelectPath(AppConfigKeys.LOGS_DIR, true, 'Select directory for logs');
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 								<SettingsField id="closeOnLaunch" label="Close on Game Launch">
 									<SettingsSwitch
@@ -676,7 +681,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									required
 									tooltip="The Steam Workshop item ID for the mod manager package this app should launch with."
 								>
-									<div className="SettingsInlineControls">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="workshopID"
 											aria-label="Current mod manager workshop item ID"
@@ -691,7 +696,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												openWorkshopIdModal();
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 							</div>
 						</div>
@@ -727,7 +732,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													label={`Override ${index + 1}`}
 													error={configErrors?.[id]}
 												>
-													<div className="SettingsLoggerConfigRow">
+													<div className="flex w-full flex-wrap gap-2">
 														<SettingsSelect
 															id={`${id}.level`}
 															className="flex-[1_1_12rem]"
@@ -743,8 +748,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																</option>
 															))}
 														</SettingsSelect>
-														<div className="SettingsInlineControls SettingsLoggerIdControl">
-															<SettingsInput id={id} className="SettingsLoggerIdInput" value={config.loggerID} disabled />
+														<SettingsInlineControls className="flex-[2_1_16rem] [&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:flex-auto [&_.SettingsInput]:rounded-r-none">
+															<SettingsInput id={id} value={config.loggerID} disabled />
 															<SettingsButton
 																aria-label={`Edit logger override ${index + 1}`}
 																icon={<Edit3 size={16} />}
@@ -753,7 +758,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																	openLogEditModal(index);
 																}}
 															/>
-														</div>
+														</SettingsInlineControls>
 														<SettingsButton
 															aria-label={`Remove logger override ${index + 1}`}
 															icon={<X size={16} />}

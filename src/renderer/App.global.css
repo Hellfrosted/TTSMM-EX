@@ -542,48 +542,10 @@ a:hover {
 	letter-spacing: 0;
 }
 
-.SettingsPathControl,
-.SettingsInlineControls {
-	display: flex;
-	align-items: stretch;
-	width: 100%;
-	min-width: 0;
-}
-
-.SettingsPathControl .SettingsInput,
-.SettingsInlineControls .SettingsInput {
-	min-width: 0;
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
-}
-
-.SettingsPathControl .SettingsButton,
-.SettingsInlineControls .SettingsButton {
-	flex: 0 0 auto;
-	border-top-left-radius: 0;
-	border-bottom-left-radius: 0;
-}
-
 @keyframes spin {
 	to {
 		transform: rotate(360deg);
 	}
-}
-
-.SettingsLoggerIdControl {
-	flex: 2 1 16rem;
-}
-
-.SettingsLoggerConfigRow {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	width: 100%;
-}
-
-.SettingsLoggerIdInput {
-	flex: 1 1 auto;
-	min-width: 0;
 }
 
 .MainFooter {

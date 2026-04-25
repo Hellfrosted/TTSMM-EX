@@ -280,7 +280,7 @@ This plan is intentionally broader than a normal refactor because it resolves st
 
 - Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
 - Completed React Query follow-up coverage through commit 28: user-visible collection mutation errors, config and collection cache behavior, and forced mod metadata refresh behavior are covered.
-- Active Tailwind phase: commits 29-33 have established Tailwind conventions, mapped app tokens, converted shared loading primitives, migrated startup/loading screens, and converted notification UI. Next up is commit 34: settings form layout.
+- Active Tailwind phase: commits 29-34 have established Tailwind conventions, mapped app tokens, converted shared loading primitives, migrated startup/loading screens, converted notification UI, and migrated settings form layout. Next up is commit 35: collection management modal UI.
 
 ## Work Notes
 
@@ -304,3 +304,4 @@ This plan is intentionally broader than a normal refactor because it resolves st
 - 2026-04-25 Tailwind settings switches: close-on-launch and pure-vanilla checkboxes now use a typed `SettingsSwitch` wrapper with Tailwind pseudo-element utilities for track, thumb, focus, checked, and transition states. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind settings disclosure: the logging overrides disclosure summary, body, and add-action row now use Tailwind utilities while preserving the controlled open state. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind settings shell: the settings page shell, header, intro, form margins, pane grid/cards, responsive pane stacking, and save/reset action row now use Tailwind utilities while preserving the `.SettingsView` fill-contract CSS. `npm run validate` passed with 51 test files / 268 tests.
+- 2026-04-25 Tailwind settings grouped controls: path pickers, workshop ID controls, and logger override rows now use Tailwind utilities through `SettingsInlineControls`; obsolete grouped-control CSS hooks were removed. `npm run validate` passed with 51 test files / 268 tests.
