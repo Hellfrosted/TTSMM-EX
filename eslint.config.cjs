@@ -55,7 +55,9 @@ module.exports = [
 			],
 			'@typescript-eslint/no-explicit-any': 'warn',
 			'promise/always-return': 'warn',
-			'promise/catch-or-return': ['warn', { terminationMethod: ['catch', 'asCallback', 'finally'] }]
+			'promise/catch-or-return': ['warn', { terminationMethod: ['catch', 'asCallback', 'finally'] }],
+			'react-hooks/preserve-manual-memoization': 'off',
+			'react-hooks/set-state-in-effect': 'off'
 		}
 	}
 ];
