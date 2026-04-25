@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
 import { AppQueryProvider, queryClient } from '../../renderer/query-client';
-import { BlockLookupView, getResponsiveBlockLookupColumns } from '../../renderer/views/BlockLookupView';
+import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
+import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState } from './test-utils';
 
