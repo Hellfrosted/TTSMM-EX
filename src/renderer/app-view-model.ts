@@ -9,7 +9,6 @@ export interface AppShellInputs {
 	madeConfigEdits: boolean;
 	pathname: string;
 	savingConfig: boolean;
-	sidebarCollapsed: boolean;
 }
 
 export function createCollectionStageAppState(
@@ -80,7 +79,6 @@ export function createAppShellViewModel(inputs: AppShellInputs) {
 		isSettingsRoute,
 		showBlockLookup,
 		showCollections,
-		showSettings,
-		sidebarCollapsed: inputs.sidebarCollapsed
+		showSettings
 	};
 }

@@ -48,8 +48,7 @@ describe('app-view-model', () => {
 				loadingMods: true,
 				madeConfigEdits: false,
 				pathname: '/settings',
-				savingConfig: false,
-				sidebarCollapsed: false
+				savingConfig: false
 			})
 		).toMatchObject({
 			disableNavigation: true,

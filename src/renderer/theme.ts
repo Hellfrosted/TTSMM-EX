@@ -1,8 +1,7 @@
 import type { CSSProperties } from 'react';
 
-export const APP_DISPLAY_FONT_FAMILY =
-	`'Bahnschrift SemiCondensed', 'Aptos Display', 'Segoe UI Variable Display', 'Trebuchet MS', sans-serif`;
 export const APP_FONT_FAMILY = `'Aptos', 'Segoe UI Variable Text', 'Noto Sans', 'Segoe UI', sans-serif`;
+export const APP_DISPLAY_FONT_FAMILY = APP_FONT_FAMILY;
 export const APP_CONTROL_HEIGHT = 44;
 
 interface AppThemePalette {

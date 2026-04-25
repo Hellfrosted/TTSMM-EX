@@ -487,7 +487,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 										<SettingsInput
 											id="localDir"
 											disabled={selectingDirectory}
-											value={editingConfig.localDir}
+											value={editingConfig.localDir ?? ''}
 											onBlur={() => {
 												void validateFile(AppConfigKeys.LOCAL_DIR, editingConfig.localDir || '').catch(() => undefined);
 											}}
@@ -521,7 +521,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 											<SettingsInput
 												id="gameExec"
 												disabled={selectingDirectory}
-												value={editingConfig.gameExec}
+												value={editingConfig.gameExec ?? ''}
 												onBlur={() => {
 													void validateFile(AppConfigKeys.GAME_EXEC, editingConfig.gameExec).catch(() => undefined);
 												}}
@@ -552,7 +552,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 										<SettingsInput
 											id="logsDir"
 											disabled={selectingDirectory}
-											value={editingConfig.logsDir}
+											value={editingConfig.logsDir ?? ''}
 											onBlur={() => {
 												void validateFile(AppConfigKeys.LOGS_DIR, editingConfig.logsDir).catch(() => undefined);
 											}}
@@ -651,7 +651,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								<SettingsField id="extraParams" label="Launch Arguments">
 									<SettingsInput
 										id="extraParams"
-										value={editingConfig.extraParams}
+										value={editingConfig.extraParams ?? ''}
 										onChange={(event) => {
 											setField('extraParams', event.target.value);
 										}}

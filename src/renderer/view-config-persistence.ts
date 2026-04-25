@@ -183,7 +183,7 @@ export function getConfiguredBlockLookupColumns(config?: BlockLookupViewConfig):
 	const orderedTitles = normalizedOrder(config?.columnOrder, defaultColumns.map((column) => column.title));
 
 	return orderedTitles.map((title) => {
-		const column = columnByTitle.get(title) ?? defaultColumns[0];
+		const column = columnByTitle.get(title)!;
 		const configuredWidth = config?.columnWidthConfig?.[title];
 		return {
 			...column,

@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('SettingsView', () => {
-	it('saves edits through the native settings form without legacy form state', async () => {
+	it('saves path and log-level edits through the settings form', async () => {
 		const { appState } = renderSettingsView();
 
 		fireEvent.change(screen.getByLabelText('Local Mods Folder'), {

@@ -19,7 +19,7 @@ describe('config handlers', () => {
 		expect(() => readConfigFile(configPath, true)).toThrow(`Failed to load config file "${configPath}"`);
 	});
 
-	it('drops the removed Nuterra legacy matching flag at the config boundary', () => {
+	it('strips obsolete persisted config fields when loading older config files', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');
 		fs.writeFileSync(

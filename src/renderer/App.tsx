@@ -172,8 +172,7 @@ function AppShell() {
 		loadingMods: !!loadingMods,
 		madeConfigEdits: !!madeConfigEdits,
 		pathname: location.pathname,
-		savingConfig: !!savingConfig,
-		sidebarCollapsed: !!sidebarCollapsed
+		savingConfig: !!savingConfig
 	});
 	const navigateToSteamworks = useEffectEvent(() => {
 		navigateApp('/loading/steamworks');
@@ -222,76 +221,70 @@ function AppShell() {
 	}, [appShell.isBlockLookupRoute, appShell.isLoadingRoute, appShell.isSettingsRoute]);
 
 	return (
-		<div style={{ display: 'flex', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<div className="AppLayout">
-				<aside className={`AppSidebar MenuBar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
-					<div className="logo" />
-					<Suspense fallback={null}>
-						<MenuBarStageView
-							disableNavigation={
-								appShell.disableNavigation
+		<div className="AppLayout">
+			<aside className={`AppSidebar MenuBar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
+				<div className="logo" />
+				<Suspense fallback={null}>
+					<MenuBarStageView disableNavigation={appShell.disableNavigation} />
+				</Suspense>
+				<button
+					type="button"
+					className="MenuCollapseButton"
+					aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+					aria-pressed={sidebarCollapsed}
+					onClick={() => {
+						updateAppState({ sidebarCollapsed: !sidebarCollapsed });
+					}}
+				>
+					{sidebarCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+				</button>
+			</aside>
+			<div className="AppViewHost">
+				<AppViewStage active={appShell.isLoadingRoute} name="loading">
+					{appShell.isLoadingRoute ? <LoadingStageOutlet /> : null}
+				</AppViewStage>
+				{mountedCollections && appShell.hasCollectionWorkspace ? (
+					<AppViewStage active={appShell.showCollections} name="collections">
+						<Suspense
+							fallback={
+								<ViewStageLoadingFallback
+									title="Loading mod workspace"
+									detail="Preparing collections, filters, and validation controls."
+								/>
 							}
-						/>
-					</Suspense>
-					<button
-						type="button"
-						className="MenuCollapseButton"
-						aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-						aria-pressed={sidebarCollapsed}
-						onClick={() => {
-							updateAppState({ sidebarCollapsed: !sidebarCollapsed });
-						}}
-					>
-						{sidebarCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
-					</button>
-				</aside>
-				<div className="AppViewHost">
-					<AppViewStage active={appShell.isLoadingRoute} name="loading">
-						{appShell.isLoadingRoute ? <LoadingStageOutlet /> : null}
+						>
+							<CollectionsStageView />
+						</Suspense>
 					</AppViewStage>
-					{mountedCollections && appShell.hasCollectionWorkspace ? (
-						<AppViewStage active={appShell.showCollections} name="collections">
-							<Suspense
-								fallback={
-									<ViewStageLoadingFallback
-										title="Loading mod workspace"
-										detail="Preparing collections, filters, and validation controls."
-									/>
-								}
-							>
-								<CollectionsStageView />
-							</Suspense>
-						</AppViewStage>
-					) : null}
-					{mountedSettings ? (
-						<AppViewStage active={appShell.showSettings} name="settings" overflow="auto">
-							<Suspense
-								fallback={
-									<ViewStageLoadingFallback
-										title="Loading settings"
-										detail="Preparing paths, launch options, and logging controls."
-									/>
-								}
-							>
-								<SettingsStageView />
-							</Suspense>
-						</AppViewStage>
-					) : null}
-					{mountedBlockLookup ? (
-						<AppViewStage active={appShell.showBlockLookup} name="block-lookup">
-							<Suspense
-								fallback={
-									<ViewStageLoadingFallback
-										title="Loading block lookup"
-										detail="Preparing the block alias index and search controls."
-									/>
-								}
-							>
-								<BlockLookupStageView />
-							</Suspense>
-						</AppViewStage>
-					) : null}
-				</div>
+				) : null}
+				{mountedSettings ? (
+					<AppViewStage active={appShell.showSettings} name="settings" overflow="auto">
+						<Suspense
+							fallback={
+								<ViewStageLoadingFallback
+									title="Loading settings"
+									detail="Preparing paths, launch options, and logging controls."
+								/>
+							}
+						>
+							<SettingsStageView />
+						</Suspense>
+					</AppViewStage>
+				) : null}
+				{mountedBlockLookup ? (
+					<AppViewStage active={appShell.showBlockLookup} name="block-lookup">
+						<Suspense
+							fallback={
+								<ViewStageLoadingFallback
+									title="Loading block lookup"
+									detail="Preparing the block alias index and search controls."
+								/>
+							}
+						>
+							<BlockLookupStageView />
+						</Suspense>
+					</AppViewStage>
+				) : null}
 			</div>
 		</div>
 	);

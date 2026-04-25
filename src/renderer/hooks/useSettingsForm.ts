@@ -184,10 +184,11 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		}
 
 		const editingConfig = form.getValues();
-		const { editingLogConfig, logParams: _unusedLogParams, ...nextConfig } = editingConfig;
+		const { editingLogConfig, ...nextConfig } = editingConfig;
 		const configToSave: AppConfig = {
 			...nextConfig
 		};
+		delete configToSave.logParams;
 		const nextLogParams = createLogParams(editingLogConfig);
 		if (nextLogParams) {
 			configToSave.logParams = nextLogParams;

@@ -470,7 +470,9 @@ type MainCollectionSorter =
 	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
 	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
 	| undefined;
-type MainCollectionCellRenderer = (value: never, record: DisplayModData, rowIndex: number) => ReactNode;
+type MainCollectionCellRenderer = {
+	render(value: DisplayModData[keyof DisplayModData], record: DisplayModData, rowIndex: number): ReactNode;
+}['render'];
 
 interface HeaderMenuItem {
 	key?: Key;
@@ -1453,7 +1455,7 @@ function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], 
 function renderCellValue(column: MainCollectionTableColumn, record: DisplayModData, rowIndex: number): ReactNode {
 	const value = getRecordValue(record, column.dataIndex);
 	if (column.render) {
-		return column.render(value as never, record, rowIndex) as ReactNode;
+		return column.render(value, record, rowIndex);
 	}
 
 	if (value instanceof Date) {

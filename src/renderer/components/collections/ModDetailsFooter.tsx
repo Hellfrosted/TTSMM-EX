@@ -46,7 +46,9 @@ import ttmm from '../../../../assets/ttmm.png';
 
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
 
-type DetailCellRenderer = (value: never, record: DisplayModData, rowIndex: number) => ReactNode;
+type DetailCellRenderer = {
+	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;
+}['render'];
 
 interface DetailColumn {
 	title: ReactNode;
@@ -350,7 +352,7 @@ function DetailTable({
 									) : null}
 									{columns.map((column, columnIndex) => {
 										const value = getRecordValue(record, column.dataIndex);
-										const rendered = column.render ? column.render(value as never, record, rowIndex) : (value as ReactNode);
+										const rendered = column.render ? column.render(value, record, rowIndex) : (value as ReactNode);
 										return (
 											<td
 												key={`${record.uid}:${columnIndex}`}
