@@ -276,6 +276,12 @@ Validation checkpoints:
 
 This plan is intentionally broader than a normal refactor because it resolves stack-level findings together. The implementation should still proceed in small commits. If a phase starts producing behavior changes or large review diffs, split that phase into a separate local plan before continuing.
 
+## Current Progress
+
+- Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
+- Active React Query follow-up block: commits 26 through 28 should tighten user-visible error behavior and add explicit behavior coverage for config, collection, and mod refresh query flows.
+- Next stack phase after React Query follow-up coverage: Tailwind usage conventions and design-token mapping.
+
 ## Work Notes
 
 - 2026-04-25 baseline: `npm run validate` passed. ESLint passed, Biome lint checked 189 files, Knip passed, TypeScript build passed, Vitest passed 48 files / 249 tests, and `electron-vite build` completed for main, preload, and renderer.
