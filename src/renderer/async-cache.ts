@@ -16,6 +16,12 @@ export const queryKeys = {
 		list: () => [...queryKeys.collections.root(), 'list'] as const,
 		detail: (collectionName: string) => [...queryKeys.collections.root(), 'detail', collectionName] as const
 	},
+	mods: {
+		root: () => ['mods'] as const,
+		metadataRoot: () => [...queryKeys.mods.root(), 'metadata'] as const,
+		metadataScan: (localDir: string | undefined, knownModIds: readonly string[], forceReload: boolean, attempt: number) =>
+			[...queryKeys.mods.metadataRoot(), localDir ?? null, knownModIds, forceReload, attempt] as const
+	},
 	blockLookup: {
 		root: () => ['blockLookup'] as const,
 		bootstrap: () => [...queryKeys.blockLookup.root(), 'bootstrap'] as const,
@@ -65,6 +71,23 @@ export function collectionQueryOptions(collectionName: string) {
 	return queryOptions({
 		queryKey: queryKeys.collections.detail(collectionName),
 		queryFn: () => api.readCollection(collectionName)
+	});
+}
+
+interface ModMetadataQueryOptionsInput {
+	localDir: string | undefined;
+	knownMods: Iterable<string>;
+	forceReload: boolean;
+	attempt: number;
+}
+
+export function modMetadataQueryOptions({ localDir, knownMods, forceReload, attempt }: ModMetadataQueryOptionsInput) {
+	const knownModIds = [...knownMods].sort();
+
+	return queryOptions({
+		queryKey: queryKeys.mods.metadataScan(localDir, knownModIds, forceReload, attempt),
+		queryFn: () => api.readModMetadata(localDir, new Set(knownModIds)),
+		staleTime: 0
 	});
 }
 

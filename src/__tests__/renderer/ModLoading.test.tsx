@@ -1,9 +1,27 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionMods, type AppState } from '../../model';
 import ModLoadingComponent from '../../renderer/components/loading/ModLoading';
 import { createAppState } from './test-utils';
+
+function renderModLoading(appState: ReturnType<typeof createAppState>, modLoadCompleteCallback: () => void) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				gcTime: Infinity,
+				retry: false
+			}
+		}
+	});
+
+	return render(
+		<QueryClientProvider client={queryClient}>
+			<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />
+		</QueryClientProvider>
+	);
+}
 
 describe('ModLoading', () => {
 	it('keeps the route in loading state and surfaces the scan error when metadata loading fails', async () => {
@@ -15,7 +33,7 @@ describe('ModLoading', () => {
 
 		vi.mocked(window.electron.readModMetadata).mockRejectedValueOnce(new Error('scan failed'));
 
-		render(<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />);
+		renderModLoading(appState, modLoadCompleteCallback);
 
 		await waitFor(() => {
 			expect(window.electron.readModMetadata).toHaveBeenCalled();
@@ -52,8 +70,25 @@ describe('ModLoading', () => {
 		const freshMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
 		const staleMods = new SessionMods('', [{ uid: 'local:stale', id: 'Stale', name: 'Stale', type: 'local' as const }]);
 
-		const { rerender } = render(<ModLoadingComponent appState={appStateA} modLoadCompleteCallback={modLoadCompleteCallback} />);
-		rerender(<ModLoadingComponent appState={appStateB} modLoadCompleteCallback={modLoadCompleteCallback} />);
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					gcTime: Infinity,
+					retry: false
+				}
+			}
+		});
+
+		const { rerender } = render(
+			<QueryClientProvider client={queryClient}>
+				<ModLoadingComponent appState={appStateA} modLoadCompleteCallback={modLoadCompleteCallback} />
+			</QueryClientProvider>
+		);
+		rerender(
+			<QueryClientProvider client={queryClient}>
+				<ModLoadingComponent appState={appStateB} modLoadCompleteCallback={modLoadCompleteCallback} />
+			</QueryClientProvider>
+		);
 
 		resolveSecondScan(freshMods);
 		await waitFor(() => {
