@@ -164,12 +164,17 @@ The pacman target needs `bsdtar`.
 - `npm run help`: list root and `release/app` npm scripts
 - `npm run dev`: development app
 - `npm run start:desktop`: build and launch the production desktop entrypoint
-- `npm run lint`: ESLint
-- `npm run lint:fix`: ESLint with autofix
+- `npm run lint`: ESLint and Biome unused-code lint
+- `npm run lint:eslint`: ESLint
+- `npm run lint:eslint:fix`: ESLint with autofix
+- `npm run lint:biome`: Biome unused-code lint
+- `npm run lint:biome:fix`: Biome unused-code autofix
+- `npm run lint:fix`: ESLint autofix and Biome unsafe autofix
+- `npm run deadcode`: Knip unused files, exports, and dependencies check
 - `npm run typecheck`: TypeScript build check
 - `npm test`: Vitest
 - `npm run build`: build main, preload, and renderer
-- `npm run validate`: lint, typecheck, tests, and build
+- `npm run validate`: lint, Knip dead-code check, typecheck, tests, and build
 - `npm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`

@@ -11,20 +11,26 @@
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
-		"lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
-		"lint:fix": "npm run lint -- --fix",
+		"lint": "npm run lint:eslint && npm run lint:biome",
+		"lint:eslint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
+		"lint:eslint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
+		"lint:biome": "biome lint .",
+		"lint:biome:fix": "biome lint . --write --unsafe",
+		"lint:fix": "npm run lint:eslint:fix && npm run lint:biome:fix",
+		"deadcode": "knip",
 		"package": "node --import=tsx ./scripts/package.ts",
 		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
 		"test": "vitest run",
 		"typecheck": "tsc -b",
-		"validate": "npm run lint && npm run typecheck && npm test && npm run build",
+		"validate": "npm run lint && npm run deadcode && npm run typecheck && npm test && npm run build",
 		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
 		"bump": "node --import=tsx ./scripts/version.ts"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
+			"biome lint --no-errors-on-unmatched",
 			"cross-env NODE_ENV=development eslint --cache --fix"
 		],
 		"{*.json,.babelrc,.eslintrc,.prettierrc}": [
@@ -127,7 +133,9 @@
 	],
 	"homepage": "https://github.com/Hellfrosted/terratech-steam-mod-loader#readme",
 	"devDependencies": {
+		"@biomejs/biome": "^2.4.13",
 		"@electron/rebuild": "^4.0.3",
+		"@eslint/js": "^9.39.4",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/dateformat": "^5.0.3",
@@ -151,8 +159,10 @@
 		"eslint-plugin-promise": "^7.2.1",
 		"eslint-plugin-react": "^7.37.5",
 		"eslint-plugin-react-hooks": "^7.0.1",
+		"globals": "^14.0.0",
 		"husky": "^9.1.7",
 		"jsdom": "^29.0.2",
+		"knip": "^6.6.3",
 		"lint-staged": "^16.4.0",
 		"prettier": "^3.8.1",
 		"rimraf": "^6.1.3",
@@ -180,6 +190,7 @@
 		"react-dom": "^19.2.4",
 		"react-hook-form": "^7.73.1",
 		"react-router-dom": "^7.14.0",
+		"source-map-support": "^0.5.21",
 		"tailwindcss": "^4.2.4",
 		"zod": "^4.3.6",
 		"zustand": "^5.0.12"
