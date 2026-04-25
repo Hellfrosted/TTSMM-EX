@@ -1,7 +1,25 @@
 import { act, renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
+import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGameRunning } from '../../renderer/hooks/collections/useGameRunning';
+
+function createQueryWrapper() {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				gcTime: Infinity,
+				retry: false
+			}
+		}
+	});
+
+	return function QueryWrapper({ children }: PropsWithChildren) {
+		return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+	};
+}
 
 describe('useGameRunning', () => {
 	beforeEach(() => {
@@ -16,7 +34,7 @@ describe('useGameRunning', () => {
 	it('continues polling after an initial false result', async () => {
 		vi.mocked(window.electron.isGameRunning).mockResolvedValueOnce(false).mockResolvedValueOnce(false);
 
-		renderHook(() => useGameRunning());
+		renderHook(() => useGameRunning(), { wrapper: createQueryWrapper() });
 
 		await act(async () => {
 			await Promise.resolve();
@@ -39,7 +57,7 @@ describe('useGameRunning', () => {
 				})
 		);
 
-		const { result } = renderHook(() => useGameRunning());
+		const { result } = renderHook(() => useGameRunning(), { wrapper: createQueryWrapper() });
 
 		await act(async () => {
 			await Promise.resolve();

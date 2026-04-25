@@ -22,6 +22,10 @@ export const queryKeys = {
 		metadataScan: (localDir: string | undefined, knownModIds: readonly string[], forceReload: boolean, attempt: number) =>
 			[...queryKeys.mods.metadataRoot(), localDir ?? null, knownModIds, forceReload, attempt] as const
 	},
+	game: {
+		root: () => ['game'] as const,
+		running: (requestId: number) => [...queryKeys.game.root(), 'running', requestId] as const
+	},
 	blockLookup: {
 		root: () => ['blockLookup'] as const,
 		bootstrap: () => [...queryKeys.blockLookup.root(), 'bootstrap'] as const,
@@ -87,6 +91,14 @@ export function modMetadataQueryOptions({ localDir, knownMods, forceReload, atte
 	return queryOptions({
 		queryKey: queryKeys.mods.metadataScan(localDir, knownModIds, forceReload, attempt),
 		queryFn: () => api.readModMetadata(localDir, new Set(knownModIds)),
+		staleTime: 0
+	});
+}
+
+export function gameRunningQueryOptions(requestId: number) {
+	return queryOptions({
+		queryKey: queryKeys.game.running(requestId),
+		queryFn: () => api.gameRunning(),
 		staleTime: 0
 	});
 }

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { gameRunningQueryOptions } from 'renderer/async-cache';
 import api from 'renderer/Api';
 
 const GAME_RUNNING_POLL_INTERVAL_MS = 5000;
 
 export function useGameRunning() {
+	const queryClient = useQueryClient();
 	const [gameRunning, setGameRunning] = useState(false);
 	const [overrideGameRunning, setOverrideGameRunning] = useState(false);
 	const gameRunningPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -58,7 +61,7 @@ export function useGameRunning() {
 		pollRequestIdRef.current = requestId;
 
 		try {
-			const running = await api.gameRunning();
+			const running = await queryClient.fetchQuery(gameRunningQueryOptions(requestId));
 			if (isCancelledRef.current || requestId !== pollRequestIdRef.current) {
 				return;
 			}
@@ -74,7 +77,7 @@ export function useGameRunning() {
 				scheduleNextPoll();
 			}
 		}
-	}, [scheduleNextPoll, setGameRunningCallback]);
+	}, [queryClient, scheduleNextPoll, setGameRunningCallback]);
 
 	useEffect(() => {
 		pollGameRunningRef.current = pollGameRunning;
