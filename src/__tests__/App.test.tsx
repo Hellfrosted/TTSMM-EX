@@ -1,20 +1,24 @@
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import App, { AppViewStage } from '../renderer/App';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
-import { useAppState } from '../renderer/state/app-state';
+import { AppRoutes } from '../renderer/routes';
+import { useAppStateSelector } from '../renderer/state/app-state';
 
 function AppFlowProbe() {
 	const location = useLocation();
-	const appState = useAppState();
+	const loadingMods = useAppStateSelector((state) => state.loadingMods);
+	const forceReloadMods = useAppStateSelector((state) => state.forceReloadMods);
 
 	return (
 		<div>
 			<div data-testid="location">{location.pathname}</div>
-			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
-			<div data-testid="force-reload-mods">{String(appState.forceReloadMods)}</div>
+			<div data-testid="loading-mods">{String(loadingMods)}</div>
+			<div data-testid="force-reload-mods">{String(forceReloadMods)}</div>
 		</div>
 	);
 }
@@ -27,6 +31,15 @@ describe('App', () => {
 		expect(stage).toHaveAttribute('aria-hidden', 'true');
 		expect(stage).toHaveAttribute('data-active', 'false');
 		expect(stage).not.toHaveAttribute('inert');
+	});
+
+	it('defines the view stage fill contract for staged route roots', () => {
+		const css = fs.readFileSync(path.resolve(__dirname, '../renderer/App.global.css'), 'utf8');
+
+		expect(css).toMatch(/\.AppViewStage\s*>\s*\*\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/\.SettingsView\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/\.BlockLookupViewLayout\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/body\s*{[^}]*background:\s*var\(--app-color-background,\s*#131517\);/s);
 	});
 
 	it('renders an accessible view-stage loading fallback', () => {
@@ -78,5 +91,27 @@ describe('App', () => {
 		});
 
 		expect(reloadSteamworksHandler).toEqual(expect.any(Function));
+	});
+
+	it('defines explicit elements for staged leaf routes', async () => {
+		const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<AppRoutes />
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.onModRefreshRequested).toHaveBeenCalled();
+		});
+
+		expect(
+			consoleWarn.mock.calls.some(([message]) =>
+				String(message).includes('Matched leaf route at location "/collections/main" does not have an element or Component')
+			)
+		).toBe(false);
+
+		consoleWarn.mockRestore();
 	});
 });

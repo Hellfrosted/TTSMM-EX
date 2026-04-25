@@ -1,32 +1,32 @@
 import { startTransition, useCallback, useEffect, useRef } from 'react';
-import { Menu } from 'antd';
-import type { MenuProps as AntdMenuProps } from 'antd';
-import AppstoreOutlined from '@ant-design/icons/es/icons/AppstoreOutlined';
-import SearchOutlined from '@ant-design/icons/es/icons/SearchOutlined';
-import SettingOutlined from '@ant-design/icons/es/icons/SettingOutlined';
+import { Grid3X3, Search, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { AppState } from 'model';
+import type { AppConfig, AppState } from 'model';
 import api from 'renderer/Api';
 import { getStoredViewPath } from 'renderer/util/view-path';
 
 interface MenuProps {
 	disableNavigation?: boolean;
-	appState: AppState;
+	config: AppConfig;
+	firstModLoad: boolean;
+	updateState: AppState['updateState'];
 }
 
-export default function MenuBar({ disableNavigation, appState }: MenuProps) {
+export default function MenuBar({ config, disableNavigation, firstModLoad, updateState }: MenuProps) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const { config, updateState } = appState;
-	const loadModsOnNavigate = !appState.firstModLoad;
+	const loadModsOnNavigate = !firstModLoad;
 	const configRef = useRef(config);
 	const persistedPathRef = useRef(config.currentPath);
 	const scheduledPersistHandleRef = useRef<number | null>(null);
 	const pendingPathRef = useRef<string | null>(null);
 	const persistInFlightRef = useRef(false);
-	const menuIconStyle = { fontSize: 18, lineHeight: 1 };
-	const menuItemStyle = { display: 'flex', alignItems: 'center' };
 	const selectedPath = getStoredViewPath(location.pathname);
+	const items = [
+		{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
+		{ key: '/block-lookup', icon: <Search size={18} />, label: 'Block Lookup' },
+		{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
+	];
 
 	useEffect(() => {
 		configRef.current = config;
@@ -116,27 +116,6 @@ export default function MenuBar({ disableNavigation, appState }: MenuProps) {
 		scheduledPersistHandleRef.current = window.setTimeout(scheduleFlush, 250);
 	}
 
-	const items: AntdMenuProps['items'] = [
-		{
-			key: '/collections/main',
-			style: menuItemStyle,
-			icon: <AppstoreOutlined style={menuIconStyle} />,
-			label: 'Mod Collections'
-		},
-		{
-			key: '/block-lookup',
-			style: menuItemStyle,
-			icon: <SearchOutlined style={menuIconStyle} />,
-			label: 'Block Lookup'
-		},
-		{
-			key: '/settings',
-			style: menuItemStyle,
-			icon: <SettingOutlined style={menuIconStyle} />,
-			label: 'Settings'
-		}
-	];
-
 	useEffect(() => {
 		return () => {
 			cancelScheduledPersist();
@@ -144,28 +123,47 @@ export default function MenuBar({ disableNavigation, appState }: MenuProps) {
 	}, [cancelScheduledPersist]);
 
 	return (
-		<Menu
-			id="MenuBar"
-			theme="dark"
-			className="MenuBar"
-			selectedKeys={[selectedPath]}
-			mode="inline"
-			disabled={disableNavigation}
-			items={items}
-			onClick={(e) => {
-				if (e.key !== selectedPath) {
-					const nextConfig = { ...configRef.current, currentPath: e.key };
-					configRef.current = nextConfig;
-					startTransition(() => {
-						updateState({
-							config: nextConfig,
-							...(loadModsOnNavigate ? { loadingMods: true } : {})
-						});
-						navigate(e.key);
-					});
-					schedulePathPersist(e.key);
-				}
-			}}
-		/>
+		<nav id="MenuBar" className="MenuBarNav" aria-label="Primary">
+			<ul className="MenuBarNavList">
+				{items.map((item) => {
+					const selected = item.key === selectedPath;
+					return (
+						<li
+							key={item.key}
+							data-menu-id={item.key}
+							className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}
+						>
+							<button
+								type="button"
+								className="MenuBarNavButton"
+								disabled={disableNavigation}
+								aria-current={selected ? 'page' : undefined}
+								onClick={() => {
+									if (item.key === selectedPath) {
+										return;
+									}
+
+									const nextConfig = { ...configRef.current, currentPath: item.key };
+									configRef.current = nextConfig;
+									startTransition(() => {
+										updateState({
+											config: nextConfig,
+											...(loadModsOnNavigate ? { loadingMods: true } : {})
+										});
+										navigate(item.key);
+									});
+									schedulePathPersist(item.key);
+								}}
+							>
+								<span className="MenuBarNavIcon" aria-hidden="true">
+									{item.icon}
+								</span>
+								<span className="MenuBarNavLabel">{item.label}</span>
+							</button>
+						</li>
+					);
+				})}
+			</ul>
+		</nav>
 	);
 }

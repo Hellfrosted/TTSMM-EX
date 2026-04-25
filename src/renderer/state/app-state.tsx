@@ -1,15 +1,30 @@
-import { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { PropsWithChildren } from 'react';
+import { useStore } from 'zustand';
+import { createStore, type StoreApi } from 'zustand/vanilla';
 import { SessionMods } from 'model';
-import type { AppConfig, AppState, ModCollection } from 'model';
+import type { AppConfig, AppState, AppStateUpdate, ModCollection } from 'model';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 
 type AppStateData = Omit<AppState, 'navigate' | 'updateState'>;
 
+export type CollectionWorkspaceAppState = Pick<
+	AppState,
+	| 'activeCollection'
+	| 'allCollectionNames'
+	| 'allCollections'
+	| 'config'
+	| 'forceReloadMods'
+	| 'launchingGame'
+	| 'loadingMods'
+	| 'mods'
+	| 'updateState'
+>;
+
 export type AppAction =
 	| {
 			type: 'merge';
-			payload: Partial<AppStateData>;
+			payload: AppStateUpdate;
 	  }
 	| {
 			type: 'set-config';
@@ -32,7 +47,7 @@ export type AppAction =
 			payload: SessionMods;
 	  };
 
-export const mergeAppState = (payload: Partial<AppStateData>): AppAction => ({
+export const mergeAppState = (payload: AppStateUpdate): AppAction => ({
 	type: 'merge',
 	payload
 });
@@ -135,50 +150,58 @@ export function appReducer(state: AppStateData, action: AppAction): AppStateData
 				...state,
 				mods: action.payload
 			};
-		default:
-			return state;
 	}
 }
 
-const AppStateContext = createContext<AppState | null>(null);
-const AppDispatchContext = createContext<React.Dispatch<AppAction> | null>(null);
-
-export function AppStateProvider({ children, navigate }: PropsWithChildren<{ navigate: (path: string) => void }>) {
-	const [state, dispatch] = useReducer(appReducer, undefined, createInitialAppState);
-
-	const updateState = useCallback((props: Parameters<AppState['updateState']>[0]) => {
-		dispatch(mergeAppState(props));
-	}, []);
-	const appState: AppState = useMemo(
-		() => ({
-			...state,
-			navigate,
-			updateState
-		}),
-		[navigate, state, updateState]
-	);
-
-	return (
-		<AppDispatchContext.Provider value={dispatch}>
-			<AppStateContext.Provider value={appState}>{children}</AppStateContext.Provider>
-		</AppDispatchContext.Provider>
-	);
+interface AppStateStore extends AppState {
+	dispatch: React.Dispatch<AppAction>;
 }
 
-export function useAppState() {
-	const context = useContext(AppStateContext);
-	if (!context) {
+type AppStateStoreApi = StoreApi<AppStateStore>;
+
+function createAppStateStore(navigate: (path: string) => void) {
+	return createStore<AppStateStore>()((set) => {
+		const dispatch: React.Dispatch<AppAction> = (action) => {
+			set((state) => appReducer(state, action) as AppStateStore);
+		};
+		const updateState: AppState['updateState'] = (props) => {
+			dispatch(mergeAppState(props));
+		};
+
+		return {
+			...createInitialAppState(),
+			navigate,
+			updateState,
+			dispatch
+		};
+	});
+}
+
+const AppStateStoreContext = createContext<AppStateStoreApi | null>(null);
+
+export function AppStateProvider({ children, navigate }: PropsWithChildren<{ navigate: (path: string) => void }>) {
+	const [store] = useState(() => createAppStateStore(navigate));
+
+	useEffect(() => {
+		store.setState({ navigate });
+	}, [navigate, store]);
+
+	return <AppStateStoreContext.Provider value={store}>{children}</AppStateStoreContext.Provider>;
+}
+
+function useAppStateStore() {
+	const store = useContext(AppStateStoreContext);
+	if (!store) {
 		throw new Error('useAppState must be used within AppStateProvider');
 	}
 
-	return context;
+	return store;
+}
+
+export function useAppStateSelector<T>(selector: (state: AppState) => T) {
+	return useStore(useAppStateStore(), selector);
 }
 
 export function useAppDispatch() {
-	const context = useContext(AppDispatchContext);
-	if (!context) {
-		throw new Error('useAppDispatch must be used within AppStateProvider');
-	}
-
-	return context;
+	return useStore(useAppStateStore(), (state) => state.dispatch);
 }

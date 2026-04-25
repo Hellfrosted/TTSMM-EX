@@ -11,22 +11,22 @@ function MenuBarHarness({ appState }: { appState: ReturnType<typeof createAppSta
 	return (
 		<>
 			<div data-testid="location">{location.pathname}</div>
-			<MenuBar appState={appState} />
+			<MenuBar config={appState.config} firstModLoad={appState.firstModLoad} updateState={appState.updateState} />
 			<div data-testid="persisted-path">{appState.config.currentPath}</div>
 		</>
 	);
 }
 
 function getSettingsMenuItem(container: HTMLElement) {
-	return container.querySelector('li[data-menu-id$="/settings"]') as HTMLElement;
+	return container.querySelector('li[data-menu-id$="/settings"] button') as HTMLElement;
 }
 
 function getCollectionsMenuItem(container: HTMLElement) {
-	return container.querySelector('li[data-menu-id$="/collections/main"]') as HTMLElement;
+	return container.querySelector('li[data-menu-id$="/collections/main"] button') as HTMLElement;
 }
 
 function getBlockLookupMenuItem(container: HTMLElement) {
-	return container.querySelector('li[data-menu-id$="/block-lookup"]') as HTMLElement;
+	return container.querySelector('li[data-menu-id$="/block-lookup"] button') as HTMLElement;
 }
 
 function getHarness(container: HTMLElement) {
