@@ -120,6 +120,20 @@ function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelect
 	return <select {...props} className={selectClassName} />;
 }
 
+function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+	const switchClassName = [
+		'SettingsSwitch relative mt-[9px] h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
+		'after:absolute after:left-[3px] after:top-[3px] after:size-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-[140ms] after:ease-in-out after:content-[""]',
+		'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <input {...props} type={type} className={switchClassName} />;
+}
+
 function SettingsDialog({
 	children,
 	footer,
@@ -617,10 +631,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									</div>
 								</SettingsField>
 								<SettingsField id="closeOnLaunch" label="Close on Game Launch">
-									<input
+									<SettingsSwitch
 										id="closeOnLaunch"
-										type="checkbox"
-										className="SettingsSwitch"
 										aria-label="Close the app after launching TerraTech"
 										checked={editingConfig.closeOnLaunch}
 										onChange={(event) => {
@@ -633,10 +645,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									label="Pure Vanilla"
 									tooltip="Launch TerraTech without the integrated mod loader when no other mods are enabled."
 								>
-									<input
+									<SettingsSwitch
 										id="pureVanilla"
-										type="checkbox"
-										className="SettingsSwitch"
 										aria-label="Launch TerraTech without the integrated mod loader when no other mods are enabled"
 										checked={!!editingConfig.pureVanilla}
 										onChange={(event) => {
