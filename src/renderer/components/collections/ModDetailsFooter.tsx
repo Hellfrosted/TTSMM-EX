@@ -1,19 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
-import {
-	CheckSquare,
-	CircleHelp,
-	Clock3,
-	Edit3,
-	FolderOpen,
-	HardDrive,
-	LoaderCircle,
-	Maximize2,
-	Minimize2,
-	PanelBottom,
-	PanelRight,
-	TriangleAlert,
-	X
-} from 'lucide-react';
+import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
 import {
 	DisplayModData,
@@ -40,8 +26,8 @@ import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { APP_TAG_STYLES } from 'renderer/theme';
 import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
+import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './mod-details-presentation';
 
-import missing from '../../../../assets/missing.png';
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
 
@@ -78,26 +64,6 @@ function DetailIcon({ children, label, className = '' }: { children: ReactNode; 
 		<span className={`ModDetailIcon${className ? ` ${className}` : ''}`} role="img" aria-label={label} title={label}>
 			{children}
 		</span>
-	);
-}
-
-function DetailIconButton({
-	'aria-label': ariaLabel,
-	'aria-pressed': ariaPressed,
-	children,
-	onClick,
-	title
-}: {
-	'aria-label': string;
-	'aria-pressed'?: boolean;
-	children: ReactNode;
-	onClick: () => void;
-	title?: string;
-}) {
-	return (
-		<button type="button" className="ModDetailIconButton" aria-label={ariaLabel} aria-pressed={ariaPressed} title={title} onClick={onClick}>
-			{children}
-		</button>
 	);
 }
 
@@ -217,20 +183,6 @@ function getImageSrcFromType(type: ModType, size = 15) {
 		default:
 			return null;
 	}
-}
-
-function getImagePreview(path?: string, altText = 'Mod preview image') {
-	return (
-		<div className="ModDetailFooterPreview">
-			<img
-				src={path || missing}
-				alt={altText}
-				onError={(event) => {
-					event.currentTarget.src = missing;
-				}}
-			/>
-		</div>
-	);
 }
 
 enum DependenciesTableType {
@@ -1075,48 +1027,19 @@ function ModDetailsFooter({
 
 	return (
 		<section className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
-			<div
-				className="ModDetailFooterHeader"
-				style={{
-					width: '100%',
-					minHeight: 48,
-					padding: '8px 16px',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'space-between',
-					gap: 16
-				}}
-			>
-				<div>
-					<h2 className="ModDetailFooterTitle">{currentRecord.name}</h2>
-					<div className="ModDetailFooterIdentity">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</div>
-				</div>
-				<div className="ModDetailFooterHeaderActions">
-					<DetailIconButton
-						aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
-						aria-pressed={halfLayoutMode === 'side'}
-						title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}
-						onClick={toggleHalfLayoutCallback}
-					>
-						{halfLayoutMode === 'side' ? <PanelBottom size={18} aria-hidden="true" /> : <PanelRight size={18} aria-hidden="true" />}
-					</DetailIconButton>
-					<DetailIconButton
-						aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
-						aria-pressed={bigDetails}
-						title={bigDetails ? 'Return to split details' : 'Expand details to full view'}
-						onClick={() => {
-							expandFooterCallback(!bigDetails);
-						}}
-					>
-						{bigDetails ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
-					</DetailIconButton>
-					<DetailIconButton aria-label="Close details" title="Close details" onClick={closeFooterCallback}>
-						<X size={18} aria-hidden="true" />
-					</DetailIconButton>
-				</div>
-			</div>
+			<ModDetailsFooterHeader
+				bigDetails={bigDetails}
+				halfLayoutMode={halfLayoutMode}
+				identity={currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}
+				name={currentRecord.name}
+				onClose={closeFooterCallback}
+				onExpandChange={expandFooterCallback}
+				onToggleHalfLayout={toggleHalfLayoutCallback}
+			/>
 			<div key="mod-details" className="ModDetailFooterBody">
-				<div className="ModDetailFooterPreviewCol">{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}</div>
+				<div className="ModDetailFooterPreviewCol">
+					<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
+				</div>
 				<div className="ModDetailFooterContentCol">
 					<DetailTabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />
 				</div>
