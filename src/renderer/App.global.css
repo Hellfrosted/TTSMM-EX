@@ -2019,8 +2019,7 @@ a:hover {
 	line-height: 1.3;
 }
 
-.CollectionNativeModal__close,
-.CollectionNativeModalButton {
+.CollectionNativeModal__close {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2058,170 +2057,18 @@ a:hover {
 	padding-bottom: 12px;
 }
 
-.CollectionNativeModalButton {
-	gap: 8px;
-	min-height: var(--app-control-height);
-	padding: 0 14px;
-	font-weight: 650;
-}
-
-.CollectionNativeModalButton:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
-}
-
-.CollectionNativeModalButton:focus-visible,
-.CollectionNativeModal__close:focus-visible,
-.CollectionNativeInput:focus-visible,
-.CollectionNativeNumberInput:focus-visible,
-.CollectionNativeSwitch:focus-visible {
+.CollectionNativeModal__close:focus-visible {
 	outline: none;
 	box-shadow:
 		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
-.CollectionNativeModalButton:disabled,
-.CollectionNativeInput:disabled,
-.CollectionNativeNumberInput:disabled,
-.CollectionNativeSwitch:disabled {
-	opacity: 0.55;
-	cursor: not-allowed;
-}
-
-.CollectionNativeModalButton--primary {
-	background: var(--app-color-primary);
-	border-color: var(--app-color-primary);
-}
-
-.CollectionNativeModalButton--primary:hover:not(:disabled) {
-	background: var(--app-color-primary-hover);
-	border-color: var(--app-color-primary-hover);
-}
-
-.CollectionNativeModalButton--danger {
-	border-color: var(--app-color-error);
-}
-
-.CollectionNativeModalButton--danger:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
-}
-
-.CollectionNativeModalButton__spinner {
-	width: 14px;
-	height: 14px;
-	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
-	border-top-color: currentColor;
-	border-radius: 999px;
-	animation: spin 700ms linear infinite;
-}
-
-.CollectionNativeField {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.CollectionNativeField__label {
-	color: var(--app-color-text);
-	font-weight: 650;
-}
-
-.CollectionNativeInput,
-.CollectionNativeNumberInput {
-	width: 100%;
-	min-height: var(--app-control-height);
-	padding: 0 12px;
-	color: var(--app-color-text);
-	background: var(--app-color-surface);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-sizing: border-box;
-}
-
-.CollectionNativeSwitch {
-	position: relative;
-	width: 44px;
-	height: 24px;
-	margin: 0;
-	border: 1px solid var(--app-color-border);
-	border-radius: 999px;
-	appearance: none;
-	background: var(--app-color-surface);
-	cursor: pointer;
-	transition:
-		background-color 140ms ease,
-		border-color 140ms ease;
-}
-
-.CollectionNativeSwitch::after {
-	content: '';
-	position: absolute;
-	top: 3px;
-	left: 3px;
-	width: 16px;
-	height: 16px;
-	border-radius: 50%;
-	background: var(--app-color-text-muted);
-	transition:
-		transform 140ms ease,
-		background-color 140ms ease;
-}
-
-.CollectionNativeSwitch:checked {
-	background: color-mix(in srgb, var(--app-color-primary) 28%, var(--app-color-surface-elevated));
-	border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
-}
-
-.CollectionNativeSwitch:checked::after {
-	background: var(--app-color-primary);
-	transform: translateX(20px);
-}
-
 .CollectionSettingsModalWrap {
 	padding: 68px 12px 12px;
 }
 
-.CollectionModalIntro {
-	margin-bottom: 16px;
-}
-
-.CollectionValidationIssueSection {
-	margin-top: 20px;
-}
-
-.CollectionValidationIssueScroller {
-	padding-right: 8px;
-}
-
-.CollectionValidationIssueList,
-.CollectionValidationIssueDetails {
-	margin: 0;
-	padding: 0;
-}
-
-.CollectionValidationIssueList {
-	display: grid;
-	gap: 14px;
-}
-
-.CollectionValidationIssueItem {
-	display: grid;
-	gap: 4px;
-}
-
-.CollectionValidationIssueItem__title,
-.CollectionValidationIssueItem__uid {
-	display: block;
-}
-
-.CollectionValidationIssueDetails {
-	display: grid;
-	gap: 4px;
-	padding-left: 20px;
-}
-
-.CollectionSettingsForm,
-.ModOverrideForm {
+.CollectionSettingsForm {
 	margin-top: 4px;
 }
 
@@ -2336,20 +2183,6 @@ a:hover {
 .CollectionSettingsColumnWidth {
 	width: 100%;
 	max-width: none;
-}
-
-.ModOverridesPane {
-	height: 100%;
-	padding: 16px 18px;
-	background: var(--app-color-surface-alt);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-}
-
-.ModOverrides {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 16px;
 }
 
 .MainCollectionVirtualShell {
@@ -2658,10 +2491,6 @@ a:hover {
 
 	.CollectionSettingsColumnsHeaderGroup:last-child {
 		display: none;
-	}
-
-	.ModOverridesPane {
-		padding: 14px 16px;
 	}
 
 	.ModDetailFooterHeader {
