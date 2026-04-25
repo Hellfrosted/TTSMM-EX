@@ -1,4 +1,14 @@
-import { memo, useCallback, useEffect, useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useId,
+	useState,
+	type ButtonHTMLAttributes,
+	type InputHTMLAttributes,
+	type ReactNode,
+	type SelectHTMLAttributes
+} from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
@@ -96,6 +106,18 @@ function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputEle
 		.join(' ');
 
 	return <input {...props} className={inputClassName} />;
+}
+
+function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+	const selectClassName = [
+		'box-border min-h-control w-full min-w-0 cursor-pointer rounded-md border border-border bg-surface-elevated py-0 pl-[11px] pr-[34px] font-inherit text-text',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <select {...props} className={selectClassName} />;
 }
 
 function SettingsDialog({
@@ -623,9 +645,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									/>
 								</SettingsField>
 								<SettingsField id="logLevel" label="App Log Level" tooltip="Controls how much this desktop app logs.">
-									<select
+									<SettingsSelect
 										id="logLevel"
-										className="SettingsSelect"
 										aria-label="App logging level"
 										value={editingConfig.logLevel || LogLevel.INFO}
 										onChange={(event) => {
@@ -637,7 +658,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												{formatLogLevelLabel(level)}
 											</option>
 										))}
-									</select>
+									</SettingsSelect>
 								</SettingsField>
 								<SettingsField
 									id="workshopID"
@@ -695,9 +716,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													error={configErrors?.[id]}
 												>
 													<div className="SettingsLoggerConfigRow">
-														<select
+														<SettingsSelect
 															id={`${id}.level`}
-															className="SettingsSelect SettingsLoggerLevelSelect"
+															className="flex-[1_1_12rem]"
 															aria-label={`Logging level for override ${index + 1}`}
 															value={config.level}
 															onChange={(event) => {
@@ -709,7 +730,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																	{formatLogLevelLabel(level)}
 																</option>
 															))}
-														</select>
+														</SettingsSelect>
 														<div className="SettingsInlineControls SettingsLoggerIdControl">
 															<SettingsInput id={id} className="SettingsLoggerIdInput" value={config.loggerID} disabled />
 															<SettingsButton
