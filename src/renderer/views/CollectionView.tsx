@@ -1,18 +1,13 @@
-import { ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Profiler, ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Button, Layout, Popover, Space } from 'antd';
-import CheckCircleOutlined from '@ant-design/icons/es/icons/CheckCircleOutlined';
-import CloseCircleOutlined from '@ant-design/icons/es/icons/CloseCircleOutlined';
-import SyncOutlined from '@ant-design/icons/es/icons/SyncOutlined';
+import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import {
-	AppState,
 	CollectionManagerModalType,
 	CollectionViewProps,
 	CollectionViewType,
 	MainColumnTitles,
 	ModCollection,
 	ModData,
-	getMainColumnMinWidth,
 	getByUID,
 	getRows
 } from 'model';
@@ -25,10 +20,14 @@ import { useGameLaunch } from '../hooks/collections/useGameLaunch';
 import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
-import { cloneAppConfig } from '../hooks/collections/utils';
-import { writeConfig } from '../util/config-write';
-
-const { Header, Footer } = Layout;
+import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
+import type { CollectionWorkspaceAppState } from '../state/app-state';
+import {
+	moveMainCollectionColumn,
+	persistViewConfig,
+	setMainCollectionColumnVisibility,
+	setMainCollectionColumnWidth
+} from '../view-config-persistence';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
 const loadCollectionManagerModal = () => import('../components/collections/CollectionManagerModal');
@@ -133,11 +132,11 @@ const MIN_COLLECTION_TABLE_HEIGHT = 320;
 interface ValidationCallbacks {
 	cancelValidation: () => void;
 	resetValidationState: () => void;
-	validateActiveCollection: (launchIfValid: boolean, options?: { config?: AppState['config'] }) => Promise<void>;
+	validateActiveCollection: (launchIfValid: boolean, options?: { config?: CollectionWorkspaceAppState['config'] }) => Promise<void>;
 }
 
 interface CollectionViewRouteProps {
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 }
 
 function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
@@ -152,9 +151,17 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const validationCallbacksRef = useRef<ValidationCallbacks | undefined>(undefined);
 	const hasValidatedLoadedModsRef = useRef(false);
 	const guidedFixActive = false;
+	const { activeCollection, config, loadingMods, mods, updateState } = appState;
 
-	const { gameRunning, overrideGameRunning, setOverrideGameRunning, pollGameRunning, clearGameRunningPoll, clearGameLaunchOverrideTimeout, scheduleLaunchOverrideReset } =
-		useGameRunning();
+	const {
+		gameRunning,
+		overrideGameRunning,
+		setOverrideGameRunning,
+		pollGameRunning,
+		clearGameRunningPoll,
+		clearGameLaunchOverrideTimeout,
+		scheduleLaunchOverrideReset
+	} = useGameRunning();
 
 	const { launchGameWithErrors, setLaunchGameWithErrors, launchMods } = useGameLaunch({
 		appState,
@@ -232,7 +239,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	}, [validation.cancelValidation, validation.resetValidationState, validation.validateActiveCollection]);
 
 	useEffect(() => {
-		if (appState.loadingMods) {
+		if (loadingMods) {
 			hasValidatedLoadedModsRef.current = false;
 			return;
 		}
@@ -242,46 +249,50 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			hasValidatedLoadedModsRef.current = true;
 			void validateActiveCollection(false);
 		}
-	}, [appState.loadingMods, recalculateModData, validateActiveCollection]);
+	}, [loadingMods, recalculateModData, validateActiveCollection]);
 
 	useModMetadata(appState, () => {
 		recalculateModData();
-		if (!appState.loadingMods) {
+		if (!loadingMods) {
 			void validateActiveCollection(false);
 		}
 	});
 
 	const launchGame = useCallback(async () => {
 		api.logger.info('validating and launching game');
-		const { activeCollection, loadingMods, mods } = appState;
 
 		if (loadingMods) {
 			return;
 		}
 
 		if (currentValidationStatus && !madeEdits && activeCollection) {
-			const modDataList = activeCollection.mods
-				.map((modUID) => getByUID(mods, modUID))
-				.filter((modData): modData is ModData => !!modData);
+			const modDataList = activeCollection.mods.map((modUID) => getByUID(mods, modUID)).filter((modData): modData is ModData => !!modData);
 			await closeLaunchModal(modDataList);
 			return;
 		}
 
-		appState.updateState({ launchingGame: true });
+		updateState({ launchingGame: true });
 		setCollectionErrors(undefined);
 		await validateActiveCollection(true);
-	}, [appState, closeLaunchModal, currentValidationStatus, madeEdits, setCollectionErrors, validateActiveCollection]);
+	}, [activeCollection, closeLaunchModal, currentValidationStatus, loadingMods, madeEdits, mods, setCollectionErrors, updateState, validateActiveCollection]);
 
 	const currentView = CollectionViewType.MAIN;
 
-	const rows = useMemo(() => getRows(appState.mods), [appState.mods]);
+	const rows = useMemo(
+		() =>
+			measurePerf('collection.rows.derive', () => getRows(mods), {
+				totalMods: mods.modIdToModDataMap.size
+			}),
+		[mods]
+	);
 	const visibleRows = filteredRows || rows;
-	const displayedCurrentRecord = currentRecord ? getByUID(appState.mods, currentRecord.uid) || currentRecord : undefined;
-	const currentViewConfig = appState.config.viewConfigs?.[currentView];
+	const displayedCurrentRecord = currentRecord ? getByUID(mods, currentRecord.uid) || currentRecord : undefined;
+	const currentViewConfig = config.viewConfigs?.[currentView];
 	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
 	const automaticHalfDetailsLayout: HalfDetailsLayout =
 		sideBySideEligible && contentSize.width > contentSize.height * 1.45 ? 'side' : 'bottom';
-	const halfDetailsLayout = preferredHalfDetailsLayout === 'side' && !sideBySideEligible ? 'bottom' : preferredHalfDetailsLayout || automaticHalfDetailsLayout;
+	const halfDetailsLayout =
+		preferredHalfDetailsLayout === 'side' && !sideBySideEligible ? 'bottom' : preferredHalfDetailsLayout || automaticHalfDetailsLayout;
 	const handleEnableMod = useCallback(
 		(id: string) => {
 			toggleMod(true, id);
@@ -311,42 +322,29 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setPreferredHalfDetailsLayout(halfDetailsLayout === 'side' ? 'bottom' : 'side');
 		});
 	}, [halfDetailsLayout]);
-	const handleValidateCollection = useCallback((options?: { config?: AppState['config'] }) => {
-		setCollectionErrors(undefined);
-		void validateActiveCollection(false, options);
-	}, [setCollectionErrors, validateActiveCollection]);
+	const handleValidateCollection = useCallback(
+		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
+			setCollectionErrors(undefined);
+			void validateActiveCollection(false, options);
+		},
+		[setCollectionErrors, validateActiveCollection]
+	);
 	const handleReloadModList = useCallback(() => {
 		setCurrentRecord(undefined);
-		appState.updateState({ loadingMods: true, forceReloadMods: true });
-	}, [appState]);
+		updateState({ loadingMods: true, forceReloadMods: true });
+	}, [updateState]);
 	const handleSaveCollection = useCallback(() => {
-		if (appState.activeCollection) {
-			void saveCollection(appState.activeCollection, true);
+		if (activeCollection) {
+			void saveCollection(activeCollection, true);
 		}
-	}, [appState.activeCollection, saveCollection]);
+	}, [activeCollection, saveCollection]);
 	const handleOpenViewSettings = useCallback(() => {
 		setModalType(CollectionManagerModalType.VIEW_SETTINGS);
 	}, []);
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
-			const normalizedWidth = Math.max(getMainColumnMinWidth(column), Math.round(width));
-			const nextConfig = cloneAppConfig(appState.config);
-			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
-			const currentColumnWidthConfig = currentMainConfig.columnWidthConfig || {};
-			if (currentColumnWidthConfig[column] === normalizedWidth) {
-				return true;
-			}
-
-			currentMainConfig.columnWidthConfig = {
-				...currentColumnWidthConfig,
-				[column]: normalizedWidth
-			};
-			nextConfig.viewConfigs.main = currentMainConfig;
-
 			try {
-				await writeConfig(nextConfig);
-				appState.updateState({ config: nextConfig });
-				return true;
+				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) => updateState({ config: nextConfig }));
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -360,34 +358,12 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				return false;
 			}
 		},
-		[appState, openNotification]
+		[config, openNotification, updateState]
 	);
 	const handleSetMainColumnVisibility = useCallback(
 		async (column: MainColumnTitles, visible: boolean) => {
-			const currentColumnActiveConfig = appState.config.viewConfigs.main?.columnActiveConfig || {};
-			const currentlyVisible = currentColumnActiveConfig[column] !== false;
-			if (currentlyVisible === visible) {
-				return true;
-			}
-
-			const nextConfig = cloneAppConfig(appState.config);
-			const currentMainConfig = nextConfig.viewConfigs.main ? { ...nextConfig.viewConfigs.main } : {};
-			const nextColumnActiveConfig = { ...(currentMainConfig.columnActiveConfig || {}) };
-
-			if (visible) {
-				delete nextColumnActiveConfig[column];
-			} else {
-				nextColumnActiveConfig[column] = false;
-			}
-
-			currentMainConfig.columnActiveConfig =
-				Object.keys(nextColumnActiveConfig).length > 0 ? nextColumnActiveConfig : undefined;
-			nextConfig.viewConfigs.main = currentMainConfig;
-
 			try {
-				await writeConfig(nextConfig);
-				appState.updateState({ config: nextConfig });
-				return true;
+				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) => updateState({ config: nextConfig }));
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -401,15 +377,34 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				return false;
 			}
 		},
-		[appState, openNotification]
+		[config, openNotification, updateState]
+	);
+	const handleSetMainColumnOrder = useCallback(
+		async (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => {
+			try {
+				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) => updateState({ config: nextConfig }));
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Failed to update view settings',
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+				return false;
+			}
+		},
+		[config, openNotification, updateState]
 	);
 	const handleLaunchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
-		const modList = (appState.activeCollection ? appState.activeCollection.mods.map((mod) => getByUID(appState.mods, mod)) : []).filter(
+		const modList = (activeCollection ? activeCollection.mods.map((mod) => getByUID(mods, mod)) : []).filter(
 			(modData): modData is ModData => !!modData
 		);
 		void closeLaunchModal(modList);
-	}, [appState.activeCollection, appState.mods, closeLaunchModal, setLaunchGameWithErrors]);
+	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
 	const handleCloseModal = useCallback(() => {
 		setModalType(CollectionManagerModalType.NONE);
 	}, []);
@@ -419,6 +414,10 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleGetModDetails = useCallback(
 		(uid: string, record: ModData, showBigDetails?: boolean) => {
 			const isClosingCurrentRecord = currentRecord?.uid === uid;
+			markPerfInteraction(isClosingCurrentRecord ? 'collection.details.close' : 'collection.details.open', {
+				uid,
+				showBigDetails: showBigDetails ?? bigDetails
+			});
 			startTransition(() => {
 				setCurrentRecord(isClosingCurrentRecord ? undefined : record);
 				if (!isClosingCurrentRecord) {
@@ -430,11 +429,11 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				}
 			});
 		},
-		[currentRecord?.uid]
+		[bigDetails, currentRecord?.uid]
 	);
 
 	useEffect(() => {
-		if (!displayedCurrentRecord || appState.loadingMods || currentView !== CollectionViewType.MAIN) {
+		if (!displayedCurrentRecord || loadingMods || currentView !== CollectionViewType.MAIN) {
 			if (!prewarmAlternateDetails) {
 				return;
 			}
@@ -475,7 +474,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [appState.loadingMods, currentView, displayedCurrentRecord, prewarmAlternateDetails]);
+	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails]);
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({
@@ -493,6 +492,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setDisabledCallback: handleDisableMod,
 			setMainColumnWidthCallback: handleSetMainColumnWidth,
 			setMainColumnVisibilityCallback: handleSetMainColumnVisibility,
+			setMainColumnOrderCallback: handleSetMainColumnOrder,
 			openMainViewSettingsCallback: handleOpenViewSettings,
 			getModDetails: handleGetModDetails
 		}),
@@ -503,6 +503,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleDisableMod,
 			handleEnableMod,
 			handleGetModDetails,
+			handleSetMainColumnOrder,
 			handleSetMainColumnWidth,
 			handleSetMainColumnVisibility,
 			handleOpenViewSettings,
@@ -514,7 +515,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		]
 	);
 
-	const showSideBySideDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && !bigDetails && halfDetailsLayout === 'side';
+	const showSideBySideDetails =
+		currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && !bigDetails && halfDetailsLayout === 'side';
 	const maxSideDetailsWidth = Math.max(360, contentSize.width - MIN_COLLECTION_TABLE_WIDTH);
 	const sideDetailsWidth = showSideBySideDetails
 		? Math.min(maxSideDetailsWidth, Math.max(360, Math.min(Math.round(contentSize.width * 0.38), 680)))
@@ -529,15 +531,18 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
 	const launchDisabled =
 		appState.loadingMods || overrideGameRunning || gameRunning || modalType !== CollectionManagerModalType.NONE || appState.launchingGame;
-	const validateIcon = validatingMods ? (
-		<SyncOutlined spin />
-	) : currentValidationStatus === true ? (
-		<CheckCircleOutlined />
-	) : currentValidationStatus === false ? (
-		<CloseCircleOutlined />
-	) : (
-		<SyncOutlined />
-	);
+	const validateIcon =
+		currentValidationStatus === true ? (
+			<CheckCircle size={16} aria-hidden="true" />
+		) : currentValidationStatus === false ? (
+			<XCircle size={16} aria-hidden="true" />
+		) : (
+			<RefreshCw
+				className={validatingMods ? 'CollectionFooterButtonIcon CollectionFooterButtonIcon--spinning' : 'CollectionFooterButtonIcon'}
+				size={16}
+				aria-hidden="true"
+			/>
+		);
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
 				lastValidationStatus: currentValidationStatus,
@@ -586,32 +591,35 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		</Suspense>
 	) : !guidedFixActive ? (
 		<Suspense fallback={collectionSurfaceFallback}>
-			<MainCollectionViewLazy {...collectionComponentProps} />
+			<Profiler id="Collection.MainTable" onRender={logProfilerRender}>
+				<MainCollectionViewLazy {...collectionComponentProps} />
+			</Profiler>
 		</Suspense>
 	) : null;
 	const fullDetailsFooter = displayedCurrentRecord ? (
 		<Suspense fallback={detailsFallback}>
-			<ModDetailsFooterLazy
-				key="mod-details-full"
-				{...sharedDetailsProps!}
-				bigDetails
-			/>
+			<Profiler id="Collection.DetailsFull" onRender={logProfilerRender}>
+				<ModDetailsFooterLazy key="mod-details-full" {...sharedDetailsProps!} bigDetails />
+			</Profiler>
 		</Suspense>
 	) : null;
 	const halfDetailsFooter = displayedCurrentRecord ? (
 		<Suspense fallback={detailsFallback}>
-			<ModDetailsFooterLazy
-				key="mod-details-half"
-				{...sharedDetailsProps!}
-				bigDetails={false}
-			/>
+			<Profiler id="Collection.DetailsHalf" onRender={logProfilerRender}>
+				<ModDetailsFooterLazy key="mod-details-half" {...sharedDetailsProps!} bigDetails={false} />
+			</Profiler>
 		</Suspense>
 	) : null;
 	const isCollectionModalOpen = modalType !== CollectionManagerModalType.NONE;
+	const launchDisabledReason = appState.launchingGame
+		? 'Already launching game'
+		: gameRunning || overrideGameRunning
+			? 'Game already running'
+			: undefined;
 
 	return (
-		<Layout className="CollectionViewLayout" style={{ flex: '1 1 0', width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<Header className="CollectionHeader" style={{ height: 'auto', minHeight: 120, lineHeight: 'normal' }}>
+		<div className="CollectionViewLayout">
+			<header className="CollectionHeader">
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
@@ -630,7 +638,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					openNotification={openNotification}
 					openModal={setModalType}
 				/>
-			</Header>
+			</header>
 			{isCollectionModalOpen ? (
 				<Suspense fallback={null}>
 					<CollectionManagerModalLazy
@@ -700,7 +708,17 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 											);
 										} else {
 											actualContent = (
-												<div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0, height: '100%', overflow: 'hidden' }}>
+												<div
+													style={{
+														display: 'flex',
+														flexDirection: 'column',
+														flex: 1,
+														minWidth: 0,
+														minHeight: 0,
+														height: '100%',
+														overflow: 'hidden'
+													}}
+												>
 													<div
 														key="collection"
 														style={{
@@ -760,66 +778,42 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				</div>
 			</div>
 			{showExpandedDetails ? null : (
-				<Footer className="MainFooter" style={{ flex: '0 0 auto', justifyContent: 'center', display: 'flex', padding: 10 }}>
-					<Space size={12} wrap>
-						<Button
+				<footer className="MainFooter">
+					<div className="CollectionFooterActions">
+						<button
 							aria-label="Validate Collection"
-							icon={validateIcon}
-							danger={currentValidationStatus === false}
+							className={`CollectionFooterButton${currentValidationStatus === false ? ' CollectionFooterButton--danger' : ''}`}
 							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
 							onClick={() => {
 								handleValidateCollection();
 							}}
+							type="button"
 						>
+							{validateIcon}
 							Validate Collection
-						</Button>
-						{appState.launchingGame ? (
-							<Popover content="Already launching game">
-								<Button
-									type="primary"
-									loading={appState.launchingGame}
-									disabled={launchDisabled}
-									onClick={() => {
-										void launchGame();
-									}}
-								>
-									Launch Game
-								</Button>
-							</Popover>
-						) : gameRunning || overrideGameRunning ? (
-							<Popover content="Game already running">
-								<Button
-									type="primary"
-									loading={appState.launchingGame}
-									disabled={launchDisabled}
-									onClick={() => {
-										void launchGame();
-									}}
-								>
-									Launch Game
-								</Button>
-							</Popover>
-						) : (
-							<Button
-								type="primary"
-								loading={appState.launchingGame}
+						</button>
+						<span title={launchDisabledReason}>
+							<button
+								className="CollectionFooterButton CollectionFooterButton--primary"
 								disabled={launchDisabled}
 								onClick={() => {
 									void launchGame();
 								}}
+								type="button"
 							>
+								{appState.launchingGame ? <span className="CollectionFooterButtonSpinner" aria-hidden="true" /> : null}
 								Launch Game
-							</Button>
-						)}
-					</Space>
-				</Footer>
+							</button>
+						</span>
+					</div>
+				</footer>
 			)}
-		</Layout>
+		</div>
 	);
 }
 
 export const CollectionView = memo(CollectionViewComponent);
 
 export default function CollectionRoute() {
-	return <CollectionView appState={useOutletContext<AppState>()} />;
+	return <CollectionView appState={useOutletContext<CollectionWorkspaceAppState>()} />;
 }

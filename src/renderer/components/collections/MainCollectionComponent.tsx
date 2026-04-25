@@ -1,11 +1,12 @@
-import { Dropdown, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ThHTMLAttributes } from 'react';
-import type { MenuProps } from 'antd';
-import { ColumnType } from 'antd/lib/table';
-import { SortOrder, TableRowSelection } from 'antd/lib/table/interface';
+import type { CSSProperties, Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
+import { markPerfInteraction, measurePerf } from 'renderer/perf';
+import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
 import { APP_FONT_FAMILY, APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	CollectionViewProps,
@@ -22,11 +23,6 @@ import {
 	CorpType,
 	getCorpType
 } from 'model';
-import ClockCircleTwoTone from '@ant-design/icons/es/icons/ClockCircleTwoTone';
-import CodeFilled from '@ant-design/icons/es/icons/CodeFilled';
-import HddFilled from '@ant-design/icons/es/icons/HddFilled';
-import StopTwoTone from '@ant-design/icons/es/icons/StopTwoTone';
-import WarningTwoTone from '@ant-design/icons/es/icons/WarningTwoTone';
 import { formatDateStr } from 'util/Date';
 
 import steam from '../../../../assets/steam.png';
@@ -42,8 +38,6 @@ import Icon_Skins from '../../../../assets/paintbrush.svg';
 import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
 import Icon_Corps from '../../../../assets/faction-flag.svg';
 
-const { Content } = Layout;
-const { Text } = Typography;
 const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 const KEYBOARD_RESIZE_STEP = 16;
 const COLUMN_MEASUREMENT_SAMPLE_SIZE = 24;
@@ -54,8 +48,8 @@ const SIZE_COLOR_MIN_BYTES = 10 * 1024;
 const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
 const KILOBYTE = 1024;
 const MEGABYTE = 1024 * 1024;
-const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
 const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+const mainColumnTitleSet = new Set<string>(ALL_MAIN_COLUMN_TITLES);
 const columnMeasurementCache = new Map<string, Record<string, number>>();
 const AUTO_MEASURE_COLUMN_TITLES = new Set<MainColumnTitles>([
 	MainColumnTitles.NAME,
@@ -330,6 +324,22 @@ function getSizeTagStyle(size: number): CSSProperties {
 	};
 }
 
+function MainCollectionTag({ children, className = '', style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+	return (
+		<span className={`MainCollectionTag${className ? ` ${className}` : ''}`} style={style}>
+			{children}
+		</span>
+	);
+}
+
+function MainCollectionIcon({ children, label, className = '' }: { children: ReactNode; label: string; className?: string }) {
+	return (
+		<span className={`MainCollectionIcon${className ? ` ${className}` : ''}`} role="img" aria-label={label} title={label}>
+			{children}
+		</span>
+	);
+}
+
 function getModTypeLabel(type: ModType) {
 	switch (type) {
 		case ModType.LOCAL:
@@ -348,24 +358,14 @@ function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title={label}>
-					<span role="img" aria-label={label}>
-						<HddFilled style={{ fontSize: size }} />
-					</span>
-				</Tooltip>
+				<MainCollectionIcon label={label}>
+					<HardDrive size={size} aria-hidden="true" />
+				</MainCollectionIcon>
 			);
 		case ModType.TTQMM:
-			return (
-				<Tooltip title={label}>
-					<img src={ttmm} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={ttmm} width={size} alt={label} key="type" title={label} />;
 		case ModType.WORKSHOP:
-			return (
-				<Tooltip title={label}>
-					<img src={steam} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={steam} width={size} alt={label} key="type" title={label} />;
 		default:
 			return null;
 	}
@@ -382,23 +382,11 @@ function getTypeIcon(type: TypeTag, size = 15) {
 		type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
 	switch (type) {
 		case TypeTag.SKINS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Skins} width={size - 14} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Skins} width={size - 14} alt={label} title={label} key={type} />;
 		case TypeTag.BLOCKS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Blocks} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Blocks} width={size} alt={label} title={label} key={type} />;
 		case TypeTag.CORPS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Corps} width={size - 10} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Corps} width={size - 10} alt={label} title={label} key={type} />;
 		default:
 			return null;
 	}
@@ -423,47 +411,19 @@ function getCorpIcon(type: CorpType, size = 15) {
 									: 'Corporation';
 	switch (type) {
 		case CorpType.HE:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_HE} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_HE} width={size} alt={label} title={label} key={type} />;
 		case CorpType.GSO:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_GSO} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_GSO} width={size} alt={label} title={label} key={type} />;
 		case CorpType.GC:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_GC} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_GC} width={size} alt={label} title={label} key={type} />;
 		case CorpType.BF:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_BF} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_BF} width={size} alt={label} title={label} key={type} />;
 		case CorpType.RR:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_RR} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_RR} width={size} alt={label} title={label} key={type} />;
 		case CorpType.SPE:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_SPE} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_SPE} width={size} alt={label} title={label} key={type} />;
 		case CorpType.VEN:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_VEN} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_VEN} width={size} alt={label} title={label} key={type} />;
 		default:
 			return null;
 	}
@@ -490,15 +450,39 @@ interface ColumnSchema {
 	width?: number;
 	align?: 'center';
 	defaultSortOrder?: 'ascend';
-	filters?: ColumnType<DisplayModData>['filters'];
-	filtersSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['filters'];
-	onFilter?: ColumnType<DisplayModData>['onFilter'];
-	sorter?: ColumnType<DisplayModData>['sorter'];
-	sorterSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['sorter'];
-	renderSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['render'];
+	filters?: MainCollectionFilter[];
+	filtersSetup?: (props: MainCollectionSchemaProps) => MainCollectionFilter[];
+	onFilter?: (value: boolean | Key, record: DisplayModData) => boolean;
+	sorter?: MainCollectionSorter;
+	sorterSetup?: (props: MainCollectionSchemaProps) => MainCollectionSorter;
+	renderSetup?: (props: MainCollectionSchemaProps) => MainCollectionCellRenderer;
 }
 
 type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
+
+interface MainCollectionFilter {
+	text: string;
+	value: Key;
+}
+
+type MainCollectionSortOrder = 'ascend' | 'descend' | null | undefined;
+type MainCollectionSorter =
+	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
+	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
+	| undefined;
+type MainCollectionCellRenderer = (value: never, record: DisplayModData, rowIndex: number) => ReactNode;
+
+interface HeaderMenuItem {
+	key?: Key;
+	label?: ReactNode;
+	type?: 'divider';
+	disabled?: boolean;
+}
+
+interface HeaderMenu {
+	items: HeaderMenuItem[];
+	onClick: (info: { key: Key }) => void;
+}
 
 interface StateTagConfig {
 	tone?: keyof typeof APP_TAG_STYLES;
@@ -518,7 +502,7 @@ function getAllTags(record: DisplayModData) {
 
 interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
 	'data-column-title'?: string;
-	headerMenu?: MenuProps;
+	headerMenu?: HeaderMenu;
 	label?: string;
 	width?: number | string;
 	resizeWidth?: number;
@@ -543,6 +527,7 @@ function ResizableHeaderCell({
 	const currentResizeWidth = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
 	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
 	const widthRef = useRef(currentResizeWidth);
+	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
 	const syncResizeHandleValue = useCallback(
 		(nextWidth: number) => {
@@ -569,12 +554,40 @@ function ResizableHeaderCell({
 		};
 	}, []);
 
+	useEffect(() => {
+		if (!menuPosition) {
+			return undefined;
+		}
+
+		const closeMenu = () => {
+			setMenuPosition(null);
+		};
+		const closeMenuOnEscape = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				closeMenu();
+			}
+		};
+
+		window.addEventListener('click', closeMenu);
+		window.addEventListener('contextmenu', closeMenu);
+		window.addEventListener('keydown', closeMenuOnEscape);
+		return () => {
+			window.removeEventListener('click', closeMenu);
+			window.removeEventListener('contextmenu', closeMenu);
+			window.removeEventListener('keydown', closeMenuOnEscape);
+		};
+	}, [menuPosition]);
+
 	const startResize = useCallback(
 		(startX: number) => {
 			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
 			let nextWidth = startWidth;
 			const previousCursor = document.body.style.cursor;
 			const previousUserSelect = document.body.style.userSelect;
+			markPerfInteraction('collection.columnResize.start', {
+				column: resizeLabel,
+				width: startWidth
+			});
 
 			const updateWidth = (clientX: number) => {
 				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
@@ -588,6 +601,10 @@ function ResizableHeaderCell({
 				document.body.style.cursor = previousCursor;
 				document.body.style.userSelect = previousUserSelect;
 				cleanupRef.current = null;
+				markPerfInteraction('collection.columnResize.end', {
+					column: resizeLabel,
+					width: nextWidth
+				});
 				onResizeEnd?.(nextWidth);
 			};
 
@@ -605,7 +622,7 @@ function ResizableHeaderCell({
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
 		},
-		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
+		[minWidth, onResize, onResizeEnd, resizeLabel, syncResizeHandleValue]
 	);
 
 	const handleMouseDown = useCallback(
@@ -627,11 +644,28 @@ function ResizableHeaderCell({
 			event.stopPropagation();
 			const direction = event.key === 'ArrowRight' ? 1 : -1;
 			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * KEYBOARD_RESIZE_STEP));
+			markPerfInteraction('collection.columnResize.keyboard', {
+				column: resizeLabel,
+				width: nextWidth
+			});
 			syncResizeHandleValue(nextWidth);
 			onResize?.(nextWidth);
 			onResizeEnd?.(nextWidth);
 		},
-		[minWidth, onResize, onResizeEnd, syncResizeHandleValue]
+		[minWidth, onResize, onResizeEnd, resizeLabel, syncResizeHandleValue]
+	);
+
+	const handleContextMenu = useCallback(
+		(event: ReactMouseEvent<HTMLDivElement>) => {
+			if (!headerMenu) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			setMenuPosition({ x: event.clientX, y: event.clientY });
+		},
+		[headerMenu]
 	);
 
 	const headerContent = <div className="CollectionTableHeaderCell">{children}</div>;
@@ -640,13 +674,47 @@ function ResizableHeaderCell({
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
 			<div className="CollectionTableHeaderInner">
 				{headerMenu ? (
-					<Dropdown menu={headerMenu} trigger={['contextMenu']}>
-						<div className="CollectionTableHeaderContextTarget">{headerContent}</div>
-					</Dropdown>
+					<div className="CollectionTableHeaderContextTarget" onContextMenu={handleContextMenu}>
+						{headerContent}
+					</div>
 				) : (
 					headerContent
 				)}
 			</div>
+			{headerMenu && menuPosition ? (
+				<div
+					className="MainCollectionHeaderMenu"
+					role="menu"
+					tabIndex={-1}
+					style={{ left: menuPosition.x, top: menuPosition.y }}
+				>
+					{headerMenu.items.map((item, index) => {
+						if (item.type === 'divider') {
+							return <div key={`divider-${index}`} className="MainCollectionHeaderMenuDivider" role="separator" />;
+						}
+
+						if (item.key === undefined) {
+							return null;
+						}
+
+						return (
+							<button
+								key={item.key.toString()}
+								type="button"
+								className="MainCollectionHeaderMenuItem"
+								role="menuitem"
+								disabled={item.disabled}
+								onClick={() => {
+									headerMenu.onClick({ key: item.key as Key });
+									setMenuPosition(null);
+								}}
+							>
+								{item.label}
+							</button>
+						);
+					})}
+				</div>
+			) : null}
 			{width ? (
 				<button
 					type="button"
@@ -685,6 +753,22 @@ function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: bool
 	}
 
 	return true;
+}
+
+function isMainColumnTitle(value: string): value is MainColumnTitles {
+	return mainColumnTitleSet.has(value);
+}
+
+function getConfiguredMainColumnTitles(config: MainCollectionConfig | undefined) {
+	const configuredColumnSet = new Set<MainColumnTitles>();
+	const configuredOrder = (config?.columnOrder || []).filter((column): column is MainColumnTitles => {
+		if (!isMainColumnTitle(column) || configuredColumnSet.has(column)) {
+			return false;
+		}
+		configuredColumnSet.add(column);
+		return true;
+	});
+	return [...configuredOrder, ...ALL_MAIN_COLUMN_TITLES.filter((column) => !configuredColumnSet.has(column))];
 }
 
 function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
@@ -796,9 +880,9 @@ interface RenderedColumnBodyCell {
 }
 
 function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {
-	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
+	const headerRow = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTable thead tr:last-child');
 	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
-	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
+	const body = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTableBody');
 	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
 	const sampledBodyRows = bodyRows.slice(0, sampledRows.length);
 	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
@@ -828,7 +912,7 @@ function measureInlineChildrenCellWidth(cell: HTMLElement) {
 
 function measureNameCellWidth(cell: HTMLElement, row: DisplayModData) {
 	const button = cell.querySelector<HTMLElement>('.CollectionNameButton');
-	const labelElement = cell.querySelector<HTMLElement>('.ant-typography');
+	const labelElement = cell.querySelector<HTMLElement>('.CollectionNameLabel');
 	const displayName = getModDataDisplayName(row) || row.uid;
 	const fallbackFont = `${row.needsUpdate ? 700 : 400} 14px ${APP_FONT_FAMILY}`;
 	let width = getHorizontalInsets(cell);
@@ -849,7 +933,7 @@ function measureNameCellWidth(cell: HTMLElement, row: DisplayModData) {
 }
 
 function measureIdCellWidth(cell: HTMLElement, row: DisplayModData) {
-	const tag = cell.querySelector<HTMLElement>('.ant-tag');
+	const tag = cell.querySelector<HTMLElement>('.MainCollectionTag');
 	if (tag) {
 		return Math.ceil(getHorizontalInsets(cell) + getRenderedElementWidth(tag) + getHorizontalMargins(tag));
 	}
@@ -874,7 +958,7 @@ function measureBodyCellWidth(columnTitle: MainColumnTitles, renderedCell: Rende
 		case MainColumnTitles.ID:
 			return measureIdCellWidth(cell, row);
 		case MainColumnTitles.SIZE:
-			return cell.querySelector<HTMLElement>('.ant-tag')
+			return cell.querySelector<HTMLElement>('.MainCollectionTag')
 				? measureInlineChildrenCellWidth(cell)
 				: Math.ceil(
 						getHorizontalInsets(cell) +
@@ -940,30 +1024,30 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 			const small = (props.config as MainCollectionConfig | undefined)?.smallRows;
 			return (_name: string, record: DisplayModData) => {
 				let updateIcon = null;
-				let updateType: 'danger' | 'warning' | undefined;
+				let updateTone: 'danger' | 'warning' | undefined;
 				const { needsUpdate, downloadPending, downloading, uid, hasCode } = record;
 				if (needsUpdate) {
 					updateIcon = (
-						<Tooltip title="Needs update">
-							<WarningTwoTone twoToneColor={APP_THEME_COLORS.error} />
-						</Tooltip>
+						<MainCollectionIcon label="Needs update" className="MainCollectionStatusIcon MainCollectionStatusIcon--danger">
+							<TriangleAlert size={16} aria-hidden="true" />
+						</MainCollectionIcon>
 					);
-					updateType = 'danger';
+					updateTone = 'danger';
 					if (downloadPending) {
 						updateIcon = (
-							<Tooltip title="Download pending">
-								<ClockCircleTwoTone twoToneColor={APP_THEME_COLORS.warning} />
-							</Tooltip>
+							<MainCollectionIcon label="Download pending" className="MainCollectionStatusIcon MainCollectionStatusIcon--warning">
+								<Clock3 size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						);
-						updateType = 'warning';
+						updateTone = 'warning';
 					}
 					if (downloading) {
 						updateIcon = (
-							<Tooltip title="Downloading">
-								<StopTwoTone spin twoToneColor={APP_THEME_COLORS.warning} />
-							</Tooltip>
+							<MainCollectionIcon label="Downloading" className="MainCollectionStatusIcon MainCollectionStatusIcon--warning MainCollectionStatusIcon--spin">
+								<LoaderCircle size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						);
-						updateType = 'warning';
+						updateTone = 'warning';
 					}
 				}
 				const displayName = getModDataDisplayName(record) || record.uid;
@@ -990,12 +1074,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 							props.getModDetails(uid, record);
 						}}
 						>
-							{updateIcon}
-						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${displayName} `}</Text>
+						{updateIcon}
+						<span className={`CollectionNameLabel${needsUpdate ? ' is-strong' : ''}${updateTone ? ` is-${updateTone}` : ''}`}>
+							{` ${displayName} `}
+						</span>
 						{hasCode ? (
-							<Tooltip title="Contains code">
-								<CodeFilled style={{ color: APP_THEME_COLORS.success, fontSize: small ? 16 : 16, verticalAlign: 'middle' }} />
-							</Tooltip>
+							<MainCollectionIcon label="Contains code" className="MainCollectionStatusIcon MainCollectionStatusIcon--success">
+								<Code2 size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						) : null}
 					</button>
 				);
@@ -1037,7 +1123,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 		},
 		renderSetup: () => {
 			return (authors: string[] | undefined) => {
-				return (authors || []).map((author) => <Tag key={author}>{author}</Tag>);
+				return (authors || []).map((author) => <MainCollectionTag key={author}>{author}</MainCollectionTag>);
 			};
 		}
 	},
@@ -1053,9 +1139,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 				const stateTags = getStateTags(props, record);
 				if (stateTags.length > 0) {
 					return stateTags.map((tagConfig) => (
-						<Tag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone || 'neutral']}>
+						<MainCollectionTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone || 'neutral']}>
 							{tagConfig.text}
-						</Tag>
+						</MainCollectionTag>
 					));
 				}
 				return null;
@@ -1075,9 +1161,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 				}
 				if (record.workshopID === undefined && record.overrides?.id) {
 					return (
-						<Tag key="id" style={APP_TAG_STYLES.neutral}>
+						<MainCollectionTag key="id" style={APP_TAG_STYLES.neutral}>
 							{displayID}
-						</Tag>
+						</MainCollectionTag>
 					);
 				}
 				return displayID;
@@ -1097,9 +1183,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 				}
 
 				return (
-					<Tag key="size" style={getSizeTagStyle(size)}>
+					<MainCollectionTag key="size" style={getSizeTagStyle(size)}>
 						{sizeStr}
-					</Tag>
+					</MainCollectionTag>
 				);
 			};
 		}
@@ -1168,9 +1254,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 				return [
 					...typeTags.map((type) => getTypeIcon(type, small ? 30 : 40)),
 					...actualTags.map((tag) => (
-						<Tag key={tag} style={APP_TAG_STYLES.accent}>
+						<MainCollectionTag key={tag} style={APP_TAG_STYLES.accent}>
 							{tag}
-						</Tag>
+						</MainCollectionTag>
 					)),
 					...iconTags.map((corp) => getCorpIcon(corp, small ? 30 : 40))
 				];
@@ -1180,7 +1266,10 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 ];
 
 function getActiveColumnSchemas(config: MainCollectionConfig | undefined): ColumnSchema[] {
-	let activeColumns: ColumnSchema[] = MAIN_COLUMN_SCHEMA;
+	const columnSchemaByTitle = new Map(MAIN_COLUMN_SCHEMA.map((column) => [column.title, column]));
+	let activeColumns = getConfiguredMainColumnTitles(config)
+		.map((columnTitle) => columnSchemaByTitle.get(columnTitle))
+		.filter((column): column is ColumnSchema => !!column);
 	const columnActiveConfig = config?.columnActiveConfig;
 	if (columnActiveConfig) {
 		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
@@ -1200,74 +1289,48 @@ function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefin
 	});
 }
 
-function getRowSelection(
-	props: Pick<
-		CollectionViewProps,
-		'collection' | 'rows' | 'filteredRows' | 'setEnabledModsCallback' | 'setEnabledCallback' | 'setDisabledCallback'
-	>
-) {
-	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
-
-	const rowSelection: TableRowSelection<DisplayModData> = {
-		columnWidth: DEFAULT_SELECTION_COLUMN_WIDTH,
-		selections: [Table.SELECTION_INVERT],
-		selectedRowKeys: collection.mods,
-		onChange: (selectedRowKeys: Key[]) => {
-			const currentVisible = new Set(filteredRows.map((modData) => modData.uid));
-			const currentSelection = collection.mods;
-			const newSelection = rows
-				.map((modData) => modData.uid)
-				.filter((mod) => (!currentVisible.has(mod) && currentSelection.includes(mod)) || selectedRowKeys.includes(mod));
-			setEnabledModsCallback(new Set(newSelection));
-		},
-		onSelect: (record: DisplayModData, selected: boolean) => {
-			if (selected) {
-				setEnabledCallback(record.uid);
-			} else {
-				setDisabledCallback(record.uid);
-			}
-		},
-		onSelectAll: (selected: boolean) => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selectedMods = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				if (selected) {
-					selectedMods.add(mod);
-				} else {
-					selectedMods.delete(mod);
-				}
-			});
-			setEnabledModsCallback(selectedMods);
-		},
-		onSelectInvert: () => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selected = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				if (!selected.has(mod)) {
-					selected.add(mod);
-				} else {
-					selected.delete(mod);
-				}
-			});
-			setEnabledModsCallback(selected);
-		},
-		onSelectNone: () => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selected = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				selected.delete(mod);
-			});
-			setEnabledModsCallback(selected);
-		},
-		getCheckboxProps: (record: DisplayModData) => {
-			const displayName = getModDataDisplayName(record) || record.uid;
-			return {
-				'aria-label': `Include ${displayName} in collection`
-			} as ReturnType<NonNullable<TableRowSelection<DisplayModData>['getCheckboxProps']>>;
-		}
+function getSelectionState(collectionMods: string[], visibleRows: DisplayModData[]) {
+	const selectedMods = new Set(collectionMods);
+	const visibleModIds = visibleRows.map((modData) => modData.uid);
+	const selectedVisibleCount = visibleModIds.filter((uid) => selectedMods.has(uid)).length;
+	return {
+		selectedMods,
+		allVisibleSelected: visibleModIds.length > 0 && selectedVisibleCount === visibleModIds.length,
+		someVisibleSelected: selectedVisibleCount > 0 && selectedVisibleCount < visibleModIds.length
 	};
+}
 
-	return rowSelection;
+function SelectionCheckbox({
+	'aria-label': ariaLabel,
+	checked,
+	indeterminate,
+	onChange
+}: {
+	'aria-label': string;
+	checked: boolean;
+	indeterminate?: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+
+	useEffect(() => {
+		if (inputRef.current) {
+			inputRef.current.indeterminate = !!indeterminate;
+		}
+	}, [indeterminate]);
+
+	return (
+		<input
+			ref={inputRef}
+			type="checkbox"
+			className="MainCollectionSelectionCheckbox"
+			aria-label={ariaLabel}
+			checked={checked}
+			onChange={(event) => {
+				onChange(event.target.checked);
+			}}
+		/>
+	);
 }
 
 export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
@@ -1316,7 +1379,7 @@ function getColumnSchema(
 	props: MainCollectionSchemaProps,
 	columnWidthConfig?: Record<string, number>,
 	availableTableWidth = 0
-): ColumnType<DisplayModData>[] {
+): MainCollectionTableColumn[] {
 	const { config } = props;
 	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
@@ -1337,6 +1400,107 @@ function getColumnSchema(
 	});
 }
 
+interface MainCollectionTableColumn {
+	title: string;
+	dataIndex: string;
+	className?: string;
+	align?: 'center';
+	width?: number | string;
+	resizeWidth?: number;
+	sorter?: MainCollectionSorter;
+	render?: MainCollectionCellRenderer;
+	onHeaderCell?: (column: MainCollectionTableColumn) => ResizableHeaderCellProps;
+	onCell?: (record: DisplayModData, index?: number) => { style?: CSSProperties; 'data-column-title'?: string };
+}
+
+function getRecordValue(record: DisplayModData, dataIndex: string) {
+	return record[dataIndex as keyof DisplayModData];
+}
+
+function getSorterCompare(sorter: MainCollectionSorter) {
+	if (typeof sorter === 'function') {
+		return sorter;
+	}
+
+	if (sorter && typeof sorter === 'object' && 'compare' in sorter && typeof sorter.compare === 'function') {
+		return sorter.compare;
+	}
+
+	return undefined;
+}
+
+function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], sortState: MainSortState) {
+	return measurePerf(
+		'collection.table.sortRows',
+		() => {
+			const column = columns.find((candidate) => candidate.title === sortState.columnTitle);
+			const compare = getSorterCompare(column?.sorter);
+			if (!compare) {
+				return rows;
+			}
+
+			const direction = sortState.order === 'ascend' ? 1 : -1;
+			return [...rows].sort((left, right) => direction * compare(left, right, sortState.order));
+		},
+		{
+			rows: rows.length,
+			column: sortState.columnTitle,
+			order: sortState.order
+		}
+	);
+}
+
+function renderCellValue(column: MainCollectionTableColumn, record: DisplayModData, rowIndex: number): ReactNode {
+	const value = getRecordValue(record, column.dataIndex);
+	if (column.render) {
+		return column.render(value as never, record, rowIndex) as ReactNode;
+	}
+
+	if (value instanceof Date) {
+		return formatDateStr(value);
+	}
+
+	return value as ReactNode;
+}
+
+function getColumnPixelWidth(column: MainCollectionTableColumn) {
+	if (typeof column.resizeWidth === 'number') {
+		return column.resizeWidth;
+	}
+
+	if (typeof column.width === 'number') {
+		return column.width;
+	}
+
+	if (typeof column.width === 'string') {
+		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
+		if (match) {
+			return Number.parseFloat(match[1]);
+		}
+	}
+
+	return 120;
+}
+
+function getHeaderCellProps(column: MainCollectionTableColumn) {
+	return column.onHeaderCell?.(column);
+}
+
+function getBodyCellProps(column: MainCollectionTableColumn, record: DisplayModData) {
+	return column.onCell?.(record, 0);
+}
+
+function getNextSortState(currentSort: MainSortState, column: MainCollectionTableColumn): MainSortState {
+	if (currentSort.columnTitle !== column.title) {
+		return { columnTitle: column.title, order: 'ascend' };
+	}
+
+	return {
+		columnTitle: column.title,
+		order: currentSort.order === 'ascend' ? 'descend' : 'ascend'
+	};
+}
+
 function MainCollectionViewComponent(props: CollectionViewProps) {
 	const {
 		collection,
@@ -1353,6 +1517,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setEnabledModsCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback,
+		setMainColumnOrderCallback,
 		width
 	} = props;
 	const mainConfig = config as MainCollectionConfig | undefined;
@@ -1363,6 +1528,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const configuredColumnWidths = useMemo(() => columnWidthConfig || {}, [columnWidthConfig]);
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
 	const manuallyActiveColumnTitles = useMemo(
 		() => getActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined).map((column) => column.title),
 		[columnActiveConfig]
@@ -1481,18 +1647,29 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 				return;
 			}
 
-			const renderedColumnCells = getRenderedColumnBodyCells(tableRoot, activeColumnTitles, sampledRows);
-			const nextMeasuredWidths: Record<string, number> = {};
+			const nextMeasuredWidths = measurePerf(
+				'collection.table.autoMeasureColumns',
+				() => {
+					const renderedColumnCells = getRenderedColumnBodyCells(tableRoot, activeColumnTitles, sampledRows);
+					const measuredWidths: Record<string, number> = {};
 
-			missingColumnTitles.forEach((columnTitle) => {
-				const measuredWidth = (renderedColumnCells[columnTitle] || []).reduce((largestWidth, renderedCell) => {
-					return Math.max(largestWidth, measureBodyCellWidth(columnTitle as MainColumnTitles, renderedCell));
-				}, 0);
+					missingColumnTitles.forEach((columnTitle) => {
+						const measuredWidth = (renderedColumnCells[columnTitle] || []).reduce((largestWidth, renderedCell) => {
+							return Math.max(largestWidth, measureBodyCellWidth(columnTitle as MainColumnTitles, renderedCell));
+						}, 0);
 
-				if (measuredWidth > 0) {
-					nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
+						if (measuredWidth > 0) {
+							measuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
+						}
+					});
+
+					return measuredWidths;
+				},
+				{
+					columns: missingColumnTitles.length,
+					rows: sampledRows.length
 				}
-			});
+			);
 
 			if (cancelled) {
 				return;
@@ -1520,26 +1697,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		};
 	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measuredColumnTitles, measurementCacheKey, sampledRows]);
 
-	const rowSelection = useMemo(
-		() =>
-			getRowSelection({
-				collection,
-				filteredRows: deferredRows,
-				rows,
-				setDisabledCallback,
-				setEnabledCallback,
-				setEnabledModsCallback
-			}),
-		[collection, deferredRows, rows, setDisabledCallback, setEnabledCallback, setEnabledModsCallback]
-	);
-	const tableComponents = useMemo(
-		() => ({
-			header: {
-				cell: ResizableHeaderCell
-			}
-		}),
-		[]
-	);
 	const columnSchemaProps = useMemo<MainCollectionSchemaProps>(
 		() => ({
 			collection,
@@ -1550,7 +1707,9 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		}),
 		[collection, config, getModDetails, lastValidationStatus, rows]
 	);
-	const columns = useMemo(() => {
+	const sortState = useMainCollectionTableStore((state) => state.sortState);
+	const setSortState = useMainCollectionTableStore((state) => state.setSortState);
+	const columns = useMemo<MainCollectionTableColumn[]>(() => {
 		return getColumnSchema(columnSchemaProps, resolvedColumnWidths, availableTableWidth).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
 			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
@@ -1560,7 +1719,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 			const typedColumnTitle = columnTitle as MainColumnTitles;
 			const canHideColumn = canSetMainColumnVisibility(typedColumnTitle, false, columnActiveConfig);
-			const contextMenuItems: NonNullable<MenuProps['items']> = [
+			const contextMenuItems: HeaderMenuItem[] = [
 				{
 					key: `hide:${typedColumnTitle}`,
 					label: `Hide ${typedColumnTitle}`,
@@ -1609,6 +1768,30 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						width: getColumnWidthStyle(columnTitle, currentWidth),
 						resizeWidth: currentWidth,
 						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+						draggable: true,
+						className: draggingColumnTitle === typedColumnTitle ? 'is-dragging' : undefined,
+						onDragStart: (event) => {
+							event.dataTransfer.effectAllowed = 'move';
+							event.dataTransfer.setData('text/plain', typedColumnTitle);
+							setDraggingColumnTitle(typedColumnTitle);
+						},
+						onDragOver: (event) => {
+							if (draggingColumnTitle && draggingColumnTitle !== typedColumnTitle) {
+								event.preventDefault();
+								event.dataTransfer.dropEffect = 'move';
+							}
+						},
+						onDrop: (event) => {
+							event.preventDefault();
+							const sourceTitle = event.dataTransfer.getData('text/plain');
+							setDraggingColumnTitle(undefined);
+							if (isMainColumnTitle(sourceTitle)) {
+								void Promise.resolve(setMainColumnOrderCallback?.(sourceTitle, typedColumnTitle));
+							}
+						},
+						onDragEnd: () => {
+							setDraggingColumnTitle(undefined);
+						},
 						headerMenu: {
 							items: contextMenuItems,
 							onClick: (info: { key: Key }) => {
@@ -1651,29 +1834,121 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								restorePersistedColumnWidth();
 							})();
 						}
-					}) as ReturnType<NonNullable<ColumnType<DisplayModData>['onHeaderCell']>>,
+					}),
 				onCell: () =>
 					({
 						'data-column-title': columnTitle,
 						style: {
 							width: getColumnWidthStyle(columnTitle, currentWidth)
 						}
-					}) as ReturnType<NonNullable<ColumnType<DisplayModData>['onCell']>>
+					})
 			};
-		});
+		}) as MainCollectionTableColumn[];
 	}, [
 		columnActiveConfig,
 		columnSchemaProps,
+		draggingColumnTitle,
 		hiddenColumnTitles,
 		openMainViewSettingsCallback,
 		availableTableWidth,
 		resolvedColumnWidths,
+		setMainColumnOrderCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback
 	]);
+	useEffect(() => {
+		if (columns.some((column) => column.title === sortState.columnTitle && getSorterCompare(column.sorter))) {
+			return;
+		}
+
+		const defaultColumn =
+			columns.find((column) => column.title === MainColumnTitles.NAME && getSorterCompare(column.sorter)) ??
+			columns.find((column) => getSorterCompare(column.sorter));
+		if (defaultColumn) {
+			setSortState({ columnTitle: defaultColumn.title, order: 'ascend' });
+		}
+	}, [columns, setSortState, sortState.columnTitle]);
+	const sortedRows = useMemo(() => sortRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
+	const tableColumnDefs = useMemo<ColumnDef<DisplayModData>[]>(
+		() => [
+			{
+				id: '__selection',
+				size: DEFAULT_SELECTION_COLUMN_WIDTH
+			},
+			...columns.map((column) => ({
+				id: column.title,
+				accessorKey: column.dataIndex,
+				size: getColumnPixelWidth(column)
+			}))
+		],
+		[columns]
+	);
+	// eslint-disable-next-line react-hooks/incompatible-library
+	const table = useReactTable({
+		data: sortedRows,
+		columns: tableColumnDefs,
+		getCoreRowModel: getCoreRowModel(),
+		getRowId: (row) => row.uid
+	});
+	const tableRows = table.getRowModel().rows;
 	const tableScrollX = useMemo(() => {
 		return Object.values(resolvedColumnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
 	}, [resolvedColumnWidths]);
+	const scrollParentRef = useRef<HTMLDivElement | null>(null);
+	const rowVirtualizer = useVirtualizer({
+		count: tableRows.length,
+		getScrollElement: () => scrollParentRef.current,
+		estimateSize: () => (small ? 48 : 56),
+		overscan: 12,
+		initialRect: {
+			height: typeof height === 'number' ? height : 640,
+			width: typeof width === 'number' ? width : 1024
+		},
+		measureElement: (element) => element.getBoundingClientRect().height
+	});
+	const estimatedRowHeight = small ? 48 : 56;
+	const virtualRows = rowVirtualizer.getVirtualItems();
+	const renderedVirtualRows =
+		virtualRows.length > 0
+			? virtualRows
+			: tableRows.slice(0, Math.min(tableRows.length, 50)).map((_, index) => ({
+					index,
+					start: index * estimatedRowHeight
+				}));
+	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), tableRows.length * estimatedRowHeight);
+	const selectionState = useMemo(() => getSelectionState(collection.mods, sortedRows), [collection.mods, sortedRows]);
+	const setAllVisibleSelected = useCallback(
+		(selected: boolean) => {
+			markPerfInteraction('collection.rowSelect.allVisible', {
+				selected,
+				rows: sortedRows.length
+			});
+			const selectedMods = new Set(collection.mods);
+			sortedRows.forEach((modData) => {
+				if (selected) {
+					selectedMods.add(modData.uid);
+				} else {
+					selectedMods.delete(modData.uid);
+				}
+			});
+			setEnabledModsCallback(selectedMods);
+		},
+		[collection.mods, setEnabledModsCallback, sortedRows]
+	);
+	const setRowSelected = useCallback(
+		(record: DisplayModData, selected: boolean) => {
+			markPerfInteraction('collection.rowSelect.single', {
+				selected,
+				uid: record.uid
+			});
+			if (selected) {
+				setEnabledCallback(record.uid);
+			} else {
+				setDisabledCallback(record.uid);
+			}
+		},
+		[setDisabledCallback, setEnabledCallback]
+	);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -1684,26 +1959,113 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 	return (
 		<div ref={tableRootRef} className="MainCollectionTableRoot" style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<Layout style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-				<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
-					<Table
-						dataSource={deferredRows}
-						pagination={false}
-						loading={launchingGame}
-						size="small"
-						tableLayout="fixed"
-						rowKey="uid"
-						rowSelection={rowSelection}
-						components={tableComponents}
-						columns={columns}
-						sortDirections={TABLE_SORT_DIRECTIONS}
-						sticky
-						scroll={{ x: tableScrollX }}
-						onRow={handleRow}
-						rowClassName={() => (small ? 'CompactModRow' : '')}
-					/>
-				</Content>
-			</Layout>
+			<div className={`MainCollectionVirtualShell${launchingGame ? ' is-loading' : ''}`}>
+				<div ref={scrollParentRef} className="MainCollectionVirtualScroll">
+					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX, minWidth: '100%' }}>
+						<thead className="MainCollectionVirtualTableHeader">
+							<tr>
+								<th className="MainCollectionVirtualSelectionCell" style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}>
+									<SelectionCheckbox
+										aria-label="Include all visible mods in collection"
+										checked={selectionState.allVisibleSelected}
+										indeterminate={selectionState.someVisibleSelected}
+										onChange={setAllVisibleSelected}
+									/>
+								</th>
+								{columns.map((column) => {
+									const headerProps = getHeaderCellProps(column);
+									const sortable = !!getSorterCompare(column.sorter);
+									const sorted = sortState.columnTitle === column.title;
+									const widthStyle = headerProps?.width ?? column.width;
+									return (
+										<ResizableHeaderCell
+											key={column.title}
+											{...(headerProps || {})}
+											aria-sort={sorted ? (sortState.order === 'ascend' ? 'ascending' : 'descending') : 'none'}
+											className={`MainCollectionVirtualHeaderCell ${sortable ? 'is-sortable' : ''} ${sorted ? 'is-sorted' : ''}`}
+											style={{ ...(headerProps?.style || {}), width: widthStyle }}
+										>
+											<button
+												type="button"
+												className="MainCollectionVirtualHeaderButton"
+												disabled={!sortable}
+												onClick={() => {
+													if (!sortable) {
+														return;
+													}
+													markPerfInteraction('collection.sort', {
+														column: column.title,
+														rows: sortedRows.length
+													});
+													setSortState((currentSort) => getNextSortState(currentSort, column));
+												}}
+											>
+												<span>{column.title}</span>
+												{sortable ? (
+													<span className="MainCollectionVirtualSortIndicator" aria-hidden="true">
+														{sorted ? (sortState.order === 'ascend' ? '▲' : '▼') : '↕'}
+													</span>
+												) : null}
+											</button>
+										</ResizableHeaderCell>
+									);
+								})}
+							</tr>
+						</thead>
+						<tbody className="MainCollectionVirtualTableBody" style={{ height: virtualBodyHeight }}>
+							{renderedVirtualRows.map((virtualRow) => {
+								const row = tableRows[virtualRow.index];
+								if (!row) {
+									return null;
+								}
+
+								const record = row.original;
+								const selected = selectionState.selectedMods.has(record.uid);
+								const rowHandlers = handleRow(record);
+								return (
+									<tr
+										key={row.id}
+										ref={rowVirtualizer.measureElement}
+										data-index={virtualRow.index}
+										className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}`}
+										style={{ transform: `translateY(${virtualRow.start}px)` }}
+										{...rowHandlers}
+									>
+										<td className="MainCollectionVirtualCell MainCollectionVirtualSelectionCell" style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}>
+											<SelectionCheckbox
+												aria-label={`Include ${getModDataDisplayName(record) || record.uid} in collection`}
+												checked={selected}
+												onChange={(checked) => {
+													setRowSelected(record, checked);
+												}}
+											/>
+										</td>
+										{columns.map((column) => {
+											const bodyCellProps = getBodyCellProps(column, record);
+											const widthStyle = bodyCellProps?.style?.width ?? column.width;
+											return (
+												<td
+													key={`${record.uid}:${column.title}`}
+													className={`MainCollectionVirtualCell ${column.className || ''}`}
+													data-column-title={column.title}
+													style={{
+														...(bodyCellProps?.style || {}),
+														width: widthStyle,
+														textAlign: column.align
+													}}
+												>
+													{renderCellValue(column, record, virtualRow.index)}
+												</td>
+											);
+										})}
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
+				</div>
+				{launchingGame ? <div className="MainCollectionVirtualLoading">Launching game...</div> : null}
+			</div>
 		</div>
 	);
 }

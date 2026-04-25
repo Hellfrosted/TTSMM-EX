@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Form, Input, Modal } from 'antd';
-import type { InputRef } from 'antd';
-import { validateCollectionName } from 'shared/collection-name';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, useWatch } from 'react-hook-form';
+import { X } from 'lucide-react';
+import {
+	createCollectionNameFormSchema,
+	getCollectionNameError,
+	type CollectionNameFormValues
+} from 'renderer/collection-form-validation';
 
 export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 
@@ -9,9 +14,8 @@ interface CollectionNamingModalProps {
 	activeCollectionName?: string;
 	allCollectionNames: Set<string>;
 	modalType: CollectionNamingModalType;
-	modalText: string;
+	initialName: string;
 	savingCollection?: boolean;
-	setModalText: (value: string) => void;
 	closeModal: () => void;
 	newCollectionCallback: (name: string) => void;
 	duplicateCollectionCallback: (name: string) => void;
@@ -22,9 +26,8 @@ export default function CollectionNamingModal({
 	activeCollectionName,
 	allCollectionNames,
 	modalType,
-	modalText,
+	initialName,
 	savingCollection,
-	setModalText,
 	closeModal,
 	newCollectionCallback,
 	duplicateCollectionCallback,
@@ -33,8 +36,24 @@ export default function CollectionNamingModal({
 	const collectionNameLabelId = 'collection-name-label';
 	const collectionNameInputId = 'collection-name-input';
 	const collectionNameErrorId = 'collection-name-error';
-	const collectionNameInputRef = useRef<InputRef>(null);
-	const trimmedModalText = modalText.trim();
+	const collectionNameHelpId = 'collection-name-help';
+	const collectionNameInputRef = useRef<HTMLInputElement>(null);
+	const collectionNameFormSchema = useMemo(
+		() =>
+			createCollectionNameFormSchema({
+				activeCollectionName,
+				allCollectionNames,
+				modalType
+			}),
+		[activeCollectionName, allCollectionNames, modalType]
+	);
+	const form = useForm<CollectionNameFormValues>({
+		defaultValues: { name: initialName },
+		mode: 'onChange',
+		resolver: zodResolver(collectionNameFormSchema)
+	});
+	const nameField = form.register('name');
+	const watchedName = useWatch({ control: form.control, name: 'name' }) ?? '';
 
 	useEffect(() => {
 		const animationFrame = window.requestAnimationFrame(() => {
@@ -45,6 +64,19 @@ export default function CollectionNamingModal({
 			window.cancelAnimationFrame(animationFrame);
 		};
 	}, []);
+
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				closeModal();
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [closeModal]);
 
 	const currentModal = useMemo(
 		() =>
@@ -77,72 +109,84 @@ export default function CollectionNamingModal({
 		[duplicateCollectionCallback, modalType, newCollectionCallback, renameCollectionCallback]
 	);
 
-	const currentModalError = useMemo(() => {
-		const validationError = validateCollectionName(trimmedModalText);
-		if (validationError) {
-			return validationError;
-		}
+	const currentModalError = useMemo(
+		() =>
+			getCollectionNameError(watchedName, {
+				activeCollectionName,
+				allCollectionNames,
+				modalType
+			}),
+		[activeCollectionName, allCollectionNames, modalType, watchedName]
+	);
 
-		if (modalType === 'rename-collection' && trimmedModalText === activeCollectionName) {
-			return 'Collection name is unchanged';
-		}
-
-		if (allCollectionNames.has(trimmedModalText)) {
-			return 'A collection with that name already exists';
-		}
-
-		return undefined;
-	}, [activeCollectionName, allCollectionNames, modalType, trimmedModalText]);
-
-	const submitModal = () => {
-		if (currentModalError) {
+	const submitModal = form.handleSubmit((values) => {
+		if (savingCollection) {
 			return;
 		}
 
 		closeModal();
-		currentModal.callback(trimmedModalText);
-	};
+		currentModal.callback(values.name.trim());
+	});
 
 	return (
-		<Modal
-			title={currentModal.title}
-			open
-			okText={currentModal.okText}
-			onCancel={closeModal}
-			okButtonProps={{
-				disabled: !!currentModalError,
-				loading: savingCollection
+		<div
+			className="CollectionNamingModalOverlay"
+			role="presentation"
+			onMouseDown={(event) => {
+				if (event.target === event.currentTarget) {
+					closeModal();
+				}
 			}}
-			onOk={submitModal}
 		>
-			<Form layout="vertical">
-				<Form.Item
-					label={<span id={collectionNameLabelId}>{currentModal.fieldLabel}</span>}
-					extra={currentModal.fieldHelp}
-					validateStatus={currentModalError ? 'error' : undefined}
-					help={
-						currentModalError ? (
-							<span id={collectionNameErrorId}>
-								{currentModalError}
-							</span>
-						) : null
-					}
-				>
-					<Input
+			<section aria-labelledby="collection-naming-modal-title" aria-modal="true" className="CollectionNamingModal" role="dialog">
+				<header className="CollectionNamingModal__header">
+					<h2 id="collection-naming-modal-title" className="CollectionNamingModal__title">
+						{currentModal.title}
+					</h2>
+					<button aria-label="Close collection naming modal" className="CollectionNamingModal__close" type="button" onClick={closeModal}>
+						<X size={18} aria-hidden="true" />
+					</button>
+				</header>
+				<form className="CollectionNamingModal__body" onSubmit={submitModal}>
+					<label id={collectionNameLabelId} className="CollectionNamingModal__label" htmlFor={collectionNameInputId}>
+						{currentModal.fieldLabel}
+					</label>
+					<input
 						id={collectionNameInputId}
-						ref={collectionNameInputRef}
-						value={modalText}
+						className="CollectionNamingModal__input"
+						{...nameField}
+						ref={(element) => {
+							nameField.ref(element);
+							collectionNameInputRef.current = element;
+						}}
 						placeholder={currentModal.placeholder}
 						aria-labelledby={collectionNameLabelId}
-						aria-describedby={currentModalError ? collectionNameErrorId : undefined}
+						aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
 						aria-invalid={currentModalError ? 'true' : 'false'}
-						onChange={(event) => {
-							setModalText(event.target.value);
-						}}
-						onPressEnter={submitModal}
 					/>
-				</Form.Item>
-			</Form>
-		</Modal>
+					<span id={collectionNameHelpId} className="CollectionNamingModal__help">
+						{currentModal.fieldHelp}
+					</span>
+					{currentModalError ? (
+						<span id={collectionNameErrorId} className="CollectionNamingModal__error">
+							{currentModalError}
+						</span>
+					) : null}
+					<footer className="CollectionNamingModal__footer">
+						<button className="CollectionNamingModal__button" type="button" onClick={closeModal}>
+							Cancel
+						</button>
+						<button
+							className="CollectionNamingModal__button CollectionNamingModal__button--primary"
+							type="submit"
+							disabled={!!currentModalError || savingCollection}
+						>
+							{savingCollection ? <span className="CollectionNamingModal__spinner" aria-hidden="true" /> : null}
+							{currentModal.okText}
+						</button>
+					</footer>
+				</form>
+			</section>
+		</div>
 	);
 }

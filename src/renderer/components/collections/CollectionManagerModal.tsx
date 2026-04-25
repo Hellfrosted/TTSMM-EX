@@ -1,8 +1,9 @@
-import { memo, useEffect, useMemo, useState } from 'react';
-import { Button, Modal, Typography, Row, Col, Input, Switch, Form, InputNumber } from 'antd';
+import { ReactNode, memo, useEffect, useMemo, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, useWatch } from 'react-hook-form';
+import { X } from 'lucide-react';
 import {
 	AppConfig,
-	AppState,
 	CollectionErrors,
 	CollectionManagerModalType,
 	CollectionViewType,
@@ -17,12 +18,22 @@ import {
 } from 'model';
 import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import {
+	createMainTableSettingsFormValues,
+	mainCollectionTableSettingsSchema,
+	modOverrideFormSchema,
+	setMainTableSettingsColumnWidth,
+	toMainCollectionConfig,
+	type MainCollectionTableSettingsFormValues,
+	type ModOverrideFormValues
+} from 'renderer/collection-manager-form-validation';
 
-const { Paragraph, Title, Text } = Typography;
 const VALIDATION_ISSUES_HEADING_ID = 'collection-validation-issues-heading';
+const DEFAULT_MAIN_CONFIG: MainCollectionConfig = {};
 
 interface CollectionManagerModalProps {
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 	modalType: CollectionManagerModalType;
 	launchGameWithErrors: boolean;
 	currentView: CollectionViewType;
@@ -34,7 +45,134 @@ interface CollectionManagerModalProps {
 	deleteCollection: () => void;
 }
 
-const DEFAULT_MAIN_CONFIG: MainCollectionConfig = {};
+interface CollectionNativeModalProps {
+	children: ReactNode;
+	className?: string;
+	footer?: ReactNode;
+	onCancel: () => void;
+	title: string;
+	width?: number;
+	wrapClassName?: string;
+}
+
+interface CollectionModalButtonProps {
+	children: ReactNode;
+	danger?: boolean;
+	disabled?: boolean;
+	loading?: boolean;
+	onClick: () => void;
+	variant?: 'default' | 'primary';
+}
+
+interface CollectionSwitchProps {
+	'aria-label': string;
+	checked: boolean;
+	disabled?: boolean;
+	onChange: (checked: boolean) => void;
+}
+
+interface CollectionNumberInputProps {
+	'aria-label': string;
+	min: number;
+	onChange: (value?: number) => void;
+	placeholder: string;
+	step: number;
+	value?: number;
+}
+
+function CollectionNativeModal({ children, className, footer, onCancel, title, width = 520, wrapClassName }: CollectionNativeModalProps) {
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				onCancel();
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [onCancel]);
+
+	return (
+		<div
+			className={`CollectionNativeModalOverlay${wrapClassName ? ` ${wrapClassName}` : ''}`}
+			role="presentation"
+			onMouseDown={(event) => {
+				if (event.target === event.currentTarget) {
+					onCancel();
+				}
+			}}
+		>
+			<section
+				aria-labelledby="collection-native-modal-title"
+				aria-modal="true"
+				className={`CollectionNativeModal${className ? ` ${className}` : ''}`}
+				role="dialog"
+				style={{ width: `min(${width}px, 100%)` }}
+			>
+				<header className="CollectionNativeModal__header">
+					<h2 id="collection-native-modal-title" className="CollectionNativeModal__title">
+						{title}
+					</h2>
+					<button className="CollectionNativeModal__close" type="button" aria-label="Close modal" onClick={onCancel}>
+						<X size={18} aria-hidden="true" />
+					</button>
+				</header>
+				<div className="CollectionNativeModal__body">{children}</div>
+				{footer ? <footer className="CollectionNativeModal__footer">{footer}</footer> : null}
+			</section>
+		</div>
+	);
+}
+
+function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
+	return (
+		<button
+			className={`CollectionNativeModalButton${variant === 'primary' ? ' CollectionNativeModalButton--primary' : ''}${danger ? ' CollectionNativeModalButton--danger' : ''}`}
+			disabled={disabled || loading}
+			onClick={onClick}
+			type="button"
+		>
+			{loading ? <span className="CollectionNativeModalButton__spinner" aria-hidden="true" /> : null}
+			{children}
+		</button>
+	);
+}
+
+function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionSwitchProps) {
+	return (
+		<input
+			{...props}
+			className="CollectionNativeSwitch"
+			checked={checked}
+			disabled={disabled}
+			onChange={(event) => {
+				onChange(event.target.checked);
+			}}
+			role="switch"
+			type="checkbox"
+		/>
+	);
+}
+
+function CollectionNumberInput({ min, onChange, placeholder, step, value, ...props }: CollectionNumberInputProps) {
+	return (
+		<input
+			{...props}
+			className="CollectionNativeNumberInput"
+			min={min}
+			onChange={(event) => {
+				const nextValue = event.target.valueAsNumber;
+				onChange(Number.isFinite(nextValue) ? nextValue : undefined);
+			}}
+			placeholder={placeholder}
+			step={step}
+			type="number"
+			value={value ?? ''}
+		/>
+	);
+}
 
 function CollectionManagerModal({
 	appState,
@@ -49,18 +187,27 @@ function CollectionManagerModal({
 	currentRecord
 }: CollectionManagerModalProps) {
 	const [savingConfig, setSavingConfig] = useState(false);
-	const [mainConfigDraft, setMainConfigDraft] = useState<MainCollectionConfig>(DEFAULT_MAIN_CONFIG);
-	const [overrideId, setOverrideId] = useState('');
+	const tableSettingsForm = useForm<MainCollectionTableSettingsFormValues>({
+		defaultValues: createMainTableSettingsFormValues(DEFAULT_MAIN_CONFIG),
+		mode: 'onChange',
+		resolver: zodResolver(mainCollectionTableSettingsSchema)
+	});
+	const overrideForm = useForm<ModOverrideFormValues>({
+		defaultValues: { overrideId: '' },
+		mode: 'onSubmit',
+		resolver: zodResolver(modOverrideFormSchema)
+	});
+	const mainConfigDraft = useWatch({ control: tableSettingsForm.control }) as MainCollectionTableSettingsFormValues;
 	const activeCollectionName = appState.activeCollection?.name || 'this collection';
 
 	useEffect(() => {
 		if (modalType === CollectionManagerModalType.VIEW_SETTINGS) {
-			setMainConfigDraft(appState.config.viewConfigs.main ? { ...appState.config.viewConfigs.main } : {});
+			tableSettingsForm.reset(createMainTableSettingsFormValues(appState.config.viewConfigs.main));
 		}
 		if (modalType === CollectionManagerModalType.EDIT_OVERRIDES) {
-			setOverrideId(currentRecord?.overrides?.id || '');
+			overrideForm.reset({ overrideId: currentRecord?.overrides?.id || '' });
 		}
-	}, [appState.config.viewConfigs.main, currentRecord, modalType]);
+	}, [appState.config.viewConfigs.main, currentRecord, modalType, overrideForm, tableSettingsForm]);
 
 	const validationIssueSummaries = useMemo(() => {
 		if (!collectionErrors) {
@@ -76,7 +223,9 @@ function CollectionManagerModal({
 					issues.push('Invalid mod ID');
 				}
 				if (modErrors.missingDependencies?.length) {
-					issues.push(`Missing dependencies: ${modErrors.missingDependencies.map((descriptor) => getModDescriptorDisplayName(descriptor)).join(', ')}`);
+					issues.push(
+						`Missing dependencies: ${modErrors.missingDependencies.map((descriptor) => getModDescriptorDisplayName(descriptor)).join(', ')}`
+					);
 				}
 				if (modErrors.incompatibleMods?.length) {
 					issues.push(
@@ -112,24 +261,18 @@ function CollectionManagerModal({
 
 		return (
 			<section className="CollectionValidationIssueSection" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
-				<Title id={VALIDATION_ISSUES_HEADING_ID} level={5}>
+				<h3 id={VALIDATION_ISSUES_HEADING_ID} className="CollectionValidationIssueHeading">
 					Mods to review
-				</Title>
+				</h3>
 				<div className="CollectionValidationIssueScroller">
 					<ul className="CollectionValidationIssueList">
 						{validationIssueSummaries.map((summary) => (
 							<li key={summary.uid} className="CollectionValidationIssueItem">
-								<Text strong className="CollectionValidationIssueItem__title">
-									{summary.label}
-								</Text>
-								<Text type="secondary" className="CollectionValidationIssueItem__uid">
-									{summary.uid}
-								</Text>
+								<strong className="CollectionValidationIssueItem__title">{summary.label}</strong>
+								<span className="CollectionValidationIssueItem__uid">{summary.uid}</span>
 								<ul className="CollectionValidationIssueDetails">
 									{summary.issues.map((issue) => (
-										<li key={`${summary.uid}-${issue}`}>
-											<Text>{issue}</Text>
-										</li>
+										<li key={`${summary.uid}-${issue}`}>{issue}</li>
 									))}
 								</ul>
 							</li>
@@ -145,20 +288,7 @@ function CollectionManagerModal({
 	};
 
 	const setDraftColumnWidth = (columnId: MainColumnTitles, width?: number | null) => {
-		const minimumWidth = getMainColumnMinWidth(columnId);
-		setMainConfigDraft((currentConfig) => {
-			const nextColumnWidthConfig = { ...(currentConfig.columnWidthConfig || {}) };
-			if (typeof width === 'number') {
-				nextColumnWidthConfig[columnId] = Math.max(minimumWidth, Math.round(width));
-			} else {
-				delete nextColumnWidthConfig[columnId];
-			}
-
-			return {
-				...currentConfig,
-				columnWidthConfig: Object.keys(nextColumnWidthConfig).length > 0 ? nextColumnWidthConfig : undefined
-			};
-		});
+		tableSettingsForm.reset(setMainTableSettingsColumnWidth(tableSettingsForm.getValues(), columnId, width), { keepDefaultValues: true });
 	};
 
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
@@ -188,190 +318,186 @@ function CollectionManagerModal({
 	switch (modalType) {
 		case CollectionManagerModalType.WARN_DELETE:
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="warning-modal"
 					title={`Delete "${activeCollectionName}"?`}
-					open
 					onCancel={closeModal}
-					footer={[
-						<Button
-							key="cancel"
-							type="primary"
-							disabled={launchGameWithErrors}
-							onClick={() => {
-								closeModal();
-							}}
-						>
-							Keep Collection
-						</Button>,
-						<Button
-							key="delete"
-							danger
-							type="primary"
-							disabled={launchGameWithErrors}
-							loading={launchGameWithErrors}
-							onClick={() => {
-								deleteCollection();
-								closeModal();
-							}}
-						>
-							Delete Collection
-						</Button>
-					]}
+					footer={
+						<>
+							<CollectionModalButton variant="primary" disabled={launchGameWithErrors} onClick={closeModal}>
+								Keep Collection
+							</CollectionModalButton>
+							<CollectionModalButton
+								danger
+								variant="primary"
+								disabled={launchGameWithErrors}
+								loading={launchGameWithErrors}
+								onClick={() => {
+									deleteCollection();
+									closeModal();
+								}}
+							>
+								Delete Collection
+							</CollectionModalButton>
+						</>
+					}
 				>
 					<p>Delete the saved collection from TTSMM-EX.</p>
 					<p>Your installed mods and Steam subscriptions will stay unchanged.</p>
 					<p>This cannot be undone.</p>
-				</Modal>
+				</CollectionNativeModal>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
 			const managerUID = getModManagerUID();
 			const managerData: ModData = getByUID(appState.mods, managerUID)!;
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="manager-warning-modal"
 					title="Mod manager must stay enabled"
-					open
 					onCancel={closeModal}
-					footer={[
-						<Button key="launch" type="primary" onClick={closeModal}>
+					footer={
+						<CollectionModalButton variant="primary" onClick={closeModal}>
 							OK
-						</Button>
-					]}
+						</CollectionModalButton>
+					}
 				>
 					<p>TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.</p>
 					<p>Your current manager is {`${managerData.name} (${appState.config.workshopID})`}.</p>
 					<p>To switch managers, update the workshop item ID in Settings instead of disabling the current one here.</p>
-				</Modal>
+				</CollectionNativeModal>
 			);
 		}
 		case CollectionManagerModalType.ERRORS_FOUND:
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="error-modal"
 					className="CollectionValidationModal"
 					title="Collection has blocking issues"
 					width={760}
-					open
 					onCancel={() => {
 						appState.updateState({ launchingGame: false });
 						closeModal();
 					}}
-					footer={[
-						<Button
-							key="cancel"
-							type="primary"
-							disabled={launchGameWithErrors}
-							onClick={() => {
-								appState.updateState({ launchingGame: false });
-								closeModal();
-							}}
-						>
-							Review Issues
-						</Button>,
-						<Button key="launch" danger type="primary" disabled={launchGameWithErrors} loading={launchGameWithErrors} onClick={launchAnyway}>
-							Launch With Blocking Issues
-						</Button>
-					]}
+					footer={
+						<>
+							<CollectionModalButton
+								variant="primary"
+								disabled={launchGameWithErrors}
+								onClick={() => {
+									appState.updateState({ launchingGame: false });
+									closeModal();
+								}}
+							>
+								Review Issues
+							</CollectionModalButton>
+							<CollectionModalButton
+								danger
+								variant="primary"
+								disabled={launchGameWithErrors}
+								loading={launchGameWithErrors}
+								onClick={launchAnyway}
+							>
+								Launch With Blocking Issues
+							</CollectionModalButton>
+						</>
+					}
 				>
 					<p>One or more enabled mods are missing required dependencies or conflict with another selected mod.</p>
 					<p>Launching with this collection can cause missing content, startup failures, or save corruption.</p>
-					<p>
-						Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.
-					</p>
+					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
 					{renderValidationIssueList()}
 					<p>Review the list above before deciding whether to launch anyway.</p>
-				</Modal>
+				</CollectionNativeModal>
 			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="warning-modal"
 					className="CollectionValidationModal"
 					title="Collection has warnings"
 					width={760}
-					open
 					onCancel={() => {
 						appState.updateState({ launchingGame: false });
 						closeModal();
 					}}
-					footer={[
-						<Button
-							key="cancel"
-							type="primary"
-							disabled={launchGameWithErrors}
-							onClick={() => {
-								appState.updateState({ launchingGame: false });
-								closeModal();
-							}}
-						>
-							Review Issues
-						</Button>,
-						<Button key="launch" danger type="primary" disabled={launchGameWithErrors} loading={launchGameWithErrors} onClick={launchAnyway}>
-							Launch With Warnings
-						</Button>
-					]}
+					footer={
+						<>
+							<CollectionModalButton
+								variant="primary"
+								disabled={launchGameWithErrors}
+								onClick={() => {
+									appState.updateState({ launchingGame: false });
+									closeModal();
+								}}
+							>
+								Review Issues
+							</CollectionModalButton>
+							<CollectionModalButton
+								danger
+								variant="primary"
+								disabled={launchGameWithErrors}
+								loading={launchGameWithErrors}
+								onClick={launchAnyway}
+							>
+								Launch With Warnings
+							</CollectionModalButton>
+						</>
+					}
 				>
 					<p>Some mods could not be fully validated.</p>
 					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
 					{renderValidationIssueList()}
 					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
-				</Modal>
+				</CollectionNativeModal>
 			);
-		case CollectionManagerModalType.VIEW_SETTINGS:
+		case CollectionManagerModalType.VIEW_SETTINGS: {
 			if (currentView !== CollectionViewType.MAIN) {
 				return null;
 			}
+			const submitTableSettings = tableSettingsForm.handleSubmit((values) => {
+				const nextConfig = cloneAppConfig(appState.config);
+				nextConfig.viewConfigs.main = toMainCollectionConfig(values, appState.config.viewConfigs.main);
+				void saveConfig(nextConfig, closeModal);
+			});
 
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="settings-modal"
 					className="CollectionSettingsModal"
 					wrapClassName="CollectionSettingsModalWrap"
 					title="Collection table settings"
 					width={760}
-					open
 					onCancel={closeModal}
-					footer={[
-						<Button key="cancel-settings" disabled={savingConfig} onClick={closeModal}>
-							Cancel
-						</Button>,
-						<Button
-							key="save-settings"
-							loading={savingConfig}
-							disabled={savingConfig}
-							type="primary"
-							onClick={() => {
-								const nextConfig = cloneAppConfig(appState.config);
-								nextConfig.viewConfigs.main = {
-									...mainConfigDraft,
-									columnActiveConfig: mainConfigDraft.columnActiveConfig ? { ...mainConfigDraft.columnActiveConfig } : undefined,
-									columnWidthConfig: mainConfigDraft.columnWidthConfig ? { ...mainConfigDraft.columnWidthConfig } : undefined
-								};
-								void saveConfig(nextConfig, closeModal);
-							}}
-						>
-							Save Table Settings
-						</Button>
-					]}
+					footer={
+						<>
+							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
+								Cancel
+							</CollectionModalButton>
+							<CollectionModalButton
+								loading={savingConfig}
+								disabled={savingConfig}
+								variant="primary"
+								onClick={submitTableSettings}
+							>
+								Save Table Settings
+							</CollectionModalButton>
+						</>
+					}
 				>
-					<Form className="CollectionSettingsForm CollectionSettingsForm--dense">
+					<form className="CollectionSettingsForm CollectionSettingsForm--dense">
 						<div className="CollectionSettingsTopBar">
 							<div className="CollectionSettingsTopCopy">
-								<Title level={5}>Table layout</Title>
+								<h3 className="CollectionSettingsSubheading">Table layout</h3>
 							</div>
-								<div className="CollectionSettingsToggleCard">
-									<div className="CollectionSettingsToggleCopy">
-										<Text strong>Compact rows</Text>
-									</div>
-									<Switch
-										aria-label="Use extra-compact rows in the main collection table"
-										checked={!!mainConfigDraft.smallRows}
-										onChange={(checked: boolean) => {
-										setMainConfigDraft((currentConfig) => ({
-											...currentConfig,
-											smallRows: checked
-										}));
+							<div className="CollectionSettingsToggleCard">
+								<div className="CollectionSettingsToggleCopy">
+									<strong>Compact rows</strong>
+								</div>
+								<CollectionSwitch
+									aria-label="Use extra-compact rows in the main collection table"
+									checked={!!mainConfigDraft.smallRows}
+									onChange={(checked: boolean) => {
+										tableSettingsForm.setValue('smallRows', checked, { shouldDirty: true, shouldValidate: true });
 									}}
 								/>
 							</div>
@@ -379,9 +505,9 @@ function CollectionManagerModal({
 						<div className="CollectionSettingsColumnsHeader" aria-hidden>
 							{[0, 1].map((columnGroupIndex) => (
 								<div className="CollectionSettingsColumnsHeaderGroup" key={columnGroupIndex}>
-									<Text type="secondary">Column</Text>
-									<Text type="secondary">Show</Text>
-									<Text type="secondary">Saved width</Text>
+									<span>Column</span>
+									<span>Show</span>
+									<span>Saved width</span>
 								</div>
 							))}
 						</div>
@@ -398,35 +524,27 @@ function CollectionManagerModal({
 								return (
 									<div className="CollectionSettingsColumnRow" key={id}>
 										<div className="CollectionSettingsColumnLabel">
-											<Text strong>{id}</Text>
-											{cannotDisable ? (
-												<Text type="secondary" className="CollectionSettingsColumnHint">
-													Name or ID must stay visible.
-												</Text>
-											) : null}
+											<strong>{id}</strong>
+											{cannotDisable ? <span className="CollectionSettingsColumnHint">Name or ID must stay visible.</span> : null}
 										</div>
 										<div className="CollectionSettingsColumnSwitch">
-											<Switch
+											<CollectionSwitch
 												aria-label={`Show ${id} column`}
 												checked={isChecked}
 												disabled={cannotDisable}
 												onChange={(checked: boolean) => {
-													setMainConfigDraft((currentConfig) => ({
-														...currentConfig,
-														columnActiveConfig: {
-															...(currentConfig.columnActiveConfig || {}),
-															[id]: checked
-														}
-													}));
+													tableSettingsForm.setValue(`columnActiveConfig.${id}`, checked, {
+														shouldDirty: true,
+														shouldValidate: true
+													});
 												}}
 											/>
 										</div>
 										<div className="CollectionSettingsColumnWidth">
-											<InputNumber
+											<CollectionNumberInput
 												aria-label={`Saved width for ${id} column`}
 												min={minimumWidth}
 												step={16}
-												style={{ width: '100%' }}
 												value={mainConfigDraft.columnWidthConfig?.[id]}
 												placeholder={`Auto (${minimumWidth}px min)`}
 												onChange={(value) => {
@@ -438,83 +556,83 @@ function CollectionManagerModal({
 								);
 							})}
 						</div>
-					</Form>
-				</Modal>
+					</form>
+				</CollectionNativeModal>
 			);
+		}
 		case CollectionManagerModalType.EDIT_OVERRIDES: {
 			const nextRecord = currentRecord;
 			if (!nextRecord) {
 				return null;
 			}
+			const submitOverrideSettings = overrideForm.handleSubmit((values) => {
+				const nextConfig = cloneAppConfig(appState.config);
+				const nextOverride = nextConfig.userOverrides.get(nextRecord.uid) || {};
+				const nextOverrideId = values.overrideId.trim();
+				if (nextOverrideId) {
+					nextOverride.id = nextOverrideId;
+					nextConfig.userOverrides.set(nextRecord.uid, nextOverride);
+				} else {
+					delete nextOverride.id;
+					if (Object.keys(nextOverride).length === 0) {
+						nextConfig.userOverrides.delete(nextRecord.uid);
+					} else {
+						nextConfig.userOverrides.set(nextRecord.uid, nextOverride);
+					}
+				}
+				void saveConfig(nextConfig, () => {
+					closeModal();
+					appState.updateState({ loadingMods: true });
+				});
+			});
 
 			return (
-				<Modal
+				<CollectionNativeModal
 					key="manager-override-modal"
 					className="CollectionOverrideModal"
 					title={`Edit Overrides For ${nextRecord.name}`}
 					width={620}
-					open
 					onCancel={closeModal}
-					footer={[
-						<Button key="cancel-edit" disabled={savingConfig} onClick={closeModal}>
-							Cancel
-						</Button>,
-						<Button
-							key="save-settings"
-							loading={savingConfig}
-							disabled={savingConfig}
-							type="primary"
-							onClick={() => {
-								const nextConfig = cloneAppConfig(appState.config);
-								const nextOverride = nextConfig.userOverrides.get(nextRecord.uid) || {};
-								if (overrideId) {
-									nextOverride.id = overrideId;
-									nextConfig.userOverrides.set(nextRecord.uid, nextOverride);
-								} else {
-									delete nextOverride.id;
-									if (Object.keys(nextOverride).length === 0) {
-										nextConfig.userOverrides.delete(nextRecord.uid);
-									} else {
-										nextConfig.userOverrides.set(nextRecord.uid, nextOverride);
-									}
-								}
-								void saveConfig(nextConfig, () => {
-									closeModal();
-									appState.updateState({ loadingMods: true });
-								});
-							}}
-						>
-							Save Settings
-						</Button>
-					]}
+					footer={
+						<>
+							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
+								Cancel
+							</CollectionModalButton>
+							<CollectionModalButton
+								loading={savingConfig}
+								disabled={savingConfig}
+								variant="primary"
+								onClick={submitOverrideSettings}
+							>
+								Save Settings
+							</CollectionModalButton>
+						</>
+					}
 				>
-					<Form className="ModOverrideForm" layout="vertical">
-						<Paragraph className="CollectionModalIntro" type="secondary">
-							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod metadata.
-						</Paragraph>
-						<Row gutter={[16, 16]} className="ModOverrides">
-							<Col xs={24} md={12} key="override-id">
-								<div className="ModOverridesPane">
-									<Form.Item key="override-id" name="override-id" label="Override ID">
-										<Input
-											value={overrideId}
-											onChange={(event) => {
-												setOverrideId(event.target.value);
-											}}
-										/>
-									</Form.Item>
-								</div>
-							</Col>
-							<Col xs={24} md={12} key="custom-tags">
-								<div className="ModOverridesPane">
-									<Form.Item key="customTags" name="customTags" label="Current User Tags">
-										<Input disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
-									</Form.Item>
-								</div>
-							</Col>
-						</Row>
-					</Form>
-				</Modal>
+					<form className="ModOverrideForm">
+						<p className="CollectionModalIntro">
+							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod
+							metadata.
+						</p>
+						<div className="ModOverrides">
+							<div className="ModOverridesPane">
+								<label className="CollectionNativeField">
+									<span className="CollectionNativeField__label">Override ID</span>
+									<input
+										className="CollectionNativeInput"
+										{...overrideForm.register('overrideId')}
+									/>
+								</label>
+							</div>
+							<div className="ModOverridesPane">
+								<label className="CollectionNativeField">
+									<span className="CollectionNativeField__label">Current User Tags</span>
+									<input className="CollectionNativeInput" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
+								</label>
+							</div>
+						</div>
+					</form>
+				</CollectionNativeModal>
 			);
 		}
 		default:

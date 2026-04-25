@@ -1,28 +1,17 @@
 import { Suspense, lazy, memo, useState } from 'react';
-import { AppState, CollectionManagerModalType, NotificationProps } from 'model';
-import { Button, Col, Row, Select, Space, Input } from 'antd';
-import CopyOutlined from '@ant-design/icons/es/icons/CopyOutlined';
-import DeleteOutlined from '@ant-design/icons/es/icons/DeleteOutlined';
-import EditOutlined from '@ant-design/icons/es/icons/EditOutlined';
-import ExportOutlined from '@ant-design/icons/es/icons/ExportOutlined';
-import PlusOutlined from '@ant-design/icons/es/icons/PlusOutlined';
-import SaveOutlined from '@ant-design/icons/es/icons/SaveOutlined';
-import SettingFilled from '@ant-design/icons/es/icons/SettingFilled';
-import SyncOutlined from '@ant-design/icons/es/icons/SyncOutlined';
+import { CollectionManagerModalType, NotificationProps } from 'model';
+import { Copy, Edit3, FileJson, Plus, RefreshCw, Save, Search, Settings2, Trash2, X } from 'lucide-react';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionNamingModalType } from './CollectionNamingModal';
-
-const { Option } = Select;
-const { Search } = Input;
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
 
 interface CollectionManagementToolbarProps {
 	madeEdits: boolean;
 	searchString: string;
-	appState: AppState;
+	appState: Pick<CollectionWorkspaceAppState, 'activeCollection' | 'allCollectionNames' | 'loadingMods'>;
 	savingCollection?: boolean;
 	numResults?: number;
-	loadingMods?: boolean;
 	onReloadModListCallback: () => void;
 	openViewSettingsCallback: () => void;
 	onSearchCallback: (search: string) => void;
@@ -55,9 +44,10 @@ function CollectionManagementToolbarComponent({
 	renameCollectionCallback
 }: CollectionManagementToolbarProps) {
 	const [modalType, setModalType] = useState<CollectionNamingModalType>();
-	const [modalText, setModalText] = useState('');
+	const [initialCollectionName, setInitialCollectionName] = useState('');
 	const disabledFeatures = !!savingCollection || !!appState.loadingMods || !!modalType;
 	const { activeCollection } = appState;
+	const sortedCollectionNames = [...appState.allCollectionNames].sort();
 
 	const openCollectionModal = (nextModalType: CollectionNamingModalType) => {
 		const nextText =
@@ -68,7 +58,7 @@ function CollectionManagementToolbarComponent({
 					: '';
 
 		setModalType(nextModalType);
-		setModalText(nextText);
+		setInitialCollectionName(nextText);
 	};
 
 	const handleCopyCollection = async () => {
@@ -129,12 +119,11 @@ function CollectionManagementToolbarComponent({
 						activeCollectionName={activeCollection?.name}
 						allCollectionNames={appState.allCollectionNames}
 						modalType={modalType}
-						modalText={modalText}
+						initialName={initialCollectionName}
 						savingCollection={savingCollection}
-						setModalText={setModalText}
 						closeModal={() => {
 							setModalType(undefined);
-							setModalText('');
+							setInitialCollectionName('');
 						}}
 						newCollectionCallback={newCollectionCallback}
 						duplicateCollectionCallback={duplicateCollectionCallback}
@@ -142,161 +131,213 @@ function CollectionManagementToolbarComponent({
 					/>
 				</Suspense>
 			)}
-			<Row key="row1" justify="space-between" gutter={16} className="CollectionToolbarRow">
-				<Col xs={24} flex="auto">
+			<div className="CollectionToolbarRow">
+				<div className="CollectionToolbarColumn">
 					<div className="CollectionToolbarPrimaryBar">
 						<div className="CollectionToolbarCollectionSelector">
-							<Select
-								style={{ width: '100%' }}
-								value={activeCollection?.name}
+							<select
+								className="CollectionToolbarSelect"
+								value={activeCollection?.name || ''}
 								aria-label="Select the active collection"
-								onSelect={(value: string) => {
-									changeActiveCollectionCallback(value);
+								onChange={(event) => {
+									changeActiveCollectionCallback(event.target.value);
 								}}
 								disabled={disabledFeatures}
 							>
-								{[...appState.allCollectionNames].sort().map((name: string) => {
+								{activeCollection ? null : <option value="">No collection selected</option>}
+								{sortedCollectionNames.map((name: string) => {
 									return (
-										<Option key={name} value={name}>
+										<option key={name} value={name}>
 											{name}
-										</Option>
+										</option>
 									);
 								})}
-							</Select>
+							</select>
 						</div>
-						<div className="CollectionToolbarActionGroup CollectionToolbarActionGroup--collection" role="group" aria-label="Collection actions">
-							<Space align="center" size={10} wrap className="CollectionToolbarActions CollectionToolbarActions--primary">
-								<Button
+						<div
+							className="CollectionToolbarActionGroup CollectionToolbarActionGroup--collection"
+							role="group"
+							aria-label="Collection actions"
+						>
+							<div className="CollectionToolbarActions CollectionToolbarActions--primary">
+								<button
 									key="rename"
+									className="CollectionToolbarButton"
 									aria-label="Rename"
 									title="Rename collection"
-									icon={<EditOutlined />}
 									onClick={() => {
 										openCollectionModal('rename-collection');
 									}}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<Edit3 size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Rename</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="new"
+									className="CollectionToolbarButton"
 									aria-label="New"
 									title="Create collection"
-									icon={<PlusOutlined />}
 									disabled={disabledFeatures}
 									onClick={() => {
 										openCollectionModal('new-collection');
 									}}
+									type="button"
 								>
+									<Plus size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">New</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="save"
+									className="CollectionToolbarButton CollectionToolbarButton--primary"
 									aria-label="Save Collection"
 									title="Save collection"
-									type="primary"
-									icon={<SaveOutlined />}
 									onClick={saveCollectionCallback}
 									disabled={disabledFeatures || !madeEdits}
-									loading={savingCollection}
+									type="button"
 								>
+									{savingCollection ? (
+										<span className="CollectionToolbarButtonSpinner" aria-hidden="true" />
+									) : (
+										<Save size={16} aria-hidden="true" />
+									)}
 									<span className="CollectionToolbarButtonLabel">Save Collection</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="duplicate"
+									className="CollectionToolbarButton"
 									aria-label="Duplicate"
 									title="Duplicate collection"
-									icon={<CopyOutlined />}
 									onClick={() => {
 										openCollectionModal('duplicate-collection');
 									}}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<Copy size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Duplicate</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="copy-export"
+									className="CollectionToolbarButton"
 									aria-label="Copy JSON"
 									title="Copy JSON export"
-									icon={<ExportOutlined />}
 									onClick={() => {
 										void handleCopyCollection();
 									}}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<FileJson size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Copy JSON</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="delete"
+									className="CollectionToolbarButton CollectionToolbarButton--danger"
 									aria-label="Delete"
 									title="Delete collection"
-									danger
-									icon={<DeleteOutlined />}
 									onClick={() => {
 										openModal(CollectionManagerModalType.WARN_DELETE);
 									}}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<Trash2 size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Delete</span>
-								</Button>
-							</Space>
+								</button>
+							</div>
 						</div>
 						<div className="CollectionToolbarActionGroup CollectionToolbarActionGroup--utility" role="group" aria-label="Table utilities">
-							<Space align="center" size={10} wrap className="CollectionToolbarActions CollectionToolbarActions--utility">
-								<Button
+							<div className="CollectionToolbarActions CollectionToolbarActions--utility">
+								<button
 									key="reload"
+									className="CollectionToolbarButton"
 									aria-label="Reload"
 									title="Reload mods"
-									icon={<SyncOutlined />}
 									onClick={onReloadModListCallback}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<RefreshCw size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Reload</span>
-								</Button>
-								<Button
+								</button>
+								<button
 									key="view-options"
+									className="CollectionToolbarButton"
 									aria-label="Table Options"
 									title="Table options"
-									icon={<SettingFilled />}
 									onClick={openViewSettingsCallback}
 									disabled={disabledFeatures}
+									type="button"
 								>
+									<Settings2 size={16} aria-hidden="true" />
 									<span className="CollectionToolbarButtonLabel">Table Options</span>
-								</Button>
-							</Space>
+								</button>
+							</div>
 						</div>
 					</div>
-				</Col>
-			</Row>
-			<Row key="row2" justify="space-between" align="middle" gutter={16} className="CollectionToolbarRow">
-				<Col flex="auto">
-					<Row gutter={[24, 12]}>
-						<Col xs={24} xl={16} key="search">
+				</div>
+			</div>
+			<div className="CollectionToolbarRow CollectionToolbarRow--search">
+				<div className="CollectionToolbarColumn">
+					<div className="CollectionToolbarSecondaryBar">
+						<div className="CollectionToolbarSearchColumn">
 							<div className="CollectionToolbarSearch">
-								<Search
-									aria-label="Search mods by name, ID, author, or tag"
-									placeholder="Search mods by name, ID, author, or tag"
-									onChange={(event) => {
-										onSearchChangeCallback(event.target.value);
-									}}
-									value={searchString}
-									onSearch={onSearchCallback}
-									enterButton
-									disabled={disabledFeatures}
-									allowClear
-								/>
+								<div className="CollectionToolbarSearchBox">
+									<input
+										className="CollectionToolbarSearchInput"
+										aria-label="Search mods by name, ID, author, or tag"
+										placeholder="Search mods by name, ID, author, or tag"
+										onChange={(event) => {
+											onSearchChangeCallback(event.target.value);
+										}}
+										value={searchString}
+										onKeyDown={(event) => {
+											if (event.key === 'Enter') {
+												onSearchCallback(searchString);
+											}
+										}}
+										disabled={disabledFeatures}
+									/>
+									{searchString ? (
+										<button
+											aria-label="Clear search"
+											className="CollectionToolbarSearchClear"
+											type="button"
+											disabled={disabledFeatures}
+											onClick={() => {
+												onSearchChangeCallback('');
+												onSearchCallback('');
+											}}
+										>
+											<X size={16} aria-hidden="true" />
+										</button>
+									) : null}
+									<button
+										aria-label="Search"
+										className="CollectionToolbarSearchSubmit"
+										type="button"
+										disabled={disabledFeatures}
+										onClick={() => {
+											onSearchCallback(searchString);
+										}}
+									>
+										<Search size={16} aria-hidden="true" />
+									</button>
+								</div>
 							</div>
-						</Col>
-						<Col xs={24} xl={8} key="right">
+						</div>
+						<div className="CollectionToolbarMetaColumn">
 							<div className="CollectionToolbarMeta">
-								<Space align="center" size={10} wrap className="CollectionToolbarActions CollectionToolbarActions--secondary">
+								<div className="CollectionToolbarActions CollectionToolbarActions--secondary">
 									{numResults !== undefined ? <span>{`${numResults} mod${numResults === 1 ? '' : 's'} shown`}</span> : null}
-								</Space>
+								</div>
 							</div>
-						</Col>
-					</Row>
-				</Col>
-			</Row>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

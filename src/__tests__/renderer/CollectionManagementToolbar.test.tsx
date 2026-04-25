@@ -24,6 +24,10 @@ async function clickToolbarAction(name: string | RegExp) {
 	fireEvent.click(await screen.findByRole('button', { name }));
 }
 
+async function findCollectionNameInput() {
+	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 5000 });
+}
+
 describe('CollectionManagementToolbar', () => {
 	it('opens the collection rename modal when the toolbar action is clicked', async () => {
 		stubResizeObserver();
@@ -58,7 +62,7 @@ describe('CollectionManagementToolbar', () => {
 		expect(renameButton).not.toBeNull();
 		fireEvent.click(renameButton!);
 
-		expect(await screen.findByRole('textbox', { name: 'New collection name' })).toHaveValue('default');
+		expect(await findCollectionNameInput()).toHaveValue('default');
 		expect(screen.getByText('Rename the saved collection without changing its enabled mods.')).toBeInTheDocument();
 		expect(await screen.findByRole('button', { name: 'Rename Collection' })).toBeDisabled();
 	}, 20000);
@@ -94,7 +98,7 @@ describe('CollectionManagementToolbar', () => {
 
 		await clickToolbarAction('Duplicate');
 
-		expect(await screen.findByRole('textbox', { name: 'New collection name' })).toHaveValue('default copy');
+		expect(await findCollectionNameInput()).toHaveValue('default copy');
 		expect(screen.getByText('The duplicate keeps the current mod list and saves it under a new name.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Duplicate Collection' })).toBeEnabled();
 	});
