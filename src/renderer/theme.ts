@@ -144,9 +144,13 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-color-success': colors.success,
 		'--app-color-warning': colors.warning,
 		'--app-color-error': colors.error,
+		'--app-color-info': colors.info,
+		'--app-color-link': colors.link,
 		'--app-color-text': colors.text,
 		'--app-color-text-base': colors.textBase,
 		'--app-color-text-muted': colors.textMuted,
+		'--app-color-text-subtle': colors.textSubtle,
+		'--app-color-tab-text-muted': colors.tabTextMuted,
 		'--app-color-background': colors.background,
 		'--app-color-surface': colors.surface,
 		'--app-color-surface-alt': colors.surfaceAlt,
@@ -159,7 +163,12 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-color-table-header-text': colors.tableHeaderText,
 		'--app-color-table-row-hover': colors.tableRowHover,
 		'--app-color-table-row-selected': colors.tableRowSelected,
-		'--app-color-table-row-selected-hover': colors.tableRowSelectedHover
+		'--app-color-table-row-selected-hover': colors.tableRowSelectedHover,
+		'--app-color-menu-hover': colors.menuHover,
+		'--app-color-field-hover': colors.fieldHover,
+		'--app-color-collapse-body': colors.collapseBody,
+		'--app-color-tag-default-text': colors.tagDefaultText,
+		'--app-shadow-soft': colors.shadowSoft
 	} as CSSProperties;
 }
 
