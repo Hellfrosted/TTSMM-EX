@@ -8,6 +8,7 @@ import ModFetcher, { getModDetailsFromPath } from '../mod-fetcher';
 import { expandUserPath } from '../path-utils';
 import Steamworks, { EResult, UGCItemState } from '../steamworks';
 import { clearWorkshopDependencyLookupCache, fetchWorkshopDependencyLookup } from '../workshop-dependencies';
+import { assertValidIpcSender } from './ipc-sender-validation';
 import { parseModContextMenuPayload, parseReadModMetadataPayload, parseWorkshopIdPayload } from './mod-validation';
 
 interface MainWindowProvider {
@@ -243,24 +244,56 @@ export function registerModHandlers(
 	getSteamStatus: () => SteamStatus,
 	tryInitSteamworks: () => SteamStatus
 ) {
-	ipcMain.on(ValidChannel.OPEN_MOD_STEAM, (_event, workshopID: bigint) => {
+	ipcMain.on(ValidChannel.OPEN_MOD_STEAM, (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.OPEN_MOD_STEAM, event);
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.OPEN_MOD_STEAM, workshopID);
 		openExternalUrl(`steam://url/CommunityFilePage/${validatedWorkshopID}`);
 	});
 
-	ipcMain.on(ValidChannel.OPEN_MOD_BROWSER, (_event, workshopID: bigint) => {
+	ipcMain.on(ValidChannel.OPEN_MOD_BROWSER, (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.OPEN_MOD_BROWSER, event);
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.OPEN_MOD_BROWSER, workshopID);
 		openExternalUrl(`https://steamcommunity.com/sharedfiles/filedetails/?id=${validatedWorkshopID}`);
 	});
 
-	ipcMain.handle(ValidChannel.SUBSCRIBE_MOD, createSubscribeModHandler());
-	ipcMain.handle(ValidChannel.UNSUBSCRIBE_MOD, createUnsubscribeModHandler());
-	ipcMain.handle(ValidChannel.DOWNLOAD_MOD, createDownloadModHandler());
-	ipcMain.handle(ValidChannel.READ_MOD_METADATA, createReadModMetadataHandler());
-	ipcMain.handle(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, createFetchWorkshopDependenciesHandler(mainWindowProvider));
-	ipcMain.handle(ValidChannel.STEAMWORKS_INITED, createSteamworksInitHandler(getSteamStatus, tryInitSteamworks));
+	const subscribeMod = createSubscribeModHandler();
+	ipcMain.handle(ValidChannel.SUBSCRIBE_MOD, async (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.SUBSCRIBE_MOD, event);
+		return subscribeMod(event, workshopID);
+	});
 
-	ipcMain.on(ValidChannel.OPEN_MOD_CONTEXT_MENU, (_event, record: ModData) => {
+	const unsubscribeMod = createUnsubscribeModHandler();
+	ipcMain.handle(ValidChannel.UNSUBSCRIBE_MOD, async (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.UNSUBSCRIBE_MOD, event);
+		return unsubscribeMod(event, workshopID);
+	});
+
+	const downloadMod = createDownloadModHandler();
+	ipcMain.handle(ValidChannel.DOWNLOAD_MOD, async (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.DOWNLOAD_MOD, event);
+		return downloadMod(event, workshopID);
+	});
+
+	const readModMetadata = createReadModMetadataHandler();
+	ipcMain.handle(ValidChannel.READ_MOD_METADATA, async (event, localDir: string | undefined, allKnownMods: string[]) => {
+		assertValidIpcSender(ValidChannel.READ_MOD_METADATA, event);
+		return readModMetadata(event, localDir, allKnownMods);
+	});
+
+	const fetchWorkshopDependencies = createFetchWorkshopDependenciesHandler(mainWindowProvider);
+	ipcMain.handle(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, async (event, workshopID: bigint) => {
+		assertValidIpcSender(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, event);
+		return fetchWorkshopDependencies(event, workshopID);
+	});
+
+	const steamworksInit = createSteamworksInitHandler(getSteamStatus, tryInitSteamworks);
+	ipcMain.handle(ValidChannel.STEAMWORKS_INITED, async (event) => {
+		assertValidIpcSender(ValidChannel.STEAMWORKS_INITED, event);
+		return steamworksInit();
+	});
+
+	ipcMain.on(ValidChannel.OPEN_MOD_CONTEXT_MENU, (event, record: ModData) => {
+		assertValidIpcSender(ValidChannel.OPEN_MOD_CONTEXT_MENU, event);
 		const validatedRecord = parseModContextMenuPayload(ValidChannel.OPEN_MOD_CONTEXT_MENU, record);
 		Menu.buildFromTemplate(createContextMenuTemplate(validatedRecord, mainWindowProvider)).popup();
 	});

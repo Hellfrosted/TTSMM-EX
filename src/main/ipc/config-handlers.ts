@@ -7,6 +7,7 @@ import log from 'electron-log';
 import { AppConfig, LogLevel, ModDataOverride, ModErrorType, ValidChannel } from '../../model';
 import { writeUtf8FileAtomic } from '../storage';
 import { parseAppConfigPayload } from './config-validation';
+import { assertValidIpcSender } from './ipc-sender-validation';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -94,19 +95,23 @@ export function registerConfigHandlers(
 ) {
 	const getUserDataPath = () => userDataPathProvider.getUserDataPath();
 
-	ipcMain.on(ValidChannel.UPDATE_LOG_LEVEL, (_event, level: LogLevel) => {
+	ipcMain.on(ValidChannel.UPDATE_LOG_LEVEL, (event, level: LogLevel) => {
+		assertValidIpcSender(ValidChannel.UPDATE_LOG_LEVEL, event);
 		applyLogLevel(level, isDevelopment);
 	});
 
-	ipcMain.handle(ValidChannel.USER_DATA_PATH, async () => {
+	ipcMain.handle(ValidChannel.USER_DATA_PATH, async (event) => {
+		assertValidIpcSender(ValidChannel.USER_DATA_PATH, event);
 		return getUserDataPath();
 	});
 
-	ipcMain.handle(ValidChannel.READ_CONFIG, async () => {
+	ipcMain.handle(ValidChannel.READ_CONFIG, async (event) => {
+		assertValidIpcSender(ValidChannel.READ_CONFIG, event);
 		return readConfigFile(path.join(getUserDataPath(), 'config.json'), isDevelopment);
 	});
 
-	ipcMain.handle(ValidChannel.UPDATE_CONFIG, async (_event, config: AppConfig) => {
+	ipcMain.handle(ValidChannel.UPDATE_CONFIG, async (event, config: AppConfig) => {
+		assertValidIpcSender(ValidChannel.UPDATE_CONFIG, event);
 		log.debug('updated config');
 		return writeConfigFile(path.join(getUserDataPath(), 'config.json'), parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config));
 	});

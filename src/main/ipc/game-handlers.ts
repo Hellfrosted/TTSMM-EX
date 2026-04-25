@@ -7,6 +7,7 @@ import path from 'path';
 
 import { PathType, ValidChannel } from '../../model';
 import { expandUserPath, normalizePathValue, parseSteamLibraryFolders } from '../path-utils';
+import { assertValidIpcSender } from './ipc-sender-validation';
 
 interface ProcessDetails {
 	pid: number;
@@ -235,26 +236,31 @@ export function pathExists(targetPath: string, expectedType?: PathType, homeDir:
 }
 
 export function registerGameHandlers(ipcMain: IpcMain) {
-	ipcMain.handle(ValidChannel.GAME_RUNNING, async () => {
+	ipcMain.handle(ValidChannel.GAME_RUNNING, async (event) => {
+		assertValidIpcSender(ValidChannel.GAME_RUNNING, event);
 		return isGameRunning();
 	});
 
 	ipcMain.handle(
 		ValidChannel.LAUNCH_GAME,
-		async (_event, gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => {
+		async (event, gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => {
+			assertValidIpcSender(ValidChannel.LAUNCH_GAME, event);
 			return launchGameProcess(gameExec, workshopID, closeOnLaunch, args);
 		}
 	);
 
-	ipcMain.handle(ValidChannel.PATH_EXISTS, async (_event, targetPath: string, expectedType?: PathType) => {
+	ipcMain.handle(ValidChannel.PATH_EXISTS, async (event, targetPath: string, expectedType?: PathType) => {
+		assertValidIpcSender(ValidChannel.PATH_EXISTS, event);
 		return pathExists(targetPath, expectedType);
 	});
 
-	ipcMain.handle(ValidChannel.DISCOVER_GAME_EXEC, async () => {
+	ipcMain.handle(ValidChannel.DISCOVER_GAME_EXEC, async (event) => {
+		assertValidIpcSender(ValidChannel.DISCOVER_GAME_EXEC, event);
 		return discoverGameExecutablePath();
 	});
 
-	ipcMain.handle(ValidChannel.SELECT_PATH, async (_event, directory: boolean, title: string) => {
+	ipcMain.handle(ValidChannel.SELECT_PATH, async (event, directory: boolean, title: string) => {
+		assertValidIpcSender(ValidChannel.SELECT_PATH, event);
 		return selectPath(directory, title);
 	});
 }

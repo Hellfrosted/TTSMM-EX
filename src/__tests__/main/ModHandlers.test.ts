@@ -4,6 +4,7 @@ import {
 	createDownloadModHandler,
 	createFetchWorkshopDependenciesHandler,
 	createReadModMetadataHandler,
+	registerModHandlers,
 	createSteamworksInitHandler,
 	createSubscribeModHandler
 } from '../../main/ipc/mod-handlers';
@@ -47,6 +48,43 @@ describe('mod handlers', () => {
 		expect(result).toBe(true);
 		expect(steamworks.ugcDownloadItem).toHaveBeenCalledTimes(1);
 		expect(steamworks.ugcUnsubscribe).not.toHaveBeenCalled();
+	});
+
+	it('rejects registered Steam actions from unexpected IPC senders before native calls', async () => {
+		const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+		const ipcMain = {
+			handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
+				handlers.set(channel, handler);
+			}),
+			on: vi.fn()
+		};
+		const tryInitSteamworks = vi.fn(() => ({ inited: true }));
+
+		registerModHandlers(
+			ipcMain as never,
+			{
+				getWebContents: () => null
+			},
+			() => ({ inited: true }),
+			tryInitSteamworks
+		);
+
+		const handler = handlers.get(ValidChannel.DOWNLOAD_MOD);
+		if (!handler) {
+			throw new Error(`Missing handler for ${ValidChannel.DOWNLOAD_MOD}`);
+		}
+
+		await expect(
+			handler(
+				{
+					senderFrame: {
+						url: 'https://example.com/index.html'
+					}
+				},
+				BigInt(42)
+			)
+		).rejects.toThrow('Rejected IPC sender for download-mod');
+		expect(tryInitSteamworks).not.toHaveBeenCalled();
 	});
 
 	it('rejects malformed download payloads before calling Steamworks', async () => {
@@ -122,11 +160,7 @@ describe('mod handlers', () => {
 		const clearDependencyLookupCache = vi.fn();
 
 		await expect(
-			createReadModMetadataHandler(clearDependencyLookupCache)(
-				{ sender: {} as never },
-				'C:\\mods',
-				'workshop:42' as never
-			)
+			createReadModMetadataHandler(clearDependencyLookupCache)({ sender: {} as never }, 'C:\\mods', 'workshop:42' as never)
 		).rejects.toThrow(`Invalid IPC payload for ${ValidChannel.READ_MOD_METADATA}`);
 
 		expect(clearDependencyLookupCache).not.toHaveBeenCalled();

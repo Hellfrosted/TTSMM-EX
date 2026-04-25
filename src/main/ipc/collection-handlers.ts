@@ -8,6 +8,7 @@ import { ModCollection, ValidChannel } from '../../model';
 import { validateCollectionName } from '../../shared/collection-name';
 import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from '../storage';
 import { parseCollectionNamePayload, parseModCollectionPayload } from './collection-validation';
+import { assertValidIpcSender } from './ipc-sender-validation';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -171,19 +172,23 @@ export function registerCollectionHandlers(
 ) {
 	const getUserDataPath = () => userDataPathProvider.getUserDataPath();
 
-	ipcMain.handle(ValidChannel.READ_COLLECTION, async (_event, collection: string) => {
+	ipcMain.handle(ValidChannel.READ_COLLECTION, async (event, collection: string) => {
+		assertValidIpcSender(ValidChannel.READ_COLLECTION, event);
 		return readCollectionFile(getUserDataPath(), parseCollectionNamePayload(ValidChannel.READ_COLLECTION, collection));
 	});
 
-	ipcMain.handle(ValidChannel.READ_COLLECTIONS, async () => {
+	ipcMain.handle(ValidChannel.READ_COLLECTIONS, async (event) => {
+		assertValidIpcSender(ValidChannel.READ_COLLECTIONS, event);
 		return listCollections(getUserDataPath());
 	});
 
-	ipcMain.handle(ValidChannel.UPDATE_COLLECTION, async (_event, collection: ModCollection) => {
+	ipcMain.handle(ValidChannel.UPDATE_COLLECTION, async (event, collection: ModCollection) => {
+		assertValidIpcSender(ValidChannel.UPDATE_COLLECTION, event);
 		return updateCollectionFile(getUserDataPath(), parseModCollectionPayload(ValidChannel.UPDATE_COLLECTION, collection));
 	});
 
-	ipcMain.handle(ValidChannel.RENAME_COLLECTION, async (_event, collection: ModCollection, newName: string) => {
+	ipcMain.handle(ValidChannel.RENAME_COLLECTION, async (event, collection: ModCollection, newName: string) => {
+		assertValidIpcSender(ValidChannel.RENAME_COLLECTION, event);
 		return renameCollectionFile(
 			getUserDataPath(),
 			parseModCollectionPayload(ValidChannel.RENAME_COLLECTION, collection),
@@ -191,7 +196,8 @@ export function registerCollectionHandlers(
 		);
 	});
 
-	ipcMain.handle(ValidChannel.DELETE_COLLECTION, async (_event, collection: string) => {
+	ipcMain.handle(ValidChannel.DELETE_COLLECTION, async (event, collection: string) => {
+		assertValidIpcSender(ValidChannel.DELETE_COLLECTION, event);
 		return deleteCollectionFile(getUserDataPath(), parseCollectionNamePayload(ValidChannel.DELETE_COLLECTION, collection));
 	});
 }
