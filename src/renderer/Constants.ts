@@ -1,4 +1,4 @@
-import { AppConfig } from 'model';
+import type { AppConfig } from 'model/AppConfig';
 
 export const { platform } = window.electron;
 export const DEFAULT_WORKSHOP_ID = BigInt(2790161231);

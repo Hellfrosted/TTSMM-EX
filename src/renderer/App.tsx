@@ -7,7 +7,8 @@ import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
 	createCollectionStageAppState,
-	createSettingsStageAppState
+	createSettingsStageAppState,
+	getAppRouteKind
 } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
@@ -160,11 +161,10 @@ function AppShell() {
 	const configErrorCount = useAppStateSelector((state) => Object.keys(state.configErrors || {}).length);
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
-	const [mountedSettings, setMountedSettings] = useState(location.pathname.startsWith('/settings'));
-	const [mountedBlockLookup, setMountedBlockLookup] = useState(location.pathname.startsWith('/block-lookup'));
-	const [mountedCollections, setMountedCollections] = useState(
-		!location.pathname.includes('/loading') && !location.pathname.startsWith('/settings') && !location.pathname.startsWith('/block-lookup')
-	);
+	const initialRouteKind = getAppRouteKind(location.pathname);
+	const [mountedSettings, setMountedSettings] = useState(initialRouteKind === 'settings');
+	const [mountedBlockLookup, setMountedBlockLookup] = useState(initialRouteKind === 'block-lookup');
+	const [mountedCollections, setMountedCollections] = useState(initialRouteKind === 'collections');
 	const appShell = createAppShellViewModel({
 		activeCollection,
 		configErrorCount,

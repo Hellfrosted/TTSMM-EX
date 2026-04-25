@@ -25,9 +25,6 @@ interface SettingsViewProps {
 
 type SettingsConfigErrors = Record<string, string>;
 
-const SETTINGS_LOGGER_ROW_STYLE = { display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' } as const;
-const SETTINGS_LOGGER_ID_INPUT_STYLE = { flex: '1 1 auto', minWidth: 0 } as const;
-
 const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
 const NLOG_LEVEL_OPTIONS = [NLogLevel.OFF, NLogLevel.FATAL, NLogLevel.ERROR, NLogLevel.WARN, NLogLevel.INFO, NLogLevel.DEBUG, NLogLevel.TRACE] as const;
 
@@ -676,7 +673,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													label={`Override ${index + 1}`}
 													error={configErrors?.[id]}
 												>
-													<div style={SETTINGS_LOGGER_ROW_STYLE}>
+													<div className="SettingsLoggerConfigRow">
 														<select
 															id={`${id}.level`}
 															className="SettingsSelect SettingsLoggerLevelSelect"
@@ -693,7 +690,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 															))}
 														</select>
 														<div className="SettingsInlineControls SettingsLoggerIdControl">
-															<SettingsInput id={id} style={SETTINGS_LOGGER_ID_INPUT_STYLE} value={config.loggerID} disabled />
+															<SettingsInput id={id} className="SettingsLoggerIdInput" value={config.loggerID} disabled />
 															<SettingsButton
 																aria-label={`Edit logger override ${index + 1}`}
 																icon={<Edit3 size={16} />}

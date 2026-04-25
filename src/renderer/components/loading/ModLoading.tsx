@@ -1,7 +1,11 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { AppConfig, ModType, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
+import type { AppConfig } from 'model/AppConfig';
+import { ModType } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
+import { setupDescriptors, type SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { ProgressTypes } from 'shared/ipc';
 import { StartupButton, StartupProgressBar, StartupStatusIcon } from './StartupPrimitives';
 
 interface ModLoadingProps {

@@ -1,4 +1,7 @@
-import type { AppConfig, ModCollection, ModData, SessionMods } from 'model';
+import type { AppConfig } from 'model/AppConfig';
+import type { ModData } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
+import type { SessionMods } from 'model/SessionMods';
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,

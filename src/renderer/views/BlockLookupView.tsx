@@ -449,7 +449,6 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 				aria-modal="true"
 				className="CollectionNativeModal CollectionSettingsModal BlockLookupTableOptionsModal"
 				role="dialog"
-				style={{ width: 'min(760px, 100%)' }}
 			>
 				<header className="CollectionNativeModal__header">
 					<h2 id="block-lookup-table-options-title" className="CollectionNativeModal__title">

@@ -44,17 +44,21 @@ function compactRecord<T>(record: Record<string, T>, validKeys: Set<string>, isV
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
-function normalizedOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
+function collectConfiguredColumnOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
 	const defaultColumnSet = new Set<string>(defaultOrder);
 	const configuredColumnSet = new Set<T>();
-	const configuredColumns = (configuredOrder || []).filter((column): column is T => {
-			if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
-				return false;
-			}
-			configuredColumnSet.add(column as T);
-			return true;
-		}) as T[];
+	return (configuredOrder || []).filter((column): column is T => {
+		if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
+			return false;
+		}
+		configuredColumnSet.add(column as T);
+		return true;
+	}) as T[];
+}
 
+function normalizedOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
+	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
+	const configuredColumnSet = new Set(configuredColumns);
 	return [...configuredColumns, ...defaultOrder.filter((column) => !configuredColumnSet.has(column))];
 }
 
@@ -63,15 +67,7 @@ function compactOrder<T extends string>(configuredOrder: readonly string[] | und
 		return undefined;
 	}
 
-	const defaultColumnSet = new Set<string>(defaultOrder);
-	const configuredColumnSet = new Set<T>();
-	const configuredColumns = configuredOrder.filter((column): column is T => {
-		if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
-			return false;
-		}
-		configuredColumnSet.add(column as T);
-		return true;
-	}) as T[];
+	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
 
 	return configuredColumns.length > 0 ? configuredColumns : undefined;
 }
