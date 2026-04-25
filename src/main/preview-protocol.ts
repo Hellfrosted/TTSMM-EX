@@ -90,7 +90,7 @@ export function resolvePreviewImageRequest(requestUrl: string): string | null {
 	}
 }
 
-export function createPreviewProtocolHandler() {
+function createPreviewProtocolHandler() {
 	return (request: ProtocolRequest, callback: (response: string | ProtocolResponse) => void) => {
 		const resolvedPath = resolvePreviewImageRequest(request.url);
 		if (!resolvedPath) {

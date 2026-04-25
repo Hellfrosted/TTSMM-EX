@@ -35,7 +35,9 @@ describe('ModLoading', () => {
 		const secondScan = new Promise<SessionMods>((resolve) => {
 			resolveSecondScan = resolve;
 		});
-		vi.mocked(window.electron.readModMetadata).mockImplementationOnce(() => firstScan).mockImplementationOnce(() => secondScan);
+		vi.mocked(window.electron.readModMetadata)
+			.mockImplementationOnce(() => firstScan)
+			.mockImplementationOnce(() => secondScan);
 
 		const sharedState = createAppState({
 			loadingMods: true,

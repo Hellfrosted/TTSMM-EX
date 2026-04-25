@@ -9,7 +9,7 @@ import {
 	getRows
 } from 'model';
 
-export interface CollectionSelectionState {
+interface CollectionSelectionState {
 	selectedMods: Set<string>;
 	visibleModIds: string[];
 	selectedVisibleCount: number;

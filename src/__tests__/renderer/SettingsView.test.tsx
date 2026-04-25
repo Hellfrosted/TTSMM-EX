@@ -1,6 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, LogLevel } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { SettingsView } from '../../renderer/views/SettingsView';

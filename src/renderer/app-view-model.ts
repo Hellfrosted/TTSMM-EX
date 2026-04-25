@@ -1,7 +1,7 @@
 import type { AppState } from 'model/AppState';
 import type { CollectionWorkspaceAppState } from './state/app-state';
 
-export interface AppShellInputs {
+interface AppShellInputs {
 	activeCollection?: AppState['activeCollection'];
 	configErrorCount: number;
 	launchingGame: boolean;
@@ -11,7 +11,7 @@ export interface AppShellInputs {
 	savingConfig: boolean;
 }
 
-export type AppRouteKind = 'block-lookup' | 'collections' | 'loading' | 'settings';
+type AppRouteKind = 'block-lookup' | 'collections' | 'loading' | 'settings';
 
 export function getAppRouteKind(pathname: string): AppRouteKind {
 	if (pathname === '/loading' || pathname.startsWith('/loading/')) {
@@ -87,11 +87,7 @@ export function createAppShellViewModel(inputs: AppShellInputs) {
 
 	return {
 		disableNavigation:
-			inputs.launchingGame ||
-			isLoadingRoute ||
-			inputs.savingConfig ||
-			inputs.madeConfigEdits ||
-			inputs.configErrorCount > 0,
+			inputs.launchingGame || isLoadingRoute || inputs.savingConfig || inputs.madeConfigEdits || inputs.configErrorCount > 0,
 		hasCollectionWorkspace: !!inputs.activeCollection || !!inputs.loadingMods,
 		isBlockLookupRoute,
 		isLoadingRoute,

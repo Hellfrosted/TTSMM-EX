@@ -5,7 +5,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const repoRoot = path.resolve(__dirname, '../..');
-export const releasePath = path.join(repoRoot, 'release');
+const releasePath = path.join(repoRoot, 'release');
 export const releaseAppPath = path.join(releasePath, 'app');
 export const releaseBuildPath = path.join(releasePath, 'build');
 export const releaseAppDistPath = path.join(releaseAppPath, 'dist');

@@ -1,4 +1,4 @@
-export type StoredViewPath = '/settings' | '/collections/main' | '/block-lookup';
+type StoredViewPath = '/settings' | '/collections/main' | '/block-lookup';
 
 export function getStoredViewPath(currentPath: string | undefined): StoredViewPath {
 	if (currentPath?.startsWith('/settings')) {

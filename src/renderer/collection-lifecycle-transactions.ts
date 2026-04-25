@@ -35,14 +35,14 @@ interface RunNewCollectionTransactionOptions extends NewCollectionTransactionAda
 	createSnapshot: () => CollectionLifecycleSnapshotResult | undefined;
 }
 
-export interface RunCreateCollectionTransactionOptions extends NewCollectionTransactionAdapters {
+interface RunCreateCollectionTransactionOptions extends NewCollectionTransactionAdapters {
 	snapshot: CollectionWorkspaceSnapshot;
 	name: string;
 	mods?: string[];
 	dirtyCollection?: ModCollection;
 }
 
-export interface RunDuplicateCollectionTransactionOptions extends NewCollectionTransactionAdapters {
+interface RunDuplicateCollectionTransactionOptions extends NewCollectionTransactionAdapters {
 	snapshot: CollectionWorkspaceSnapshot;
 	name: string;
 	dirtyCollection?: ModCollection;

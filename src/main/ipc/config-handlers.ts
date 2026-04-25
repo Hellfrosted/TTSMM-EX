@@ -12,7 +12,7 @@ interface UserDataPathProvider {
 	getUserDataPath: () => string;
 }
 
-export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
+function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
 	log.transports.file.level = level;
 	if (isDevelopment) {
 		log.transports.console.level = level;

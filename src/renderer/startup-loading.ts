@@ -8,12 +8,12 @@ import {
 	type CollectionWorkspaceSnapshot
 } from './collection-lifecycle';
 
-export interface StartupBootErrorDescription {
+interface StartupBootErrorDescription {
 	title: string;
 	detail: string;
 }
 
-export type StartupCollectionResolution =
+type StartupCollectionResolution =
 	| {
 			kind: 'active';
 			activeCollection: ModCollection;

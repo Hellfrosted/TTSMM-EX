@@ -25,7 +25,11 @@ function AppFlowProbe() {
 
 describe('App', () => {
 	it('marks inactive view stages as hidden to assistive tech without native inert', () => {
-		render(<AppViewStage active={false} name="settings">Hidden settings</AppViewStage>);
+		render(
+			<AppViewStage active={false} name="settings">
+				Hidden settings
+			</AppViewStage>
+		);
 
 		const stage = screen.getByText('Hidden settings').closest('[data-view-stage="settings"]');
 		expect(stage).toHaveAttribute('aria-hidden', 'true');

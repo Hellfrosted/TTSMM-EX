@@ -23,7 +23,7 @@ export type CollectionWorkspaceAppState = Pick<
 	| 'updateState'
 >;
 
-export type AppAction =
+type AppAction =
 	| {
 			type: 'merge';
 			payload: AppStateUpdate;
@@ -74,11 +74,6 @@ export const setCollectionsState = (
 
 export const setActiveCollection = (payload?: ModCollection): AppAction => ({
 	type: 'set-active-collection',
-	payload
-});
-
-export const setModsState = (payload: SessionMods): AppAction => ({
-	type: 'set-mods',
 	payload
 });
 

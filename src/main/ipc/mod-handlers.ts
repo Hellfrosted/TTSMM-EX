@@ -2,23 +2,13 @@ import { shell, Menu } from 'electron';
 import type { IpcMain, MenuItemConstructorOptions, WebContents } from 'electron';
 import log from 'electron-log';
 
-import {
-	ModData,
-	ModType,
-	SessionMods,
-	cloneModData,
-	ValidChannel
-} from '../../model';
+import { ModData, ModType, SessionMods, cloneModData, ValidChannel } from '../../model';
 import { openExternalUrl } from '../external-links';
 import ModFetcher, { getModDetailsFromPath } from '../mod-fetcher';
 import { expandUserPath } from '../path-utils';
 import Steamworks, { EResult, UGCItemState } from '../steamworks';
 import { clearWorkshopDependencyLookupCache, fetchWorkshopDependencyLookup } from '../workshop-dependencies';
-import {
-	parseModContextMenuPayload,
-	parseReadModMetadataPayload,
-	parseWorkshopIdPayload
-} from './mod-validation';
+import { parseModContextMenuPayload, parseReadModMetadataPayload, parseWorkshopIdPayload } from './mod-validation';
 
 interface MainWindowProvider {
 	getWebContents: () => WebContents | null;
@@ -61,36 +51,27 @@ function createSteamResultHandler(
 export function createDownloadModHandler(steamworks = Steamworks) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.DOWNLOAD_MOD, workshopID);
-		return createSteamResultHandler(
-			`Failed to download mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
-			}
-		);
+		return createSteamResultHandler(`Failed to download mod ${validatedWorkshopID}`, (success, failure) => {
+			steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
+		});
 	};
 }
 
 export function createSubscribeModHandler(steamworks = Steamworks) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.SUBSCRIBE_MOD, workshopID);
-		return createSteamResultHandler(
-			`Failed to subscribe to mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
-			}
-		);
+		return createSteamResultHandler(`Failed to subscribe to mod ${validatedWorkshopID}`, (success, failure) => {
+			steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
+		});
 	};
 }
 
-export function createUnsubscribeModHandler(steamworks = Steamworks) {
+function createUnsubscribeModHandler(steamworks = Steamworks) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.UNSUBSCRIBE_MOD, workshopID);
-		return createSteamResultHandler(
-			`Failed to unsubscribe from mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
-			}
-		);
+		return createSteamResultHandler(`Failed to unsubscribe from mod ${validatedWorkshopID}`, (success, failure) => {
+			steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
+		});
 	};
 }
 
@@ -193,9 +174,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 			if (requestId !== metadataUpdateRequestId) {
 				return;
 			}
-			mainWindowProvider
-				.getWebContents()
-				?.send(ValidChannel.MOD_METADATA_UPDATE, `${ModType.WORKSHOP}:${record.workshopID}`, update);
+			mainWindowProvider.getWebContents()?.send(ValidChannel.MOD_METADATA_UPDATE, `${ModType.WORKSHOP}:${record.workshopID}`, update);
 		};
 		if (record.subscribed) {
 			template.push({

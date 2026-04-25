@@ -96,9 +96,7 @@ describe('ConfigLoading', () => {
 		vi.mocked(window.electron.discoverGameExecutable).mockResolvedValueOnce(discoveredExecutable);
 		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
 		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
-		vi.mocked(window.electron.updateConfig)
-			.mockResolvedValueOnce(false)
-			.mockResolvedValueOnce(true);
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -203,30 +201,33 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath,
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
-		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
-		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
+	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])(
+		'normalizes saved route "%s" to collections during boot',
+		async (currentPath) => {
+			vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+			vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+				...DEFAULT_CONFIG,
+				currentPath,
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			});
+			vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
+			vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+			render(
+				<MemoryRouter initialEntries={['/loading/config']}>
+					<Routes>
+						<Route path="*" element={<ConfigLoadingAppHarness />} />
+					</Routes>
+				</MemoryRouter>
+			);
 
-		await waitFor(() => {
-			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
-		});
-	});
+			await waitFor(() => {
+				expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
+			});
+		}
+	);
 
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
@@ -394,7 +395,9 @@ describe('ConfigLoading', () => {
 
 	it('halts boot and surfaces a config load error instead of treating it as first launch', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"'));
+		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(
+			new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')
+		);
 		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
 
 		render(

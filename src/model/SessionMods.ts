@@ -52,7 +52,10 @@ export function cloneModData(mod: ModData): ModData {
 }
 
 export function cloneSessionMods(session: SessionMods): SessionMods {
-	return new SessionMods(session.localPath, session.foundMods.map((mod) => cloneModData(mod)));
+	return new SessionMods(
+		session.localPath,
+		session.foundMods.map((mod) => cloneModData(mod))
+	);
 }
 
 export function getDescriptor(session: SessionMods, mod: ModData): ModDescriptor | undefined {
@@ -89,10 +92,7 @@ function createDescriptor(): ModDescriptor {
 	};
 }
 
-function ensureDescriptorForModId(
-	modID: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>
-) {
+function ensureDescriptorForModId(modID: string | undefined | null, modIdToModDescriptor: Map<string, ModDescriptor>) {
 	const normalizedModId = normalizeExternalDependencyId(modID);
 	let descriptor = normalizedModId ? modIdToModDescriptor.get(normalizedModId) : undefined;
 	if (!descriptor && normalizedModId) {
@@ -110,10 +110,7 @@ function ensureDescriptorForModId(
 	return descriptor;
 }
 
-function ensureDescriptorForEquivalentName(
-	name: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>
-) {
+function ensureDescriptorForEquivalentName(name: string | undefined | null, modIdToModDescriptor: Map<string, ModDescriptor>) {
 	const normalizedName = normalizeExternalDependencyId(name);
 	if (!normalizedName || normalizedName === name) {
 		return undefined;
@@ -131,10 +128,7 @@ function ensureDescriptorForEquivalentName(
 	return descriptor;
 }
 
-function findExistingDescriptorForModId(
-	modID: string | undefined | null,
-	modIdToModDescriptor: Map<string, ModDescriptor>
-) {
+function findExistingDescriptorForModId(modID: string | undefined | null, modIdToModDescriptor: Map<string, ModDescriptor>) {
 	const normalizedModId = normalizeExternalDependencyId(modID);
 	return normalizedModId ? modIdToModDescriptor.get(normalizedModId) : undefined;
 }
@@ -154,10 +148,7 @@ function ensureDescriptorForWorkshopId(workshopID: bigint, workshopIdToModDescri
 
 // This exists because IPC communication means objects must be deserialized from main to renderer
 // This means that object refs are not carried over, and so relying on it as a unique ID will fail
-export function setupDescriptors(
-	session: SessionMods,
-	overrides: Map<string, ModDataOverride>
-) {
+export function setupDescriptors(session: SessionMods, overrides: Map<string, ModDataOverride>) {
 	const { foundMods, modIdToModDataMap, modIdToModDescriptor, workshopIdToModDescriptor } = session;
 	modIdToModDataMap.clear();
 	modIdToModDescriptor.clear();
@@ -263,10 +254,6 @@ export function getByUID(session: SessionMods, uid: string) {
 	return session.modIdToModDataMap.get(uid);
 }
 
-export function getByWorkshopID(session: SessionMods, workshopID: bigint) {
-	return session.modIdToModDataMap.get(`${ModType.WORKSHOP}:${workshopID}`);
-}
-
 export function getRows(session: SessionMods): ModData[] {
 	return [...session.modIdToModDataMap.values()];
 }
@@ -310,7 +297,7 @@ export function filterRows(session: SessionMods, searchString: string | undefine
 	return getRows(session);
 }
 
-export function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronLogger): ModErrors {
+function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronLogger): ModErrors {
 	logger?.debug(`validating ${modData.name}`);
 	const thisModErrors: ModErrors = {};
 

@@ -63,7 +63,9 @@ function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof f
 			return false;
 		}
 
-		log.warn(`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`);
+		log.warn(
+			`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`
+		);
 		return true;
 	} catch (error) {
 		log.error('Failed to verify the Linux TerraTech installation before scanning workshop items.');
@@ -99,7 +101,9 @@ async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promise<Stea
 		Steamworks.getUGCDetails(
 			workshopIDs.map((workshopID) => workshopID.toString()),
 			(steamDetails: SteamUGCDetails[]) => {
-				log.silly(`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`);
+				log.silly(
+					`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`
+				);
 				resolve(steamDetails);
 			},
 			(err: Error) => {
@@ -146,7 +150,11 @@ function applyTtsmmMetadata(potentialMod: ModData, metadata: unknown) {
 	}
 
 	const parsedMetadata = metadata as Record<string, unknown>;
-	if (typeof parsedMetadata.name === 'string' && parsedMetadata.name.trim().length > 0 && (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name))) {
+	if (
+		typeof parsedMetadata.name === 'string' &&
+		parsedMetadata.name.trim().length > 0 &&
+		(!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name))
+	) {
 		potentialMod.name = parsedMetadata.name;
 	}
 	if (typeof parsedMetadata.description === 'string' && !potentialMod.description) {
@@ -208,7 +216,9 @@ async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map
 				workshopDetailMap.set(detail.publishedFileId, detail);
 			});
 		} catch (error) {
-			log.warn(`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`);
+			log.warn(
+				`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`
+			);
 			log.warn(error);
 		}
 	}
@@ -247,7 +257,7 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 								if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
 									potentialMod.lastUpdate = mtime;
 								}
-							} catch (e) {
+							} catch {
 								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
 							}
 							if (file.name === 'preview.png' && !potentialMod.preview) {
@@ -439,11 +449,10 @@ export default class ModFetcher {
 
 		const modDependencies: Set<bigint> = new Set();
 
-		 
 		for (let i = 0; i < modChunks.length; i++) {
 			try {
 				log.silly(`Processing known mod chunk: ${JSON.stringify(modChunks[i], (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
-				 
+
 				const modDetails = await this.getDetailsForWorkshopModList(modChunks[i]);
 				log.silly(`Got mod details: ${JSON.stringify(modDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
 				modDetails.forEach((mod: ModData) => {
@@ -506,16 +515,13 @@ export default class ModFetcher {
 		//	1. We are done if and only if reading a page returns 0 results
 		//	2. The subscription list will not change mid-pull
 
-		 
 		while (lastProcessed > 0) {
-			 
 			const { items, totalItems, numReturned } = await getSteamSubscribedPage(pageNum);
 			this.workshopMods = totalItems;
 			numProcessedWorkshop += numReturned;
 			lastProcessed = numReturned;
 			log.debug(`Total items: ${totalItems}, Returned by Steam: ${numReturned}, Processed this chunk: ${items.length}`);
 
-			 
 			const data: ModData[] = await this.processSteamModResults(items);
 			data.forEach((modData) => {
 				const workshopID: bigint = modData.workshopID!;
@@ -549,7 +555,7 @@ export default class ModFetcher {
 		// continue to query steam until all dependencies are met via BFS search
 		while (this.knownWorkshopMods.size > 0) {
 			this.workshopMods += missingKnownWorkshopMods.size;
-			 
+
 			missingKnownWorkshopMods = await this.processWorkshopModList(workshopMap, knownInvalidMods, missingKnownWorkshopMods);
 			this.knownWorkshopMods.forEach((workshopID) => {
 				log.error(`Known workshop mod ${workshopID} is invalid`);
@@ -591,7 +597,7 @@ export default class ModFetcher {
 					.filter((dirent) => dirent.isDirectory())
 					.map((dirent) => dirent.name);
 				this.localMods = localModDirs.length;
-			} catch (e) {
+			} catch {
 				log.error(`Failed to read local mods in ${localModDirs}`);
 			}
 		}

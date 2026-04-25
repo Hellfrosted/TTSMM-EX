@@ -23,7 +23,7 @@ export interface ValidationIssueSummary {
 	updateIssues: number;
 }
 
-export interface RenderValidationErrorsResult {
+interface RenderValidationErrorsResult {
 	errors?: CollectionErrors;
 	mods: SessionMods;
 	modalType?: CollectionManagerModalType;
@@ -43,7 +43,7 @@ function cloneCollectionErrors(errors: CollectionErrors): CollectionErrors {
 	return Object.fromEntries(Object.entries(errors).map(([uid, modErrors]) => [uid, cloneModErrors(modErrors)]));
 }
 
-export function getValidationConfigKey(config: AppConfig) {
+function getValidationConfigKey(config: AppConfig) {
 	const ignoredValidationErrors = [...config.ignoredValidationErrors.entries()]
 		.map(([errorType, ignoredByUid]) => [
 			errorType,

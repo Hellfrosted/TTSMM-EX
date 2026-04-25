@@ -145,7 +145,7 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 	}
 }
 
-export function deleteCollectionFile(userDataPath: string, collection: string): boolean {
+function deleteCollectionFile(userDataPath: string, collection: string): boolean {
 	const filepath = resolveCollectionFilePath(userDataPath, collection);
 	if (!filepath) {
 		return false;

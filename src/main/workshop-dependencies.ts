@@ -3,7 +3,7 @@ import log from 'electron-log';
 import { parse } from 'node-html-parser';
 import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from 'shared/workshop-dependency-lookup';
 
-export interface WorkshopDependencyLookup {
+interface WorkshopDependencyLookup {
 	steamDependencies: bigint[];
 	steamDependencyNames?: Record<string, string>;
 	steamDependenciesFetchedAt?: number;
@@ -58,7 +58,7 @@ export function parseWorkshopDependencyLookup(html: string): WorkshopDependencyL
 		let dependencyID: string | null = null;
 		try {
 			dependencyID = new URL(href, 'https://steamcommunity.com').searchParams.get('id');
-		} catch (error) {
+		} catch {
 			log.warn(`Failed to parse workshop dependency link "${href}"`);
 			return;
 		}
@@ -69,7 +69,7 @@ export function parseWorkshopDependencyLookup(html: string): WorkshopDependencyL
 
 		try {
 			steamDependencies.push(BigInt(dependencyID));
-		} catch (error) {
+		} catch {
 			log.warn(`Failed to parse workshop dependency id "${dependencyID}"`);
 			return;
 		}

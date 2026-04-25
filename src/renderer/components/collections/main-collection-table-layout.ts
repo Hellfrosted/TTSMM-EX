@@ -50,7 +50,7 @@ export const AUTO_MEASURE_MAIN_COLUMN_TITLES = new Set<MainColumnTitles>([
 	MainColumnTitles.TAGS
 ]);
 
-export interface RenderedColumnBodyCell {
+interface RenderedColumnBodyCell {
 	cell: HTMLElement;
 	row: DisplayModData;
 }
@@ -258,7 +258,9 @@ export function getAllTags(record: DisplayModData) {
 
 export function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {
 	const headerRow = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTable thead tr:last-child');
-	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const headerCells = headerRow
+		? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement)
+		: [];
 	const body = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTableBody');
 	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
 	const sampledBodyRows = bodyRows.slice(0, sampledRows.length);
@@ -340,7 +342,7 @@ export function measureBodyCellWidth(columnTitle: MainColumnTitles, renderedCell
 				: Math.ceil(
 						getHorizontalInsets(cell) +
 							measureTextWidth(formatSizeLabel(row.size) || '', getElementFont(cell, `500 14px ${APP_FONT_FAMILY}`))
-				  );
+					);
 		default:
 			if (columnTitle === MainColumnTitles.TYPE) {
 				return getMainColumnMinWidth(columnTitle);
@@ -363,7 +365,9 @@ export function getMeasurementRowSignature(rows: DisplayModData[]) {
 				getModDataDisplayId(row) || '',
 				(row.authors || []).join(','),
 				formatSizeLabel(row.size) || '',
-				getAllTags(row).sort((left, right) => left.localeCompare(right)).join(','),
+				getAllTags(row)
+					.sort((left, right) => left.localeCompare(right))
+					.join(','),
 				row.subscribed ? '1' : '0',
 				row.installed ? '1' : '0',
 				row.needsUpdate ? '1' : '0',
@@ -377,17 +381,18 @@ export function getMeasurementRowSignature(rows: DisplayModData[]) {
 		.join('|');
 }
 
-export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
+export function getColumnWidths(
+	config: MainCollectionConfig | undefined,
+	autoColumnWidths: Record<string, number> = {},
+	availableTableWidth = 0
+) {
 	const configuredWidths = config?.columnWidthConfig || {};
-	const columnWidths = getResponsiveMainColumnTitles(config, availableTableWidth).reduce<Record<string, number>>(
-		(acc, columnTitle) => {
-			const minWidth = getMainColumnMinWidth(columnTitle);
-			const configuredWidth = configuredWidths[columnTitle] ?? autoColumnWidths[columnTitle] ?? getDefaultMainColumnWidth(columnTitle);
-			acc[columnTitle] = Math.max(minWidth, configuredWidth);
-			return acc;
-		},
-		{}
-	);
+	const columnWidths = getResponsiveMainColumnTitles(config, availableTableWidth).reduce<Record<string, number>>((acc, columnTitle) => {
+		const minWidth = getMainColumnMinWidth(columnTitle);
+		const configuredWidth = configuredWidths[columnTitle] ?? autoColumnWidths[columnTitle] ?? getDefaultMainColumnWidth(columnTitle);
+		acc[columnTitle] = Math.max(minWidth, configuredWidth);
+		return acc;
+	}, {});
 
 	const nameWidth = columnWidths[MainColumnTitles.NAME];
 	const nameWidthIsConfigured = configuredWidths[MainColumnTitles.NAME] !== undefined;

@@ -6,7 +6,7 @@ import type { NotificationType } from 'renderer/hooks/collections/useNotificatio
 
 export const APP_NOTIFICATION_EVENT = 'ttsmm:notification';
 
-export interface AppNotification {
+interface AppNotification {
 	id: string;
 	props: NotificationProps;
 	type: NotificationType;
@@ -99,7 +99,7 @@ export function NotificationViewport() {
 											notificationProps.onClick?.();
 										}
 									}
-							  }
+								}
 							: {};
 						return (
 							<div

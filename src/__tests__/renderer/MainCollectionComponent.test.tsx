@@ -385,7 +385,7 @@ describe('MainCollectionView', () => {
 						...row,
 						id: 'Very Long Workshop Identifier That Would Need A Wider Name Column If Measured',
 						name: 'Very Long Workshop Identifier That Would Need A Wider Name Column If Measured'
-				  }
+					}
 				: row
 		);
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { MainColumnTitles } from 'model';
 
-export type MainSortOrder = 'ascend' | 'descend';
+type MainSortOrder = 'ascend' | 'descend';
 
 export interface MainSortState {
 	columnTitle: string;

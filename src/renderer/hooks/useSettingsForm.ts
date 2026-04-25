@@ -8,7 +8,7 @@ import api from 'renderer/Api';
 import { writeConfig } from 'renderer/util/config-write';
 import { settingsFormSchema } from 'renderer/settings-validation';
 
-export interface LogConfig {
+interface LogConfig {
 	level: NLogLevel;
 	loggerID: string;
 }
@@ -26,7 +26,7 @@ function cloneEditingConfig(config: EditingConfig): EditingConfig {
 	};
 }
 
-export type SaveSettingsResult =
+type SaveSettingsResult =
 	| {
 			ok: true;
 			reloadRequired: boolean;
@@ -36,7 +36,7 @@ export type SaveSettingsResult =
 			message: string;
 	  };
 
-export function createEditingConfig(config: AppConfig): EditingConfig {
+function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
 		loggerID,
 		level
@@ -243,14 +243,17 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		updateState({ madeConfigEdits: false });
 	}, [config, form, updateState]);
 
-	const closeModal = useCallback((options?: { restoreSnapshot?: boolean }) => {
-		if (options?.restoreSnapshot && modalSnapshot) {
-			form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
-		}
-		setModalType(SettingsViewModalType.NONE);
-		setEditingContextIndex(undefined);
-		setModalSnapshot(undefined);
-	}, [form, modalSnapshot]);
+	const closeModal = useCallback(
+		(options?: { restoreSnapshot?: boolean }) => {
+			if (options?.restoreSnapshot && modalSnapshot) {
+				form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
+			}
+			setModalType(SettingsViewModalType.NONE);
+			setEditingContextIndex(undefined);
+			setModalSnapshot(undefined);
+		},
+		[form, modalSnapshot]
+	);
 
 	return {
 		form,

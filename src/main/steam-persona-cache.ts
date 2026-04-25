@@ -17,7 +17,7 @@ function tryGetPersonaName(steamID: string): string | null {
 		if (personaName && personaName.trim().length > 0 && personaName !== '[unknown]') {
 			return personaName;
 		}
-	} catch (error) {
+	} catch {
 		return null;
 	}
 	return null;
@@ -77,7 +77,7 @@ export function resolvePersonaName(steamID: string, timeoutMs = 5000): Promise<s
 		if (!requestStarted) {
 			resolveLookup(steamID, tryGetPersonaName(steamID) || steamID);
 		}
-	} catch (error) {
+	} catch {
 		resolveLookup(steamID, steamID);
 	}
 

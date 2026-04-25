@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow, WebContents, type WebContentsConsoleMessageEventParams } from 'electron';
+import { app, BrowserWindow, type WebContentsConsoleMessageEventParams } from 'electron';
 import log from 'electron-log';
 
 import { openExternalUrl } from './external-links';
@@ -16,7 +16,7 @@ export const MAIN_WINDOW_DEFAULT_BOUNDS = Object.freeze({
 	minHeight: 600
 });
 
-export interface WindowOptions {
+interface WindowOptions {
 	isDevelopment: boolean;
 	onDidFinishLoad: () => void;
 }
@@ -67,7 +67,7 @@ export function ensureSteamAppIdFile(options: SteamAppIdFileOptions = {}) {
 	}
 }
 
-export async function installExtensions() {
+async function installExtensions() {
 	const installer = await import('electron-devtools-installer');
 	const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
 	const extensions = [installer.REACT_DEVELOPER_TOOLS];
@@ -105,11 +105,7 @@ function isBrokenPipeError(error: unknown) {
 
 export function forwardRendererConsoleMessage(
 	{ level, message, lineNumber, sourceId }: WebContentsConsoleMessageEventParams,
-	{
-		consoleImpl = console,
-		logger = log,
-		mirrorToConsole = false
-	}: RendererConsoleForwardOptions = {}
+	{ consoleImpl = console, logger = log, mirrorToConsole = false }: RendererConsoleForwardOptions = {}
 ) {
 	const formattedMessage = `[renderer console:${level}] ${message} (${sourceId}:${lineNumber})`;
 	const logLevel = resolveRendererConsoleLogLevel(level);
@@ -207,15 +203,9 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		ensureSteamAppIdFile();
 		onDidFinishLoad();
 		if (!isDevelopment) {
-			void import('electron-updater')
-				.then(({ autoUpdater }) => autoUpdater.checkForUpdates())
-				.catch(log.error);
+			void import('electron-updater').then(({ autoUpdater }) => autoUpdater.checkForUpdates()).catch(log.error);
 		}
 	});
 
 	return mainWindow;
-}
-
-export function getMainWindowWebContents(mainWindow: BrowserWindow | null): WebContents | null {
-	return mainWindow?.webContents || null;
 }
