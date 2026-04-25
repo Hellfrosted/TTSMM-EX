@@ -7,7 +7,7 @@ import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import { StartupProgressBar } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
-import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions } from 'renderer/async-cache';
+import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions, useUpdateCollectionMutation } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
 import {
 	describeStartupBootError,
@@ -58,6 +58,7 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 
 export default function ConfigLoading() {
 	const queryClient = useQueryClient();
+	const { mutateAsync: updateCollection } = useUpdateCollectionMutation();
 	const dispatch = useAppDispatch();
 	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
 	const allCollections = useAppStateSelector((state) => state.allCollections);
@@ -269,7 +270,9 @@ export default function ConfigLoading() {
 
 			const { lifecycleResult } = collectionResolution;
 			const defaultCollection: ModCollection = lifecycleResult.activeCollection;
-			const createdDefaultCollection = await api.updateCollection(defaultCollection);
+			const createdDefaultCollection = await updateCollection(defaultCollection)
+				.then(() => true)
+				.catch(() => false);
 			if (!createdDefaultCollection) {
 				haltBootOnPersistenceFailure('Failed to persist the default collection during boot');
 				return;
@@ -296,6 +299,7 @@ export default function ConfigLoading() {
 		loadedCollections,
 		loadingConfig,
 		totalCollections,
+		updateCollection,
 		updatingSteamMod
 	]);
 

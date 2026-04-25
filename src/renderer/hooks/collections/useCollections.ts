@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType } from 'model';
 import api from 'renderer/Api';
 import type { NotificationProps } from 'model';
+import { useDeleteCollectionMutation, useRenameCollectionMutation, useUpdateCollectionMutation } from 'renderer/async-cache';
 import { writeConfig } from 'renderer/util/config-write';
 import { validateCollectionName } from 'shared/collection-name';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -46,6 +47,9 @@ export function useCollections({
 	const pendingValidationRef = useRef<ModCollection | undefined>(undefined);
 	const searchStringRef = useRef(searchString);
 	const { activeCollection: currentActiveCollection, allCollectionNames, allCollections, config, updateState } = appState;
+	const { mutateAsync: updateCollectionFileMutation } = useUpdateCollectionMutation();
+	const { mutateAsync: deleteCollectionFileMutation } = useDeleteCollectionMutation();
+	const { mutateAsync: renameCollectionFileMutation } = useRenameCollectionMutation();
 
 	useEffect(() => {
 		searchStringRef.current = searchString;
@@ -94,10 +98,50 @@ export function useCollections({
 		}
 	}, []);
 
+	const persistCollectionFile = useCallback(
+		async (collection: ModCollection) => {
+			const targetCollection = cloneCollection(collection);
+			try {
+				await updateCollectionFileMutation(targetCollection);
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		[updateCollectionFileMutation]
+	);
+
+	const deleteCollectionFile = useCallback(
+		async (collectionName: string) => {
+			try {
+				await deleteCollectionFileMutation(collectionName);
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		[deleteCollectionFileMutation]
+	);
+
+	const renameCollectionFile = useCallback(
+		async (collection: ModCollection, newName: string) => {
+			try {
+				await renameCollectionFileMutation({
+					collection: cloneCollection(collection),
+					newName
+				});
+				return true;
+			} catch {
+				return false;
+			}
+		},
+		[renameCollectionFileMutation]
+	);
+
 	const rawPersistCollection = useCallback(
 		async (collection: ModCollection) => {
 			const targetCollection = cloneCollection(collection);
-			const writeSuccess = await api.updateCollection(targetCollection);
+			const writeSuccess = await persistCollectionFile(targetCollection);
 			if (!writeSuccess) {
 				openNotification(
 					{
@@ -110,7 +154,7 @@ export function useCollections({
 			}
 			return writeSuccess;
 		},
-		[openNotification]
+		[openNotification, persistCollectionFile]
 	);
 
 	const persistCollection = useCallback(
@@ -421,8 +465,8 @@ export function useCollections({
 						mods: mods || [],
 						dirtyCollection: madeEdits ? activeCollection : undefined,
 						persistDirtyCollection: rawPersistCollection,
-						updateCollection: api.updateCollection,
-						deleteCollection: api.deleteCollection,
+						updateCollection: persistCollectionFile,
+						deleteCollection: deleteCollectionFile,
 						writeConfig,
 						onBeforeNewCollectionWrite: () => {
 							savingStarted = true;
@@ -478,8 +522,10 @@ export function useCollections({
 		[
 			appState,
 			commitCollectionState,
+			deleteCollectionFile,
 			madeEdits,
 			openNotification,
+			persistCollectionFile,
 			rawPersistCollection,
 			reportNewCollectionTransactionFailure,
 			runQueuedCollectionWrite,
@@ -508,8 +554,8 @@ export function useCollections({
 						name,
 						dirtyCollection: madeEdits ? activeCollection : undefined,
 						persistDirtyCollection: rawPersistCollection,
-						updateCollection: api.updateCollection,
-						deleteCollection: api.deleteCollection,
+						updateCollection: persistCollectionFile,
+						deleteCollection: deleteCollectionFile,
 						writeConfig,
 						onBeforeNewCollectionWrite: () => {
 							savingStarted = true;
@@ -565,8 +611,10 @@ export function useCollections({
 		[
 			appState,
 			commitCollectionState,
+			deleteCollectionFile,
 			madeEdits,
 			openNotification,
+			persistCollectionFile,
 			rawPersistCollection,
 			reportNewCollectionTransactionFailure,
 			runQueuedCollectionWrite,
@@ -590,7 +638,7 @@ export function useCollections({
 				setSavingCollection(true);
 
 				try {
-					const updateSuccess = await api.renameCollection(cloneCollection(activeCollection), name);
+					const updateSuccess = await renameCollectionFile(activeCollection, name);
 					if (!updateSuccess) {
 						openNotification(
 							{
@@ -613,7 +661,7 @@ export function useCollections({
 						`Renamed collection ${oldName} but failed to persist the active collection change`
 					);
 					if (!configPersisted) {
-						const rolledBack = await api.renameCollection(renamedCollection, oldName);
+						const rolledBack = await renameCollectionFile(renamedCollection, oldName);
 						if (!rolledBack) {
 							notifyRollbackFailure(`Failed to restore collection ${oldName} after the config update failed`);
 						}
@@ -656,6 +704,7 @@ export function useCollections({
 			notifyRollbackFailure,
 			openNotification,
 			persistConfigAndReportFailure,
+			renameCollectionFile,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
 		]
@@ -673,7 +722,7 @@ export function useCollections({
 			const deletedCollection = cloneCollection(activeCollection);
 
 			try {
-				const deleteSuccess = await api.deleteCollection(name);
+				const deleteSuccess = await deleteCollectionFile(name);
 				if (!deleteSuccess) {
 					openNotification(
 						{
@@ -703,7 +752,7 @@ export function useCollections({
 				);
 				if (!configPersisted) {
 					if (lifecycleResult.createdFallbackCollection) {
-						const deletedFallbackCollection = await api.deleteCollection(lifecycleResult.activeCollection.name);
+						const deletedFallbackCollection = await deleteCollectionFile(lifecycleResult.activeCollection.name);
 						if (!deletedFallbackCollection) {
 							notifyRollbackFailure(`Failed to remove the fallback collection after the config update failed`);
 						}
@@ -747,6 +796,7 @@ export function useCollections({
 	}, [
 		appState,
 		commitCollectionState,
+		deleteCollectionFile,
 		notifyRollbackFailure,
 		openNotification,
 		persistConfigAndReportFailure,
@@ -807,7 +857,7 @@ export function useCollections({
 				setSavingCollection(true);
 				try {
 					const targetCollection = cloneCollection(collection);
-					const writeSuccess = await api.updateCollection(targetCollection);
+					const writeSuccess = await persistCollectionFile(targetCollection);
 					if (!writeSuccess) {
 						openNotification(
 							{
@@ -837,7 +887,7 @@ export function useCollections({
 				}
 			});
 		},
-		[openNotification, runQueuedCollectionWrite]
+		[openNotification, persistCollectionFile, runQueuedCollectionWrite]
 	);
 
 	return {

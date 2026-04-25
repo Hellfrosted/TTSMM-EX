@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../model';
@@ -23,6 +24,17 @@ function CollectionRouteHarness({ appState }: { appState: AppState }) {
 	);
 }
 
+function createTestQueryClient() {
+	return new QueryClient({
+		defaultOptions: {
+			queries: {
+				gcTime: Infinity,
+				retry: false
+			}
+		}
+	});
+}
+
 describe('CollectionRoute', () => {
 	it('renders the main collection view even from the parent collection route', async () => {
 		const activeCollection = { name: 'default', mods: [] };
@@ -40,18 +52,21 @@ describe('CollectionRoute', () => {
 		});
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
+		const queryClient = createTestQueryClient();
 		render(
-			<MemoryRouter initialEntries={['/collections']}>
-				<Routes>
-					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
-						<Route path="collections" element={<CollectionRoute />}>
-							<Route index element={<Navigate replace to="main" />} />
-							<Route path="main" element={<MainCollectionComponent />} />
-							<Route path="*" element={<Navigate replace to="main" />} />
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter initialEntries={['/collections']}>
+					<Routes>
+						<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
+							<Route path="collections" element={<CollectionRoute />}>
+								<Route index element={<Navigate replace to="main" />} />
+								<Route path="main" element={<MainCollectionComponent />} />
+								<Route path="*" element={<Navigate replace to="main" />} />
+							</Route>
 						</Route>
-					</Route>
-				</Routes>
-			</MemoryRouter>
+					</Routes>
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		await waitFor(() => {
@@ -79,18 +94,21 @@ describe('CollectionRoute', () => {
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
 
+		const queryClient = createTestQueryClient();
 		render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<Routes>
-					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
-						<Route path="collections" element={<CollectionRoute />}>
-							<Route index element={<Navigate replace to="main" />} />
-							<Route path="main" element={<MainCollectionComponent />} />
-							<Route path="*" element={<Navigate replace to="main" />} />
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter initialEntries={['/collections/main']}>
+					<Routes>
+						<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
+							<Route path="collections" element={<CollectionRoute />}>
+								<Route index element={<Navigate replace to="main" />} />
+								<Route path="main" element={<MainCollectionComponent />} />
+								<Route path="*" element={<Navigate replace to="main" />} />
+							</Route>
 						</Route>
-					</Route>
-				</Routes>
-			</MemoryRouter>
+					</Routes>
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		const [resizeHandle] = await screen.findAllByLabelText('Resize ID');

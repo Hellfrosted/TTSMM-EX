@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { AppConfig } from 'model';
+import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
 import type { BlockLookupIndexStats, BlockLookupSettings } from 'shared/block-lookup';
 
@@ -64,6 +65,114 @@ export function collectionQueryOptions(collectionName: string) {
 	return queryOptions({
 		queryKey: queryKeys.collections.detail(collectionName),
 		queryFn: () => api.readCollection(collectionName)
+	});
+}
+
+function setCollectionQueryData(queryClient: QueryClient, collection: ModCollection) {
+	queryClient.setQueryData(queryKeys.collections.detail(collection.name), collection);
+}
+
+function removeCollectionQueryData(queryClient: QueryClient, collectionName: string) {
+	queryClient.removeQueries({ queryKey: queryKeys.collections.detail(collectionName), exact: true });
+}
+
+function invalidateCollectionQueries(queryClient: QueryClient) {
+	return queryClient.invalidateQueries({ queryKey: queryKeys.collections.root() });
+}
+
+function addCollectionNameToList(queryClient: QueryClient, collectionName: string) {
+	queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) => {
+		if (currentNames.includes(collectionName)) {
+			return currentNames;
+		}
+
+		return [...currentNames, collectionName];
+	});
+}
+
+function removeCollectionNameFromList(queryClient: QueryClient, collectionName: string) {
+	queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) =>
+		currentNames.filter((currentName) => currentName !== collectionName)
+	);
+}
+
+async function updateCollectionMutationFn(collection: ModCollection) {
+	const updateSuccess = await api.updateCollection(collection);
+	if (!updateSuccess) {
+		throw new Error(`Collection write was rejected: ${collection.name}`);
+	}
+
+	return collection;
+}
+
+async function deleteCollectionMutationFn(collectionName: string) {
+	const deleteSuccess = await api.deleteCollection(collectionName);
+	if (!deleteSuccess) {
+		throw new Error(`Collection delete was rejected: ${collectionName}`);
+	}
+
+	return collectionName;
+}
+
+interface RenameCollectionMutationVariables {
+	collection: ModCollection;
+	newName: string;
+}
+
+async function renameCollectionMutationFn({ collection, newName }: RenameCollectionMutationVariables) {
+	const renameSuccess = await api.renameCollection(collection, newName);
+	if (!renameSuccess) {
+		throw new Error(`Collection rename was rejected: ${collection.name} -> ${newName}`);
+	}
+
+	return {
+		previousName: collection.name,
+		collection: {
+			...collection,
+			name: newName
+		}
+	};
+}
+
+export function useUpdateCollectionMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: updateCollectionMutationFn,
+		onSuccess: (collection) => {
+			setCollectionQueryData(queryClient, collection);
+			addCollectionNameToList(queryClient, collection.name);
+			return invalidateCollectionQueries(queryClient);
+		}
+	});
+}
+
+export function useDeleteCollectionMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: deleteCollectionMutationFn,
+		onSuccess: (collectionName) => {
+			removeCollectionQueryData(queryClient, collectionName);
+			removeCollectionNameFromList(queryClient, collectionName);
+			return invalidateCollectionQueries(queryClient);
+		}
+	});
+}
+
+export function useRenameCollectionMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: renameCollectionMutationFn,
+		onSuccess: ({ previousName, collection }) => {
+			removeCollectionQueryData(queryClient, previousName);
+			setCollectionQueryData(queryClient, collection);
+			queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) =>
+				currentNames.map((currentName) => (currentName === previousName ? collection.name : currentName))
+			);
+			return invalidateCollectionQueries(queryClient);
+		}
 	});
 }
 
