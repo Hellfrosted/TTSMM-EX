@@ -366,16 +366,35 @@ interface BlockLookupTableOptionsModalProps {
 	onCancel: () => void;
 }
 
+const blockLookupFocusClassName = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const blockLookupControlClassName = [
+	'box-border min-h-control rounded-md border border-border bg-surface text-text',
+	'disabled:cursor-not-allowed disabled:opacity-55',
+	blockLookupFocusClassName
+].join(' ');
+
 function BlockLookupButton({ children, className, icon, loading, type = 'button', variant = 'default', ...props }: BlockLookupButtonProps) {
+	const buttonClassName = [
+		blockLookupControlClassName,
+		'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650]',
+		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
+		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
 	return (
-		<button
-			{...props}
-			type={type}
-			className={`BlockLookupButton${variant === 'primary' ? ' BlockLookupButton--primary' : ''}${className ? ` ${className}` : ''}`}
-			disabled={props.disabled || loading}
-		>
-			{loading ? <span className="BlockLookupButton__spinner" aria-hidden="true" /> : icon}
-			<span className="BlockLookupButton__label">{children}</span>
+		<button {...props} type={type} className={buttonClassName} disabled={props.disabled || loading}>
+			{loading ? (
+				<span
+					className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+					aria-hidden="true"
+				/>
+			) : (
+				icon
+			)}
+			<span className="inline-flex min-w-0 items-center">{children}</span>
 		</button>
 	);
 }
@@ -384,7 +403,13 @@ function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLooku
 	return (
 		<input
 			{...props}
-			className="BlockLookupSwitch"
+			className={[
+				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface transition-colors duration-150 ease-in-out',
+				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
+				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
+				'disabled:cursor-not-allowed disabled:opacity-55',
+				blockLookupFocusClassName
+			].join(' ')}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -400,7 +425,7 @@ function BlockLookupNumberInput({ disabled, max, min, onChange, placeholder, ste
 	return (
 		<input
 			{...props}
-			className="BlockLookupNumberInput"
+			className={[blockLookupControlClassName, 'w-full px-3'].join(' ')}
 			disabled={disabled}
 			max={max}
 			min={min}
@@ -998,14 +1023,14 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 
 	return (
 		<Profiler id="BlockLookup.View" onRender={logProfilerRender}>
-			<div className="BlockLookupViewLayout">
-				<header className="BlockLookupHeader">
-					<div className="BlockLookupToolbar">
-						<div className="BlockLookupSearch">
-							<Search className="BlockLookupSearchIcon" size={16} aria-hidden="true" />
+			<div className="BlockLookupViewLayout flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-background">
+				<header className="flex h-auto min-h-[138px] flex-col gap-2.5 border-b border-border bg-surface px-5 pb-3 pt-3.5 leading-[1.4] max-[760px]:px-3.5">
+					<div className="flex min-w-0 flex-wrap items-center gap-2.5">
+						<div className="relative flex min-w-[280px] max-w-[560px] flex-[1_1_340px] items-center max-[760px]:min-w-0 max-[760px]:max-w-none max-[760px]:basis-full">
+							<Search className="pointer-events-none absolute left-3 text-text-muted" size={16} aria-hidden="true" />
 							<input
 								aria-label="Search block aliases"
-								className="BlockLookupSearchInput"
+								className={[blockLookupControlClassName, 'w-full min-w-0 px-[38px]'].join(' ')}
 								placeholder="Search block, mod, ID, alias"
 								value={query}
 								onChange={(event) => {
@@ -1018,7 +1043,11 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							{query ? (
 								<button
 									aria-label="Clear block lookup search"
-									className="BlockLookupSearchClear"
+									className={[
+										'absolute right-1 inline-flex h-[calc(var(--app-control-height)-8px)] min-h-0 w-[calc(var(--app-control-height)-8px)] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
+										'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
+										blockLookupFocusClassName
+									].join(' ')}
 									type="button"
 									onClick={() => {
 										setQuery('');
@@ -1028,7 +1057,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 								</button>
 							) : null}
 						</div>
-						<div className="BlockLookupActions">
+						<div className="ml-auto inline-flex flex-wrap items-center gap-2.5 max-[760px]:ml-0 max-[760px]:w-full max-[760px]:[&>button]:flex-1">
 							<BlockLookupButton
 								icon={<RefreshCw size={16} aria-hidden="true" />}
 								onClick={() => {
@@ -1068,10 +1097,13 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							</BlockLookupButton>
 						</div>
 					</div>
-					<div className="BlockLookupPathBar">
+					<div className="flex min-w-0 items-center gap-2.5 max-[760px]:flex-wrap">
 						<input
 							aria-label="Workshop root"
-							className="BlockLookupPathInput"
+							className={[
+								blockLookupControlClassName,
+								'min-w-[260px] flex-[1_1_auto] px-3 max-[760px]:min-w-0 max-[760px]:basis-full'
+							].join(' ')}
 							value={workshopRoot}
 							onChange={(event) => {
 								setWorkshopRoot(event.target.value);
@@ -1090,14 +1122,17 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							Save Path
 						</BlockLookupButton>
 					</div>
-					<div className="BlockLookupStatus" aria-live="polite">
+					<div
+						className="flex min-w-0 items-center justify-between gap-2.5 text-text-muted max-[760px]:flex-col max-[760px]:items-start"
+						aria-live="polite"
+					>
 						<span>{formatBlockLookupIndexStatus(stats, rows.length, query)}</span>
 						<span className="BlockLookupMutedText">
 							{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
 						</span>
 					</div>
 				</header>
-				<main className="BlockLookupContent">
+				<main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 					<div ref={tablePaneRef} className="BlockLookupTablePane">
 						<div className={`BlockLookupVirtualShell${loadingResults || buildingIndex ? ' is-loading' : ''}`}>
 							<div ref={tableScrollRef} className="BlockLookupVirtualScroll">
@@ -1276,16 +1311,20 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 							{loadingResults || buildingIndex ? <div className="BlockLookupVirtualLoading">Loading block lookup...</div> : null}
 						</div>
 					</div>
-					<div className="BlockLookupDetailsPane">
+					<div className="max-h-[184px] min-h-28 flex-none overflow-auto border-t border-border bg-surface px-4 pb-3.5 pt-3">
 						{selectedRecord ? (
-							<div className="BlockLookupDetailsGrid">
+							<div className="grid grid-cols-[minmax(220px,1.4fr)_minmax(220px,1.4fr)_repeat(4,minmax(120px,0.8fr))] items-start gap-x-4 gap-y-2.5 max-[900px]:grid-cols-[repeat(2,minmax(180px,1fr))] max-[520px]:grid-cols-1 [&>div]:flex [&>div]:min-w-0 [&>div]:flex-col [&>div]:gap-[3px]">
 								<div>
 									<span className="BlockLookupMutedText">Command</span>
-									<span className="BlockLookupDetailsCopyValue">
-										<span className="BlockLookupDetailsValue">{selectedRecord.spawnCommand}</span>
+									<span className="flex min-w-0 items-center gap-1.5">
+										<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.spawnCommand}</span>
 										<button
 											aria-label="Copy command"
-											className="BlockLookupDetailsCopyButton"
+											className={[
+												'inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
+												'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
+												blockLookupFocusClassName
+											].join(' ')}
 											type="button"
 											onClick={() => {
 												copyDetailValue(selectedRecord.spawnCommand);
@@ -1297,11 +1336,17 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 								</div>
 								<div>
 									<span className="BlockLookupMutedText">Fallback</span>
-									<span className="BlockLookupDetailsCopyValue">
-										<span className="BlockLookupDetailsValue">{selectedRecord.fallbackSpawnCommand}</span>
+									<span className="flex min-w-0 items-center gap-1.5">
+										<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">
+											{selectedRecord.fallbackSpawnCommand}
+										</span>
 										<button
 											aria-label="Copy fallback command"
-											className="BlockLookupDetailsCopyButton"
+											className={[
+												'inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
+												'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
+												blockLookupFocusClassName
+											].join(' ')}
 											type="button"
 											onClick={() => {
 												copyDetailValue(selectedRecord.fallbackSpawnCommand);
@@ -1313,23 +1358,23 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 								</div>
 								<div>
 									<span className="BlockLookupMutedText">Block</span>
-									<span className="BlockLookupDetailsValue">{selectedRecord.blockName}</span>
+									<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.blockName}</span>
 								</div>
 								<div>
 									<span className="BlockLookupMutedText">Internal</span>
-									<span className="BlockLookupDetailsValue">{selectedRecord.internalName}</span>
+									<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.internalName}</span>
 								</div>
 								<div>
 									<span className="BlockLookupMutedText">Mod</span>
-									<span className="BlockLookupDetailsValue">{selectedRecord.modTitle}</span>
+									<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.modTitle}</span>
 								</div>
 								<div>
 									<span className="BlockLookupMutedText">Workshop ID</span>
-									<span className="BlockLookupDetailsValue">{selectedRecord.workshopId}</span>
+									<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.workshopId}</span>
 								</div>
-								<div className="BlockLookupDetailsGrid__source">
+								<div className="col-span-full">
 									<span className="BlockLookupMutedText">Source</span>
-									<span className="BlockLookupDetailsValue">{selectedRecord.sourcePath}</span>
+									<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text">{selectedRecord.sourcePath}</span>
 								</div>
 							</div>
 						) : (
