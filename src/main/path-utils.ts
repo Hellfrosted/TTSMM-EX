@@ -31,3 +31,9 @@ export function expandUserPath(value: string | null | undefined, homeDir: string
 
 	return normalized;
 }
+
+export function parseSteamLibraryFolders(contents: string): string[] {
+	return [...contents.matchAll(/"path"\s+"([^"]+)"/g)]
+		.map((match) => normalizePathValue(match[1]))
+		.filter((libraryPath): libraryPath is string => !!libraryPath);
+}

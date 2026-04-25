@@ -49,6 +49,18 @@ describe('mod handlers', () => {
 		expect(steamworks.ugcUnsubscribe).not.toHaveBeenCalled();
 	});
 
+	it('rejects malformed download payloads before calling Steamworks', async () => {
+		const steamworks = {
+			ugcDownloadItem: vi.fn()
+		};
+
+		await expect(createDownloadModHandler(steamworks as never)({} as never, '42' as never)).rejects.toThrow(
+			`Invalid IPC payload for ${ValidChannel.DOWNLOAD_MOD}`
+		);
+
+		expect(steamworks.ugcDownloadItem).not.toHaveBeenCalled();
+	});
+
 	it('returns false when a Steam action throws synchronously', async () => {
 		const steamworks = {
 			ugcSubscribe: vi.fn(() => {
@@ -86,10 +98,38 @@ describe('mod handlers', () => {
 		});
 	});
 
+	it('rejects malformed workshop dependency payloads before lookup', async () => {
+		const mainWindowProvider = {
+			getWebContents: vi.fn()
+		};
+		const dependencyLookup = vi.fn();
+
+		await expect(
+			createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(0))
+		).rejects.toThrow(`Invalid IPC payload for ${ValidChannel.FETCH_WORKSHOP_DEPENDENCIES}`);
+
+		expect(dependencyLookup).not.toHaveBeenCalled();
+		expect(mainWindowProvider.getWebContents).not.toHaveBeenCalled();
+	});
+
 	it('rejects mod metadata requests when scanning mods fails', async () => {
 		vi.spyOn(ModFetcher.prototype, 'fetchMods').mockRejectedValueOnce(new Error('scan failed'));
 
 		await expect(createReadModMetadataHandler()({ sender: {} as never }, 'C:\\mods', [])).rejects.toThrow('scan failed');
+	});
+
+	it('rejects malformed mod metadata payloads before clearing caches', async () => {
+		const clearDependencyLookupCache = vi.fn();
+
+		await expect(
+			createReadModMetadataHandler(clearDependencyLookupCache)(
+				{ sender: {} as never },
+				'C:\\mods',
+				'workshop:42' as never
+			)
+		).rejects.toThrow(`Invalid IPC payload for ${ValidChannel.READ_MOD_METADATA}`);
+
+		expect(clearDependencyLookupCache).not.toHaveBeenCalled();
 	});
 
 	it('clears cached workshop dependency lookups before rescanning mod metadata', async () => {

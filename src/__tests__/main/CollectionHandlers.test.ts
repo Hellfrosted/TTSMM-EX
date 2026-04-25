@@ -5,10 +5,35 @@ import {
 	listCollections,
 	readCollectionFile,
 	refersToSameCollectionPath,
+	registerCollectionHandlers,
 	renameCollectionFile,
 	updateCollectionFile
 } from '../../main/ipc/collection-handlers';
+import { ValidChannel } from '../../shared/ipc';
 import { createTempDir } from './test-utils';
+
+function createCollectionHandlerHarness(userDataPath: string) {
+	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+	const ipcMain = {
+		handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
+			handlers.set(channel, handler);
+		})
+	};
+
+	registerCollectionHandlers(ipcMain as never, {
+		getUserDataPath: () => userDataPath
+	});
+
+	const invoke = <T,>(channel: ValidChannel, ...args: unknown[]) => {
+		const handler = handlers.get(channel);
+		if (!handler) {
+			throw new Error(`Missing handler for ${channel}`);
+		}
+		return handler({}, ...args) as Promise<T>;
+	};
+
+	return { invoke };
+}
 
 describe('collection handlers', () => {
 	let tempDir: string;
@@ -30,6 +55,14 @@ describe('collection handlers', () => {
 		const collectionsDir = path.join(tempDir, 'collections');
 		fs.mkdirSync(collectionsDir, { recursive: true });
 		fs.writeFileSync(path.join(collectionsDir, 'broken.json'), '{ bad json', 'utf8');
+
+		expect(() => readCollectionFile(tempDir, 'broken')).toThrow('Failed to load collection "broken"');
+	});
+
+	it('throws when a collection file exists but has an invalid shape', () => {
+		const collectionsDir = path.join(tempDir, 'collections');
+		fs.mkdirSync(collectionsDir, { recursive: true });
+		fs.writeFileSync(path.join(collectionsDir, 'broken.json'), JSON.stringify({ name: 'broken', mods: 'not-array' }), 'utf8');
 
 		expect(() => readCollectionFile(tempDir, 'broken')).toThrow('Failed to load collection "broken"');
 	});
@@ -168,5 +201,25 @@ describe('collection handlers', () => {
 		fs.mkdirSync(path.join(collectionsDir, 'archived.json'));
 
 		expect(listCollections(tempDir).sort()).toEqual(['alpha', 'beta']);
+	});
+
+	it('rejects malformed update payloads at the ipc seam', async () => {
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { name: 'default', mods: 'not-array' })).rejects.toThrow(
+			'Invalid IPC payload for update-collection'
+		);
+
+		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(false);
+	});
+
+	it('rejects malformed collection names at the ipc seam', async () => {
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+
+		await expect(invoke(ValidChannel.READ_COLLECTION, 42)).rejects.toThrow('Invalid IPC payload for read-collection');
+		await expect(invoke(ValidChannel.DELETE_COLLECTION, { name: 'default' })).rejects.toThrow('Invalid IPC payload for delete-collection');
+		await expect(invoke(ValidChannel.RENAME_COLLECTION, { name: 'default', mods: [] }, [])).rejects.toThrow(
+			'Invalid IPC payload for rename-collection'
+		);
 	});
 });

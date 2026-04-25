@@ -1,8 +1,50 @@
 import fs from 'fs';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
-import { readConfigFile, writeConfigFile } from '../../main/ipc/config-handlers';
+import { readConfigFile, registerConfigHandlers, writeConfigFile } from '../../main/ipc/config-handlers';
+import type { AppConfig } from '../../model';
+import { ValidChannel } from '../../shared/ipc';
 import { createTempDir } from './test-utils';
+
+function createConfigHandlerHarness(userDataPath: string) {
+	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+	const ipcMain = {
+		handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
+			handlers.set(channel, handler);
+		}),
+		on: vi.fn()
+	};
+
+	registerConfigHandlers(ipcMain as never, true, {
+		getUserDataPath: () => userDataPath
+	});
+
+	const invoke = <T,>(channel: ValidChannel, ...args: unknown[]) => {
+		const handler = handlers.get(channel);
+		if (!handler) {
+			throw new Error(`Missing handler for ${channel}`);
+		}
+		return handler({}, ...args) as Promise<T>;
+	};
+
+	return { invoke };
+}
+
+function createValidConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+	return {
+		closeOnLaunch: false,
+		language: 'en',
+		gameExec: 'TerraTech.exe',
+		workshopID: BigInt(1),
+		logsDir: 'logs',
+		steamMaxConcurrency: 1,
+		currentPath: '/collections/main',
+		viewConfigs: {},
+		ignoredValidationErrors: new Map(),
+		userOverrides: new Map(),
+		...overrides
+	};
+}
 
 describe('config handlers', () => {
 	it('returns null for a missing config file', () => {
@@ -80,5 +122,33 @@ describe('config handlers', () => {
 		);
 
 		renameSyncSpy.mockRestore();
+	});
+
+	it('rejects malformed update payloads at the ipc seam', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const { invoke } = createConfigHandlerHarness(tempDir);
+
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, createValidConfig({ workshopID: '1' as never }))).rejects.toThrow(
+			'Invalid IPC payload for update-config'
+		);
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, { ...createValidConfig(), ignoredValidationErrors: {} })).rejects.toThrow(
+			'Invalid IPC payload for update-config'
+		);
+
+		expect(fs.existsSync(path.join(tempDir, 'config.json'))).toBe(false);
+	});
+
+	it('accepts valid update payloads through the ipc seam', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const { invoke } = createConfigHandlerHarness(tempDir);
+
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, createValidConfig({ gameExec: 'new.exe' }))).resolves.toBe(true);
+
+		expect(readConfigFile(path.join(tempDir, 'config.json'), true)).toEqual(
+			expect.objectContaining({
+				gameExec: 'new.exe',
+				workshopID: BigInt(1)
+			})
+		);
 	});
 });

@@ -17,14 +17,13 @@ import {
 	TERRATECH_STEAM_APP_ID
 } from 'shared/block-lookup';
 import { writeUtf8FileAtomic } from './storage';
-import { expandUserPath, normalizePathValue } from './path-utils';
+import { expandUserPath, normalizePathValue, parseSteamLibraryFolders } from './path-utils';
 
 const BLOCK_LOOKUP_INDEX_FILENAME = 'block-lookup-index.json';
 const BLOCK_LOOKUP_SETTINGS_FILENAME = 'block-lookup-settings.json';
 const NAME_RE = /"Name"\s*:\s*"([^"]+)"/i;
 const ID_RE = /"ID"\s*:\s*(\d+)/i;
 const UNITY_NAME_RE = /"m_Name"\s*:\s*"([^"]+)"/i;
-const LIBRARY_PATH_RE = /"path"\s+"([^"]+)"/g;
 const JSON_SUFFIXES = new Set(['.json']);
 const IGNORE_SUFFIXES = new Set(['.png', '.jpg', '.jpeg', '.gif', '.txt', '.xml', '.meta', '.ini', '.md', '.tdc']);
 const IGNORE_FILENAMES = new Set(['SteamVersion']);
@@ -319,12 +318,6 @@ function extractBundleBlocksWithPython(sourcePaths: string[], execFile: typeof c
 		);
 		child.stdin?.end(JSON.stringify(sourcePaths));
 	});
-}
-
-function parseSteamLibraryFolders(contents: string): string[] {
-	return [...contents.matchAll(LIBRARY_PATH_RE)]
-		.map((match) => normalizePathValue(match[1]))
-		.filter((libraryPath): libraryPath is string => !!libraryPath);
 }
 
 function getWindowsSteamPathFromRegistry(execFileSync: typeof childProcess.execFileSync = childProcess.execFileSync): string | null {
