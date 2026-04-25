@@ -642,43 +642,6 @@ a:hover {
 	min-width: 0;
 }
 
-.SettingsDisclosure {
-	margin-top: 2px;
-	padding-top: 4px;
-	border-top: 1px solid var(--app-color-border);
-}
-
-.SettingsDisclosureSummary {
-	min-height: 38px;
-	padding: 9px 0;
-	color: var(--app-color-text);
-	font-weight: 650;
-	line-height: 1.25;
-	cursor: pointer;
-	user-select: none;
-}
-
-.SettingsDisclosureSummary::marker {
-	color: var(--app-color-text-muted);
-}
-
-.SettingsDisclosureSummary:focus-visible {
-	outline: none;
-	border-radius: 6px;
-	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
-		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
-}
-
-.SettingsDisclosureBody {
-	padding-top: 12px;
-}
-
-.SettingsDisclosureActions {
-	display: flex;
-	justify-content: flex-start;
-}
-
 .MainFooter {
 	flex: 0 0 auto;
 	display: flex;

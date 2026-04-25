@@ -707,14 +707,16 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									/>
 								</SettingsField>
 								<details
-									className="SettingsDisclosure"
+									className="mt-0.5 border-t border-border pt-1"
 									open={loggingOverridesOpen}
 									onToggle={(event) => {
 										setLoggingOverridesOpen(event.currentTarget.open);
 									}}
 								>
-									<summary className="SettingsDisclosureSummary">Logging Overrides</summary>
-									<div className="SettingsDisclosureBody">
+									<summary className="min-h-[38px] cursor-pointer select-none py-[9px] font-[650] leading-tight text-text marker:text-text-muted focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+										Logging Overrides
+									</summary>
+									<div className="pt-3">
 										{editingConfig.editingLogConfig.map((config, index) => {
 											const id = `editingLogConfig.${index}.loggerID`;
 
@@ -765,7 +767,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												</SettingsField>
 											);
 										})}
-										<div className="SettingsDisclosureActions">
+										<div className="flex justify-start">
 											<SettingsButton
 												icon={<Plus size={16} />}
 												onClick={() => {
