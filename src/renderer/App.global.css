@@ -1300,66 +1300,6 @@ a:hover {
 	outline: none;
 }
 
-.ViewStageLoadingFallback {
-	display: flex;
-	flex: 1 1 auto;
-	width: 100%;
-	height: 100%;
-	min-width: 0;
-	min-height: 0;
-	align-items: center;
-	justify-content: center;
-	padding: 24px;
-	box-sizing: border-box;
-	overflow: auto;
-}
-
-.ViewStageLoadingFallback--compact {
-	padding: 12px;
-}
-
-.ViewStageLoadingFallback__card {
-	width: min(520px, 100%);
-	padding: 18px 20px;
-	background: var(--app-color-surface);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-shadow: 0 12px 28px color-mix(in srgb, var(--app-color-background) 72%, transparent);
-}
-
-.ViewStageLoadingFallback__card--compact {
-	width: 100%;
-	padding: 14px 16px;
-	background: var(--app-color-surface-alt);
-	box-shadow: none;
-}
-
-.ViewStageLoadingFallback__body {
-	display: flex;
-	align-items: flex-start;
-	gap: 12px;
-}
-
-.ViewStageLoadingFallback__spinner {
-	flex: 0 0 auto;
-	color: var(--app-color-primary);
-	animation: spin 900ms linear infinite;
-}
-
-.ViewStageLoadingFallback__copy {
-	min-width: 0;
-}
-
-.ViewStageLoadingFallback__title {
-	display: block;
-	margin-bottom: 4px;
-}
-
-.ViewStageLoadingFallback__detail {
-	margin: 0;
-	color: var(--app-color-text-muted);
-}
-
 .StartupHeroRow {
 	display: flex;
 	align-items: center;

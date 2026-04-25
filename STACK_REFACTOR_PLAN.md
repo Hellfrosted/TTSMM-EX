@@ -280,7 +280,7 @@ This plan is intentionally broader than a normal refactor because it resolves st
 
 - Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
 - Completed React Query follow-up coverage through commit 28: user-visible collection mutation errors, config and collection cache behavior, and forced mod metadata refresh behavior are covered.
-- Active Tailwind phase: commit 29 records the renderer styling convention; commit 30 maps app design tokens into Tailwind theme values.
+- Active Tailwind phase: commit 29 records the renderer styling convention; commit 30 maps app design tokens into Tailwind theme values; commit 31 has started with the shared view loading fallback.
 
 ## Work Notes
 
@@ -292,3 +292,4 @@ This plan is intentionally broader than a normal refactor because it resolves st
 - 2026-04-25 renderer query conventions: added `renderer/async-cache.ts` for canonical query keys and Block Lookup cache helpers; Block Lookup no longer owns raw query keys or direct search invalidation keys.
 - 2026-04-25 renderer async cache expansion: config reads/writes, startup collection reads, collection mutations, mod metadata scans, and game-running polling now go through `renderer/async-cache.ts` query options or mutation hooks. `npm run validate` passed after each committed phase with 50 test files / 259 tests.
 - 2026-04-25 React Query follow-up coverage: added behavior coverage for collection mutation error notifications, config and collection query cache effects, and forced mod metadata refresh. `npm run validate` passed with 51 test files / 268 tests.
+- 2026-04-25 Tailwind loading fallback: `ViewStageLoadingFallback` now uses Tailwind utilities backed by the app theme tokens, and its obsolete custom CSS selectors were removed. `npm run validate` passed with 51 test files / 268 tests.
