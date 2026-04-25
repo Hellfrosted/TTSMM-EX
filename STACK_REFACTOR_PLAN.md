@@ -280,7 +280,7 @@ This plan is intentionally broader than a normal refactor because it resolves st
 
 - Completed through commit 25: renderer config, collection reads, collection mutations, mod metadata scans, and game-running status now use the canonical React Query cache layer.
 - Completed React Query follow-up coverage through commit 28: user-visible collection mutation errors, config and collection cache behavior, and forced mod metadata refresh behavior are covered.
-- Active Tailwind phase: commit 29 records the renderer styling convention; commit 30 maps app design tokens into Tailwind theme values; commit 31 has started with shared loading primitives.
+- Active Tailwind phase: commits 29-33 have established Tailwind conventions, mapped app tokens, converted shared loading primitives, migrated startup/loading screens, and converted notification UI. Next up is commit 34: settings form layout.
 
 ## Work Notes
 
@@ -296,3 +296,4 @@ This plan is intentionally broader than a normal refactor because it resolves st
 - 2026-04-25 Tailwind startup primitives: `StartupProgressBar`, `StartupStatusIcon`, and `StartupButton` now use Tailwind utilities while preserving existing progress semantics, disabled/loading states, and spinner timing. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind callout primitives: added a shared `StatusCallout` utility component and startup-only action/error wrappers, then removed the old callout and startup action CSS selectors. `npm run validate` passed with 51 test files / 268 tests.
 - 2026-04-25 Tailwind startup shell: config loading, mod loading, and Steamworks verification now share Tailwind-backed startup shell, card, hero, intro, and status primitives; obsolete startup shell CSS and responsive overrides were removed. `npm run validate` passed with 51 test files / 268 tests.
+- 2026-04-25 Tailwind notification UI: `NotificationViewport` now owns placement, tone, body, action, and close-button styling through Tailwind utilities while preserving the notification event API and custom `className` passthrough. `npm run validate` passed with 51 test files / 268 tests.
