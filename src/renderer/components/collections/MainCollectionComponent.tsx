@@ -17,6 +17,12 @@ import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
+	MainCollectionVirtualRow,
+	SelectionCheckbox,
+	type MainCollectionCellRenderer,
+	type MainCollectionRowColumn
+} from './main-collection-row';
+import {
 	ALL_MAIN_COLUMN_TITLES,
 	AUTO_MEASURE_MAIN_COLUMN_TITLES,
 	COLUMN_AUTO_MEASURE_MAX_ROWS,
@@ -365,10 +371,6 @@ type MainCollectionSorter =
 	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
 	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
 	| undefined;
-type MainCollectionCellRenderer = {
-	render(value: DisplayModData[keyof DisplayModData], record: DisplayModData, rowIndex: number): ReactNode;
-}['render'];
-
 interface HeaderMenuItem {
 	key?: Key;
 	label?: ReactNode;
@@ -990,39 +992,6 @@ function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefin
 		.filter((column): column is ColumnSchema => !!column);
 }
 
-function SelectionCheckbox({
-	'aria-label': ariaLabel,
-	checked,
-	indeterminate,
-	onChange
-}: {
-	'aria-label': string;
-	checked: boolean;
-	indeterminate?: boolean;
-	onChange: (checked: boolean) => void;
-}) {
-	const inputRef = useRef<HTMLInputElement | null>(null);
-
-	useEffect(() => {
-		if (inputRef.current) {
-			inputRef.current.indeterminate = !!indeterminate;
-		}
-	}, [indeterminate]);
-
-	return (
-		<input
-			ref={inputRef}
-			type="checkbox"
-			className="MainCollectionSelectionCheckbox"
-			aria-label={ariaLabel}
-			checked={checked}
-			onChange={(event) => {
-				onChange(event.target.checked);
-			}}
-		/>
-	);
-}
-
 function getColumnSchema(
 	props: MainCollectionSchemaProps,
 	columnWidthConfig?: Record<string, number>,
@@ -1063,7 +1032,7 @@ function getColumnSchema(
 	});
 }
 
-interface MainCollectionTableColumn {
+interface MainCollectionTableColumn extends MainCollectionRowColumn {
 	title: string;
 	dataIndex: string;
 	className?: string;
@@ -1071,13 +1040,7 @@ interface MainCollectionTableColumn {
 	width?: number | string;
 	resizeWidth?: number;
 	sorter?: MainCollectionSorter;
-	render?: MainCollectionCellRenderer;
 	onHeaderCell?: (column: MainCollectionTableColumn) => ResizableHeaderCellProps;
-	onCell?: (record: DisplayModData, index?: number) => { style?: CSSProperties; 'data-column-title'?: string };
-}
-
-function getRecordValue(record: DisplayModData, dataIndex: string) {
-	return record[dataIndex as keyof DisplayModData];
 }
 
 function getSorterCompare(sorter: MainCollectionSorter) {
@@ -1113,25 +1076,8 @@ function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], 
 	);
 }
 
-function renderCellValue(column: MainCollectionTableColumn, record: DisplayModData, rowIndex: number): ReactNode {
-	const value = getRecordValue(record, column.dataIndex);
-	if (column.render) {
-		return column.render(value, record, rowIndex);
-	}
-
-	if (value instanceof Date) {
-		return formatDateStr(value);
-	}
-
-	return value as ReactNode;
-}
-
 function getHeaderCellProps(column: MainCollectionTableColumn) {
 	return column.onHeaderCell?.(column);
-}
-
-function getBodyCellProps(column: MainCollectionTableColumn, record: DisplayModData) {
-	return column.onCell?.(record, 0);
 }
 
 function getNextSortState(currentSort: MainSortState, column: MainCollectionTableColumn): MainSortState {
@@ -1586,12 +1532,8 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		},
 		[setDisabledCallback, setEnabledCallback]
 	);
-	const handleRow = useCallback((record: DisplayModData) => {
-		return {
-			onContextMenu: () => {
-				api.openModContextMenu(record);
-			}
-		};
+	const openRowContextMenu = useCallback((record: DisplayModData) => {
+		api.openModContextMenu(record);
 	}, []);
 
 	return (
@@ -1662,47 +1604,22 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 								const record = row.original;
 								const selected = selectionState.selectedMods.has(record.uid);
-								const rowHandlers = handleRow(record);
 								return (
-									<tr
+									<MainCollectionVirtualRow
 										key={row.id}
-										ref={rowVirtualizer.measureElement}
-										data-index={virtualRow.index}
-										className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}`}
-										style={{ transform: `translateY(${virtualRow.start}px)` }}
-										{...rowHandlers}
-									>
-										<td
-											className="MainCollectionVirtualCell MainCollectionVirtualSelectionCell"
-											style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}
-										>
-											<SelectionCheckbox
-												aria-label={`Include ${getModDataDisplayName(record) || record.uid} in collection`}
-												checked={selected}
-												onChange={(checked) => {
-													setRowSelected(record, checked);
-												}}
-											/>
-										</td>
-										{columns.map((column) => {
-											const bodyCellProps = getBodyCellProps(column, record);
-											const widthStyle = bodyCellProps?.style?.width ?? column.width;
-											return (
-												<td
-													key={`${record.uid}:${column.title}`}
-													className={`MainCollectionVirtualCell ${column.className || ''}`}
-													data-column-title={column.title}
-													style={{
-														...(bodyCellProps?.style || {}),
-														width: widthStyle,
-														textAlign: column.align
-													}}
-												>
-													{renderCellValue(column, record, virtualRow.index)}
-												</td>
-											);
-										})}
-									</tr>
+										columns={columns}
+										measureElement={rowVirtualizer.measureElement}
+										record={record}
+										rowId={row.id}
+										rowIndex={virtualRow.index}
+										selected={selected}
+										small={small}
+										start={virtualRow.start}
+										onContextMenu={() => {
+											openRowContextMenu(record);
+										}}
+										onSelectedChange={setRowSelected}
+									/>
 								);
 							})}
 						</tbody>
