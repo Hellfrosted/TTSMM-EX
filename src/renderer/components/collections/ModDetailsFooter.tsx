@@ -15,7 +15,6 @@ import {
 	X
 } from 'lucide-react';
 import api from 'renderer/Api';
-import StatusCallout from '../StatusCallout';
 import {
 	DisplayModData,
 	getDescriptor,
@@ -40,35 +39,13 @@ import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { APP_TAG_STYLES } from 'renderer/theme';
+import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
 
 import missing from '../../../../assets/missing.png';
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
 
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
-
-type DetailCellRenderer = {
-	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;
-}['render'];
-
-interface DetailColumn {
-	title: ReactNode;
-	dataIndex?: string;
-	defaultSortOrder?: 'ascend';
-	sorter?: (a: DisplayModData, b: DisplayModData) => number;
-	render?: DetailCellRenderer;
-	width?: number;
-	align?: 'center';
-}
-
-interface DetailRowSelection {
-	selectedRowKeys: Key[];
-	checkStrictly?: boolean;
-	onChange: (selectedRowKeys: Key[]) => void;
-	onSelect?: (record: DisplayModData, selected: boolean) => void;
-	onSelectAll?: () => void;
-	onSelectNone?: () => void;
-}
 
 interface DetailDescriptionItem {
 	label: ReactNode;
@@ -121,39 +98,6 @@ function DetailIconButton({
 		<button type="button" className="ModDetailIconButton" aria-label={ariaLabel} aria-pressed={ariaPressed} title={title} onClick={onClick}>
 			{children}
 		</button>
-	);
-}
-
-function DetailButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-	return (
-		<button type="button" className="ModDetailButton" onClick={onClick}>
-			{children}
-		</button>
-	);
-}
-
-function DetailCheckbox({
-	'aria-label': ariaLabel,
-	checked,
-	disabled,
-	onChange
-}: {
-	'aria-label': string;
-	checked: boolean;
-	disabled?: boolean;
-	onChange: (checked: boolean) => void;
-}) {
-	return (
-		<input
-			type="checkbox"
-			className="ModDetailCheckbox"
-			aria-label={ariaLabel}
-			checked={checked}
-			disabled={disabled}
-			onChange={(event) => {
-				onChange(event.target.checked);
-			}}
-		/>
 	);
 }
 
@@ -240,136 +184,6 @@ function DetailTabs({ activeKey, items, onChange }: { activeKey: string; items: 
 			<div className="ModDetailTabsPanel" role="tabpanel">
 				{items.find((item) => item.key === activeKey)?.children}
 			</div>
-		</div>
-	);
-}
-
-function getRecordValue(record: DisplayModData, dataIndex?: string) {
-	return dataIndex ? record[dataIndex as keyof DisplayModData] : undefined;
-}
-
-function flattenDetailRows(rows: DisplayModData[]) {
-	return rows.flatMap((record) => [
-		{ record, depth: 0 },
-		...(record.children || []).map((childRecord) => ({ record: childRecord, depth: 1 }))
-	]);
-}
-
-function DetailTable({
-	columns,
-	dataSource,
-	loading,
-	rowSelection
-}: {
-	columns: DetailColumn[];
-	dataSource: DisplayModData[];
-	loading?: boolean;
-	rowSelection?: DetailRowSelection;
-}) {
-	const visibleRows = flattenDetailRows(dataSource);
-	const selectedKeys = new Set((rowSelection?.selectedRowKeys || []).map((key) => key.toString()));
-	const selectableKeys = visibleRows.map(({ record }) => record.uid);
-	const allSelected = selectableKeys.length > 0 && selectableKeys.every((uid) => selectedKeys.has(uid));
-	const someSelected = selectableKeys.some((uid) => selectedKeys.has(uid)) && !allSelected;
-
-	const updateSelection = (record: DisplayModData, selected: boolean) => {
-		if (!rowSelection) {
-			return;
-		}
-
-		const nextKeys = new Set(selectedKeys);
-		const affectedRecords = record.children && !rowSelection.checkStrictly ? record.children : [record];
-		affectedRecords.forEach((affectedRecord) => {
-			if (selected) {
-				nextKeys.add(affectedRecord.uid);
-			} else {
-				nextKeys.delete(affectedRecord.uid);
-			}
-		});
-		rowSelection.onSelect?.(record, selected);
-		rowSelection.onChange([...nextKeys]);
-	};
-
-	return (
-		<div className="ModDetailTableWrap">
-			<table className="ModDetailTable">
-				<thead>
-					<tr>
-						{rowSelection ? (
-							<th className="ModDetailTableSelectionCell">
-								<DetailCheckbox
-									aria-label="Select all dependency rows"
-									checked={allSelected}
-									onChange={(checked) => {
-										if (checked) {
-											rowSelection.onSelectAll?.();
-											rowSelection.onChange(selectableKeys);
-										} else {
-											rowSelection.onSelectNone?.();
-											rowSelection.onChange([]);
-										}
-									}}
-								/>
-								<span className="sr-only">{someSelected ? 'Some dependency rows selected' : ''}</span>
-							</th>
-						) : null}
-						{columns.map((column, index) => (
-							<th key={`${String(column.title)}-${index}`} style={{ width: column.width, textAlign: column.align }}>
-								{column.title}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{loading ? (
-						<tr>
-							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								Loading...
-							</td>
-						</tr>
-					) : null}
-					{!loading && visibleRows.length === 0 ? (
-						<tr>
-							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								No data
-							</td>
-						</tr>
-					) : null}
-					{!loading
-						? visibleRows.map(({ record, depth }, rowIndex) => (
-								<tr key={record.uid}>
-									{rowSelection ? (
-										<td className="ModDetailTableSelectionCell">
-											<DetailCheckbox
-												aria-label={`Select dependency row for ${getModDataDisplayName(record) || record.name || record.uid}`}
-												checked={selectedKeys.has(record.uid)}
-												onChange={(checked) => {
-													updateSelection(record, checked);
-												}}
-											/>
-										</td>
-									) : null}
-									{columns.map((column, columnIndex) => {
-										const value = getRecordValue(record, column.dataIndex);
-										const rendered = column.render ? column.render(value, record, rowIndex) : (value as ReactNode);
-										return (
-											<td
-												key={`${record.uid}:${columnIndex}`}
-												style={{
-													width: column.width,
-													textAlign: column.align,
-													paddingLeft: columnIndex === 0 ? 8 + depth * 18 : undefined
-												}}
-											>
-												{rendered}
-											</td>
-										);
-									})}
-								</tr>
-							))
-						: null}
-				</tbody>
-			</table>
 		</div>
 	);
 }
@@ -1138,62 +952,22 @@ function ModDetailsFooter({
 		conflictingModData: DisplayModData[]
 	) => {
 		return (
-			<div className="ModDetailDependenciesPane">
-				{dependencyLookupError ? (
-					<div className="ModDetailDependencyError">
-						<StatusCallout tone="warning" heading="Workshop dependency refresh failed">
-							{dependencyLookupError}
-						</StatusCallout>
-						<DetailButton
-							onClick={() => {
-								setDependencyLookupError(undefined);
-							}}
-						>
-							Retry Workshop Dependency Lookup
-						</DetailButton>
-					</div>
-				) : null}
-				<DetailCollapse
-					className="ModDetailDependencies"
-					defaultActiveKey={['required']}
-					items={[
-						{
-							key: 'required',
-							label: 'Required mods:',
-							children: (
-								<DetailTable
-									loading={loadingDependencies}
-									dataSource={requiredModData}
-									rowSelection={requiredDependencyRowSelection}
-									columns={requiredDependencyColumns}
-								/>
-							)
-						},
-						{
-							key: 'dependent',
-							label: 'Dependent mods:',
-							children: (
-								<DetailTable
-									dataSource={dependentModData}
-									rowSelection={dependentDependencyRowSelection}
-									columns={dependentDependencyColumns}
-								/>
-							)
-						},
-						{
-							key: 'conflict',
-							label: 'Conflicting mods:',
-							children: (
-								<DetailTable
-									dataSource={conflictingModData}
-									rowSelection={conflictingDependencyRowSelection}
-									columns={conflictingDependencyColumns}
-								/>
-							)
-						}
-					]}
-				/>
-			</div>
+			<ModDetailsDependenciesPane
+				conflictingDependencyColumns={conflictingDependencyColumns}
+				conflictingDependencyRowSelection={conflictingDependencyRowSelection}
+				conflictingModData={conflictingModData}
+				dependencyLookupError={dependencyLookupError}
+				dependentDependencyColumns={dependentDependencyColumns}
+				dependentDependencyRowSelection={dependentDependencyRowSelection}
+				dependentModData={dependentModData}
+				loadingDependencies={loadingDependencies}
+				onRetryDependencyLookup={() => {
+					setDependencyLookupError(undefined);
+				}}
+				requiredDependencyColumns={requiredDependencyColumns}
+				requiredDependencyRowSelection={requiredDependencyRowSelection}
+				requiredModData={requiredModData}
+			/>
 		);
 	};
 
