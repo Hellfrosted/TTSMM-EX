@@ -135,7 +135,7 @@ function SettingsDialog({
 
 	return (
 		<div
-			className="SettingsDialogOverlay"
+			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6"
 			role="presentation"
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) {
@@ -143,15 +143,20 @@ function SettingsDialog({
 				}
 			}}
 		>
-			<section role="dialog" aria-modal="true" aria-labelledby={titleId} className="SettingsDialog">
-				<div className="SettingsDialogHeader">
-					<h2 id={titleId} className="SettingsDialogTitle">
+			<section
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={titleId}
+				className="flex max-h-[min(680px,calc(100vh_-_48px))] w-[min(560px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
+			>
+				<div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
+					<h2 id={titleId} className="m-0 text-lg leading-[1.3] text-text">
 						{title}
 					</h2>
 					<SettingsButton aria-label="Close dialog" icon={<X size={16} />} onClick={onCancel} />
 				</div>
-				<div className="SettingsDialogBody">{children}</div>
-				{footer ? <div className="SettingsDialogFooter">{footer}</div> : null}
+				<div className="overflow-auto p-4">{children}</div>
+				{footer ? <div className="flex items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</div> : null}
 			</section>
 		</div>
 	);

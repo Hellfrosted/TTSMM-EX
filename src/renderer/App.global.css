@@ -683,60 +683,6 @@ a:hover {
 	}
 }
 
-.SettingsDialogOverlay {
-	position: fixed;
-	inset: 0;
-	z-index: 1000;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 24px;
-	background: color-mix(in srgb, var(--app-color-background) 72%, transparent);
-}
-
-.SettingsDialog {
-	width: min(560px, 100%);
-	max-height: min(680px, calc(100vh - 48px));
-	display: flex;
-	flex-direction: column;
-	background: var(--app-color-surface-elevated);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
-	overflow: hidden;
-}
-
-.SettingsDialogHeader,
-.SettingsDialogFooter {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 14px 16px;
-	border-bottom: 1px solid var(--app-color-border);
-}
-
-.SettingsDialogHeader {
-	justify-content: space-between;
-}
-
-.SettingsDialogFooter {
-	justify-content: flex-end;
-	border-top: 1px solid var(--app-color-border);
-	border-bottom: 0;
-}
-
-.SettingsDialogTitle {
-	margin: 0;
-	color: var(--app-color-text);
-	font-size: 18px;
-	line-height: 1.3;
-}
-
-.SettingsDialogBody {
-	padding: 16px;
-	overflow: auto;
-}
-
 .SettingsSelect {
 	width: 100%;
 	min-width: 0;
