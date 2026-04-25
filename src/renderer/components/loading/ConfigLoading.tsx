@@ -6,7 +6,18 @@ import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import StatusCallout from '../StatusCallout';
-import { StartupActions, StartupProgressBar } from './StartupPrimitives';
+import {
+	StartupActions,
+	StartupCard,
+	StartupEyebrow,
+	StartupIntro,
+	StartupProgressBar,
+	StartupScreen,
+	StartupStatusCard,
+	StartupStatusDetail,
+	StartupStatusTitle,
+	StartupTitle
+} from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
 import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions, useUpdateCollectionMutation } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
@@ -315,30 +326,26 @@ export default function ConfigLoading() {
 			: 'Checking your saved settings and creating a default collection if this is your first launch.';
 
 	return (
-		<div className="StartupShell">
-			<main className="StartupContent">
-				<section aria-labelledby="boot-title" className="StartupCard">
-					<span className="StartupEyebrow">Startup</span>
-					<h2 id="boot-title" className="StartupTitle">
-						Preparing TTSMM-EX
-					</h2>
-					<p className="StartupIntro">
-						Restoring your saved configuration, checking required paths, and loading your collections before the mod workspace appears.
-					</p>
-					<div aria-live="polite" role="status" className={`StartupStatusCard${bootError ? ' is-error' : ''}`}>
-						<strong className="StartupStatusTitle">{statusLabel}</strong>
-						<span className="StartupStatusDetail">{statusDetail}</span>
-					</div>
-					<StartupProgressBar percent={percent} showInfo={!bootError} status={bootError ? 'exception' : 'active'} />
-					{bootError ? (
-						<StartupActions>
-							<StatusCallout tone="error" heading={describedBootError?.title || 'Resolve this before continuing'}>
-								{describedBootError?.detail || bootError}
-							</StatusCallout>
-						</StartupActions>
-					) : null}
-				</section>
-			</main>
-		</div>
+		<StartupScreen>
+			<StartupCard aria-labelledby="boot-title">
+				<StartupEyebrow>Startup</StartupEyebrow>
+				<StartupTitle id="boot-title">Preparing TTSMM-EX</StartupTitle>
+				<StartupIntro>
+					Restoring your saved configuration, checking required paths, and loading your collections before the mod workspace appears.
+				</StartupIntro>
+				<StartupStatusCard aria-live="polite" role="status" error={!!bootError}>
+					<StartupStatusTitle>{statusLabel}</StartupStatusTitle>
+					<StartupStatusDetail>{statusDetail}</StartupStatusDetail>
+				</StartupStatusCard>
+				<StartupProgressBar percent={percent} showInfo={!bootError} status={bootError ? 'exception' : 'active'} />
+				{bootError ? (
+					<StartupActions>
+						<StatusCallout tone="error" heading={describedBootError?.title || 'Resolve this before continuing'}>
+							{describedBootError?.detail || bootError}
+						</StatusCallout>
+					</StartupActions>
+				) : null}
+			</StartupCard>
+		</StartupScreen>
 	);
 }
