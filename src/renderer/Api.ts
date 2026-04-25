@@ -1,5 +1,3 @@
-/* eslint-disable class-methods-use-this */
-
 import type { AppConfig, NLogLevel } from 'model/AppConfig';
 import type { ModData } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';

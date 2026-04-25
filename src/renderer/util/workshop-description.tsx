@@ -225,10 +225,7 @@ function renderEscapedWorkshopMarkup(value: string, imageAltFallback: string): s
 	return renderedValue;
 }
 
-export function convertWorkshopDescriptionToHtml(
-	description?: string,
-	options: { imageAltFallback?: string } = {}
-): string {
+export function convertWorkshopDescriptionToHtml(description?: string, options: { imageAltFallback?: string } = {}): string {
 	if (!description) {
 		return '';
 	}

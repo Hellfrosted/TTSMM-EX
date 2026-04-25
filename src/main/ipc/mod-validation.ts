@@ -12,15 +12,17 @@ const readModMetadataPayloadSchema = z.object({
 	allKnownMods: z.array(z.string()).max(MAX_KNOWN_MODS)
 });
 
-const modContextMenuRecordSchema = z.object({
-	uid: z.string().min(1),
-	id: z.string().nullable(),
-	type: z.enum(ModType),
-	path: z.string().optional(),
-	workshopID: z.bigint().positive().optional(),
-	subscribed: z.boolean().optional(),
-	needsUpdate: z.boolean().optional()
-}).passthrough();
+const modContextMenuRecordSchema = z
+	.object({
+		uid: z.string().min(1),
+		id: z.string().nullable(),
+		type: z.enum(ModType),
+		path: z.string().optional(),
+		workshopID: z.bigint().positive().optional(),
+		subscribed: z.boolean().optional(),
+		needsUpdate: z.boolean().optional()
+	})
+	.passthrough();
 
 export function parseWorkshopIdPayload(channel: ValidChannel, payload: unknown): bigint {
 	return parseIpcPayload(channel, workshopIdSchema, payload);

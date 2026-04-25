@@ -212,19 +212,9 @@ describe('ModDetailsFooter', () => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
 		});
 
-		rerender(
-			<ModDetailsFooter
-				{...footerProps}
-				activeTabKey="info"
-			/>
-		);
+		rerender(<ModDetailsFooter {...footerProps} activeTabKey="info" />);
 
-		rerender(
-			<ModDetailsFooter
-				{...footerProps}
-				activeTabKey="dependencies"
-			/>
-		);
+		rerender(<ModDetailsFooter {...footerProps} activeTabKey="dependencies" />);
 
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(2);
@@ -246,7 +236,10 @@ describe('ModDetailsFooter', () => {
 			mods,
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
-		const fetchWorkshopDependencies = vi.fn(async () => false).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		const fetchWorkshopDependencies = vi
+			.fn(async () => false)
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(true);
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
 		setupDescriptors(mods, appState.config.userOverrides);
@@ -276,7 +269,9 @@ describe('ModDetailsFooter', () => {
 			expect(screen.getByRole('button', { name: 'Retry Workshop Dependency Lookup' })).toBeInTheDocument();
 			expect(screen.getByText('Workshop dependency refresh failed')).toBeInTheDocument();
 			expect(
-				screen.getByText('Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.')
+				screen.getByText(
+					'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.'
+				)
 			).toBeInTheDocument();
 		});
 		fireEvent.click(screen.getByRole('button', { name: 'Retry Workshop Dependency Lookup' }));

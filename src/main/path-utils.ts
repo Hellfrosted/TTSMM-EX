@@ -6,7 +6,10 @@ export function normalizePathValue(value: string | null | undefined): string | n
 		return null;
 	}
 
-	const trimmedValue = value.trim().replace(/^"+|"+$/g, '').replace(/\\\\/g, '\\');
+	const trimmedValue = value
+		.trim()
+		.replace(/^"+|"+$/g, '')
+		.replace(/\\\\/g, '\\');
 	if (trimmedValue.length === 0) {
 		return null;
 	}

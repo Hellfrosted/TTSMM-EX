@@ -11,11 +11,12 @@
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
-		"lint": "npm run lint:eslint && npm run lint:biome",
+		"lint": "npm run lint:biome && npm run lint:eslint",
 		"lint:eslint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:eslint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
-		"lint:biome": "biome lint .",
-		"lint:biome:fix": "biome lint . --write --unsafe",
+		"lint:biome": "biome check .",
+		"lint:biome:fix": "biome check . --write --unsafe",
+		"check:biome": "biome check .",
 		"lint:fix": "npm run lint:eslint:fix && npm run lint:biome:fix",
 		"deadcode": "knip",
 		"package": "node --import=tsx ./scripts/package.ts",
@@ -30,17 +31,11 @@
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
-			"biome lint --no-errors-on-unmatched",
+			"biome check --write --unsafe --no-errors-on-unmatched",
 			"cross-env NODE_ENV=development eslint --cache --fix"
 		],
-		"{*.json,.babelrc,.eslintrc,.prettierrc}": [
-			"prettier --ignore-path .prettierignore --parser json --write"
-		],
-		"*.{css,scss}": [
-			"prettier --ignore-path .prettierignore --single-quote --write"
-		],
-		"*.{html,md,yml}": [
-			"prettier --ignore-path .prettierignore --single-quote --write"
+		"*.{json,jsonc}": [
+			"biome check --write --no-errors-on-unmatched"
 		]
 	},
 	"build": {
@@ -135,7 +130,6 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.13",
 		"@electron/rebuild": "^4.0.3",
-		"@eslint/js": "^9.39.4",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/dateformat": "^5.0.3",
@@ -153,18 +147,14 @@
 		"electron-devtools-installer": "^4.0.0",
 		"electron-vite": "^4.0.0",
 		"eslint": "^9.39.4",
-		"eslint-import-resolver-typescript": "^4.4.4",
-		"eslint-plugin-import": "^2.32.0",
 		"eslint-plugin-jsx-a11y": "^6.10.2",
 		"eslint-plugin-promise": "^7.2.1",
-		"eslint-plugin-react": "^7.37.5",
 		"eslint-plugin-react-hooks": "^7.0.1",
 		"globals": "^14.0.0",
 		"husky": "^9.1.7",
 		"jsdom": "^29.0.2",
 		"knip": "^6.6.3",
 		"lint-staged": "^16.4.0",
-		"prettier": "^3.8.1",
 		"rimraf": "^6.1.3",
 		"tsx": "^4.21.0",
 		"typescript": "^6.0.2",
@@ -212,27 +202,6 @@
 		}
 	},
 	"browserslist": [],
-	"prettier": {
-		"overrides": [
-			{
-				"files": [
-					".prettierrc",
-					".eslintrc"
-				],
-				"options": {
-					"parser": "json",
-					"trailingComma": "none",
-					"useTabs": true
-				}
-			}
-		],
-		"singleQuote": true,
-		"trailingComma": "none",
-		"tabWidth": 2,
-		"useTabs": true,
-		"printWidth": 140,
-		"bracketSameLine": false
-	},
 	"husky": {
 		"hooks": {
 			"pre-commit": "lint-staged"

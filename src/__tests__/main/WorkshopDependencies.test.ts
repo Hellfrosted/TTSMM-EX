@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchWorkshopDependencyLookup, parseWorkshopDependencyLookup, clearWorkshopDependencyLookupCache } from '../../main/workshop-dependencies';
+import {
+	fetchWorkshopDependencyLookup,
+	parseWorkshopDependencyLookup,
+	clearWorkshopDependencyLookupCache
+} from '../../main/workshop-dependencies';
 import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from '../../shared/workshop-dependency-lookup';
 
 vi.mock('axios', () => ({

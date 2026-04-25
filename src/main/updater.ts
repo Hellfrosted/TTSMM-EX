@@ -48,12 +48,14 @@ autoUpdater.on('update-available', () => {
 
 autoUpdater.on('update-not-available', () => {
 	if (updater) {
-		void dialog.showMessageBox({
-			title: 'No Updates',
-			message: 'Current version is up-to-date.'
-		}).catch((error) => {
-			log.error(error);
-		});
+		void dialog
+			.showMessageBox({
+				title: 'No Updates',
+				message: 'Current version is up-to-date.'
+			})
+			.catch((error) => {
+				log.error(error);
+			});
 		resetUpdaterMenuItem();
 	}
 });

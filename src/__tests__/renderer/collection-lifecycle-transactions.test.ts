@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig, ModCollection } from '../../model';
 import type { CollectionWorkspaceSnapshot } from '../../renderer/collection-lifecycle';
-import {
-	runCreateCollectionTransaction,
-	runDuplicateCollectionTransaction
-} from '../../renderer/collection-lifecycle-transactions';
+import { runCreateCollectionTransaction, runDuplicateCollectionTransaction } from '../../renderer/collection-lifecycle-transactions';
 
 function config(activeCollection?: string): AppConfig {
 	return {

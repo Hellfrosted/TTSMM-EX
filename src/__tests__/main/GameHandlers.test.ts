@@ -109,7 +109,17 @@ describe('game handlers', () => {
 			unref: vi.fn()
 		};
 		const spawn = vi.fn(() => child) as unknown as typeof child_process.spawn;
-		const launchPromise = launchGameProcess('~/TerraTechOSX64.app', BigInt(1), false, ['+foo'], spawn, undefined, 'darwin', undefined, '/Users/tester');
+		const launchPromise = launchGameProcess(
+			'~/TerraTechOSX64.app',
+			BigInt(1),
+			false,
+			['+foo'],
+			spawn,
+			undefined,
+			'darwin',
+			undefined,
+			'/Users/tester'
+		);
 
 		expect(spawn).toHaveBeenCalledWith(
 			'open',
@@ -137,7 +147,9 @@ describe('game handlers', () => {
 		const spawn = vi.fn() as unknown as typeof child_process.spawn;
 		const openExternal = vi.fn(async () => undefined);
 
-		await expect(launchGameProcess('game.exe', BigInt(42), false, ['--flag', 'value with space'], spawn, openExternal, 'linux')).resolves.toBe(true);
+		await expect(
+			launchGameProcess('game.exe', BigInt(42), false, ['--flag', 'value with space'], spawn, openExternal, 'linux')
+		).resolves.toBe(true);
 
 		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] --flag value%20with%20space/');
 		expect(spawn).not.toHaveBeenCalled();
@@ -148,7 +160,15 @@ describe('game handlers', () => {
 		const openExternal = vi.fn(async () => undefined);
 
 		await expect(
-			launchGameProcess('game.exe', BigInt(42), false, ['--url', 'https://example.com/mod?id=1&name=alpha#frag%20value'], spawn, openExternal, 'linux')
+			launchGameProcess(
+				'game.exe',
+				BigInt(42),
+				false,
+				['--url', 'https://example.com/mod?id=1&name=alpha#frag%20value'],
+				spawn,
+				openExternal,
+				'linux'
+			)
 		).resolves.toBe(true);
 
 		expect(openExternal).toHaveBeenCalledWith(
@@ -176,7 +196,16 @@ describe('game handlers', () => {
 		const quit = vi.fn();
 
 		await expect(
-			launchGameProcess('game.exe', BigInt(42), false, ['-batchmode'], vi.fn() as unknown as typeof child_process.spawn, openExternal, 'linux', quit)
+			launchGameProcess(
+				'game.exe',
+				BigInt(42),
+				false,
+				['-batchmode'],
+				vi.fn() as unknown as typeof child_process.spawn,
+				openExternal,
+				'linux',
+				quit
+			)
 		).resolves.toBe(false);
 
 		expect(quit).not.toHaveBeenCalled();

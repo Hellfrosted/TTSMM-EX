@@ -1,4 +1,3 @@
- 
 import { SteamworksAPIProps } from './Steamworks';
 
 export enum ItemPreviewType {

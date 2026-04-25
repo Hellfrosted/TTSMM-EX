@@ -1,5 +1,4 @@
 /* global require, module */
-/* eslint-disable @typescript-eslint/no-require-imports */
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');

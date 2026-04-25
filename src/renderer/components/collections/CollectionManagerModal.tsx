@@ -473,12 +473,7 @@ function CollectionManagerModal({
 							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
 								Cancel
 							</CollectionModalButton>
-							<CollectionModalButton
-								loading={savingConfig}
-								disabled={savingConfig}
-								variant="primary"
-								onClick={submitTableSettings}
-							>
+							<CollectionModalButton loading={savingConfig} disabled={savingConfig} variant="primary" onClick={submitTableSettings}>
 								Save Table Settings
 							</CollectionModalButton>
 						</>
@@ -598,12 +593,7 @@ function CollectionManagerModal({
 							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
 								Cancel
 							</CollectionModalButton>
-							<CollectionModalButton
-								loading={savingConfig}
-								disabled={savingConfig}
-								variant="primary"
-								onClick={submitOverrideSettings}
-							>
+							<CollectionModalButton loading={savingConfig} disabled={savingConfig} variant="primary" onClick={submitOverrideSettings}>
 								Save Settings
 							</CollectionModalButton>
 						</>
@@ -618,10 +608,7 @@ function CollectionManagerModal({
 							<div className="ModOverridesPane">
 								<label className="CollectionNativeField">
 									<span className="CollectionNativeField__label">Override ID</span>
-									<input
-										className="CollectionNativeInput"
-										{...overrideForm.register('overrideId')}
-									/>
+									<input className="CollectionNativeInput" {...overrideForm.register('overrideId')} />
 								</label>
 							</div>
 							<div className="ModOverridesPane">

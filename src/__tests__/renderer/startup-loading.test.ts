@@ -21,7 +21,11 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
 	};
 }
 
-function snapshot(collections: ModCollection[], activeCollection?: string, configOverrides: Partial<AppConfig> = {}): CollectionWorkspaceSnapshot {
+function snapshot(
+	collections: ModCollection[],
+	activeCollection?: string,
+	configOverrides: Partial<AppConfig> = {}
+): CollectionWorkspaceSnapshot {
 	const allCollections = new Map(collections.map((collection) => [collection.name, collection]));
 	return {
 		activeCollection: activeCollection ? allCollections.get(activeCollection) : undefined,

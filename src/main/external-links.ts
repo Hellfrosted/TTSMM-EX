@@ -1,12 +1,7 @@
 import { shell } from 'electron';
 import log from 'electron-log';
 
-const ALLOWED_HTTPS_HOSTS = new Set([
-	'discord.com',
-	'forum.terratechgame.com',
-	'github.com',
-	'steamcommunity.com'
-]);
+const ALLOWED_HTTPS_HOSTS = new Set(['discord.com', 'forum.terratechgame.com', 'github.com', 'steamcommunity.com']);
 
 function isAllowedSteamUrl(parsedUrl: URL): boolean {
 	return parsedUrl.hostname === 'url' && /^\/CommunityFilePage\/\d+\/?$/i.test(parsedUrl.pathname);

@@ -1,4 +1,3 @@
- 
 export enum ModType {
 	WORKSHOP = 'workshop',
 	LOCAL = 'local',

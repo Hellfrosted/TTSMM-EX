@@ -45,13 +45,7 @@ export function useCollections({
 	const collectionWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingValidationRef = useRef<ModCollection | undefined>(undefined);
 	const searchStringRef = useRef(searchString);
-	const {
-		activeCollection: currentActiveCollection,
-		allCollectionNames,
-		allCollections,
-		config,
-		updateState
-	} = appState;
+	const { activeCollection: currentActiveCollection, allCollectionNames, allCollections, config, updateState } = appState;
 
 	useEffect(() => {
 		searchStringRef.current = searchString;
@@ -85,7 +79,7 @@ export function useCollections({
 		[openNotification]
 	);
 
-	const runQueuedCollectionWrite = useCallback(async <T,>(operation: () => Promise<T>): Promise<T> => {
+	const runQueuedCollectionWrite = useCallback(async <T>(operation: () => Promise<T>): Promise<T> => {
 		const previousOperation = collectionWriteQueueRef.current;
 		let releaseQueue: () => void = () => undefined;
 		collectionWriteQueueRef.current = new Promise<void>((resolve) => {
@@ -703,7 +697,10 @@ export function useCollections({
 					}
 				}
 
-				const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Deleted collection ${name} but failed to persist the replacement selection`);
+				const configPersisted = await persistConfigAndReportFailure(
+					lifecycleResult.config,
+					`Deleted collection ${name} but failed to persist the replacement selection`
+				);
 				if (!configPersisted) {
 					if (lifecycleResult.createdFallbackCollection) {
 						const deletedFallbackCollection = await api.deleteCollection(lifecycleResult.activeCollection.name);
@@ -747,7 +744,15 @@ export function useCollections({
 				setSavingCollection(false);
 			}
 		});
-	}, [appState, commitCollectionState, notifyRollbackFailure, openNotification, persistConfigAndReportFailure, rawPersistCollection, runQueuedCollectionWrite]);
+	}, [
+		appState,
+		commitCollectionState,
+		notifyRollbackFailure,
+		openNotification,
+		persistConfigAndReportFailure,
+		rawPersistCollection,
+		runQueuedCollectionWrite
+	]);
 
 	const changeActiveCollection = useCallback(
 		async (name: string) => {

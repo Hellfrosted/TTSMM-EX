@@ -1,14 +1,18 @@
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import type {
+	CSSProperties,
+	Key,
+	KeyboardEvent as ReactKeyboardEvent,
+	MouseEvent as ReactMouseEvent,
+	ReactNode,
+	ThHTMLAttributes
+} from 'react';
 import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
-import {
-	getCollectionSelectionState,
-	setVisibleCollectionRowsSelected
-} from 'renderer/collection-mod-projection';
+import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
@@ -146,7 +150,13 @@ function parseRgbColor(color: string): [number, number, number] {
 	const normalized = color.trim();
 	if (normalized.startsWith('#')) {
 		const hexValue = normalized.slice(1);
-		const expanded = hexValue.length === 3 ? hexValue.split('').map((value) => `${value}${value}`).join('') : hexValue;
+		const expanded =
+			hexValue.length === 3
+				? hexValue
+						.split('')
+						.map((value) => `${value}${value}`)
+						.join('')
+				: hexValue;
 		return [
 			Number.parseInt(expanded.slice(0, 2), 16),
 			Number.parseInt(expanded.slice(2, 4), 16),
@@ -185,7 +195,9 @@ function getSizeColorBandIndex(size: number) {
 
 function getSizeBandProgress(size: number, bandIndex: number) {
 	const lowerBound = bandIndex === 0 ? SIZE_COLOR_MIN_BYTES : SIZE_COLOR_BANDS[bandIndex - 1].upperBound;
-	const upperBound = Number.isFinite(SIZE_COLOR_BANDS[bandIndex].upperBound) ? SIZE_COLOR_BANDS[bandIndex].upperBound : SIZE_COLOR_MAX_BYTES;
+	const upperBound = Number.isFinite(SIZE_COLOR_BANDS[bandIndex].upperBound)
+		? SIZE_COLOR_BANDS[bandIndex].upperBound
+		: SIZE_COLOR_MAX_BYTES;
 	const clampedSize = clampNumber(size, lowerBound, upperBound);
 	return (Math.log(clampedSize) - Math.log(lowerBound)) / (Math.log(upperBound) - Math.log(lowerBound) || 1);
 }
@@ -260,8 +272,7 @@ enum TypeTag {
 }
 
 function getTypeIcon(type: TypeTag, size = 15) {
-	const label =
-		type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
+	const label = type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
 	switch (type) {
 		case TypeTag.SKINS:
 			return <img src={Icon_Skins} width={size - 14} alt={label} title={label} key={type} />;
@@ -562,12 +573,7 @@ function ResizableHeaderCell({
 				)}
 			</div>
 			{headerMenu && menuPosition ? (
-				<div
-					className="MainCollectionHeaderMenu"
-					role="menu"
-					tabIndex={-1}
-					style={{ left: menuPosition.x, top: menuPosition.y }}
-				>
+				<div className="MainCollectionHeaderMenu" role="menu" tabIndex={-1} style={{ left: menuPosition.x, top: menuPosition.y }}>
 					{headerMenu.items.map((item, index) => {
 						if (item.type === 'divider') {
 							return <div key={`divider-${index}`} className="MainCollectionHeaderMenuDivider" role="separator" />;
@@ -635,7 +641,10 @@ function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: bool
 	return true;
 }
 
-function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
+function getStateTags(
+	props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>,
+	record: DisplayModData
+): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
 	const { uid, subscribed, workshopID, installed, id } = record;
@@ -746,7 +755,10 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 					}
 					if (downloading) {
 						updateIcon = (
-							<MainCollectionIcon label="Downloading" className="MainCollectionStatusIcon MainCollectionStatusIcon--warning MainCollectionStatusIcon--spin">
+							<MainCollectionIcon
+								label="Downloading"
+								className="MainCollectionStatusIcon MainCollectionStatusIcon--warning MainCollectionStatusIcon--spin"
+							>
 								<LoaderCircle size={16} aria-hidden="true" />
 							</MainCollectionIcon>
 						);
@@ -776,7 +788,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 						onClick={() => {
 							props.getModDetails(uid, record);
 						}}
-						>
+					>
 						{updateIcon}
 						<span className={`CollectionNameLabel${needsUpdate ? ' is-strong' : ''}${updateTone ? ` is-${updateTone}` : ''}`}>
 							{` ${displayName} `}
@@ -1016,9 +1028,24 @@ function getColumnSchema(
 ): MainCollectionTableColumn[] {
 	const { config } = props;
 	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
-	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
+	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME)
+		? MainColumnTitles.NAME
+		: MainColumnTitles.ID;
 	return activeColumns.map((colSchema: ColumnSchema) => {
-		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
+		const {
+			title,
+			dataIndex,
+			className,
+			width,
+			defaultSortOrder,
+			sorter,
+			sorterSetup,
+			filters,
+			filtersSetup,
+			onFilter,
+			align,
+			renderSetup
+		} = colSchema;
 		return {
 			title,
 			dataIndex,
@@ -1184,7 +1211,10 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		() => activeColumnTitles.filter((columnTitle) => AUTO_MEASURE_MAIN_COLUMN_TITLES.has(columnTitle)),
 		[activeColumnTitles]
 	);
-	const selectedModMeasurementKey = useMemo(() => [...collection.mods].sort((left, right) => left.localeCompare(right)).join('|'), [collection.mods]);
+	const selectedModMeasurementKey = useMemo(
+		() => [...collection.mods].sort((left, right) => left.localeCompare(right)).join('|'),
+		[collection.mods]
+	);
 	const measurementStateKey = useMemo(
 		() => `${measurementInputKey}::mods=${selectedModMeasurementKey}::validated=${lastValidationStatus ? '1' : '0'}`,
 		[lastValidationStatus, measurementInputKey, selectedModMeasurementKey]
@@ -1395,87 +1425,85 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 			return {
 				...column,
 				width: getColumnWidthStyle(columnTitle, currentWidth),
-				onHeaderCell: () =>
-					({
-						label: columnTitle,
-						'data-column-title': columnTitle,
-						width: getColumnWidthStyle(columnTitle, currentWidth),
-						resizeWidth: currentWidth,
-						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
-						draggable: true,
-						className: draggingColumnTitle === typedColumnTitle ? 'is-dragging' : undefined,
-						onDragStart: (event) => {
-							event.dataTransfer.effectAllowed = 'move';
-							event.dataTransfer.setData('text/plain', typedColumnTitle);
-							setDraggingColumnTitle(typedColumnTitle);
-						},
-						onDragOver: (event) => {
-							if (draggingColumnTitle && draggingColumnTitle !== typedColumnTitle) {
-								event.preventDefault();
-								event.dataTransfer.dropEffect = 'move';
-							}
-						},
-						onDrop: (event) => {
+				onHeaderCell: () => ({
+					label: columnTitle,
+					'data-column-title': columnTitle,
+					width: getColumnWidthStyle(columnTitle, currentWidth),
+					resizeWidth: currentWidth,
+					minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+					draggable: true,
+					className: draggingColumnTitle === typedColumnTitle ? 'is-dragging' : undefined,
+					onDragStart: (event) => {
+						event.dataTransfer.effectAllowed = 'move';
+						event.dataTransfer.setData('text/plain', typedColumnTitle);
+						setDraggingColumnTitle(typedColumnTitle);
+					},
+					onDragOver: (event) => {
+						if (draggingColumnTitle && draggingColumnTitle !== typedColumnTitle) {
 							event.preventDefault();
-							const sourceTitle = event.dataTransfer.getData('text/plain');
-							setDraggingColumnTitle(undefined);
-							if (isMainColumnTitle(sourceTitle)) {
-								void Promise.resolve(setMainColumnOrderCallback?.(sourceTitle, typedColumnTitle));
+							event.dataTransfer.dropEffect = 'move';
+						}
+					},
+					onDrop: (event) => {
+						event.preventDefault();
+						const sourceTitle = event.dataTransfer.getData('text/plain');
+						setDraggingColumnTitle(undefined);
+						if (isMainColumnTitle(sourceTitle)) {
+							void Promise.resolve(setMainColumnOrderCallback?.(sourceTitle, typedColumnTitle));
+						}
+					},
+					onDragEnd: () => {
+						setDraggingColumnTitle(undefined);
+					},
+					headerMenu: {
+						items: contextMenuItems,
+						onClick: (info: { key: Key }) => {
+							const key = info.key.toString();
+							if (key === 'view-options') {
+								openMainViewSettingsCallback?.();
+								return;
 							}
-						},
-						onDragEnd: () => {
-							setDraggingColumnTitle(undefined);
-						},
-						headerMenu: {
-							items: contextMenuItems,
-							onClick: (info: { key: Key }) => {
-								const key = info.key.toString();
-								if (key === 'view-options') {
-									openMainViewSettingsCallback?.();
+
+							if (key.startsWith('hide:')) {
+								const targetColumn = key.slice('hide:'.length) as MainColumnTitles;
+								if (!canSetMainColumnVisibility(targetColumn, false, columnActiveConfig)) {
 									return;
 								}
+								void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, false));
+								return;
+							}
 
-								if (key.startsWith('hide:')) {
-									const targetColumn = key.slice('hide:'.length) as MainColumnTitles;
-									if (!canSetMainColumnVisibility(targetColumn, false, columnActiveConfig)) {
-										return;
-									}
-									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, false));
+							if (key.startsWith('show:')) {
+								const targetColumn = key.slice('show:'.length) as MainColumnTitles;
+								void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, true));
+							}
+						}
+					},
+					onResize: (nextWidth: number) => {
+						setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+					},
+					onResizeEnd: (nextWidth: number) => {
+						setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+						void (async () => {
+							try {
+								const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
+								if (persisted !== false) {
 									return;
 								}
-
-								if (key.startsWith('show:')) {
-									const targetColumn = key.slice('show:'.length) as MainColumnTitles;
-									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, true));
-								}
+							} catch {
+								// The caller reports write failures separately; this only restores the local preview width.
 							}
-						},
-						onResize: (nextWidth: number) => {
-							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
-						},
-						onResizeEnd: (nextWidth: number) => {
-							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
-							void (async () => {
-								try {
-									const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
-									if (persisted !== false) {
-										return;
-									}
-								} catch {
-									// The caller reports write failures separately; this only restores the local preview width.
-								}
 
-								restorePersistedColumnWidth();
-							})();
-						}
-					}),
-				onCell: () =>
-					({
-						'data-column-title': columnTitle,
-						style: {
-							width: getColumnWidthStyle(columnTitle, currentWidth)
-						}
-					})
+							restorePersistedColumnWidth();
+						})();
+					}
+				}),
+				onCell: () => ({
+					'data-column-title': columnTitle,
+					style: {
+						width: getColumnWidthStyle(columnTitle, currentWidth)
+					}
+				})
 			};
 		}) as MainCollectionTableColumn[];
 	}, [
@@ -1526,7 +1554,10 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	});
 	const tableRows = table.getRowModel().rows;
 	const tableScrollX = useMemo(() => {
-		return Object.values(resolvedColumnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
+		return Object.values(resolvedColumnWidths).reduce(
+			(totalWidth, columnWidth) => totalWidth + columnWidth,
+			DEFAULT_SELECTION_COLUMN_WIDTH
+		);
 	}, [resolvedColumnWidths]);
 	const scrollParentRef = useRef<HTMLDivElement | null>(null);
 	const rowVirtualizer = useVirtualizer({
@@ -1584,7 +1615,11 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	}, []);
 
 	return (
-		<div ref={tableRootRef} className="MainCollectionTableRoot" style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+		<div
+			ref={tableRootRef}
+			className="MainCollectionTableRoot"
+			style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}
+		>
 			<div className={`MainCollectionVirtualShell${launchingGame ? ' is-loading' : ''}`}>
 				<div ref={scrollParentRef} className="MainCollectionVirtualScroll">
 					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX, minWidth: '100%' }}>
@@ -1657,7 +1692,10 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 										style={{ transform: `translateY(${virtualRow.start}px)` }}
 										{...rowHandlers}
 									>
-										<td className="MainCollectionVirtualCell MainCollectionVirtualSelectionCell" style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}>
+										<td
+											className="MainCollectionVirtualCell MainCollectionVirtualSelectionCell"
+											style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}
+										>
 											<SelectionCheckbox
 												aria-label={`Include ${getModDataDisplayName(record) || record.uid} in collection`}
 												checked={selected}

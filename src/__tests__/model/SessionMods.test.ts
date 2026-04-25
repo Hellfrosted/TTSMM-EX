@@ -14,7 +14,11 @@ describe('session mod descriptors', () => {
 			dependencyName: 'NuterraSteam',
 			explicitDependency: 'NuterraSteam (Beta)'
 		}
-	])('treats $dependencyName and $explicitDependency as the same dependency target', ({ dependencyId, dependencyName, explicitDependency }) => {
+	])('treats $dependencyName and $explicitDependency as the same dependency target', ({
+		dependencyId,
+		dependencyName,
+		explicitDependency
+	}) => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,

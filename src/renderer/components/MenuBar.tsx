@@ -128,11 +128,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 				{items.map((item) => {
 					const selected = item.key === selectedPath;
 					return (
-						<li
-							key={item.key}
-							data-menu-id={item.key}
-							className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}
-						>
+						<li key={item.key} data-menu-id={item.key} className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}>
 							<button
 								type="button"
 								className="MenuBarNavButton"

@@ -159,9 +159,9 @@ describe('useSettingsForm', () => {
 		const { result } = renderHook(() => useSettingsForm(appState));
 
 		await act(async () => {
-			await expect(
-				result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')
-			).rejects.toThrow('Failed to browse for a path');
+			await expect(result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')).rejects.toThrow(
+				'Failed to browse for a path'
+			);
 		});
 
 		expect(result.current.selectingDirectory).toBe(false);

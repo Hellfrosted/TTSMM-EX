@@ -14,9 +14,7 @@ describe('useGameRunning', () => {
 	});
 
 	it('continues polling after an initial false result', async () => {
-		vi.mocked(window.electron.isGameRunning)
-			.mockResolvedValueOnce(false)
-			.mockResolvedValueOnce(false);
+		vi.mocked(window.electron.isGameRunning).mockResolvedValueOnce(false).mockResolvedValueOnce(false);
 
 		renderHook(() => useGameRunning());
 

@@ -1,15 +1,12 @@
-/* eslint-disable class-methods-use-this */
 // A wrapper interface around Greenworks written in ts
 import log from 'electron-log';
 import {
 	// Steam API
 	EResult,
-
 	// Steamworks
 	ValidGreenworksChannels,
 	SteamErrorCallback,
 	ProgressCallback,
-
 	// ISteamUGC
 	GetItemsProps,
 	GetUserItemsProps,
@@ -19,7 +16,6 @@ import {
 	ExtendedSteamUGCDetails,
 	ItemInstallInfo,
 	UGCItemState,
-
 	// IFriends
 	SteamID,
 	SteamUGCDetails,

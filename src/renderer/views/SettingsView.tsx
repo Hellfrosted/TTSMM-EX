@@ -1,13 +1,4 @@
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useId,
-	useState,
-	type ButtonHTMLAttributes,
-	type InputHTMLAttributes,
-	type ReactNode
-} from 'react';
+import { memo, useCallback, useEffect, useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
@@ -26,7 +17,15 @@ interface SettingsViewProps {
 type SettingsConfigErrors = Record<string, string>;
 
 const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
-const NLOG_LEVEL_OPTIONS = [NLogLevel.OFF, NLogLevel.FATAL, NLogLevel.ERROR, NLogLevel.WARN, NLogLevel.INFO, NLogLevel.DEBUG, NLogLevel.TRACE] as const;
+const NLOG_LEVEL_OPTIONS = [
+	NLogLevel.OFF,
+	NLogLevel.FATAL,
+	NLogLevel.ERROR,
+	NLogLevel.WARN,
+	NLogLevel.INFO,
+	NLogLevel.DEBUG,
+	NLogLevel.TRACE
+] as const;
 
 interface SettingsFieldProps {
 	id: string;
@@ -65,7 +64,11 @@ function SettingsButton({
 				className ? ` ${className}` : ''
 			}`}
 		>
-			{loading ? <span className="SettingsButtonSpinner" aria-hidden="true" /> : icon ? <span className="SettingsButtonIcon">{icon}</span> : null}
+			{loading ? (
+				<span className="SettingsButtonSpinner" aria-hidden="true" />
+			) : icon ? (
+				<span className="SettingsButtonIcon">{icon}</span>
+			) : null}
 			{children ? <span className="SettingsButtonText">{children}</span> : null}
 		</button>
 	);
@@ -356,28 +359,28 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					onCancel={() => {
 						closeModal({ restoreSnapshot: true });
 					}}
-									footer={
-										<>
-											<SettingsButton
-												key="cancel-settings"
-												onClick={() => {
-													closeModal({ restoreSnapshot: true });
-												}}
-											>
-												Cancel
-											</SettingsButton>
-											<SettingsButton
-												key="save-settings"
-												variant="primary"
-												onClick={() => {
-													closeModal();
-												}}
-											>
-												Done
-											</SettingsButton>
-										</>
-									}
-								>
+					footer={
+						<>
+							<SettingsButton
+								key="cancel-settings"
+								onClick={() => {
+									closeModal({ restoreSnapshot: true });
+								}}
+							>
+								Cancel
+							</SettingsButton>
+							<SettingsButton
+								key="save-settings"
+								variant="primary"
+								onClick={() => {
+									closeModal();
+								}}
+							>
+								Done
+							</SettingsButton>
+						</>
+					}
+				>
 					<div className="LoggerNameForm SettingsNativeForm">
 						<SettingsField id="logger-id" label="Logger ID" error={configErrors?.[`editingLogConfig.${editingContextIndex}.loggerID`]}>
 							<SettingsInput
@@ -403,38 +406,38 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					onCancel={() => {
 						closeModal({ restoreSnapshot: true });
 					}}
-									footer={
-										<>
-											<SettingsButton
-												variant="primary"
-												key="no-changes"
-												onClick={() => {
-													setField(AppConfigKeys.MANAGER_ID, config.workshopID);
-													closeModal();
-												}}
-											>
-												Keep Current Manager
-											</SettingsButton>
-											<SettingsButton
-												key="cancel-edit"
-												onClick={() => {
-													closeModal({ restoreSnapshot: true });
-												}}
-											>
-												Cancel
-											</SettingsButton>
-											<SettingsButton
-												key="save-settings"
-												variant="primary"
-												onClick={() => {
-													closeModal();
-												}}
-											>
-												Save Manager ID
-											</SettingsButton>
-										</>
-									}
-								>
+					footer={
+						<>
+							<SettingsButton
+								variant="primary"
+								key="no-changes"
+								onClick={() => {
+									setField(AppConfigKeys.MANAGER_ID, config.workshopID);
+									closeModal();
+								}}
+							>
+								Keep Current Manager
+							</SettingsButton>
+							<SettingsButton
+								key="cancel-edit"
+								onClick={() => {
+									closeModal({ restoreSnapshot: true });
+								}}
+							>
+								Cancel
+							</SettingsButton>
+							<SettingsButton
+								key="save-settings"
+								variant="primary"
+								onClick={() => {
+									closeModal();
+								}}
+							>
+								Save Manager ID
+							</SettingsButton>
+						</>
+					}
+				>
 					<div className="WorkshopIDForm SettingsNativeForm">
 						<SettingsField id="workshop-id" label="Workshop item ID" required>
 							<SettingsInput
@@ -452,12 +455,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 			) : null}
 			<main className="Settings">
 				<div className="SettingsHeader">
-					<h1 className="SettingsTitle">
-						Settings
-					</h1>
-					<p className="SettingsIntro">
-						Manage game paths, launch behavior, and logging for this TerraTech install.
-					</p>
+					<h1 className="SettingsTitle">Settings</h1>
+					<p className="SettingsIntro">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
 				</div>
 				<form
 					onSubmit={form.handleSubmit(
@@ -597,11 +596,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 										}}
 									/>
 								</SettingsField>
-								<SettingsField
-									id="logLevel"
-									label="App Log Level"
-									tooltip="Controls how much this desktop app logs."
-								>
+								<SettingsField id="logLevel" label="App Log Level" tooltip="Controls how much this desktop app logs.">
 									<select
 										id="logLevel"
 										className="SettingsSelect"
@@ -733,12 +728,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						<SettingsButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
 							Reset Changes
 						</SettingsButton>
-						<SettingsButton
-							loading={savingConfig}
-							disabled={!madeConfigEdits}
-							variant="primary"
-							type="submit"
-						>
+						<SettingsButton loading={savingConfig} disabled={!madeConfigEdits} variant="primary" type="submit">
 							Save Changes
 						</SettingsButton>
 					</div>

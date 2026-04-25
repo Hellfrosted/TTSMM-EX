@@ -2,11 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import { X } from 'lucide-react';
-import {
-	createCollectionNameFormSchema,
-	getCollectionNameError,
-	type CollectionNameFormValues
-} from 'renderer/collection-form-validation';
+import { createCollectionNameFormSchema, getCollectionNameError, type CollectionNameFormValues } from 'renderer/collection-form-validation';
 
 export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 

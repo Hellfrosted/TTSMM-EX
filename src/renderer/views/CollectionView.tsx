@@ -14,14 +14,7 @@ import {
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
-import {
-	CollectionManagerModalType,
-	CollectionViewProps,
-	CollectionViewType,
-	MainColumnTitles,
-	ModCollection,
-	ModData
-} from 'model';
+import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection, ModData } from 'model';
 import api from 'renderer/Api';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
@@ -32,11 +25,7 @@ import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
-import {
-	getCollectionModDataList,
-	getCollectionRows,
-	getDisplayedCollectionRecord
-} from '../collection-mod-projection';
+import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
 	moveMainCollectionColumn,
@@ -285,7 +274,17 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		updateState({ launchingGame: true });
 		setCollectionErrors(undefined);
 		await validateActiveCollection(true);
-	}, [activeCollection, closeLaunchModal, currentValidationStatus, loadingMods, madeEdits, mods, setCollectionErrors, updateState, validateActiveCollection]);
+	}, [
+		activeCollection,
+		closeLaunchModal,
+		currentValidationStatus,
+		loadingMods,
+		madeEdits,
+		mods,
+		setCollectionErrors,
+		updateState,
+		validateActiveCollection
+	]);
 
 	const currentView = CollectionViewType.MAIN;
 
@@ -355,7 +354,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
 			try {
-				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -374,7 +375,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnVisibility = useCallback(
 		async (column: MainColumnTitles, visible: boolean) => {
 			try {
-				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -393,7 +396,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnOrder = useCallback(
 		async (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => {
 			try {
-				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(

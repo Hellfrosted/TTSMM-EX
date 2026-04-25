@@ -92,13 +92,16 @@ export function useGameRunning() {
 		};
 	}, [clearGameLaunchOverrideTimeout, clearGameRunningPoll, pollGameRunning]);
 
-	const scheduleLaunchOverrideReset = useCallback((callback?: () => void) => {
-		clearGameLaunchOverrideTimeout();
-		overrideTimeoutRef.current = setTimeout(() => {
-			setOverrideGameRunning(false);
-			callback?.();
-		}, GAME_RUNNING_POLL_INTERVAL_MS);
-	}, [clearGameLaunchOverrideTimeout]);
+	const scheduleLaunchOverrideReset = useCallback(
+		(callback?: () => void) => {
+			clearGameLaunchOverrideTimeout();
+			overrideTimeoutRef.current = setTimeout(() => {
+				setOverrideGameRunning(false);
+				callback?.();
+			}, GAME_RUNNING_POLL_INTERVAL_MS);
+		},
+		[clearGameLaunchOverrideTimeout]
+	);
 
 	return {
 		gameRunning,

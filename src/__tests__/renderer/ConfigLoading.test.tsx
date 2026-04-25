@@ -201,33 +201,35 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])(
-		'normalizes saved route "%s" to collections during boot',
-		async (currentPath) => {
-			vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-			vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-				...DEFAULT_CONFIG,
-				currentPath,
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			});
-			vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
-			vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
+	it.each([
+		'collections/main',
+		'/collections',
+		'/settings',
+		'/block-lookup'
+	])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath,
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
+		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
 
-			render(
-				<MemoryRouter initialEntries={['/loading/config']}>
-					<Routes>
-						<Route path="*" element={<ConfigLoadingAppHarness />} />
-					</Routes>
-				</MemoryRouter>
-			);
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
 
-			await waitFor(() => {
-				expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
-			});
-		}
-	);
+		await waitFor(() => {
+			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
+		});
+	});
 
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');

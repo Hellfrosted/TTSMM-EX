@@ -13,7 +13,9 @@ delete env.ELECTRON_RUN_AS_NODE;
 
 const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path');
 const primaryPathKey = pathKeys[0] ?? 'PATH';
-const mergedPath = [...new Set([path.resolve('node_modules/.bin'), path.dirname(process.execPath), ...pathKeys.map((key) => env[key]).filter(Boolean)])].join(path.delimiter);
+const mergedPath = [
+	...new Set([path.resolve('node_modules/.bin'), path.dirname(process.execPath), ...pathKeys.map((key) => env[key]).filter(Boolean)])
+].join(path.delimiter);
 
 for (const pathKey of pathKeys) {
 	if (pathKey !== primaryPathKey) {

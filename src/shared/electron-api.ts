@@ -21,7 +21,18 @@ export type ElectronLogFunctions = {
 	verbose: (message: unknown) => void;
 };
 
-export type ElectronPlatform = 'aix' | 'android' | 'darwin' | 'freebsd' | 'haiku' | 'linux' | 'openbsd' | 'sunos' | 'win32' | 'cygwin' | 'netbsd';
+export type ElectronPlatform =
+	| 'aix'
+	| 'android'
+	| 'darwin'
+	| 'freebsd'
+	| 'haiku'
+	| 'linux'
+	| 'openbsd'
+	| 'sunos'
+	| 'win32'
+	| 'cygwin'
+	| 'netbsd';
 
 export type Unsubscribe = () => void;
 export type ProgressChangeCallback = (
