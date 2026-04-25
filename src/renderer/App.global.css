@@ -590,69 +590,12 @@ a:hover {
 	box-sizing: border-box;
 }
 
-.SettingsPane .SettingsField:last-child {
-	margin-bottom: 0;
-}
-
 .SettingsPaneColumn {
 	display: flex;
 }
 
 .SettingsPaneColumn > .SettingsPane {
 	flex: 1 1 auto;
-}
-
-.SettingsNativeForm,
-.SettingsField,
-.SettingsFieldBody {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-}
-
-.SettingsNativeForm {
-	gap: 12px;
-}
-
-.SettingsField {
-	display: grid;
-	grid-template-columns: minmax(10rem, 0.42fr) minmax(0, 0.58fr);
-	align-items: start;
-	gap: 8px 16px;
-	width: 100%;
-	margin-bottom: 16px;
-}
-
-.SettingsFieldLabel {
-	min-height: var(--app-control-height);
-	padding-top: 8px;
-	color: var(--app-color-text);
-	font-size: 16px;
-	line-height: 1.35;
-	white-space: normal;
-}
-
-.SettingsFieldLabel.is-required::before {
-	content: '*';
-	margin-right: 4px;
-	color: var(--app-color-error);
-}
-
-.SettingsFieldBody {
-	gap: 6px;
-}
-
-.SettingsFieldExtra {
-	color: var(--app-color-text-muted);
-	font-size: 12px;
-	line-height: 1.35;
-}
-
-.SettingsFieldError {
-	color: var(--app-color-error);
-	font-size: 12px;
-	font-weight: 650;
-	line-height: 1.35;
 }
 
 .SettingsPathControl,
@@ -3008,10 +2951,6 @@ a:hover {
 
 	.SettingsActions {
 		justify-content: flex-start;
-	}
-
-	.SettingsField {
-		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.CollectionSettingsTopBar {

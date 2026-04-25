@@ -186,19 +186,20 @@ function SettingsField({ id, label, required, error, extra, tooltip, children }:
 	const helpId = `${id}-help`;
 	const errorId = `${id}-error`;
 	return (
-		<div className={`SettingsField${error ? ' has-error' : ''}`}>
-			<label className={`SettingsFieldLabel${required ? ' is-required' : ''}`} htmlFor={id} title={tooltip}>
+		<div className="mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
+			<label className="min-h-control whitespace-normal pt-2 text-base leading-[1.35] text-text" htmlFor={id} title={tooltip}>
+				{required ? <span className="mr-1 text-error">*</span> : null}
 				{label}
 			</label>
-			<div className="SettingsFieldBody">
+			<div className="flex min-w-0 flex-col gap-1.5">
 				{children}
 				{extra ? (
-					<div className="SettingsFieldExtra" id={helpId}>
+					<div className="text-xs leading-[1.35] text-text-muted" id={helpId}>
 						{extra}
 					</div>
 				) : null}
 				{error ? (
-					<div className="SettingsFieldError" id={errorId} role="alert">
+					<div className="text-xs font-[650] leading-[1.35] text-error" id={errorId} role="alert">
 						{error}
 					</div>
 				) : null}
@@ -406,7 +407,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						</>
 					}
 				>
-					<div className="LoggerNameForm SettingsNativeForm">
+					<div className="LoggerNameForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="logger-id" label="Logger ID" error={configErrors?.[`editingLogConfig.${editingContextIndex}.loggerID`]}>
 							<SettingsInput
 								id="logger-id"
@@ -463,7 +464,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						</>
 					}
 				>
-					<div className="WorkshopIDForm SettingsNativeForm">
+					<div className="WorkshopIDForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="workshop-id" label="Workshop item ID" required>
 							<SettingsInput
 								id="workshop-id"
