@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, LogLevel } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
@@ -7,6 +8,14 @@ import { SettingsView } from '../../renderer/views/SettingsView';
 import { createAppState } from './test-utils';
 
 function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				gcTime: Infinity,
+				retry: false
+			}
+		}
+	});
 	const appState = createAppState({
 		config: {
 			...DEFAULT_CONFIG,
@@ -20,7 +29,11 @@ function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}
 
 	return {
 		appState,
-		...render(<SettingsView appState={appState} />)
+		...render(
+			<QueryClientProvider client={queryClient}>
+				<SettingsView appState={appState} />
+			</QueryClientProvider>
+		)
 	};
 }
 

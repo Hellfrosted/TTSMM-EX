@@ -5,7 +5,7 @@ import type { Path, PathValue } from 'react-hook-form';
 import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
-import { writeConfig } from 'renderer/util/config-write';
+import { useWriteConfigMutation } from 'renderer/async-cache';
 import { settingsFormSchema } from 'renderer/settings-validation';
 
 interface LogConfig {
@@ -61,6 +61,7 @@ function createLogParams(editingLogConfig: LogConfig[]) {
 
 export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState'>) {
 	const { config, updateState } = appState;
+	const writeConfigMutation = useWriteConfigMutation();
 	const form = useForm<EditingConfig>({
 		defaultValues: createEditingConfig(config),
 		mode: 'onSubmit',
@@ -200,7 +201,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 		updateState({ savingConfig: true });
 		try {
-			await writeConfig(configToSave);
+			await writeConfigMutation.mutateAsync(configToSave);
 			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
 				api.updateLogLevel(nextLogLevel);
 			}
@@ -233,7 +234,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		} finally {
 			updateState({ savingConfig: false });
 		}
-	}, [config.localDir, config.logLevel, config.workshopID, form, updateState]);
+	}, [config.localDir, config.logLevel, config.workshopID, form, updateState, writeConfigMutation]);
 
 	const cancelChanges = useCallback(() => {
 		form.reset(createEditingConfig(config));

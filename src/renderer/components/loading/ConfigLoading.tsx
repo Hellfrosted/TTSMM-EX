@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
 import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
@@ -6,6 +7,7 @@ import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import { StartupProgressBar } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
+import { configQueryOptions } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
 import {
 	describeStartupBootError,
@@ -55,6 +57,7 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 }
 
 export default function ConfigLoading() {
+	const queryClient = useQueryClient();
 	const dispatch = useAppDispatch();
 	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
 	const allCollections = useAppStateSelector((state) => state.allCollections);
@@ -129,7 +132,7 @@ export default function ConfigLoading() {
 
 	const readConfig = useEffectEvent(async () => {
 		try {
-			const response = await api.readConfig();
+			const response = await queryClient.fetchQuery(configQueryOptions());
 			if (response) {
 				const discoveredConfig = await populateDiscoveredGameExec(response as AppConfig, true);
 				dispatch(setAppConfig(discoveredConfig));

@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
@@ -26,11 +27,24 @@ function ConfigLoadingHarness() {
 
 function ConfigLoadingAppHarness() {
 	const navigate = useNavigate();
+	const [queryClient] = React.useState(
+		() =>
+			new QueryClient({
+				defaultOptions: {
+					queries: {
+						gcTime: Infinity,
+						retry: false
+					}
+				}
+			})
+	);
 
 	return (
-		<AppStateProvider navigate={navigate}>
-			<ConfigLoadingHarness />
-		</AppStateProvider>
+		<QueryClientProvider client={queryClient}>
+			<AppStateProvider navigate={navigate}>
+				<ConfigLoadingHarness />
+			</AppStateProvider>
+		</QueryClientProvider>
 	);
 }
 

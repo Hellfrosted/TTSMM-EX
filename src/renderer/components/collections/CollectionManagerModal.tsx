@@ -19,6 +19,7 @@ import {
 import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { writeConfig } from 'renderer/util/config-write';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,
@@ -294,10 +295,7 @@ function CollectionManagerModal({
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
 		setSavingConfig(true);
 		try {
-			const updateSuccess = await api.updateConfig(nextConfig);
-			if (!updateSuccess) {
-				throw new Error('Config write was rejected');
-			}
+			await writeConfig(nextConfig);
 			appState.updateState({ config: nextConfig });
 			afterSave?.();
 		} catch (error) {
