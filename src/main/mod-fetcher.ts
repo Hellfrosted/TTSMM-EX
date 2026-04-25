@@ -17,9 +17,14 @@ import Steamworks, {
 } from './steamworks';
 import { clearPreviewAllowlist, registerPreviewImage } from './preview-protocol';
 import { resolvePersonaName } from './steam-persona-cache';
+import { isSteamworksBypassEnabled } from './steamworks-runtime';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
+}
+
+interface ModFetcherOptions {
+	skipWorkshopSteamworks?: boolean;
 }
 
 function chunk<Type>(arr: Type[], size: number): Type[][] {
@@ -298,6 +303,8 @@ export default class ModFetcher {
 
 	platform: NodeJS.Platform;
 
+	skipWorkshopSteamworks: boolean;
+
 	localMods: number;
 
 	workshopMods: number;
@@ -306,11 +313,18 @@ export default class ModFetcher {
 
 	modCountMutex: Mutex;
 
-	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[], platform: NodeJS.Platform = process.platform) {
+	constructor(
+		progressSender: ProgressSender,
+		localPath: string | undefined,
+		knownWorkshopMods: bigint[],
+		platform: NodeJS.Platform = process.platform,
+		options: ModFetcherOptions = {}
+	) {
 		this.localPath = localPath;
 		this.knownWorkshopMods = new Set();
 		this.progressSender = progressSender;
 		this.platform = platform;
+		this.skipWorkshopSteamworks = options.skipWorkshopSteamworks ?? isSteamworksBypassEnabled();
 
 		this.localMods = 0;
 		this.workshopMods = 0;
@@ -430,33 +444,27 @@ export default class ModFetcher {
 			try {
 				log.silly(`Processing known mod chunk: ${JSON.stringify(modChunks[i], (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
 				 
-				await this.getDetailsForWorkshopModList(modChunks[i])
-					// eslint-disable-next-line promise/always-return
-					.then((modDetails) => {
-						log.silly(`Got mod details: ${JSON.stringify(modDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
-						modDetails.forEach((mod: ModData) => {
-							log.silly(`Got results for workshop mod ${mod.name} (${mod.uid})`);
-							const modid = mod.workshopID!;
-							this.knownWorkshopMods.delete(modid);
-							knownInvalidMods.delete(modid);
-							workshopMap.set(modid!, mod);
-						});
+				const modDetails = await this.getDetailsForWorkshopModList(modChunks[i]);
+				log.silly(`Got mod details: ${JSON.stringify(modDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
+				modDetails.forEach((mod: ModData) => {
+					log.silly(`Got results for workshop mod ${mod.name} (${mod.uid})`);
+					const modid = mod.workshopID!;
+					this.knownWorkshopMods.delete(modid);
+					knownInvalidMods.delete(modid);
+					workshopMap.set(modid!, mod);
+				});
 
-						// After this round has been added to the mod map, check if any items are missing
-						modDetails.forEach((mod: ModData) => {
-							if (mod.steamDependencies) {
-								mod.steamDependencies
-									.filter((dependency) => !workshopMap.has(dependency) && !knownInvalidMods.has(dependency))
-									.forEach((missingDependency) => modDependencies.add(missingDependency));
-							}
-						});
-					})
-					.catch(() => {
-						// error should already be logged
-						this.updateModLoadingProgress(modChunks[i].length);
-					});
+				// After this round has been added to the mod map, check if any items are missing
+				modDetails.forEach((mod: ModData) => {
+					if (mod.steamDependencies) {
+						mod.steamDependencies
+							.filter((dependency) => !workshopMap.has(dependency) && !knownInvalidMods.has(dependency))
+							.forEach((missingDependency) => modDependencies.add(missingDependency));
+					}
+				});
 			} catch (e) {
-				log.error('Error processing chunk');
+				log.error(e instanceof Error ? e : 'Error processing chunk');
+				this.updateModLoadingProgress(modChunks[i].length);
 			}
 		}
 
@@ -471,6 +479,11 @@ export default class ModFetcher {
 	}
 
 	async fetchWorkshopMods(): Promise<ModData[]> {
+		if (this.skipWorkshopSteamworks) {
+			log.warn('Skipping Steam Workshop scan because Steamworks is bypassed for this run.');
+			return [];
+		}
+
 		if (shouldSkipWorkshopFetch(this.platform)) {
 			return [];
 		}

@@ -4,13 +4,13 @@ import { app, BrowserWindow, ipcMain, protocol } from 'electron';
 import log from 'electron-log';
 import path from 'path';
 
-import Steamworks from './steamworks';
 import { registerBlockLookupHandlers } from './ipc/block-lookup-handlers';
 import { registerCollectionHandlers } from './ipc/collection-handlers';
 import { registerConfigHandlers } from './ipc/config-handlers';
 import { registerGameHandlers } from './ipc/game-handlers';
 import { registerModHandlers } from './ipc/mod-handlers';
 import { registerPreviewProtocol } from './preview-protocol';
+import { SteamworksRuntime } from './steamworks-runtime';
 import { createMainWindow } from './window';
 
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
@@ -32,9 +32,10 @@ class ApplicationLogging {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let steamworksInited = false;
-let steamworksError: string | undefined;
 let previewProtocolRegistered = false;
+const steamworksRuntime = new SteamworksRuntime({
+	logger: log
+});
 
 if (!app || typeof app.setPath !== 'function') {
 	throw new Error(ELECTRON_NODE_MODE_HINT);
@@ -65,22 +66,11 @@ async function enableDevelopmentDebugging() {
 }
 
 function getSteamStatus() {
-	return {
-		inited: steamworksInited,
-		error: steamworksError
-	};
+	return steamworksRuntime.getStatus();
 }
 
 function tryInitSteamworks() {
-	try {
-		steamworksInited = Steamworks.init();
-		steamworksError = undefined;
-	} catch (error) {
-		steamworksInited = false;
-		steamworksError = (error as Error).toString();
-		log.error(error);
-	}
-	return getSteamStatus();
+	return steamworksRuntime.tryInit();
 }
 
 async function createWindow() {

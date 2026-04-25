@@ -186,14 +186,14 @@ export interface SteamPageResults {
 }
 
 // API Props
-export interface GetItemsProps extends SteamworksAPIProps {
+export interface GetItemsProps extends SteamworksAPIProps<[SteamPageResults]> {
 	options?: { page_num: number; app_id: number; required_tag?: string };
 	ugc_matching_type: UGCMatchingType;
 	ugc_query_type: UGCQueryType;
 	success_callback: (results: SteamPageResults) => void;
 }
 
-export interface GetUserItemsProps extends SteamworksAPIProps {
+export interface GetUserItemsProps extends SteamworksAPIProps<[SteamPageResults]> {
 	options?: { page_num: number; app_id: number; required_tag?: string };
 	ugc_matching_type: UGCMatchingType;
 	ugc_list_sort_order: UserUGCListSortOrder;
@@ -201,7 +201,7 @@ export interface GetUserItemsProps extends SteamworksAPIProps {
 	success_callback: (results: SteamPageResults) => void;
 }
 
-export interface PublishWorkshopFileProps extends SteamworksAPIProps {
+export interface PublishWorkshopFileProps extends SteamworksAPIProps<[string]> {
 	options?: { tags: string[]; app_id: number };
 	file_path: string;
 	image_path: string;
@@ -219,7 +219,7 @@ export interface UpdatePublishedWorkshopFileProps extends SteamworksAPIProps {
 	description: string;
 }
 
-export interface SynchronizeItemsProps extends SteamworksAPIProps {
+export interface SynchronizeItemsProps extends SteamworksAPIProps<[ExtendedSteamUGCDetails[]]> {
 	options?: { page_num: number; app_id: number };
 	sync_dir: string;
 	success_callback: (items: ExtendedSteamUGCDetails[]) => void;

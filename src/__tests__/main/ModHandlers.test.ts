@@ -4,10 +4,12 @@ import {
 	createDownloadModHandler,
 	createFetchWorkshopDependenciesHandler,
 	createReadModMetadataHandler,
+	createSteamworksInitHandler,
 	createSubscribeModHandler
 } from '../../main/ipc/mod-handlers';
 import Steamworks, { EResult, UGCItemState } from '../../main/steamworks';
 import ModFetcher, { getModDetailsFromPath } from '../../main/mod-fetcher';
+import { SteamworksRuntime } from '../../main/steamworks-runtime';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 
@@ -97,6 +99,31 @@ describe('mod handlers', () => {
 		await createReadModMetadataHandler(clearDependencyLookupCache)({ sender: {} as never }, 'C:\\mods', []);
 
 		expect(clearDependencyLookupCache).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns ready without initializing Steamworks when the development bypass is enabled', async () => {
+		const init = vi.fn(() => {
+			throw new Error('greenworks unavailable');
+		});
+		const logger = {
+			error: vi.fn(),
+			warn: vi.fn()
+		};
+		const runtime = new SteamworksRuntime({
+			env: { TTSMM_BYPASS_STEAMWORKS: '1' },
+			steamworks: { init } as never,
+			logger: logger as never
+		});
+
+		const result = await createSteamworksInitHandler(
+			() => runtime.getStatus(),
+			() => runtime.tryInit()
+		)();
+
+		expect(result).toEqual({ inited: true });
+		expect(init).not.toHaveBeenCalled();
+		expect(logger.warn).toHaveBeenCalledTimes(1);
+		expect(logger.error).not.toHaveBeenCalled();
 	});
 
 	it('preserves Steam metadata when refreshing workshop state from the context menu', async () => {

@@ -43,6 +43,59 @@ describe('ModFetcher', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('loads local mods without querying Steam Workshop when Steamworks is bypassed', async () => {
+		const tempDir = createTempDir('ttsmm-local-only-');
+		const modDir = path.join(tempDir, 'LocalPack');
+		try {
+			fs.mkdirSync(modDir, { recursive: true });
+			fs.writeFileSync(path.join(modDir, 'LocalBundle_bundle'), 'bundle');
+
+			const isAppInstalled = vi.spyOn(Steamworks, 'isAppInstalled').mockImplementation(() => {
+				throw new Error('Steam install check should have been skipped');
+			});
+			const getAppInstallDir = vi.spyOn(Steamworks, 'getAppInstallDir').mockImplementation(() => {
+				throw new Error('Steam install dir check should have been skipped');
+			});
+			const getSubscribedItems = vi.spyOn(Steamworks, 'getSubscribedItems').mockImplementation(() => {
+				throw new Error('workshop scan should have been skipped');
+			});
+			const getUGCDetails = vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation(() => {
+				throw new Error('workshop details should have been skipped');
+			});
+			const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation(() => {
+				throw new Error('workshop user items should have been skipped');
+			});
+			const ugcGetItemState = vi.spyOn(Steamworks, 'ugcGetItemState').mockImplementation(() => {
+				throw new Error('workshop item state should have been skipped');
+			});
+			const ugcGetItemInstallInfo = vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockImplementation(() => {
+				throw new Error('workshop install info should have been skipped');
+			});
+			const sender = { send: vi.fn() };
+			const fetcher = new ModFetcher(sender, tempDir, [BigInt(42)], 'linux', { skipWorkshopSteamworks: true });
+
+			await expect(fetcher.fetchMods()).resolves.toEqual([
+				expect.objectContaining({
+					uid: 'local:LocalBundle',
+					id: 'LocalBundle',
+					name: 'LocalBundle',
+					path: modDir
+				})
+			]);
+
+			expect(getSubscribedItems).not.toHaveBeenCalled();
+			expect(getUGCDetails).not.toHaveBeenCalled();
+			expect(ugcGetUserItems).not.toHaveBeenCalled();
+			expect(isAppInstalled).not.toHaveBeenCalled();
+			expect(getAppInstallDir).not.toHaveBeenCalled();
+			expect(ugcGetItemState).not.toHaveBeenCalled();
+			expect(ugcGetItemInstallInfo).not.toHaveBeenCalled();
+			expect(sender.send).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 1, 'Finished loading mods');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {
 		const isAppInstalled = vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
 		const getAppInstallDir = vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');

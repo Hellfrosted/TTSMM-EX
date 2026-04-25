@@ -1,9 +1,8 @@
 export type SteamErrorCallback = (err: Error) => void;
 export type ProgressCallback = (progress_msg: string) => void;
 
-export interface SteamworksAPIProps {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	success_callback: (...props: any) => void;
+export interface SteamworksAPIProps<SuccessArgs extends unknown[] = unknown[]> {
+	success_callback: (...props: SuccessArgs) => void;
 	error_callback: SteamErrorCallback;
 }
 
