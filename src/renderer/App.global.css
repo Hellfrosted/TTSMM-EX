@@ -536,66 +536,10 @@ a:hover {
 	background: var(--app-color-background);
 }
 
-.Settings {
-	width: 100%;
-	min-height: 100%;
-	box-sizing: border-box;
-	background: var(--app-color-background);
-	color: var(--app-color-text);
-}
-
-.SettingsHeader {
-	padding: 20px 24px 0;
-}
-
-.SettingsTitle,
 .ModDetailFooterTitle {
 	font-family: var(--app-font-display);
 	font-kerning: normal;
 	letter-spacing: 0;
-}
-
-.SettingsTitle {
-	margin: 0;
-	color: var(--app-color-text);
-	font-size: 28px;
-	line-height: 1.25;
-}
-
-.SettingsIntro {
-	margin-top: 8px;
-	margin-bottom: 0;
-	max-width: 70ch;
-}
-
-.SettingsForm {
-	margin: 20px 24px 24px;
-}
-
-.SettingsPaneGrid {
-	display: grid;
-	grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
-	gap: 20px 24px;
-	margin-bottom: 10px;
-}
-
-.SettingsPane {
-	padding: 16px 18px;
-	background: var(--app-color-surface);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	box-sizing: border-box;
-}
-
-.SettingsPaneColumn {
-	display: flex;
-}
-
-.SettingsPaneColumn > .SettingsPane {
-	flex: 1 1 auto;
 }
 
 .SettingsPathControl,
@@ -1633,16 +1577,6 @@ a:hover {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
-}
-
-.SettingsActions {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 12px;
-	justify-content: center;
-	width: 100%;
-	padding-top: 10px;
 }
 
 .CollectionToolbarMeta {
@@ -2717,21 +2651,7 @@ a:hover {
 	}
 }
 
-@media (max-width: 991px) {
-	.SettingsPaneGrid {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.SettingsPaneColumn.MiscAppSettings {
-		margin-bottom: 20px;
-	}
-}
-
 @media (max-width: 1100px) {
-	.SettingsForm {
-		margin-inline: 20px;
-	}
-
 	.CollectionToolbarPrimaryBar {
 		column-gap: 10px;
 	}
@@ -2846,10 +2766,6 @@ a:hover {
 		min-height: var(--app-control-height);
 	}
 
-	.SettingsActions {
-		justify-content: flex-start;
-	}
-
 	.CollectionSettingsTopBar {
 		grid-template-columns: minmax(0, 1fr);
 	}
@@ -2868,11 +2784,6 @@ a:hover {
 
 	.CollectionSettingsColumnWidth {
 		grid-column: 1 / -1;
-	}
-
-	.SettingsActions .SettingsButton {
-		flex: 1 1 100%;
-		width: 100%;
 	}
 
 	.BlockLookupHeader {

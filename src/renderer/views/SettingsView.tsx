@@ -515,10 +515,10 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					</div>
 				</SettingsDialog>
 			) : null}
-			<main className="Settings">
-				<div className="SettingsHeader">
-					<h1 className="SettingsTitle">Settings</h1>
-					<p className="SettingsIntro">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
+			<main className="box-border min-h-full w-full bg-background text-text">
+				<div className="px-6 pt-5">
+					<h1 className="m-0 font-display text-[28px] leading-tight text-text">Settings</h1>
+					<p className="mb-0 mt-2 max-w-[70ch]">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
 				</div>
 				<form
 					onSubmit={form.handleSubmit(
@@ -530,11 +530,11 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						}
 					)}
 					autoComplete="off"
-					className="SettingsForm"
+					className="mb-6 ml-6 mr-6 mt-5 max-[1100px]:mx-5"
 				>
-					<div className="CollectionSettings SettingsPaneGrid">
-						<div key="misc-app-settings" className="SettingsPaneColumn MiscAppSettings">
-							<div className="SettingsPane">
+					<div className="CollectionSettings mb-2.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-x-6 gap-y-5 max-[991px]:grid-cols-1">
+						<div key="misc-app-settings" className="flex max-[991px]:mb-5">
+							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-[18px] py-4">
 								<SettingsField
 									id="localDir"
 									label="Local Mods Folder"
@@ -695,8 +695,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								</SettingsField>
 							</div>
 						</div>
-						<div key="additional-commands" className="SettingsPaneColumn">
-							<div className="SettingsPane">
+						<div key="additional-commands" className="flex">
+							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-[18px] py-4">
 								<SettingsField id="extraParams" label="Launch Arguments">
 									<SettingsInput
 										id="extraParams"
@@ -783,7 +783,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</div>
 						</div>
 					</div>
-					<div className="SettingsActions">
+					<div className="flex w-full flex-wrap items-center justify-center gap-3 pt-2.5 max-[1199px]:justify-start max-[1199px]:[&_.SettingsButton]:w-full max-[1199px]:[&_.SettingsButton]:flex-[1_1_100%]">
 						<SettingsButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
 							Reset Changes
 						</SettingsButton>
