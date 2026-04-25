@@ -1,11 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
+import { createTestQueryClient } from './test-utils';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
@@ -27,17 +28,7 @@ function ConfigLoadingHarness() {
 
 function ConfigLoadingAppHarness() {
 	const navigate = useNavigate();
-	const [queryClient] = React.useState(
-		() =>
-			new QueryClient({
-				defaultOptions: {
-					queries: {
-						gcTime: Infinity,
-						retry: false
-					}
-				}
-			})
-	);
+	const [queryClient] = React.useState(() => createTestQueryClient());
 
 	return (
 		<QueryClientProvider client={queryClient}>

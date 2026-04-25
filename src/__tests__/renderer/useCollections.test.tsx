@@ -1,26 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-import type { PropsWithChildren } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
-import { createAppState } from './test-utils';
+import { createAppState, createQueryWrapper } from './test-utils';
 
 function renderCollectionsHook(appState: ReturnType<typeof createAppState>, overrides: Partial<Parameters<typeof useCollections>[0]> = {}) {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				gcTime: Infinity,
-				retry: false
-			}
-		}
-	});
-
-	function QueryWrapper({ children }: PropsWithChildren) {
-		return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-	}
-
 	return renderHook(
 		() =>
 			useCollections({
@@ -32,7 +16,7 @@ function renderCollectionsHook(appState: ReturnType<typeof createAppState>, over
 				setModalType: vi.fn(),
 				...overrides
 			}),
-		{ wrapper: QueryWrapper }
+		{ wrapper: createQueryWrapper() }
 	);
 }
 

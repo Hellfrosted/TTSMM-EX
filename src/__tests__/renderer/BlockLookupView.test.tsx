@@ -263,10 +263,10 @@ describe('BlockLookupView', () => {
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 
-		const { appState, container } = renderBlockLookupView();
+		const { appState } = renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
-		const table = container.querySelector('.BlockLookupTable');
+		const table = screen.getByRole('table');
 		const initialTableText = table?.textContent ?? '';
 		expect(initialTableText.indexOf('Beta Shield')).toBeLessThan(initialTableText.indexOf('Alpha Cannon'));
 
@@ -294,12 +294,9 @@ describe('BlockLookupView', () => {
 		});
 		expect(screen.getByText('Not declared')).toBeInTheDocument();
 
-		const spawnHeader = Array.from(container.querySelectorAll('.BlockLookupTable thead th')).find((header) =>
-			header.textContent?.includes('SpawnBlock Command')
-		);
-		expect(spawnHeader).toBeDefined();
+		const spawnHeader = screen.getByRole('columnheader', { name: /SpawnBlock Command/ });
 		const tableHeaderDrag = createDataTransfer();
-		fireEvent.dragStart(spawnHeader as Element, { dataTransfer: tableHeaderDrag });
+		fireEvent.dragStart(spawnHeader, { dataTransfer: tableHeaderDrag });
 		fireEvent.dragOver(blockHeader as Element, { dataTransfer: tableHeaderDrag });
 		fireEvent.drop(blockHeader as Element, { dataTransfer: tableHeaderDrag });
 

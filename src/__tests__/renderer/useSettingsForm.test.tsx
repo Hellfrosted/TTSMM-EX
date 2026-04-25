@@ -1,27 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-import type { PropsWithChildren } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppConfigKeys, LogLevel, SettingsViewModalType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
-import { createAppState } from './test-utils';
-
-function createQueryWrapper() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				gcTime: Infinity,
-				retry: false
-			}
-		}
-	});
-
-	return function QueryWrapper({ children }: PropsWithChildren) {
-		return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-	};
-}
+import { createAppState, createQueryWrapper } from './test-utils';
 
 describe('useSettingsForm', () => {
 	it('selects a settings path through the promise-based preload API', async () => {

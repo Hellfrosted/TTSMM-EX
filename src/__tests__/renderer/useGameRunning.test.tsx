@@ -1,25 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-import type { PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGameRunning } from '../../renderer/hooks/collections/useGameRunning';
-
-function createQueryWrapper() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				gcTime: Infinity,
-				retry: false
-			}
-		}
-	});
-
-	return function QueryWrapper({ children }: PropsWithChildren) {
-		return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-	};
-}
+import { createQueryWrapper } from './test-utils';
 
 describe('useGameRunning', () => {
 	beforeEach(() => {

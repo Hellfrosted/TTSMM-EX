@@ -1,7 +1,4 @@
 import { act, renderHook } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
-import type { PropsWithChildren } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
@@ -14,27 +11,11 @@ import {
 	useUpdateCollectionMutation,
 	useWriteConfigMutation
 } from '../../renderer/async-cache';
-
-function createQueryClient() {
-	return new QueryClient({
-		defaultOptions: {
-			queries: {
-				gcTime: Infinity,
-				retry: false
-			}
-		}
-	});
-}
-
-function createQueryWrapper(queryClient: QueryClient) {
-	return function QueryWrapper({ children }: PropsWithChildren) {
-		return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-	};
-}
+import { createQueryWrapper, createTestQueryClient } from './test-utils';
 
 describe('renderer async cache', () => {
 	it('loads config through query options and updates the config cache after writes', async () => {
-		const queryClient = createQueryClient();
+		const queryClient = createTestQueryClient();
 		const storedConfig: AppConfig = {
 			...DEFAULT_CONFIG,
 			currentPath: '/settings',
@@ -61,7 +42,7 @@ describe('renderer async cache', () => {
 	});
 
 	it('updates collection detail and list cache entries after collection writes', async () => {
-		const queryClient = createQueryClient();
+		const queryClient = createTestQueryClient();
 		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		const collection = { name: 'fresh', mods: ['local:mod-a'] };
@@ -78,7 +59,7 @@ describe('renderer async cache', () => {
 	});
 
 	it('removes collection detail and list cache entries after collection deletes', async () => {
-		const queryClient = createQueryClient();
+		const queryClient = createTestQueryClient();
 		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		queryClient.setQueryData(queryKeys.collections.list(), ['default', 'archived']);
 		queryClient.setQueryData(queryKeys.collections.detail('archived'), { name: 'archived', mods: [] });
@@ -95,7 +76,7 @@ describe('renderer async cache', () => {
 	});
 
 	it('moves collection detail and list cache entries after collection renames', async () => {
-		const queryClient = createQueryClient();
+		const queryClient = createTestQueryClient();
 		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		const collection = { name: 'default', mods: ['local:mod-a'] };
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
@@ -114,7 +95,7 @@ describe('renderer async cache', () => {
 	});
 
 	it('loads individual collections through query options', async () => {
-		const queryClient = createQueryClient();
+		const queryClient = createTestQueryClient();
 		const collection = { name: 'default', mods: [] };
 		vi.mocked(window.electron.readCollection).mockResolvedValueOnce(collection);
 
