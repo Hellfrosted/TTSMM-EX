@@ -108,8 +108,7 @@ body {
 	isolation: isolate;
 }
 
-.AppViewStage,
-.CollectionContentStage {
+.AppViewStage {
 	position: absolute;
 	inset: 0;
 	display: flex;
@@ -126,8 +125,7 @@ body {
 		visibility 0s linear 140ms;
 }
 
-.AppViewStage.is-active,
-.CollectionContentStage.is-active {
+.AppViewStage.is-active {
 	opacity: 1;
 	visibility: visible;
 	pointer-events: auto;
@@ -143,70 +141,6 @@ body {
 	height: 100%;
 	min-width: 0;
 	min-height: 0;
-}
-
-.CollectionContentStageHost {
-	position: relative;
-	flex: 1 1 0;
-	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
-	isolation: isolate;
-}
-
-.CollectionMeasuredArea,
-.CollectionWorkspaceBody,
-.CollectionSplitLayout,
-.CollectionSplitMainPane {
-	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
-}
-
-.CollectionMeasuredArea,
-.CollectionSplitLayout {
-	display: flex;
-	flex: 1 1 auto;
-	width: 100%;
-	height: 100%;
-}
-
-.CollectionWorkspaceBody {
-	flex: 1 1 0;
-	display: flex;
-	flex-direction: column;
-}
-
-.CollectionSplitLayout--bottom {
-	flex-direction: column;
-}
-
-.CollectionSplitMainPane {
-	flex: 1 1 0;
-	height: 100%;
-}
-
-.CollectionSplitDetailsPane {
-	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
-	--collection-split-border: 1px solid color-mix(in srgb, var(--app-color-text-base) 8%, transparent);
-}
-
-.CollectionSplitDetailsPane--side {
-	flex: 0 0 var(--collection-split-size);
-	width: var(--collection-split-size);
-	min-width: var(--collection-split-size);
-	border-left: var(--collection-split-border);
-	animation: splitPaneFade 140ms ease;
-}
-
-.CollectionSplitDetailsPane--bottom {
-	flex: 0 0 var(--collection-split-size);
-	min-height: var(--collection-split-size);
-	max-height: var(--collection-split-size);
-	border-top: var(--collection-split-border);
-	animation: splitPaneFade 140ms ease;
 }
 
 .CollectionNameButton {
@@ -1656,8 +1590,6 @@ a:hover {
 
 @media (prefers-reduced-motion: reduce) {
 	.AppViewStage,
-	.CollectionContentStage,
-	.CollectionSplitDetailsPane,
 	.CollectionNameButton {
 		animation: none !important;
 		transition: none !important;

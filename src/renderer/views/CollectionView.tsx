@@ -112,7 +112,7 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 	}, [onSizeChange]);
 
 	return (
-		<div ref={containerRef} className="CollectionMeasuredArea">
+		<div ref={containerRef} className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
 			{children(size)}
 		</div>
 	);
@@ -140,6 +140,11 @@ const collectionFooterDangerButtonClassName = [
 	collectionFooterButtonClassName,
 	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
 ].join(' ');
+const collectionContentStageBaseClassName =
+	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
+const collectionContentStageActiveClassName = 'opacity-100 visible pointer-events-auto [content-visibility:visible]';
+const collectionSplitLayoutBaseClassName = 'flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden';
+const collectionSplitPaneBaseClassName = 'min-h-0 min-w-0 overflow-hidden';
 
 type HalfDetailsLayout = 'bottom' | 'side';
 const MIN_SIDE_BY_SIDE_WIDTH = 1120;
@@ -681,9 +686,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					/>
 				</Suspense>
 			) : null}
-			<div className="CollectionWorkspaceBody">
-				<div className="CollectionContentStageHost">
-					<div className={`CollectionContentStage${showExpandedDetailsSurface ? '' : ' is-active'}`}>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+				<div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">
+					<div
+						className={[collectionContentStageBaseClassName, showExpandedDetailsSurface ? undefined : collectionContentStageActiveClassName]
+							.filter(Boolean)
+							.join(' ')}
+					>
 						<MeasuredArea onSizeChange={setContentSize}>
 							{() => {
 								let actualContent = null;
@@ -693,12 +702,15 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 									if (displayedCurrentRecord && currentView === CollectionViewType.MAIN && !bigDetails) {
 										if (showSideBySideDetails) {
 											actualContent = (
-												<div className="CollectionSplitLayout CollectionSplitLayout--side">
-													<div key="collection" className="CollectionSplitMainPane">
+												<div className={collectionSplitLayoutBaseClassName}>
+													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 														{outlet}
 													</div>
 													<div
-														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--side"
+														className={[
+															collectionSplitPaneBaseClassName,
+															'flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-l border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
+														].join(' ')}
 														style={collectionSplitSizeStyle(sideDetailsWidth)}
 													>
 														{halfDetailsFooter}
@@ -707,12 +719,15 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 											);
 										} else {
 											actualContent = (
-												<div className="CollectionSplitLayout CollectionSplitLayout--bottom">
-													<div key="collection" className="CollectionSplitMainPane">
+												<div className={[collectionSplitLayoutBaseClassName, 'flex-col'].join(' ')}>
+													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 														{outlet}
 													</div>
 													<div
-														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--bottom"
+														className={[
+															collectionSplitPaneBaseClassName,
+															'max-h-[var(--collection-split-size)] min-h-[var(--collection-split-size)] flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-t border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
+														].join(' ')}
 														style={collectionSplitSizeStyle(bottomDetailsHeight)}
 													>
 														{halfDetailsFooter}
@@ -722,7 +737,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 										}
 									} else {
 										actualContent = (
-											<div key="collection" className="CollectionSplitMainPane">
+											<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 												{outlet}
 											</div>
 										);
@@ -734,7 +749,14 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						</MeasuredArea>
 					</div>
 					{shouldRenderExpandedDetailsSurface ? (
-						<div className={`CollectionContentStage CollectionContentStage--details${showExpandedDetailsSurface ? ' is-active' : ''}`}>
+						<div
+							className={[
+								collectionContentStageBaseClassName,
+								showExpandedDetailsSurface ? collectionContentStageActiveClassName : undefined
+							]
+								.filter(Boolean)
+								.join(' ')}
+						>
 							{fullDetailsFooter}
 						</div>
 					) : null}
