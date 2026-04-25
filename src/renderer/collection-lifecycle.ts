@@ -1,4 +1,5 @@
-import type { AppConfig, ModCollection } from 'model';
+import type { AppConfig } from 'model/AppConfig';
+import type { ModCollection } from 'model/ModCollection';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneCollection, copyCollectionsMap, withActiveCollection } from './hooks/collections/utils';
 

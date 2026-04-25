@@ -6,7 +6,6 @@ import {
 	ModCollection,
 	ModData,
 	cloneSessionMods,
-	getByUID,
 	getRows,
 	setupDescriptors,
 	validateCollection,
@@ -18,6 +17,7 @@ import {
 	renderValidationErrors,
 	type ValidationIssueSummary
 } from 'renderer/collection-validation-run';
+import { getCollectionModDataList } from 'renderer/collection-mod-projection';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cancellablePromise, type CancellablePromise } from 'util/Promise';
 import type { NotificationType } from './useNotifications';
@@ -136,9 +136,7 @@ export function useCollectionValidation({
 		setLastValidatedCollectionKey(currentValidationKey);
 
 		if (launchIfValid) {
-			const modDataList = activeCollection.mods
-				.map((modUID) => getByUID(mods, modUID))
-				.filter((modData): modData is ModData => !!modData);
+			const modDataList = getCollectionModDataList(mods, activeCollection);
 			await launchMods(modDataList);
 		}
 	}, [activeCollection, config, launchMods, logValidationIssues, mods, persistCollection, setModErrors]);

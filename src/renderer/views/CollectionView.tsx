@@ -1,4 +1,17 @@
-import { Profiler, ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	Profiler,
+	ReactNode,
+	Suspense,
+	lazy,
+	memo,
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties
+} from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import {
@@ -7,9 +20,7 @@ import {
 	CollectionViewType,
 	MainColumnTitles,
 	ModCollection,
-	ModData,
-	getByUID,
-	getRows
+	ModData
 } from 'model';
 import api from 'renderer/Api';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
@@ -21,6 +32,11 @@ import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
+import {
+	getCollectionModDataList,
+	getCollectionRows,
+	getDisplayedCollectionRecord
+} from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
 	moveMainCollectionColumn,
@@ -107,21 +123,16 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 	}, [onSizeChange]);
 
 	return (
-		<div
-			ref={containerRef}
-			style={{
-				flex: 1,
-				display: 'flex',
-				minWidth: 0,
-				minHeight: 0,
-				width: '100%',
-				height: '100%',
-				overflow: 'hidden'
-			}}
-		>
+		<div ref={containerRef} className="CollectionMeasuredArea">
 			{children(size)}
 		</div>
 	);
+}
+
+function collectionSplitSizeStyle(size: number): CSSProperties {
+	return {
+		'--collection-split-size': `${size}px`
+	} as CSSProperties;
 }
 
 type HalfDetailsLayout = 'bottom' | 'side';
@@ -266,7 +277,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		}
 
 		if (currentValidationStatus && !madeEdits && activeCollection) {
-			const modDataList = activeCollection.mods.map((modUID) => getByUID(mods, modUID)).filter((modData): modData is ModData => !!modData);
+			const modDataList = getCollectionModDataList(mods, activeCollection);
 			await closeLaunchModal(modDataList);
 			return;
 		}
@@ -280,13 +291,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const rows = useMemo(
 		() =>
-			measurePerf('collection.rows.derive', () => getRows(mods), {
+			measurePerf('collection.rows.derive', () => getCollectionRows(mods), {
 				totalMods: mods.modIdToModDataMap.size
 			}),
 		[mods]
 	);
 	const visibleRows = filteredRows || rows;
-	const displayedCurrentRecord = currentRecord ? getByUID(mods, currentRecord.uid) || currentRecord : undefined;
+	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord);
 	const currentViewConfig = config.viewConfigs?.[currentView];
 	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
 	const automaticHalfDetailsLayout: HalfDetailsLayout =
@@ -400,9 +411,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	);
 	const handleLaunchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
-		const modList = (activeCollection ? activeCollection.mods.map((mod) => getByUID(mods, mod)) : []).filter(
-			(modData): modData is ModData => !!modData
-		);
+		const modList = getCollectionModDataList(mods, activeCollection);
 		void closeLaunchModal(modList);
 	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
 	const handleCloseModal = useCallback(() => {
@@ -525,7 +534,6 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
 			? Math.min(Math.max(220, Math.round(contentSize.height * 0.36)), Math.max(180, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT))
 			: 0;
-	const footerBorderColor = '1px solid color-mix(in srgb, var(--app-color-text-base) 8%, transparent)';
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
@@ -655,7 +663,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					/>
 				</Suspense>
 			) : null}
-			<div style={{ flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+			<div className="CollectionWorkspaceBody">
 				<div className="CollectionContentStageHost">
 					<div className={`CollectionContentStage${showExpandedDetailsSurface ? '' : ' is-active'}`}>
 						<MeasuredArea onSizeChange={setContentSize}>
@@ -667,40 +675,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 									if (displayedCurrentRecord && currentView === CollectionViewType.MAIN && !bigDetails) {
 										if (showSideBySideDetails) {
 											actualContent = (
-												<div
-													style={{
-														display: 'flex',
-														flex: 1,
-														minWidth: 0,
-														minHeight: 0,
-														width: '100%',
-														height: '100%',
-														overflow: 'hidden'
-													}}
-												>
-													<div
-														key="collection"
-														style={{
-															flex: '1 1 0',
-															minWidth: 0,
-															minHeight: 0,
-															height: '100%',
-															padding: '0px',
-															overflow: 'hidden'
-														}}
-													>
+												<div className="CollectionSplitLayout CollectionSplitLayout--side">
+													<div key="collection" className="CollectionSplitMainPane">
 														{outlet}
 													</div>
 													<div
 														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--side"
-														style={{
-															flex: `0 0 ${sideDetailsWidth}px`,
-															width: sideDetailsWidth,
-															minWidth: sideDetailsWidth,
-															minHeight: 0,
-															overflow: 'hidden',
-															borderLeft: footerBorderColor
-														}}
+														style={collectionSplitSizeStyle(sideDetailsWidth)}
 													>
 														{halfDetailsFooter}
 													</div>
@@ -708,39 +689,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 											);
 										} else {
 											actualContent = (
-												<div
-													style={{
-														display: 'flex',
-														flexDirection: 'column',
-														flex: 1,
-														minWidth: 0,
-														minHeight: 0,
-														height: '100%',
-														overflow: 'hidden'
-													}}
-												>
-													<div
-														key="collection"
-														style={{
-															flex: '1 1 0',
-															minWidth: 0,
-															minHeight: 0,
-															height: '100%',
-															padding: '0px',
-															overflow: 'hidden'
-														}}
-													>
+												<div className="CollectionSplitLayout CollectionSplitLayout--bottom">
+													<div key="collection" className="CollectionSplitMainPane">
 														{outlet}
 													</div>
 													<div
 														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--bottom"
-														style={{
-															flex: `0 0 ${bottomDetailsHeight}px`,
-															minHeight: bottomDetailsHeight,
-															maxHeight: bottomDetailsHeight,
-															overflow: 'hidden',
-															borderTop: footerBorderColor
-														}}
+														style={collectionSplitSizeStyle(bottomDetailsHeight)}
 													>
 														{halfDetailsFooter}
 													</div>
@@ -749,17 +704,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 										}
 									} else {
 										actualContent = (
-											<div
-												key="collection"
-												style={{
-													flex: 1,
-													minWidth: 0,
-													minHeight: 0,
-													height: '100%',
-													padding: '0px',
-													overflow: 'hidden'
-												}}
-											>
+											<div key="collection" className="CollectionSplitMainPane">
 												{outlet}
 											</div>
 										);

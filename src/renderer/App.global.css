@@ -154,16 +154,58 @@ body {
 	isolation: isolate;
 }
 
+.CollectionMeasuredArea,
+.CollectionWorkspaceBody,
+.CollectionSplitLayout,
+.CollectionSplitMainPane {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.CollectionMeasuredArea,
+.CollectionSplitLayout {
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+}
+
+.CollectionWorkspaceBody {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.CollectionSplitLayout--bottom {
+	flex-direction: column;
+}
+
+.CollectionSplitMainPane {
+	flex: 1 1 0;
+	height: 100%;
+}
+
 .CollectionSplitDetailsPane {
 	min-width: 0;
 	min-height: 0;
+	overflow: hidden;
+	--collection-split-border: 1px solid color-mix(in srgb, var(--app-color-text-base) 8%, transparent);
 }
 
 .CollectionSplitDetailsPane--side {
+	flex: 0 0 var(--collection-split-size);
+	width: var(--collection-split-size);
+	min-width: var(--collection-split-size);
+	border-left: var(--collection-split-border);
 	animation: splitPaneFade 140ms ease;
 }
 
 .CollectionSplitDetailsPane--bottom {
+	flex: 0 0 var(--collection-split-size);
+	min-height: var(--collection-split-size);
+	max-height: var(--collection-split-size);
+	border-top: var(--collection-split-border);
 	animation: splitPaneFade 140ms ease;
 }
 
@@ -808,6 +850,18 @@ a:hover {
 
 .SettingsLoggerIdControl {
 	flex: 2 1 16rem;
+}
+
+.SettingsLoggerConfigRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	width: 100%;
+}
+
+.SettingsLoggerIdInput {
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .SettingsSwitch {
@@ -2144,6 +2198,10 @@ a:hover {
 .BlockLookupTableHeaderCell.is-dragging,
 .BlockLookupSettingsColumnRow.is-dragging {
 	opacity: 0.62;
+}
+
+.BlockLookupTableOptionsModal {
+	width: min(760px, 100%);
 }
 
 .BlockLookupVirtualRow.is-selected > .BlockLookupVirtualCell {

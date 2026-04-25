@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
-import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType, filterRows } from 'model';
+import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType } from 'model';
 import api from 'renderer/Api';
 import type { NotificationProps } from 'model';
 import { writeConfig } from 'renderer/util/config-write';
@@ -7,12 +7,16 @@ import { validateCollectionName } from 'shared/collection-name';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import {
 	collectionWorkspaceSnapshot,
-	createCollectionSnapshot,
 	deleteActiveCollectionSnapshot,
-	duplicateActiveCollectionSnapshot,
 	renameActiveCollectionSnapshot,
 	switchActiveCollectionSnapshot
 } from 'renderer/collection-lifecycle';
+import {
+	runCreateCollectionTransaction,
+	runDuplicateCollectionTransaction,
+	type NewCollectionTransactionResult
+} from 'renderer/collection-lifecycle-transactions';
+import { getVisibleCollectionRows } from 'renderer/collection-mod-projection';
 import type { NotificationType } from './useNotifications';
 import { cloneCollection, copyCollectionsMap } from './utils';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
@@ -276,7 +280,7 @@ export function useCollections({
 	const recalculateModData = useCallback(() => {
 		startTransition(() => {
 			setFilteredRows(
-				measurePerf('collection.filter.recalculate', () => filterRows(appState.mods, searchStringRef.current), {
+				measurePerf('collection.filter.recalculate', () => getVisibleCollectionRows(appState.mods, searchStringRef.current), {
 					queryLength: searchStringRef.current.length,
 					totalMods: appState.mods.modIdToModDataMap.size
 				})
@@ -295,7 +299,7 @@ export function useCollections({
 			startTransition(() => {
 				setFilteredRows(
 					search.length > 0
-						? measurePerf('collection.filter.searchChange', () => filterRows(appState.mods, search), {
+						? measurePerf('collection.filter.searchChange', () => getVisibleCollectionRows(appState.mods, search), {
 								queryLength: search.length,
 								totalMods: appState.mods.modIdToModDataMap.size
 							})
@@ -317,7 +321,7 @@ export function useCollections({
 			startTransition(() => {
 				setFilteredRows(
 					search.length > 0
-						? measurePerf('collection.filter.searchSubmit', () => filterRows(appState.mods, search), {
+						? measurePerf('collection.filter.searchSubmit', () => getVisibleCollectionRows(appState.mods, search), {
 								queryLength: search.length,
 								totalMods: appState.mods.modIdToModDataMap.size
 							})
@@ -328,25 +332,32 @@ export function useCollections({
 		[appState.mods]
 	);
 
+	const reportConfigPersistenceFailure = useCallback(
+		(error: unknown, message = 'Failed to update config') => {
+			api.logger.error(error);
+			openNotification(
+				{
+					message,
+					placement: 'bottomLeft',
+					duration: null
+				},
+				'error'
+			);
+		},
+		[openNotification]
+	);
+
 	const persistConfigAndReportFailure = useCallback(
 		async (nextConfig: AppConfig, message = 'Failed to update config') => {
 			try {
 				await writeConfig(nextConfig);
 				return true;
 			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message,
-						placement: 'bottomLeft',
-						duration: null
-					},
-					'error'
-				);
+				reportConfigPersistenceFailure(error, message);
 				return false;
 			}
 		},
-		[openNotification]
+		[reportConfigPersistenceFailure]
 	);
 
 	const notifyRollbackFailure = useCallback(
@@ -363,6 +374,42 @@ export function useCollections({
 		[openNotification]
 	);
 
+	const reportNewCollectionTransactionFailure = useCallback(
+		(
+			transactionResult: NewCollectionTransactionResult,
+			messages: {
+				newCollectionWriteFailed: string;
+				configWriteFailed: string;
+				rollbackFailed: string;
+			}
+		) => {
+			if (transactionResult.committed) {
+				return false;
+			}
+
+			if (transactionResult.failureReason === 'new-collection-write-failed') {
+				openNotification(
+					{
+						message: messages.newCollectionWriteFailed,
+						placement: 'bottomRight',
+						duration: null
+					},
+					'error'
+				);
+			}
+
+			if (transactionResult.failureReason === 'config-write-failed') {
+				reportConfigPersistenceFailure(transactionResult.error, messages.configWriteFailed);
+				if (transactionResult.rollbackFailed) {
+					notifyRollbackFailure(messages.rollbackFailed);
+				}
+			}
+
+			return true;
+		},
+		[notifyRollbackFailure, openNotification, reportConfigPersistenceFailure]
+	);
+
 	const createNewCollection = useCallback(
 		async (name: string, mods?: string[]) => {
 			if (!validateCollectionNameOrNotify(name)) {
@@ -371,40 +418,37 @@ export function useCollections({
 
 			await runQueuedCollectionWrite(async () => {
 				const { activeCollection } = appState;
-				if (madeEdits && activeCollection) {
-					const persisted = await rawPersistCollection(activeCollection);
-					if (!persisted) {
-						return;
-					}
-				}
-
-				setSavingCollection(true);
-				const lifecycleResult = createCollectionSnapshot(collectionWorkspaceSnapshot(appState), name, mods || []);
-				const newCollection = lifecycleResult.activeCollection;
+				let savingStarted = false;
 
 				try {
-					const writeSuccess = await api.updateCollection(newCollection);
-					if (!writeSuccess) {
-						openNotification(
-							{
-								message: `Failed to create new collection ${name}`,
-								placement: 'bottomRight',
-								duration: null
-							},
-							'error'
-						);
-						return;
-					}
-
-					const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Created collection ${name} but failed to activate it`);
-					if (!configPersisted) {
-						const rolledBack = await api.deleteCollection(name);
-						if (!rolledBack) {
-							notifyRollbackFailure(`Failed to roll back collection ${name} after the config update failed`);
+					const transactionResult = await runCreateCollectionTransaction({
+						snapshot: collectionWorkspaceSnapshot(appState),
+						name,
+						mods: mods || [],
+						dirtyCollection: madeEdits ? activeCollection : undefined,
+						persistDirtyCollection: rawPersistCollection,
+						updateCollection: api.updateCollection,
+						deleteCollection: api.deleteCollection,
+						writeConfig,
+						onBeforeNewCollectionWrite: () => {
+							savingStarted = true;
+							setSavingCollection(true);
 						}
+					});
+					if (
+						reportNewCollectionTransactionFailure(transactionResult, {
+							newCollectionWriteFailed: `Failed to create new collection ${name}`,
+							configWriteFailed: `Created collection ${name} but failed to activate it`,
+							rollbackFailed: `Failed to roll back collection ${name} after the config update failed`
+						})
+					) {
 						return;
 					}
 
+					const { lifecycleResult } = transactionResult;
+					if (!lifecycleResult) {
+						return;
+					}
 					commitCollectionState(
 						lifecycleResult.allCollections,
 						lifecycleResult.allCollectionNames,
@@ -431,7 +475,9 @@ export function useCollections({
 						'error'
 					);
 				} finally {
-					setSavingCollection(false);
+					if (savingStarted) {
+						setSavingCollection(false);
+					}
 				}
 			});
 		},
@@ -439,10 +485,9 @@ export function useCollections({
 			appState,
 			commitCollectionState,
 			madeEdits,
-			notifyRollbackFailure,
 			openNotification,
-			persistConfigAndReportFailure,
 			rawPersistCollection,
+			reportNewCollectionTransactionFailure,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
 		]
@@ -460,44 +505,37 @@ export function useCollections({
 					return;
 				}
 
-				if (madeEdits) {
-					const persisted = await rawPersistCollection(activeCollection);
-					if (!persisted) {
-						return;
-					}
-				}
-
-				setSavingCollection(true);
-				const lifecycleResult = duplicateActiveCollectionSnapshot(collectionWorkspaceSnapshot(appState), name);
-				if (!lifecycleResult) {
-					return;
-				}
-				const newCollection = lifecycleResult.activeCollection;
 				const oldName = activeCollection.name;
+				let savingStarted = false;
 
 				try {
-					const writeSuccess = await api.updateCollection(newCollection);
-					if (!writeSuccess) {
-						openNotification(
-							{
-								message: `Failed to create new collection ${name}`,
-								placement: 'bottomRight',
-								duration: null
-							},
-							'error'
-						);
-						return;
-					}
-
-					const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Duplicated collection ${oldName} but failed to activate ${name}`);
-					if (!configPersisted) {
-						const rolledBack = await api.deleteCollection(name);
-						if (!rolledBack) {
-							notifyRollbackFailure(`Failed to roll back duplicated collection ${name} after the config update failed`);
+					const transactionResult = await runDuplicateCollectionTransaction({
+						snapshot: collectionWorkspaceSnapshot(appState),
+						name,
+						dirtyCollection: madeEdits ? activeCollection : undefined,
+						persistDirtyCollection: rawPersistCollection,
+						updateCollection: api.updateCollection,
+						deleteCollection: api.deleteCollection,
+						writeConfig,
+						onBeforeNewCollectionWrite: () => {
+							savingStarted = true;
+							setSavingCollection(true);
 						}
+					});
+					if (
+						reportNewCollectionTransactionFailure(transactionResult, {
+							newCollectionWriteFailed: `Failed to create new collection ${name}`,
+							configWriteFailed: `Duplicated collection ${oldName} but failed to activate ${name}`,
+							rollbackFailed: `Failed to roll back duplicated collection ${name} after the config update failed`
+						})
+					) {
 						return;
 					}
 
+					const { lifecycleResult } = transactionResult;
+					if (!lifecycleResult) {
+						return;
+					}
 					commitCollectionState(
 						lifecycleResult.allCollections,
 						lifecycleResult.allCollectionNames,
@@ -524,7 +562,9 @@ export function useCollections({
 						'error'
 					);
 				} finally {
-					setSavingCollection(false);
+					if (savingStarted) {
+						setSavingCollection(false);
+					}
 				}
 			});
 		},
@@ -532,10 +572,9 @@ export function useCollections({
 			appState,
 			commitCollectionState,
 			madeEdits,
-			notifyRollbackFailure,
 			openNotification,
-			persistConfigAndReportFailure,
 			rawPersistCollection,
+			reportNewCollectionTransactionFailure,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
 		]
