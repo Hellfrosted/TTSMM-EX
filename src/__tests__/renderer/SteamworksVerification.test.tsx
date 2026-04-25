@@ -1,39 +1,48 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SteamworksVerification from '../../renderer/components/loading/SteamworksVerification';
-import { AppStateProvider, useAppState } from '../../renderer/state/app-state';
+import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
 
 function AppStateSeeder({ currentPath, initializedConfigs }: { currentPath: string; initializedConfigs: boolean }) {
-	const appState = useAppState();
+	const config = useAppStateSelector((state) => state.config);
+	const currentInitializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
+	const updateState = useAppStateSelector((state) => state.updateState);
+	const seededRef = useRef(false);
 
 	useEffect(() => {
-		if (appState.config.currentPath === currentPath && appState.initializedConfigs === initializedConfigs) {
+		if (seededRef.current) {
 			return;
 		}
 
-		appState.updateState({
+		if (config.currentPath === currentPath && currentInitializedConfigs === initializedConfigs) {
+			seededRef.current = true;
+			return;
+		}
+
+		seededRef.current = true;
+		updateState({
 			initializedConfigs,
 			config: {
-				...appState.config,
+				...config,
 				currentPath
 			}
 		});
-	}, [appState, appState.config, appState.config.currentPath, appState.initializedConfigs, appState.updateState, currentPath, initializedConfigs]);
+	}, [config, config.currentPath, currentInitializedConfigs, currentPath, initializedConfigs, updateState]);
 
 	return null;
 }
 
 function SteamworksHarness({ currentPath, initializedConfigs }: { currentPath: string; initializedConfigs: boolean }) {
 	const location = useLocation();
-	const appState = useAppState();
+	const appCurrentPath = useAppStateSelector((state) => state.config.currentPath);
 
 	return (
 		<>
 			<AppStateSeeder currentPath={currentPath} initializedConfigs={initializedConfigs} />
 			<div data-testid="location">{location.pathname}</div>
-			<div data-testid="current-path">{appState.config.currentPath}</div>
+			<div data-testid="current-path">{appCurrentPath}</div>
 			<SteamworksVerification />
 		</>
 	);
@@ -54,7 +63,7 @@ describe('SteamworksVerification', () => {
 		cleanup();
 	});
 
-	it('returns to the saved route after reloading Steamworks', async () => {
+	it('returns to mod collections after reloading Steamworks', async () => {
 		vi.mocked(window.electron.steamworksInited).mockResolvedValue({ inited: true });
 
 		render(
@@ -70,8 +79,8 @@ describe('SteamworksVerification', () => {
 		});
 
 		await waitFor(() => {
-			expect(screen.getByTestId('location')).toHaveTextContent('/settings');
-			expect(screen.getByTestId('current-path')).toHaveTextContent('/settings');
+			expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
+			expect(screen.getByTestId('current-path')).toHaveTextContent('/collections/main');
 		});
 	}, 10000);
 
@@ -97,7 +106,7 @@ describe('SteamworksVerification', () => {
 
 		await waitFor(() => {
 			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(2);
-			expect(screen.getByTestId('location')).toHaveTextContent('/settings');
+			expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
 		});
 	}, 10000);
 

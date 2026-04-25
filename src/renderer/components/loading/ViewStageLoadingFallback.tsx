@@ -1,6 +1,4 @@
-import { Spin, Typography } from 'antd';
-
-const { Paragraph, Text } = Typography;
+import { LoaderCircle } from 'lucide-react';
 
 interface ViewStageLoadingFallbackProps {
 	title: string;
@@ -18,12 +16,10 @@ export default function ViewStageLoadingFallback({ title, detail, compact = fals
 		>
 			<div className={`ViewStageLoadingFallback__card${compact ? ' ViewStageLoadingFallback__card--compact' : ''}`}>
 				<div className="ViewStageLoadingFallback__body">
-					<Spin size={compact ? 'default' : 'large'} />
+					<LoaderCircle className="ViewStageLoadingFallback__spinner" size={compact ? 22 : 30} aria-hidden="true" />
 					<div className="ViewStageLoadingFallback__copy">
-						<Text strong className="ViewStageLoadingFallback__title">
-							{title}
-						</Text>
-						<Paragraph className="ViewStageLoadingFallback__detail">{detail}</Paragraph>
+						<strong className="ViewStageLoadingFallback__title">{title}</strong>
+						<p className="ViewStageLoadingFallback__detail">{detail}</p>
 					</div>
 				</div>
 			</div>

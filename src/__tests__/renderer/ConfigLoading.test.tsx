@@ -4,19 +4,21 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-rou
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import { AppStateProvider, useAppState } from '../../renderer/state/app-state';
+import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
-	const appState = useAppState();
+	const activeCollection = useAppStateSelector((state) => state.activeCollection);
+	const config = useAppStateSelector((state) => state.config);
+	const loadingMods = useAppStateSelector((state) => state.loadingMods);
 
 	return (
 		<>
 			<div data-testid="location">{location.pathname}</div>
-			<div data-testid="active-collection">{appState.activeCollection?.name || ''}</div>
-			<div data-testid="config-active-collection">{appState.config.activeCollection || ''}</div>
-			<div data-testid="config-game-exec">{appState.config.gameExec || ''}</div>
-			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
+			<div data-testid="active-collection">{activeCollection?.name || ''}</div>
+			<div data-testid="config-active-collection">{config.activeCollection || ''}</div>
+			<div data-testid="config-game-exec">{config.gameExec || ''}</div>
+			<div data-testid="loading-mods">{String(loadingMods)}</div>
 			<ConfigLoading />
 		</>
 	);
@@ -201,7 +203,7 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each(['collections/main', '/collections'])('normalizes saved collection route "%s" during boot', async (currentPath) => {
+	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
 			...DEFAULT_CONFIG,
