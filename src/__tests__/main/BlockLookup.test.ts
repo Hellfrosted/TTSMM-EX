@@ -10,6 +10,7 @@ import {
 } from '../../main/block-lookup';
 import { createBlockLookupIndexer } from '../../main/block-lookup-indexer';
 import { createBlockLookupIndexPlan } from '../../main/block-lookup-index-planner';
+import { searchBlockLookupRecords } from '../../main/block-lookup-search';
 import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
@@ -283,6 +284,36 @@ describe('block lookup index planner', () => {
 				source: existingSource
 			})
 		]);
+	});
+});
+
+describe('block lookup search adapter', () => {
+	it('ranks exact block names before exact internal names and deprecated matches', () => {
+		const createRecord = (blockName: string, internalName: string) => ({
+			blockId: '',
+			blockName,
+			fallbackAlias: `${blockName}(Core)`,
+			fallbackSpawnCommand: `SpawnBlock ${blockName}(Core)`,
+			internalName,
+			modTitle: 'Core',
+			preferredAlias: `${blockName}(Core)`,
+			sourceKind: 'json' as const,
+			sourcePath: path.normalize(`/mods/${internalName}.json`),
+			spawnCommand: `SpawnBlock ${blockName}(Core)`,
+			workshopId: 'core'
+		});
+
+		const result = searchBlockLookupRecords(
+			{
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [],
+				records: [createRecord('Other Match', 'Cab'), createRecord('Deprecated Cab', '_deprecated_cab'), createRecord('Cab', 'ExactCab')]
+			},
+			'Cab'
+		);
+
+		expect(result.rows.map((record) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
 	});
 });
 
