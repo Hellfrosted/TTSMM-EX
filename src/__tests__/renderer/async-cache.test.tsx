@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../model';
@@ -14,6 +14,18 @@ import {
 	useWriteConfigMutation
 } from '../../renderer/async-cache';
 import { createQueryWrapper, createTestQueryClient } from './test-utils';
+
+function spyOnCollectionRefetch(queryClient: QueryClient) {
+	return {
+		invalidateQueries: vi.spyOn(queryClient, 'invalidateQueries'),
+		refetchQueries: vi.spyOn(queryClient, 'refetchQueries')
+	};
+}
+
+function expectNoCollectionRefetch(spies: ReturnType<typeof spyOnCollectionRefetch>) {
+	expect(spies.invalidateQueries).not.toHaveBeenCalled();
+	expect(spies.refetchQueries).not.toHaveBeenCalled();
+}
 
 describe('renderer async cache', () => {
 	it('loads config through query options and updates the config cache after writes', async () => {
@@ -47,6 +59,7 @@ describe('renderer async cache', () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		const collection = { name: 'fresh', mods: ['local:mod-a'] };
+		const refetchSpies = spyOnCollectionRefetch(queryClient);
 
 		const { result } = renderHook(() => useUpdateCollectionMutation(), { wrapper: createQueryWrapper(queryClient) });
 		await act(async () => {
@@ -56,6 +69,7 @@ describe('renderer async cache', () => {
 		expect(window.electron.updateCollection).toHaveBeenCalledWith(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toBe(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default', 'fresh']);
+		expectNoCollectionRefetch(refetchSpies);
 	});
 
 	it('does not refetch observed collection queries after exact collection writes', async () => {
@@ -96,6 +110,7 @@ describe('renderer async cache', () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(queryKeys.collections.list(), ['default', 'archived']);
 		queryClient.setQueryData(queryKeys.collections.detail('archived'), { name: 'archived', mods: [] });
+		const refetchSpies = spyOnCollectionRefetch(queryClient);
 
 		const { result } = renderHook(() => useDeleteCollectionMutation(), { wrapper: createQueryWrapper(queryClient) });
 		await act(async () => {
@@ -105,6 +120,7 @@ describe('renderer async cache', () => {
 		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
 		expect(queryClient.getQueryData(queryKeys.collections.detail('archived'))).toBeUndefined();
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default']);
+		expectNoCollectionRefetch(refetchSpies);
 	});
 
 	it('moves collection detail and list cache entries after collection renames', async () => {
@@ -112,6 +128,7 @@ describe('renderer async cache', () => {
 		const collection = { name: 'default', mods: ['local:mod-a'] };
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		queryClient.setQueryData(queryKeys.collections.detail('default'), collection);
+		const refetchSpies = spyOnCollectionRefetch(queryClient);
 
 		const { result } = renderHook(() => useRenameCollectionMutation(), { wrapper: createQueryWrapper(queryClient) });
 		await act(async () => {
@@ -122,6 +139,7 @@ describe('renderer async cache', () => {
 		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
 		expect(queryClient.getQueryData(queryKeys.collections.detail('renamed'))).toEqual({ name: 'renamed', mods: ['local:mod-a'] });
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['renamed']);
+		expectNoCollectionRefetch(refetchSpies);
 	});
 
 	it('loads individual collections through query options', async () => {
