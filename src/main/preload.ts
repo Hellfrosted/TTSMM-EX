@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import log from 'electron-log';
 import type { ElectronApi } from 'shared/electron-api';
+import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import { ValidChannel } from 'shared/ipc';
 
 const invoke = <TResult>(channel: ValidChannel, ...args: unknown[]): Promise<TResult> => {
@@ -23,47 +24,47 @@ const electronApi: ElectronApi = {
 	platform: process.platform,
 	log: log.functions,
 	updateLogLevel: (level) => {
-		send(ValidChannel.UPDATE_LOG_LEVEL, level);
+		send(ipcSendChannels.updateLogLevel, level);
 	},
-	getUserDataPath: () => invoke(ValidChannel.USER_DATA_PATH),
-	readConfig: () => invoke(ValidChannel.READ_CONFIG),
-	updateConfig: (config) => invoke(ValidChannel.UPDATE_CONFIG, config),
-	readCollection: (collection) => invoke(ValidChannel.READ_COLLECTION, collection),
-	readCollectionsList: () => invoke(ValidChannel.READ_COLLECTIONS),
-	updateCollection: (collection) => invoke(ValidChannel.UPDATE_COLLECTION, collection),
-	renameCollection: (collection, newName) => invoke(ValidChannel.RENAME_COLLECTION, collection, newName),
-	deleteCollection: (collection) => invoke(ValidChannel.DELETE_COLLECTION, collection),
-	pathExists: (targetPath, expectedType) => invoke(ValidChannel.PATH_EXISTS, targetPath, expectedType),
-	discoverGameExecutable: () => invoke(ValidChannel.DISCOVER_GAME_EXEC),
-	selectPath: (directory, title) => invoke(ValidChannel.SELECT_PATH, directory, title),
-	readBlockLookupSettings: () => invoke(ValidChannel.BLOCK_LOOKUP_READ_SETTINGS),
-	saveBlockLookupSettings: (settings) => invoke(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings),
-	buildBlockLookupIndex: (request) => invoke(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
-	searchBlockLookup: (request) => invoke(ValidChannel.BLOCK_LOOKUP_SEARCH, request),
-	getBlockLookupStats: () => invoke(ValidChannel.BLOCK_LOOKUP_STATS),
-	autoDetectBlockLookupWorkshopRoot: (request) => invoke(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, request),
+	getUserDataPath: () => invoke(ipcInvokeChannels.getUserDataPath),
+	readConfig: () => invoke(ipcInvokeChannels.readConfig),
+	updateConfig: (config) => invoke(ipcInvokeChannels.updateConfig, config),
+	readCollection: (collection) => invoke(ipcInvokeChannels.readCollection, collection),
+	readCollectionsList: () => invoke(ipcInvokeChannels.readCollectionsList),
+	updateCollection: (collection) => invoke(ipcInvokeChannels.updateCollection, collection),
+	renameCollection: (collection, newName) => invoke(ipcInvokeChannels.renameCollection, collection, newName),
+	deleteCollection: (collection) => invoke(ipcInvokeChannels.deleteCollection, collection),
+	pathExists: (targetPath, expectedType) => invoke(ipcInvokeChannels.pathExists, targetPath, expectedType),
+	discoverGameExecutable: () => invoke(ipcInvokeChannels.discoverGameExecutable),
+	selectPath: (directory, title) => invoke(ipcInvokeChannels.selectPath, directory, title),
+	readBlockLookupSettings: () => invoke(ipcInvokeChannels.readBlockLookupSettings),
+	saveBlockLookupSettings: (settings) => invoke(ipcInvokeChannels.saveBlockLookupSettings, settings),
+	buildBlockLookupIndex: (request) => invoke(ipcInvokeChannels.buildBlockLookupIndex, request),
+	searchBlockLookup: (request) => invoke(ipcInvokeChannels.searchBlockLookup, request),
+	getBlockLookupStats: () => invoke(ipcInvokeChannels.getBlockLookupStats),
+	autoDetectBlockLookupWorkshopRoot: (request) => invoke(ipcInvokeChannels.autoDetectBlockLookupWorkshopRoot, request),
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) =>
-		invoke(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args),
-	isGameRunning: () => invoke(ValidChannel.GAME_RUNNING),
-	readModMetadata: (localDir, allKnownMods) => invoke(ValidChannel.READ_MOD_METADATA, localDir, allKnownMods),
-	fetchWorkshopDependencies: (workshopID) => invoke(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, workshopID),
-	steamworksInited: () => invoke(ValidChannel.STEAMWORKS_INITED),
-	downloadMod: (workshopID) => invoke(ValidChannel.DOWNLOAD_MOD, workshopID),
-	subscribeMod: (workshopID) => invoke(ValidChannel.SUBSCRIBE_MOD, workshopID),
-	unsubscribeMod: (workshopID) => invoke(ValidChannel.UNSUBSCRIBE_MOD, workshopID),
+		invoke(ipcInvokeChannels.launchGame, gameExec, workshopID, closeOnLaunch, args),
+	isGameRunning: () => invoke(ipcInvokeChannels.isGameRunning),
+	readModMetadata: (localDir, allKnownMods) => invoke(ipcInvokeChannels.readModMetadata, localDir, allKnownMods),
+	fetchWorkshopDependencies: (workshopID) => invoke(ipcInvokeChannels.fetchWorkshopDependencies, workshopID),
+	steamworksInited: () => invoke(ipcInvokeChannels.steamworksInited),
+	downloadMod: (workshopID) => invoke(ipcInvokeChannels.downloadMod, workshopID),
+	subscribeMod: (workshopID) => invoke(ipcInvokeChannels.subscribeMod, workshopID),
+	unsubscribeMod: (workshopID) => invoke(ipcInvokeChannels.unsubscribeMod, workshopID),
 	openModBrowser: (workshopID) => {
-		send(ValidChannel.OPEN_MOD_BROWSER, workshopID);
+		send(ipcSendChannels.openModBrowser, workshopID);
 	},
 	openModSteam: (workshopID) => {
-		send(ValidChannel.OPEN_MOD_STEAM, workshopID);
+		send(ipcSendChannels.openModSteam, workshopID);
 	},
 	openModContextMenu: (record) => {
-		send(ValidChannel.OPEN_MOD_CONTEXT_MENU, record);
+		send(ipcSendChannels.openModContextMenu, record);
 	},
-	onProgressChange: (callback) => subscribe(ValidChannel.PROGRESS_CHANGE, callback),
-	onModMetadataUpdate: (callback) => subscribe(ValidChannel.MOD_METADATA_UPDATE, callback),
-	onModRefreshRequested: (callback) => subscribe(ValidChannel.MOD_REFRESH_REQUESTED, callback),
-	onReloadSteamworks: (callback) => subscribe(ValidChannel.RELOAD_STEAMWORKS, callback)
+	onProgressChange: (callback) => subscribe(ipcSubscriptionChannels.onProgressChange, callback),
+	onModMetadataUpdate: (callback) => subscribe(ipcSubscriptionChannels.onModMetadataUpdate, callback),
+	onModRefreshRequested: (callback) => subscribe(ipcSubscriptionChannels.onModRefreshRequested, callback),
+	onReloadSteamworks: (callback) => subscribe(ipcSubscriptionChannels.onReloadSteamworks, callback)
 };
 
 contextBridge.exposeInMainWorld('electron', electronApi);
