@@ -181,7 +181,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		detailsActiveTabKey,
 		setBigDetails: handleExpandFooter,
 		setDetailsActiveTabKey,
-		setModalType
+		setModalType,
+		validateCollection: handleValidateCollection
 	} = useCollectionWorkspace({
 		appState,
 		openNotification
@@ -268,13 +269,6 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			setPreferredHalfDetailsLayout(halfDetailsLayout === 'side' ? 'bottom' : 'side');
 		});
 	}, [halfDetailsLayout]);
-	const handleValidateCollection = useCallback(
-		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
-			setCollectionErrors(undefined);
-			void validateActiveCollection(false, options);
-		},
-		[setCollectionErrors, validateActiveCollection]
-	);
 	const handleReloadModList = useCallback(() => {
 		closeCurrentRecord();
 		updateState({ loadingMods: true, forceReloadMods: true });

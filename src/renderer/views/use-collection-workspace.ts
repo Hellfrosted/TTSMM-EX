@@ -48,6 +48,7 @@ interface CollectionWorkspaceResult {
 	setOverrideGameRunning: ReturnType<typeof useGameRunning>['setOverrideGameRunning'];
 	setPrewarmAlternateDetails: (prewarmAlternateDetails: boolean) => void;
 	validation: ReturnType<typeof useCollectionValidation>;
+	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
 }
 
 export function useCollectionWorkspace({ appState, openNotification }: UseCollectionWorkspaceOptions): CollectionWorkspaceResult {
@@ -107,7 +108,7 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		launchMods: closeLaunchModal
 	});
 	const { recalculateModData } = collections;
-	const { validateActiveCollection } = validation;
+	const { setCollectionErrors, validateActiveCollection } = validation;
 
 	useEffect(() => {
 		validationCallbacksRef.current = {
@@ -181,6 +182,13 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		},
 		[bigDetails, currentRecord?.uid]
 	);
+	const validateCollection = useCallback(
+		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
+			setCollectionErrors(undefined);
+			void validateActiveCollection(false, options);
+		},
+		[setCollectionErrors, validateActiveCollection]
+	);
 
 	return {
 		clearGameLaunchOverrideTimeout,
@@ -209,6 +217,7 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		setModalType,
 		setOverrideGameRunning,
 		setPrewarmAlternateDetails,
-		validation
+		validation,
+		validateCollection
 	};
 }
