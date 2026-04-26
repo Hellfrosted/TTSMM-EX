@@ -1,7 +1,17 @@
 import { getRows, type AppState } from 'model';
-import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupModSource } from 'shared/block-lookup';
+import type {
+	BlockLookupBuildRequest,
+	BlockLookupIndexStats,
+	BlockLookupModSource,
+	BlockLookupRecord,
+	BlockLookupSearchResult
+} from 'shared/block-lookup';
 
 type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
+
+export function getBlockLookupRecordKey(record: BlockLookupRecord) {
+	return `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
+}
 
 export function formatBlockLookupIndexStatus(stats: BlockLookupIndexStats | null, resultCount: number, query: string) {
 	if (!stats) {
@@ -44,4 +54,12 @@ export function retainSelectedBlockLookupRow<T>(rows: readonly T[], currentKey: 
 	}
 
 	return rows[0] ? getRecordKey(rows[0]) : undefined;
+}
+
+export function createBlockLookupSearchState(result: BlockLookupSearchResult, currentSelectedRowKey: string | undefined) {
+	return {
+		rows: result.rows,
+		stats: result.stats,
+		selectedRowKey: retainSelectedBlockLookupRow(result.rows, currentSelectedRowKey, getBlockLookupRecordKey)
+	};
 }

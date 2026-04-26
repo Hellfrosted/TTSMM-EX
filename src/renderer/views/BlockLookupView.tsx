@@ -6,7 +6,7 @@ import { Copy, Database, Folder, RefreshCw, Search, Settings2, X } from 'lucide-
 import type { AppState } from 'model';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import api from 'renderer/Api';
-import { formatBlockLookupIndexStatus } from 'renderer/block-lookup-workspace';
+import { formatBlockLookupIndexStatus, getBlockLookupRecordKey } from 'renderer/block-lookup-workspace';
 import {
 	desktopControlBaseClassName,
 	desktopControlFocusClassName,
@@ -35,7 +35,7 @@ import {
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
 } from './block-lookup-table-layout';
-import { getBlockLookupRecordKey, useBlockLookupWorkflow } from './use-block-lookup-workflow';
+import { useBlockLookupWorkflow } from './use-block-lookup-workflow';
 
 type BlockLookupViewAppState = Pick<AppState, 'config' | 'mods' | 'updateState'>;
 

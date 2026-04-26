@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AppState } from 'model';
-import type { BlockLookupRecord, BlockLookupSettings } from 'shared/block-lookup';
+import type { BlockLookupSettings } from 'shared/block-lookup';
 import api from 'renderer/Api';
-import { collectBlockLookupModSources, createBlockLookupBuildRequest, retainSelectedBlockLookupRow } from 'renderer/block-lookup-workspace';
+import {
+	collectBlockLookupModSources,
+	createBlockLookupBuildRequest,
+	createBlockLookupSearchState,
+	getBlockLookupRecordKey
+} from 'renderer/block-lookup-workspace';
 import { invalidateBlockLookupSearchQueries, queryKeys, setBlockLookupBootstrapQueryData } from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { measurePerfAsync } from 'renderer/perf';
@@ -15,10 +20,6 @@ type BlockLookupWorkflowAppState = Pick<AppState, 'config' | 'mods'>;
 
 interface BlockLookupWorkflowOptions {
 	appState: BlockLookupWorkflowAppState;
-}
-
-export function getBlockLookupRecordKey(record: BlockLookupRecord) {
-	return `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
 }
 
 export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions) {
@@ -75,9 +76,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				}
 				setRows(result.rows);
 				setStats(result.stats);
-				setSelectedRowKey((current) => {
-					return retainSelectedBlockLookupRow(result.rows, current, getBlockLookupRecordKey);
-				});
+				setSelectedRowKey((current) => createBlockLookupSearchState(result, current).selectedRowKey);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
