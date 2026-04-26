@@ -1,9 +1,11 @@
-import { act, renderHook } from '@testing-library/react';
+import { useQuery } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {
 	collectionQueryOptions,
+	collectionsListQueryOptions,
 	configQueryOptions,
 	queryKeys,
 	useDeleteCollectionMutation,
@@ -54,6 +56,40 @@ describe('renderer async cache', () => {
 		expect(window.electron.updateCollection).toHaveBeenCalledWith(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toBe(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default', 'fresh']);
+	});
+
+	it('does not refetch observed collection queries after exact collection writes', async () => {
+		const queryClient = createTestQueryClient();
+		const storedCollection = { name: 'fresh', mods: ['local:old'] };
+		const nextCollection = { name: 'fresh', mods: ['local:new'] };
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['fresh']);
+		vi.mocked(window.electron.readCollection).mockResolvedValueOnce(storedCollection);
+
+		const { result } = renderHook(
+			() => {
+				useQuery(collectionsListQueryOptions());
+				useQuery(collectionQueryOptions('fresh'));
+				return useUpdateCollectionMutation();
+			},
+			{ wrapper: createQueryWrapper(queryClient) }
+		);
+
+		await waitFor(() => {
+			expect(window.electron.readCollectionsList).toHaveBeenCalledTimes(1);
+			expect(window.electron.readCollection).toHaveBeenCalledTimes(1);
+		});
+		vi.mocked(window.electron.readCollectionsList).mockClear();
+		vi.mocked(window.electron.readCollection).mockClear();
+
+		await act(async () => {
+			await result.current.mutateAsync(nextCollection);
+		});
+
+		expect(window.electron.updateCollection).toHaveBeenCalledWith(nextCollection);
+		expect(window.electron.readCollectionsList).not.toHaveBeenCalled();
+		expect(window.electron.readCollection).not.toHaveBeenCalled();
+		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toEqual(nextCollection);
+		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['fresh']);
 	});
 
 	it('removes collection detail and list cache entries after collection deletes', async () => {
