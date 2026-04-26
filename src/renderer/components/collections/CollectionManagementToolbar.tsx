@@ -1,30 +1,30 @@
 import { Suspense, lazy, memo, useState } from 'react';
 import { CollectionManagerModalType, NotificationProps } from 'model';
 import { Copy, Edit3, FileJson, Plus, RefreshCw, Save, Search, Settings2, Trash2, X } from 'lucide-react';
+import {
+	desktopControlBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDisabledClassName,
+	desktopPrimaryButtonToneClassName
+} from 'renderer/components/desktop-control-classes';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionNamingModalType } from './CollectionNamingModal';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
-const collectionToolbarFocusClassName =
-	'focus-visible:relative focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionToolbarControlClassName = [
-	'box-border min-h-control rounded-md border border-border bg-surface-elevated text-text',
-	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
-	collectionToolbarFocusClassName
+	desktopControlBaseClassName,
+	desktopDisabledClassName,
+	'focus-visible:relative focus-visible:z-[1]',
+	desktopControlFocusClassName
 ].join(' ');
 const collectionToolbarButtonBaseClassName = [
 	collectionToolbarControlClassName,
 	'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[1100px]:w-control max-[1100px]:min-w-control max-[1100px]:px-0',
 	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]'
 ].join(' ');
-const collectionToolbarPrimaryButtonClassName = [
-	collectionToolbarButtonBaseClassName,
-	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
-].join(' ');
-const collectionToolbarDangerButtonClassName = [
-	collectionToolbarButtonBaseClassName,
-	'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
-].join(' ');
+const collectionToolbarPrimaryButtonClassName = [collectionToolbarButtonBaseClassName, desktopPrimaryButtonToneClassName].join(' ');
+const collectionToolbarDangerButtonClassName = [collectionToolbarButtonBaseClassName, desktopDangerButtonToneClassName].join(' ');
 const collectionToolbarLabelClassName = 'inline-flex min-w-0 items-center overflow-hidden text-ellipsis max-[1100px]:hidden';
 
 interface CollectionManagementToolbarProps {

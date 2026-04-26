@@ -7,6 +7,14 @@ import type { AppState } from 'model';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import api from 'renderer/Api';
 import { formatBlockLookupIndexStatus } from 'renderer/block-lookup-workspace';
+import {
+	desktopControlBaseClassName,
+	desktopControlFocusClassName,
+	desktopDisabledClassName,
+	desktopPrimaryButtonToneClassName,
+	desktopSwitchClassName,
+	joinClassNames
+} from 'renderer/components/desktop-control-classes';
 import { logProfilerRender, markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import {
@@ -98,20 +106,14 @@ interface BlockLookupTableOptionsModalProps {
 	onCancel: () => void;
 }
 
-const blockLookupFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
-const blockLookupControlClassName = [
-	'box-border min-h-control rounded-md border border-border bg-surface-elevated text-text',
-	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
-	blockLookupFocusClassName
-].join(' ');
+const blockLookupControlClassName = [desktopControlBaseClassName, desktopDisabledClassName, desktopControlFocusClassName].join(' ');
 
 function BlockLookupButton({ children, className, icon, loading, type = 'button', variant = 'default', ...props }: BlockLookupButtonProps) {
 	const buttonClassName = [
 		blockLookupControlClassName,
 		'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650]',
 		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
+		variant === 'primary' ? desktopPrimaryButtonToneClassName : undefined,
 		className
 	]
 		.filter(Boolean)
@@ -136,13 +138,7 @@ function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLooku
 	return (
 		<input
 			{...props}
-			className={[
-				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
-				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-[140ms] after:ease-in-out after:content-['']",
-				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
-				'disabled:cursor-not-allowed disabled:opacity-55',
-				blockLookupFocusClassName
-			].join(' ')}
+			className={joinClassNames(desktopSwitchClassName, 'm-0')}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -212,7 +208,7 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 						className={[
 							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							blockLookupFocusClassName
+							desktopControlFocusClassName
 						].join(' ')}
 						type="button"
 						aria-label="Close modal"
@@ -597,7 +593,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 									className={[
 										'absolute right-1 inline-flex h-[calc(var(--app-control-height)-8px)] min-h-0 w-[calc(var(--app-control-height)-8px)] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 										'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-										blockLookupFocusClassName
+										desktopControlFocusClassName
 									].join(' ')}
 									type="button"
 									onClick={() => {
@@ -880,7 +876,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 											className={[
 												'inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 												'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-												blockLookupFocusClassName
+												desktopControlFocusClassName
 											].join(' ')}
 											type="button"
 											onClick={() => {
@@ -902,7 +898,7 @@ function BlockLookupViewComponent({ appState }: BlockLookupViewProps) {
 											className={[
 												'inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 												'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-												blockLookupFocusClassName
+												desktopControlFocusClassName
 											].join(' ')}
 											type="button"
 											onClick={() => {

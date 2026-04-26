@@ -16,6 +16,14 @@ import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection, ModData } from 'model';
 import api from 'renderer/Api';
+import {
+	desktopButtonBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	desktopPrimaryButtonToneClassName
+} from 'renderer/components/desktop-control-classes';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
@@ -124,22 +132,15 @@ function collectionSplitSizeStyle(size: number): CSSProperties {
 	} as CSSProperties;
 }
 
-const collectionFooterFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionFooterButtonClassName = [
-	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-elevated px-4 font-[650] text-text',
-	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
-	collectionFooterFocusClassName
+	desktopButtonBaseClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	'px-4',
+	desktopControlFocusClassName
 ].join(' ');
-const collectionFooterPrimaryButtonClassName = [
-	collectionFooterButtonClassName,
-	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
-].join(' ');
-const collectionFooterDangerButtonClassName = [
-	collectionFooterButtonClassName,
-	'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
-].join(' ');
+const collectionFooterPrimaryButtonClassName = [collectionFooterButtonClassName, desktopPrimaryButtonToneClassName].join(' ');
+const collectionFooterDangerButtonClassName = [collectionFooterButtonClassName, desktopDangerButtonToneClassName].join(' ');
 const collectionContentStageBaseClassName =
 	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
 const collectionContentStageActiveClassName = 'opacity-100 visible pointer-events-auto [content-visibility:visible]';

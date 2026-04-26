@@ -17,6 +17,18 @@ import {
 	getMainColumnMinWidth
 } from 'model';
 import api from 'renderer/Api';
+import {
+	desktopButtonBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	desktopDisabledOpacityClassName,
+	desktopInputClassName,
+	desktopPrimaryButtonToneClassName,
+	desktopSwitchClassName,
+	joinClassNames
+} from 'renderer/components/desktop-control-classes';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { writeConfig } from 'renderer/util/config-write';
@@ -81,13 +93,7 @@ interface CollectionNumberInputProps {
 	value?: number;
 }
 
-const collectionControlFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
-const collectionInputClassName = [
-	'box-border min-h-control w-full rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
-	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
-	collectionControlFocusClassName
-].join(' ');
+const collectionInputClassName = joinClassNames(desktopInputClassName, desktopDisabledClassName, desktopControlFocusClassName);
 
 function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
@@ -159,7 +165,7 @@ function CollectionNativeModal({
 						className={[
 							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							collectionControlFocusClassName
+							desktopControlFocusClassName
 						].join(' ')}
 						type="button"
 						aria-label="Close modal"
@@ -179,14 +185,12 @@ function CollectionNativeModal({
 
 function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
 	const buttonClassName = [
-		'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-elevated px-3.5 font-[650] text-text',
-		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-		'disabled:cursor-not-allowed disabled:opacity-55',
-		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
-		danger
-			? 'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
-			: undefined,
-		collectionControlFocusClassName
+		desktopButtonBaseClassName,
+		desktopDefaultButtonToneClassName,
+		desktopDisabledOpacityClassName,
+		variant === 'primary' ? desktopPrimaryButtonToneClassName : undefined,
+		danger ? desktopDangerButtonToneClassName : undefined,
+		desktopControlFocusClassName
 	]
 		.filter(Boolean)
 		.join(' ');
@@ -208,13 +212,7 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 	return (
 		<input
 			{...props}
-			className={[
-				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
-				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
-				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
-				'disabled:cursor-not-allowed disabled:opacity-55',
-				collectionControlFocusClassName
-			].join(' ')}
+			className={joinClassNames(desktopSwitchClassName, 'm-0')}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
