@@ -7,9 +7,9 @@ import { createCollectionNameFormSchema, getCollectionNameError, type Collection
 export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 
 const collectionNamingFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionNamingButtonClassName = [
-	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-3.5 font-[650] text-text',
+	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-elevated px-3.5 font-[650] text-text',
 	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
 	'disabled:cursor-not-allowed disabled:opacity-55',
 	collectionNamingFocusClassName
@@ -150,7 +150,7 @@ export default function CollectionNamingModal({
 			<section
 				aria-labelledby="collection-naming-modal-title"
 				aria-modal="true"
-				className="flex w-[min(520px,100%)] flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
+				className="flex w-[min(520px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
 				role="dialog"
 			>
 				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
@@ -177,7 +177,7 @@ export default function CollectionNamingModal({
 					<input
 						id={collectionNameInputId}
 						className={[
-							'box-border min-h-control w-full rounded-md border border-border bg-surface px-3 text-text',
+							'box-border min-h-control w-full rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
 							'aria-[invalid=true]:border-error',
 							collectionNamingFocusClassName
 						].join(' ')}

@@ -125,11 +125,11 @@ function collectionSplitSizeStyle(size: number): CSSProperties {
 }
 
 const collectionFooterFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionFooterButtonClassName = [
-	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 font-[650] text-text',
+	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-elevated px-4 font-[650] text-text',
 	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-	'disabled:cursor-not-allowed disabled:opacity-55',
+	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
 	collectionFooterFocusClassName
 ].join(' ');
 const collectionFooterPrimaryButtonClassName = [
@@ -138,7 +138,7 @@ const collectionFooterPrimaryButtonClassName = [
 ].join(' ');
 const collectionFooterDangerButtonClassName = [
 	collectionFooterButtonClassName,
-	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
+	'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
 ].join(' ');
 const collectionContentStageBaseClassName =
 	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
