@@ -3,6 +3,7 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks, { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks';
 import ModFetcher from '../../main/mod-fetcher';
+import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
 import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { createTempDir } from './test-utils';
@@ -93,6 +94,33 @@ describe('ModFetcher', () => {
 			expect(ugcGetItemState).not.toHaveBeenCalled();
 			expect(ugcGetItemInstallInfo).not.toHaveBeenCalled();
 			expect(sender.send).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 1, 'Finished loading mods');
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('scans local mods through the local adapter', async () => {
+		const tempDir = createTempDir('ttsmm-local-adapter-');
+		const modDir = path.join(tempDir, 'AdapterPack');
+		try {
+			fs.mkdirSync(modDir, { recursive: true });
+			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle'), 'bundle');
+			const progress = new ModInventoryProgress({ send: vi.fn() });
+
+			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
+				expect.objectContaining({
+					uid: 'local:AdapterBundle',
+					id: 'AdapterBundle',
+					name: 'AdapterBundle',
+					path: modDir
+				})
+			]);
+			expect(createLocalPotentialMod(tempDir, 'AdapterPack')).toEqual(
+				expect.objectContaining({
+					uid: 'local:AdapterPack',
+					path: modDir
+				})
+			);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

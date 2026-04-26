@@ -1,6 +1,5 @@
 import log from 'electron-log';
 import fs from 'fs';
-import path from 'path';
 
 import { ModData, ModType } from '../model';
 import { isSuccessful } from '../util/Promise';
@@ -14,10 +13,13 @@ import Steamworks, {
 	UserUGCList,
 	UserUGCListSortOrder
 } from './steamworks';
-import { clearPreviewAllowlist, registerPreviewImage } from './preview-protocol';
+import { clearPreviewAllowlist } from './preview-protocol';
 import { resolvePersonaName } from './steam-persona-cache';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
 import { ModInventoryProgress } from './mod-inventory-progress';
+import { getModDetailsFromPath, scanLocalMods } from './mod-local-scan';
+
+export { getModDetailsFromPath } from './mod-local-scan';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
@@ -127,54 +129,8 @@ function createWorkshopPotentialMod(workshopID: bigint): ModData {
 	};
 }
 
-function isWorkshopPlaceholderName(name: string | undefined): boolean {
-	return !!name && /^Workshop item \d+$/i.test(name.trim());
-}
-
 function hasWorkshopModTag(tags: string[] | undefined): boolean {
 	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
-}
-
-function toOptionalStringArray(value: unknown): string[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-
-	const filtered = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
-	return filtered.length > 0 ? filtered : undefined;
-}
-
-function applyTtsmmMetadata(potentialMod: ModData, metadata: unknown) {
-	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-		return;
-	}
-
-	const parsedMetadata = metadata as Record<string, unknown>;
-	if (
-		typeof parsedMetadata.name === 'string' &&
-		parsedMetadata.name.trim().length > 0 &&
-		(!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name))
-	) {
-		potentialMod.name = parsedMetadata.name;
-	}
-	if (typeof parsedMetadata.description === 'string' && !potentialMod.description) {
-		potentialMod.description = parsedMetadata.description;
-	}
-
-	const authors = toOptionalStringArray(parsedMetadata.authors);
-	if (authors && (!potentialMod.authors || potentialMod.authors.length === 0)) {
-		potentialMod.authors = authors;
-	}
-
-	const tags = toOptionalStringArray(parsedMetadata.tags);
-	if (tags && (!potentialMod.tags || potentialMod.tags.length === 0)) {
-		potentialMod.tags = tags;
-	}
-
-	const explicitIDDependencies = toOptionalStringArray(parsedMetadata.explicitIDDependencies);
-	if (explicitIDDependencies) {
-		potentialMod.explicitIDDependencies = explicitIDDependencies;
-	}
 }
 
 async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
@@ -226,84 +182,6 @@ async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map
 	return workshopDetailMap;
 }
 
-export async function getModDetailsFromPath(potentialMod: ModData, modPath: string, type: ModType): Promise<ModData | null> {
-	log.debug(`Reading mod metadata for ${modPath}`);
-	return new Promise((resolve, reject) => {
-		fs.readdir(modPath, { withFileTypes: true }, async (err, files) => {
-			try {
-				if (err) {
-					log.error(`fs.readdir failed on path ${modPath}`);
-					log.error(err);
-					reject(err);
-				} else {
-					let validModData = false;
-					try {
-						const stats = fs.statSync(modPath);
-						potentialMod.lastUpdate = stats.mtime;
-						if (!potentialMod.dateAdded) {
-							potentialMod.dateAdded = stats.birthtime;
-						}
-					} catch (e) {
-						log.error(`Failed to get file details for path ${modPath}`);
-						log.error(e);
-					}
-					const fileSizes = files.map((file) => {
-						let size = 0;
-						if (file.isFile()) {
-							try {
-								const stats = fs.statSync(path.join(modPath, file.name));
-								const { size: fileSize, mtime } = stats;
-								size = fileSize;
-								if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
-									potentialMod.lastUpdate = mtime;
-								}
-							} catch {
-								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
-							}
-							if (file.name === 'preview.png' && !potentialMod.preview) {
-								potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
-							} else if (file.name.match(/^(.*)\.dll$/)) {
-								potentialMod.hasCode = true;
-							} else if (file.name === 'ttsmm.json') {
-								applyTtsmmMetadata(potentialMod, JSON.parse(fs.readFileSync(path.join(modPath, file.name), 'utf8')));
-							} else {
-								const matches = file.name.match(/^(.*)_bundle$/);
-								if (matches && matches.length > 1) {
-									const [, modId] = matches;
-									potentialMod.id = modId;
-									if (type !== ModType.WORKSHOP) {
-										potentialMod.uid = `${type}:${potentialMod.id}`;
-									}
-									if (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name)) {
-										potentialMod.name = modId;
-									}
-									potentialMod.path = modPath;
-									validModData = true;
-								}
-								log.silly(`Found file: ${file.name} under mod path ${modPath}`);
-							}
-						}
-						return size;
-					});
-
-					// We are done, increment counter and return
-					if (validModData) {
-						potentialMod.size = fileSizes.reduce((acc: number, curr: number) => acc + curr, 0);
-						resolve(potentialMod);
-					} else {
-						log.warn(`Marking potential mod at ${modPath} as invalid mod`);
-						resolve(null);
-					}
-				}
-			} catch (e) {
-				log.error(`Failed to get local mod details at ${modPath}:`);
-				log.error(e);
-				reject(e);
-			}
-		});
-	});
-}
-
 export default class ModFetcher {
 	localPath?: string;
 
@@ -339,23 +217,8 @@ export default class ModFetcher {
 		this.progress.addLoaded(size);
 	}
 
-	async fetchLocalMods(localModDirs: string[]): Promise<ModData[]> {
-		const modResponses = await Promise.allSettled<ModData | null>(
-			localModDirs.map((subDir: string) => {
-				const modPath = path.join(this.localPath!, subDir);
-				const potentialMod: ModData = {
-					uid: `${ModType.LOCAL}:${subDir}`,
-					id: null,
-					type: ModType.LOCAL,
-					hasCode: false,
-					path: modPath
-				};
-				return getModDetailsFromPath(potentialMod, modPath, ModType.LOCAL).finally(() => {
-					this.updateModLoadingProgress(1);
-				});
-			})
-		);
-		return filterOutNullValues(modResponses);
+	async fetchLocalMods(): Promise<ModData[]> {
+		return scanLocalMods(this.localPath, this.progress);
 	}
 
 	async getDetailsForWorkshopModList(workshopIDs: bigint[]): Promise<ModData[]> {
@@ -573,21 +436,7 @@ export default class ModFetcher {
 	async fetchMods(): Promise<ModData[]> {
 		clearPreviewAllowlist();
 
-		// get local fist
-		let localModDirs: string[] = [];
-		if (this.localPath) {
-			try {
-				localModDirs = fs
-					.readdirSync(this.localPath, { withFileTypes: true })
-					.filter((dirent) => dirent.isDirectory())
-					.map((dirent) => dirent.name);
-				this.progress.localMods = localModDirs.length;
-			} catch {
-				log.error(`Failed to read local mods in ${localModDirs}`);
-			}
-		}
-
-		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(localModDirs), this.fetchWorkshopMods()]);
+		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(), this.fetchWorkshopMods()]);
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done
