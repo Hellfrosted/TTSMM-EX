@@ -4,7 +4,8 @@ import log from 'electron-log';
 
 import { ModData, ModType, SessionMods, cloneModData, ValidChannel } from '../../model';
 import { openExternalUrl } from '../external-links';
-import ModFetcher, { getModDetailsFromPath } from '../mod-fetcher';
+import { getModDetailsFromPath } from '../mod-fetcher';
+import { scanModInventory } from '../mod-inventory-scan';
 import { expandUserPath } from '../path-utils';
 import Steamworks, { EResult, UGCItemState } from '../steamworks';
 import { clearWorkshopDependencyLookupCache, fetchWorkshopDependencyLookup } from '../workshop-dependencies';
@@ -97,9 +98,12 @@ export function createReadModMetadataHandler(clearDependencyLookupCache = clearW
 			}
 		});
 
-		const modFetcher = new ModFetcher(event.sender, resolvedLocalDir, knownWorkshopMods);
 		try {
-			const modsList = await modFetcher.fetchMods();
+			const modsList = await scanModInventory({
+				knownWorkshopMods,
+				localPath: resolvedLocalDir,
+				progressSender: event.sender
+			});
 			return new SessionMods(resolvedLocalDir, modsList);
 		} catch (error) {
 			log.error('Failed to get mod info:');

@@ -3,6 +3,7 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks, { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks';
 import ModFetcher from '../../main/mod-fetcher';
+import { scanModInventory } from '../../main/mod-inventory-scan';
 import { createTempDir } from './test-utils';
 
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
@@ -94,6 +95,31 @@ describe('ModFetcher', () => {
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	it('scans inventory through the facade entrypoint', async () => {
+		const fetchMods = vi.spyOn(ModFetcher.prototype, 'fetchMods').mockResolvedValueOnce([
+			{
+				uid: 'local:FacadePack',
+				id: 'FacadePack',
+				type: 'local',
+				hasCode: false,
+				path: 'C:\\mods\\FacadePack'
+			}
+		]);
+		const progressSender = { send: vi.fn() };
+
+		await expect(
+			scanModInventory({
+				knownWorkshopMods: [BigInt(42)],
+				localPath: 'C:\\mods',
+				platform: 'win32',
+				progressSender,
+				skipWorkshopSteamworks: true
+			})
+		).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadePack' })]);
+
+		expect(fetchMods).toHaveBeenCalledTimes(1);
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {
