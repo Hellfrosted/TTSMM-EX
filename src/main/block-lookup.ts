@@ -13,7 +13,8 @@ import {
 } from 'shared/block-lookup';
 import { writeUtf8FileAtomic } from './storage';
 import { extractBundleBlocksWithPython, extractRecordsFromSource } from './block-lookup-extraction';
-import { collectBlockLookupSources, type BlockLookupSourceRecord, normalizeWorkshopRoot } from './block-lookup-source-discovery';
+import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
+import { collectBlockLookupSources, normalizeWorkshopRoot } from './block-lookup-source-discovery';
 
 export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-extraction';
 
@@ -83,35 +84,6 @@ function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookup
 	writeJsonFile(getBlockLookupIndexPath(userDataPath), index);
 }
 
-function createIndexStats(
-	index: PersistedBlockLookupIndex,
-	scanned = 0,
-	skipped = 0,
-	removed = 0,
-	updatedBlocks = 0
-): BlockLookupIndexStats {
-	return {
-		sources: index.sources.length,
-		scanned,
-		skipped,
-		removed,
-		blocks: index.records.length,
-		updatedBlocks,
-		builtAt: index.builtAt || undefined
-	};
-}
-
-function createSourceIndexRecord(source: BlockLookupSourceRecord): BlockLookupIndexSource {
-	return {
-		sourcePath: source.sourcePath,
-		workshopId: source.workshopId,
-		modTitle: source.modTitle,
-		sourceKind: source.sourceKind,
-		size: source.size,
-		mtimeMs: source.mtimeMs
-	};
-}
-
 function buildSearchBlob(record: BlockLookupRecord) {
 	return [
 		record.blockName,
@@ -133,45 +105,34 @@ export async function buildBlockLookupIndex(
 	request: BlockLookupBuildRequest
 ): Promise<{ stats: BlockLookupIndexStats; settings: BlockLookupSettings }> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
-	const existingSourceMap = new Map(existingIndex.sources.map((source) => [source.sourcePath, source]));
-	const existingRecordsBySource = new Map<string, BlockLookupRecord[]>();
-	existingIndex.records.forEach((record) => {
-		const records = existingRecordsBySource.get(record.sourcePath) || [];
-		records.push(record);
-		existingRecordsBySource.set(record.sourcePath, records);
-	});
-
 	const { sources, workshopRoot } = collectBlockLookupSources(request);
+	const indexPlan = createBlockLookupIndexPlan(existingIndex, sources, request.forceRebuild);
 	const nextRecords: BlockLookupRecord[] = [];
 	const nextSources: BlockLookupIndexSource[] = [];
 	let scanned = 0;
 	let skipped = 0;
 	let updatedBlocks = 0;
-	const isUnchanged = (source: BlockLookupSourceRecord) => {
-		const existingSource = existingSourceMap.get(source.sourcePath);
-		return !request.forceRebuild && existingSource?.size === source.size && existingSource.mtimeMs === source.mtimeMs;
-	};
-	const changedBundleSources = sources.filter((source) => source.sourceKind === 'bundle' && !isUnchanged(source));
+	const changedBundleSources = indexPlan.tasks
+		.filter((task) => task.source.sourceKind === 'bundle' && !task.reusedRecords)
+		.map((task) => task.source);
 	const pythonBundleBlocks = await extractBundleBlocksWithPython(changedBundleSources.map((source) => source.sourcePath));
 
-	for (const source of sources) {
-		const existingSource = existingSourceMap.get(source.sourcePath);
-		if (isUnchanged(source)) {
+	for (const task of indexPlan.tasks) {
+		if (task.reusedRecords) {
 			skipped += 1;
-			nextSources.push(existingSource!);
-			nextRecords.push(...(existingRecordsBySource.get(source.sourcePath) || []));
+			nextSources.push(task.existingSource!);
+			nextRecords.push(...task.reusedRecords);
 			continue;
 		}
 
+		const source = task.source;
 		const records = await extractRecordsFromSource(source, pythonBundleBlocks?.get(source.sourcePath));
 		scanned += 1;
 		updatedBlocks += records.length;
-		nextSources.push(createSourceIndexRecord(source));
+		nextSources.push(createBlockLookupSourceIndexRecord(source));
 		nextRecords.push(...records);
 	}
 
-	const seenSourcePaths = new Set(sources.map((source) => source.sourcePath));
-	const removed = existingIndex.sources.filter((source) => !seenSourcePaths.has(source.sourcePath)).length;
 	const builtAt = new Date().toISOString();
 	const nextIndex: PersistedBlockLookupIndex = {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
@@ -184,7 +145,7 @@ export async function buildBlockLookupIndex(
 	const settings = writeBlockLookupSettings(userDataPath, { workshopRoot });
 	return {
 		settings,
-		stats: createIndexStats(nextIndex, scanned, skipped, removed, updatedBlocks)
+		stats: createBlockLookupIndexStats(nextIndex, scanned, skipped, indexPlan.removed, updatedBlocks)
 	};
 }
 
@@ -193,7 +154,7 @@ export function getBlockLookupStats(userDataPath: string): BlockLookupIndexStats
 	if (!index.builtAt) {
 		return null;
 	}
-	return createIndexStats(index);
+	return createBlockLookupIndexStats(index);
 }
 
 export function searchBlockLookupIndex(userDataPath: string, query: string, limit?: number): BlockLookupSearchResult {
@@ -240,6 +201,6 @@ export function searchBlockLookupIndex(userDataPath: string, query: string, limi
 
 	return {
 		rows: limit && limit > 0 ? rows.slice(0, limit) : rows,
-		stats: createIndexStats(index)
+		stats: createBlockLookupIndexStats(index)
 	};
 }
