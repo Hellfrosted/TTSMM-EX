@@ -48,7 +48,6 @@ interface CollectionManagerModalProps {
 
 interface CollectionNativeModalProps {
 	children: ReactNode;
-	className?: string;
 	footer?: ReactNode;
 	onCancel: () => void;
 	title: string;
@@ -96,7 +95,6 @@ function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 
 function CollectionNativeModal({
 	children,
-	className,
 	footer,
 	onCancel,
 	title,
@@ -124,8 +122,7 @@ function CollectionNativeModal({
 		.filter(Boolean)
 		.join(' ');
 	const modalClassName = [
-		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
-		className
+		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]'
 	]
 		.filter(Boolean)
 		.join(' ');
@@ -439,7 +436,6 @@ function CollectionManagerModal({
 			return (
 				<CollectionNativeModal
 					key="error-modal"
-					className="CollectionValidationModal"
 					variant="validation"
 					title="Collection has blocking issues"
 					width={760}
@@ -482,7 +478,6 @@ function CollectionManagerModal({
 			return (
 				<CollectionNativeModal
 					key="warning-modal"
-					className="CollectionValidationModal"
 					variant="validation"
 					title="Collection has warnings"
 					width={760}
@@ -533,7 +528,6 @@ function CollectionManagerModal({
 			return (
 				<CollectionNativeModal
 					key="settings-modal"
-					className="CollectionSettingsModal"
 					variant="settings"
 					wrapClassName="px-3 pb-3 pt-[68px]"
 					title="Collection table settings"
@@ -661,7 +655,6 @@ function CollectionManagerModal({
 			return (
 				<CollectionNativeModal
 					key="manager-override-modal"
-					className="CollectionOverrideModal"
 					title={`Edit Overrides For ${nextRecord.name}`}
 					width={620}
 					onCancel={closeModal}

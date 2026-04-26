@@ -98,10 +98,11 @@ interface BlockLookupTableOptionsModalProps {
 	onCancel: () => void;
 }
 
-const blockLookupFocusClassName = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const blockLookupFocusClassName =
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const blockLookupControlClassName = [
-	'box-border min-h-control rounded-md border border-border bg-surface text-text',
-	'disabled:cursor-not-allowed disabled:opacity-55',
+	'box-border min-h-control rounded-md border border-border bg-surface-elevated text-text',
+	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
 	blockLookupFocusClassName
 ].join(' ');
 
@@ -136,8 +137,8 @@ function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLooku
 		<input
 			{...props}
 			className={[
-				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface transition-colors duration-150 ease-in-out',
-				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
+				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
+				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-[140ms] after:ease-in-out after:content-['']",
 				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
 				'disabled:cursor-not-allowed disabled:opacity-55',
 				blockLookupFocusClassName
@@ -157,7 +158,7 @@ function BlockLookupNumberInput({ disabled, max, min, onChange, placeholder, ste
 	return (
 		<input
 			{...props}
-			className={[blockLookupControlClassName, 'w-full px-3'].join(' ')}
+			className={[blockLookupControlClassName, 'w-full px-[11px] outline-none'].join(' ')}
 			disabled={disabled}
 			max={max}
 			min={min}
@@ -189,7 +190,7 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 
 	return (
 		<div
-			className="CollectionNativeModalOverlay CollectionSettingsModalWrap"
+			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] px-3 pb-3 pt-[68px]"
 			role="presentation"
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) {
@@ -200,19 +201,28 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 			<section
 				aria-labelledby="block-lookup-table-options-title"
 				aria-modal="true"
-				className="CollectionNativeModal CollectionSettingsModal BlockLookupTableOptionsModal"
+				className="flex max-h-[calc(100vh-48px)] w-[min(760px,100%)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
 				role="dialog"
 			>
-				<header className="CollectionNativeModal__header">
-					<h2 id="block-lookup-table-options-title" className="CollectionNativeModal__title">
+				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
+					<h2 id="block-lookup-table-options-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
 						Block lookup table options
 					</h2>
-					<button className="CollectionNativeModal__close" type="button" aria-label="Close modal" onClick={onCancel}>
+					<button
+						className={[
+							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
+							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
+							blockLookupFocusClassName
+						].join(' ')}
+						type="button"
+						aria-label="Close modal"
+						onClick={onCancel}
+					>
 						<X size={18} aria-hidden="true" />
 					</button>
 				</header>
-				<div className="CollectionNativeModal__body">{children}</div>
-				<footer className="CollectionNativeModal__footer">{footer}</footer>
+				<div className="overflow-auto p-4 pb-3 pt-2.5">{children}</div>
+				<footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</footer>
 			</section>
 		</div>
 	);
