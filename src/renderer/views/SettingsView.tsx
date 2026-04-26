@@ -23,8 +23,7 @@ import {
 	desktopInputClassName,
 	desktopInputFocusClassName,
 	desktopPrimaryButtonToneClassName,
-	desktopSwitchClassName,
-	joinClassNames
+	desktopSwitchClassName
 } from 'renderer/components/desktop-control-classes';
 import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
@@ -133,7 +132,7 @@ function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelect
 function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
 	const switchClassName = ['SettingsSwitch mt-[9px]', desktopSwitchClassName, className].filter(Boolean).join(' ');
 
-	return <input {...props} type={type} className={joinClassNames(...switchClassName)} />;
+	return <input {...props} type={type} className={switchClassName} />;
 }
 
 function SettingsInlineControls({ children, className }: { children: ReactNode; className?: string }) {
