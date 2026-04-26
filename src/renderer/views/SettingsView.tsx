@@ -13,6 +13,19 @@ import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
 import { Edit3, Folder, Plus, X } from 'lucide-react';
+import {
+	desktopButtonBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	desktopDisabledOpacityClassName,
+	desktopInputClassName,
+	desktopInputFocusClassName,
+	desktopPrimaryButtonToneClassName,
+	desktopSwitchClassName,
+	joinClassNames
+} from 'renderer/components/desktop-control-classes';
 import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { getSettingsFormErrors } from 'renderer/settings-validation';
@@ -66,14 +79,16 @@ function SettingsButton({
 	...props
 }: SettingsButtonProps) {
 	const buttonToneClassName = danger
-		? 'border-error bg-error'
+		? desktopDangerButtonToneClassName
 		: variant === 'primary'
-			? 'border-primary bg-primary'
-			: 'border-border bg-surface-elevated enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]';
+			? desktopPrimaryButtonToneClassName
+			: desktopDefaultButtonToneClassName;
 	const buttonClassName = [
-		'SettingsButton box-border inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border px-3.5 font-[650] text-text',
-		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-		'disabled:cursor-not-allowed disabled:opacity-[0.55]',
+		'SettingsButton',
+		desktopButtonBaseClassName,
+		desktopControlFocusClassName,
+		'disabled:opacity-[0.55]',
+		desktopDisabledOpacityClassName,
 		buttonToneClassName,
 		className
 	]
@@ -96,12 +111,7 @@ function SettingsButton({
 }
 
 function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	const inputClassName = [
-		'SettingsInput box-border min-h-control w-full min-w-0 rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
-		'focus:border-primary focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus:ring-offset-2 focus:ring-offset-background',
-		'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
-		className
-	]
+	const inputClassName = ['SettingsInput min-w-0', desktopInputClassName, desktopInputFocusClassName, desktopDisabledClassName, className]
 		.filter(Boolean)
 		.join(' ');
 
@@ -111,7 +121,7 @@ function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputEle
 function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
 	const selectClassName = [
 		'box-border min-h-control w-full min-w-0 cursor-pointer rounded-md border border-border bg-surface-elevated py-0 pl-[11px] pr-[34px] font-inherit text-text',
-		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		desktopControlFocusClassName,
 		className
 	]
 		.filter(Boolean)
@@ -121,17 +131,9 @@ function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelect
 }
 
 function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	const switchClassName = [
-		'SettingsSwitch relative mt-[9px] h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
-		'after:absolute after:left-[3px] after:top-[3px] after:size-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-[140ms] after:ease-in-out after:content-[""]',
-		'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
-		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
+	const switchClassName = ['SettingsSwitch mt-[9px]', desktopSwitchClassName, className].filter(Boolean).join(' ');
 
-	return <input {...props} type={type} className={switchClassName} />;
+	return <input {...props} type={type} className={joinClassNames(...switchClassName)} />;
 }
 
 function SettingsInlineControls({ children, className }: { children: ReactNode; className?: string }) {

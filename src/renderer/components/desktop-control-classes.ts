@@ -5,6 +5,9 @@ export function joinClassNames(...classNames: Array<string | false | null | unde
 export const desktopControlFocusClassName =
 	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
+export const desktopInputFocusClassName =
+	'focus:border-primary focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus:ring-offset-2 focus:ring-offset-background';
+
 export const desktopButtonBaseClassName =
 	'box-border inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border px-3.5 font-[650] text-text';
 
