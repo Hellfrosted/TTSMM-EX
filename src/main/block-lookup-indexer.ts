@@ -1,12 +1,12 @@
 import type { BlockLookupBuildRequest, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import {
-	autoDetectBlockLookupWorkshopRoot,
 	buildBlockLookupIndex,
 	getBlockLookupStats,
 	readBlockLookupSettings,
 	searchBlockLookupIndex,
 	writeBlockLookupSettings
 } from './block-lookup';
+import { autoDetectBlockLookupWorkshopRoot } from './block-lookup-source-discovery';
 
 export function createBlockLookupIndexer(userDataPath: string) {
 	return {

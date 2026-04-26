@@ -9,6 +9,7 @@ import {
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
 import { createBlockLookupIndexer } from '../../main/block-lookup-indexer';
+import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
@@ -65,6 +66,38 @@ describe('block lookup index', () => {
 				internalName: 'HE_Flak'
 			}
 		]);
+	});
+
+	it('discovers JSON and bundle sources from loaded mod directories', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sources-');
+		const modDir = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920', '13579');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const nestedJsonDir = path.join(blockJsonDir, 'Nested');
+		const bundlePath = path.join(modDir, 'TestPack_bundle');
+		const jsonPath = path.join(nestedJsonDir, 'NestedBlock.json');
+		fs.mkdirSync(nestedJsonDir, { recursive: true });
+		fs.writeFileSync(bundlePath, 'bundle data', 'utf8');
+		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"Nested Block"}', 'utf8');
+		fs.writeFileSync(path.join(modDir, 'ignored.txt'), 'ignore me', 'utf8');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'workshop:13579',
+					name: 'Source Test',
+					path: modDir,
+					workshopID: '13579'
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).toEqual([path.normalize(jsonPath), path.normalize(bundlePath)].sort());
+		expect(result.sources).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ modTitle: 'Source Test', sourceKind: 'json', workshopId: '13579' }),
+				expect.objectContaining({ modTitle: 'Source Test', sourceKind: 'bundle', workshopId: '13579' })
+			])
+		);
 	});
 
 	it('indexes JSON block sources and reuses unchanged records', async () => {
