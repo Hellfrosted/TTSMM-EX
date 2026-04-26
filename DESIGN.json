@@ -1,228 +1,273 @@
 {
-  "schemaVersion": 2,
-  "generatedAt": "2026-04-25T17:49:50.3938545-07:00",
-  "title": "Design System: TTSMM-EX",
-  "extensions": {
-    "colorMeta": {
-      "primary": {
-        "role": "primary",
-        "displayName": "Workshop Rust",
-        "canonical": "#a05442",
-        "tonalRamp": ["oklch(18% 0.035 31)", "oklch(28% 0.045 31)", "oklch(38% 0.055 31)", "oklch(48% 0.065 31)", "oklch(58% 0.075 31)", "oklch(68% 0.065 31)", "oklch(82% 0.045 31)", "oklch(94% 0.025 31)"]
-      },
-      "success": {
-        "role": "secondary",
-        "displayName": "Validation Sage",
-        "canonical": "#6d9c6c",
-        "tonalRamp": ["oklch(18% 0.025 145)", "oklch(28% 0.035 145)", "oklch(38% 0.045 145)", "oklch(50% 0.055 145)", "oklch(62% 0.06 145)", "oklch(72% 0.05 145)", "oklch(84% 0.035 145)", "oklch(94% 0.02 145)"]
-      },
-      "warning": {
-        "role": "secondary",
-        "displayName": "Dependency Amber",
-        "canonical": "#c08a4f",
-        "tonalRamp": ["oklch(18% 0.035 63)", "oklch(30% 0.045 63)", "oklch(42% 0.06 63)", "oklch(54% 0.075 63)", "oklch(66% 0.08 63)", "oklch(76% 0.065 63)", "oklch(86% 0.045 63)", "oklch(95% 0.025 63)"]
-      },
-      "error": {
-        "role": "secondary",
-        "displayName": "Fault Clay",
-        "canonical": "#b86159",
-        "tonalRamp": ["oklch(18% 0.035 24)", "oklch(30% 0.045 24)", "oklch(42% 0.06 24)", "oklch(54% 0.075 24)", "oklch(64% 0.075 24)", "oklch(74% 0.06 24)", "oklch(86% 0.04 24)", "oklch(95% 0.022 24)"]
-      },
-      "background": {
-        "role": "neutral",
-        "displayName": "Workbench Black",
-        "canonical": "#131517",
-        "tonalRamp": ["#111315", "#131517", "#171b20", "#1b1f24", "#20252b", "#2b323a", "#5f666d", "#f2ede6"]
-      },
-      "surface": {
-        "role": "neutral",
-        "displayName": "Panel Charcoal",
-        "canonical": "#1b1f24",
-        "tonalRamp": ["#111315", "#131517", "#171b20", "#1b1f24", "#20252b", "#2b323a", "#5f666d", "#f2ede6"]
-      },
-      "text-base": {
-        "role": "neutral",
-        "displayName": "Warm Chalk",
-        "canonical": "#f2ede6",
-        "tonalRamp": ["oklch(18% 0.008 70)", "oklch(30% 0.008 70)", "oklch(42% 0.008 70)", "oklch(56% 0.008 70)", "oklch(68% 0.008 70)", "oklch(80% 0.008 70)", "oklch(90% 0.008 70)", "oklch(96% 0.008 70)"]
-      }
-    },
-    "typographyMeta": {
-      "display": {
-        "displayName": "Display",
-        "purpose": "Major view titles and mod detail titles only."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Full-view headings such as Settings."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "Descriptions, help copy, and normal UI prose."
-      },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Buttons, navigation, table headers, tags, and compact labels."
-      },
-      "mono": {
-        "displayName": "Mono",
-        "purpose": "Command strings and technical identifiers."
-      }
-    },
-    "shadows": [
-      {
-        "name": "soft-overlay",
-        "value": "0 16px 40px rgba(0, 0, 0, 0.22)",
-        "purpose": "Generic raised overlay shadow from the Tailwind token."
-      },
-      {
-        "name": "dialog-lift",
-        "value": "0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent)",
-        "purpose": "Modal and dialog lift."
-      },
-      {
-        "name": "menu-lift",
-        "value": "0 14px 32px color-mix(in srgb, var(--app-color-background) 72%, transparent)",
-        "purpose": "Header menus and compact popups."
-      }
-    ],
-    "motion": [
-      {
-        "name": "state-fast",
-        "value": "120ms ease",
-        "purpose": "Button, text, and background state transitions."
-      },
-      {
-        "name": "stage-fade",
-        "value": "140ms ease",
-        "purpose": "View stage opacity transitions and tab panel fades."
-      },
-      {
-        "name": "loading-spin",
-        "value": "700ms linear infinite",
-        "purpose": "Small inline loading indicators inside buttons."
-      }
-    ],
-    "breakpoints": [
-      {
-        "name": "compact-toolbar",
-        "value": "1199px"
-      },
-      {
-        "name": "narrow-desktop",
-        "value": "1100px"
-      },
-      {
-        "name": "minimum-window",
-        "value": "720px"
-      }
-    ]
-  },
-  "components": [
-    {
-      "name": "Primary Button",
-      "kind": "button",
-      "refersTo": "button-primary",
-      "description": "Commit actions such as Save Collection and Save Changes.",
-      "html": "<button class=\"ds-btn-primary\">Save Collection</button>",
-      "css": ".ds-btn-primary { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--app-color-text-base); font-family: var(--app-font-body); font-weight: 650; background: var(--app-color-primary); border: 1px solid var(--app-color-primary); border-radius: 8px; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: var(--app-color-primary-hover); border-color: var(--app-color-primary-hover); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }"
-    },
-    {
-      "name": "Secondary Button",
-      "kind": "button",
-      "refersTo": "button-default",
-      "description": "Default toolbar and settings actions.",
-      "html": "<button class=\"ds-btn-secondary\">Reload</button>",
-      "css": ".ds-btn-secondary { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--app-color-text); font-family: var(--app-font-body); font-weight: 650; background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; cursor: pointer; transition: background-color 120ms ease; } .ds-btn-secondary:hover { background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }"
-    },
-    {
-      "name": "Text Input",
-      "kind": "input",
-      "refersTo": "input-default",
-      "description": "Search, path, Workshop ID, and settings text fields.",
-      "html": "<input class=\"ds-input\" value=\"Search mods by name\" />",
-      "css": ".ds-input { box-sizing: border-box; min-height: 44px; width: 280px; min-width: 0; padding: 0 11px; color: var(--app-color-text); font-family: var(--app-font-body); background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; outline: none; } .ds-input:focus { border-color: var(--app-color-primary); box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-input:disabled { color: var(--app-color-text-muted); background: var(--app-color-surface); cursor: not-allowed; }"
-    },
-    {
-      "name": "Status Tag",
-      "kind": "chip",
-      "refersTo": "tag-default",
-      "description": "Compact row metadata and dependency status labels.",
-      "html": "<span class=\"ds-tag\">Installed</span>",
-      "css": ".ds-tag { display: inline-flex; align-items: center; max-width: 100%; min-height: 22px; padding: 0 7px; color: var(--app-color-tag-default-text); font-family: var(--app-font-body); font-size: 12px; font-weight: 650; line-height: 20px; background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
-    },
-    {
-      "name": "Side Navigation Button",
-      "kind": "nav",
-      "refersTo": "navigation-side-button",
-      "description": "Primary app route navigation in the persistent side rail.",
-      "html": "<button class=\"ds-nav-button\"><span class=\"ds-nav-icon\"></span><span class=\"ds-nav-label\">Settings</span></button>",
-      "css": ".ds-nav-button { min-height: 52px; width: 100%; padding: 0 16px; display: flex; align-items: center; gap: 12px; color: var(--app-color-text-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; } .ds-nav-button:hover, .ds-nav-button[aria-current=\"page\"] { color: var(--app-color-text); background: var(--app-color-surface-elevated); } .ds-nav-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-nav-icon { width: 18px; height: 18px; border-radius: 4px; background: currentColor; opacity: 0.72; } .ds-nav-label { font-family: var(--app-font-display); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: uppercase; white-space: nowrap; }"
-    },
-    {
-      "name": "Table Row",
-      "kind": "custom",
-      "refersTo": "table-row",
-      "description": "Dense virtualized table row for mods and block lookup data.",
-      "html": "<div class=\"ds-table-row\"><div class=\"ds-table-cell\">Better Future Blocks</div><div class=\"ds-table-cell\"><span class=\"ds-tag\">Dependency OK</span></div></div>",
-      "css": ".ds-table-row { display: flex; min-height: 48px; color: var(--app-color-text); background: var(--app-color-surface); border-bottom: 1px solid var(--app-color-border); font-family: var(--app-font-body); font-variant-numeric: tabular-nums; } .ds-table-row:hover { background: var(--app-color-surface-alt); } .ds-table-row[aria-selected=\"true\"] { background: color-mix(in srgb, var(--app-color-primary) 14%, transparent); } .ds-table-cell { min-width: 0; flex: 1 1 0; display: flex; align-items: center; padding: 8px; overflow: hidden; }"
-    },
-    {
-      "name": "Dialog",
-      "kind": "custom",
-      "refersTo": "dialog",
-      "description": "Scoped edit or confirmation surface over the workbench.",
-      "html": "<section class=\"ds-dialog\"><header class=\"ds-dialog-header\"><h2>Edit Logger ID</h2></header><div class=\"ds-dialog-body\"><input class=\"ds-input\" value=\"NLog\" /></div></section>",
-      "css": ".ds-dialog { width: min(560px, 100%); max-height: min(680px, calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; color: var(--app-color-text); background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent); font-family: var(--app-font-body); } .ds-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--app-color-border); } .ds-dialog-header h2 { margin: 0; color: var(--app-color-text); font-size: 18px; line-height: 1.3; } .ds-dialog-body { padding: 16px; overflow: auto; }"
-    }
-  ],
-  "narrative": {
-    "northStar": "The Mod Bench",
-    "overview": "TTSMM-EX should feel like a practical workbench beside a PC game install: compact, sturdy, and immediately ready for correction work. The current interface is a dark desktop utility with warm off-white text, muted charcoal surfaces, and a rust primary that marks action and selection without turning the app into a promotional surface.\n\nThe user is managing Steam Workshop mods, validation, game paths, dependencies, and launch flow. The design must stay dense enough for repeated use, with obvious hierarchy for first-time recovery. It rejects anything that feels like browsing, promotion, discovery, a storefront, or a social feed.",
-    "keyCharacteristics": [
-      "Compact desktop density with 44px controls and table-first work areas.",
-      "Warm charcoal neutrals, never pure black or pure white.",
-      "Rust primary used for commit actions, selection, focus, and links.",
-      "Status colors are muted and operational, not decorative.",
-      "Familiar controls win: buttons, fields, tables, tabs, switches, dialogs, and side navigation."
-    ],
-    "rules": [
-      {
-        "name": "The Rust Is a Verb Rule",
-        "body": "Use the primary only when something is selected, focused, actionable, or committed. It is not decoration.",
-        "section": "colors"
-      },
-      {
-        "name": "The Charcoal Ladder Rule",
-        "body": "Depth comes from adjacent neutral layers, not large color jumps. Move from `background` to `surface` to `surface-elevated` before adding shadow.",
-        "section": "colors"
-      },
-      {
-        "name": "The Native Utility Rule",
-        "body": "Do not introduce display fonts, expressive typefaces, negative letter spacing, or fluid type. This is a desktop tool, not a campaign.",
-        "section": "typography"
-      },
-      {
-        "name": "The Flat Until Floating Rule",
-        "body": "Tables, cards, panels, rows, and settings groups stay flat. Only menus and dialogs cast shadows.",
-        "section": "elevation"
-      }
-    ],
-    "dos": [
-      "Do preserve the desktop utility posture: dense, disciplined, and low-noise.",
-      "Do use 44px as the standard control height and keep compact table rows at 36px to 48px.",
-      "Do rely on 1px borders, sticky headers, and tonal layers before adding shadows.",
-      "Do reserve Workshop Rust for action, focus, selection, links, and active state.",
-      "Do keep status feedback visible around validation, save, dependency, and launch flows.",
-      "Do use familiar desktop patterns: side navigation, tables, tabs, forms, switches, and inline toolbar actions."
-    ],
-    "donts": [
-      "Don't mimic a Workshop browser, feed, storefront, promotional landing page, social media product, or content-discovery surface.",
-      "Don't use pure black or pure white; keep neutrals warm and tinted.",
-      "Don't add gradient text, glassmorphism, decorative motion, hero metrics, or repeated identical card grids.",
-      "Don't use colored side-stripe borders on cards, list items, callouts, or alerts.",
-      "Don't introduce display fonts, oversized hero type, or marketing-style spacing.",
-      "Don't make inactive states full-saturation or visually louder than the user's current task."
-    ]
-  }
+	"schemaVersion": 2,
+	"generatedAt": "2026-04-25T17:49:50.3938545-07:00",
+	"title": "Design System: TTSMM-EX",
+	"extensions": {
+		"colorMeta": {
+			"primary": {
+				"role": "primary",
+				"displayName": "Workshop Rust",
+				"canonical": "#a05442",
+				"tonalRamp": [
+					"oklch(18% 0.035 31)",
+					"oklch(28% 0.045 31)",
+					"oklch(38% 0.055 31)",
+					"oklch(48% 0.065 31)",
+					"oklch(58% 0.075 31)",
+					"oklch(68% 0.065 31)",
+					"oklch(82% 0.045 31)",
+					"oklch(94% 0.025 31)"
+				]
+			},
+			"success": {
+				"role": "secondary",
+				"displayName": "Validation Sage",
+				"canonical": "#6d9c6c",
+				"tonalRamp": [
+					"oklch(18% 0.025 145)",
+					"oklch(28% 0.035 145)",
+					"oklch(38% 0.045 145)",
+					"oklch(50% 0.055 145)",
+					"oklch(62% 0.06 145)",
+					"oklch(72% 0.05 145)",
+					"oklch(84% 0.035 145)",
+					"oklch(94% 0.02 145)"
+				]
+			},
+			"warning": {
+				"role": "secondary",
+				"displayName": "Dependency Amber",
+				"canonical": "#c08a4f",
+				"tonalRamp": [
+					"oklch(18% 0.035 63)",
+					"oklch(30% 0.045 63)",
+					"oklch(42% 0.06 63)",
+					"oklch(54% 0.075 63)",
+					"oklch(66% 0.08 63)",
+					"oklch(76% 0.065 63)",
+					"oklch(86% 0.045 63)",
+					"oklch(95% 0.025 63)"
+				]
+			},
+			"error": {
+				"role": "secondary",
+				"displayName": "Fault Clay",
+				"canonical": "#b86159",
+				"tonalRamp": [
+					"oklch(18% 0.035 24)",
+					"oklch(30% 0.045 24)",
+					"oklch(42% 0.06 24)",
+					"oklch(54% 0.075 24)",
+					"oklch(64% 0.075 24)",
+					"oklch(74% 0.06 24)",
+					"oklch(86% 0.04 24)",
+					"oklch(95% 0.022 24)"
+				]
+			},
+			"background": {
+				"role": "neutral",
+				"displayName": "Workbench Black",
+				"canonical": "#131517",
+				"tonalRamp": ["#111315", "#131517", "#171b20", "#1b1f24", "#20252b", "#2b323a", "#5f666d", "#f2ede6"]
+			},
+			"surface": {
+				"role": "neutral",
+				"displayName": "Panel Charcoal",
+				"canonical": "#1b1f24",
+				"tonalRamp": ["#111315", "#131517", "#171b20", "#1b1f24", "#20252b", "#2b323a", "#5f666d", "#f2ede6"]
+			},
+			"text-base": {
+				"role": "neutral",
+				"displayName": "Warm Chalk",
+				"canonical": "#f2ede6",
+				"tonalRamp": [
+					"oklch(18% 0.008 70)",
+					"oklch(30% 0.008 70)",
+					"oklch(42% 0.008 70)",
+					"oklch(56% 0.008 70)",
+					"oklch(68% 0.008 70)",
+					"oklch(80% 0.008 70)",
+					"oklch(90% 0.008 70)",
+					"oklch(96% 0.008 70)"
+				]
+			}
+		},
+		"typographyMeta": {
+			"display": {
+				"displayName": "Display",
+				"purpose": "Major view titles and mod detail titles only."
+			},
+			"title": {
+				"displayName": "Title",
+				"purpose": "Full-view headings such as Settings."
+			},
+			"body": {
+				"displayName": "Body",
+				"purpose": "Descriptions, help copy, and normal UI prose."
+			},
+			"label": {
+				"displayName": "Label",
+				"purpose": "Buttons, navigation, table headers, tags, and compact labels."
+			},
+			"mono": {
+				"displayName": "Mono",
+				"purpose": "Command strings and technical identifiers."
+			}
+		},
+		"shadows": [
+			{
+				"name": "soft-overlay",
+				"value": "0 16px 40px rgba(0, 0, 0, 0.22)",
+				"purpose": "Generic raised overlay shadow from the Tailwind token."
+			},
+			{
+				"name": "dialog-lift",
+				"value": "0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent)",
+				"purpose": "Modal and dialog lift."
+			},
+			{
+				"name": "menu-lift",
+				"value": "0 14px 32px color-mix(in srgb, var(--app-color-background) 72%, transparent)",
+				"purpose": "Header menus and compact popups."
+			}
+		],
+		"motion": [
+			{
+				"name": "state-fast",
+				"value": "120ms ease",
+				"purpose": "Button, text, and background state transitions."
+			},
+			{
+				"name": "stage-fade",
+				"value": "140ms ease",
+				"purpose": "View stage opacity transitions and tab panel fades."
+			},
+			{
+				"name": "loading-spin",
+				"value": "700ms linear infinite",
+				"purpose": "Small inline loading indicators inside buttons."
+			}
+		],
+		"breakpoints": [
+			{
+				"name": "compact-toolbar",
+				"value": "1199px"
+			},
+			{
+				"name": "narrow-desktop",
+				"value": "1100px"
+			},
+			{
+				"name": "minimum-window",
+				"value": "720px"
+			}
+		]
+	},
+	"components": [
+		{
+			"name": "Primary Button",
+			"kind": "button",
+			"refersTo": "button-primary",
+			"description": "Commit actions such as Save Collection and Save Changes.",
+			"html": "<button class=\"ds-btn-primary\">Save Collection</button>",
+			"css": ".ds-btn-primary { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--app-color-text-base); font-family: var(--app-font-body); font-weight: 650; background: var(--app-color-primary); border: 1px solid var(--app-color-primary); border-radius: 8px; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: var(--app-color-primary-hover); border-color: var(--app-color-primary-hover); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }"
+		},
+		{
+			"name": "Secondary Button",
+			"kind": "button",
+			"refersTo": "button-default",
+			"description": "Default toolbar and settings actions.",
+			"html": "<button class=\"ds-btn-secondary\">Reload</button>",
+			"css": ".ds-btn-secondary { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--app-color-text); font-family: var(--app-font-body); font-weight: 650; background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; cursor: pointer; transition: background-color 120ms ease; } .ds-btn-secondary:hover { background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; }"
+		},
+		{
+			"name": "Text Input",
+			"kind": "input",
+			"refersTo": "input-default",
+			"description": "Search, path, Workshop ID, and settings text fields.",
+			"html": "<input class=\"ds-input\" value=\"Search mods by name\" />",
+			"css": ".ds-input { box-sizing: border-box; min-height: 44px; width: 280px; min-width: 0; padding: 0 11px; color: var(--app-color-text); font-family: var(--app-font-body); background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; outline: none; } .ds-input:focus { border-color: var(--app-color-primary); box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-input:disabled { color: var(--app-color-text-muted); background: var(--app-color-surface); cursor: not-allowed; }"
+		},
+		{
+			"name": "Status Tag",
+			"kind": "chip",
+			"refersTo": "tag-default",
+			"description": "Compact row metadata and dependency status labels.",
+			"html": "<span class=\"ds-tag\">Installed</span>",
+			"css": ".ds-tag { display: inline-flex; align-items: center; max-width: 100%; min-height: 22px; padding: 0 7px; color: var(--app-color-tag-default-text); font-family: var(--app-font-body); font-size: 12px; font-weight: 650; line-height: 20px; background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
+		},
+		{
+			"name": "Side Navigation Button",
+			"kind": "nav",
+			"refersTo": "navigation-side-button",
+			"description": "Primary app route navigation in the persistent side rail.",
+			"html": "<button class=\"ds-nav-button\"><span class=\"ds-nav-icon\"></span><span class=\"ds-nav-label\">Settings</span></button>",
+			"css": ".ds-nav-button { min-height: 52px; width: 100%; padding: 0 16px; display: flex; align-items: center; gap: 12px; color: var(--app-color-text-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; } .ds-nav-button:hover, .ds-nav-button[aria-current=\"page\"] { color: var(--app-color-text); background: var(--app-color-surface-elevated); } .ds-nav-button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-color-background), 0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%); } .ds-nav-icon { width: 18px; height: 18px; border-radius: 4px; background: currentColor; opacity: 0.72; } .ds-nav-label { font-family: var(--app-font-display); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: uppercase; white-space: nowrap; }"
+		},
+		{
+			"name": "Table Row",
+			"kind": "custom",
+			"refersTo": "table-row",
+			"description": "Dense virtualized table row for mods and block lookup data.",
+			"html": "<div class=\"ds-table-row\"><div class=\"ds-table-cell\">Better Future Blocks</div><div class=\"ds-table-cell\"><span class=\"ds-tag\">Dependency OK</span></div></div>",
+			"css": ".ds-table-row { display: flex; min-height: 48px; color: var(--app-color-text); background: var(--app-color-surface); border-bottom: 1px solid var(--app-color-border); font-family: var(--app-font-body); font-variant-numeric: tabular-nums; } .ds-table-row:hover { background: var(--app-color-surface-alt); } .ds-table-row[aria-selected=\"true\"] { background: color-mix(in srgb, var(--app-color-primary) 14%, transparent); } .ds-table-cell { min-width: 0; flex: 1 1 0; display: flex; align-items: center; padding: 8px; overflow: hidden; }"
+		},
+		{
+			"name": "Dialog",
+			"kind": "custom",
+			"refersTo": "dialog",
+			"description": "Scoped edit or confirmation surface over the workbench.",
+			"html": "<section class=\"ds-dialog\"><header class=\"ds-dialog-header\"><h2>Edit Logger ID</h2></header><div class=\"ds-dialog-body\"><input class=\"ds-input\" value=\"NLog\" /></div></section>",
+			"css": ".ds-dialog { width: min(560px, 100%); max-height: min(680px, calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; color: var(--app-color-text); background: var(--app-color-surface-elevated); border: 1px solid var(--app-color-border); border-radius: 8px; box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent); font-family: var(--app-font-body); } .ds-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--app-color-border); } .ds-dialog-header h2 { margin: 0; color: var(--app-color-text); font-size: 18px; line-height: 1.3; } .ds-dialog-body { padding: 16px; overflow: auto; }"
+		}
+	],
+	"narrative": {
+		"northStar": "The Mod Bench",
+		"overview": "TTSMM-EX should feel like a practical workbench beside a PC game install: compact, sturdy, and immediately ready for correction work. The current interface is a dark desktop utility with warm off-white text, muted charcoal surfaces, and a rust primary that marks action and selection without turning the app into a promotional surface.\n\nThe user is managing Steam Workshop mods, validation, game paths, dependencies, and launch flow. The design must stay dense enough for repeated use, with obvious hierarchy for first-time recovery. It rejects anything that feels like browsing, promotion, discovery, a storefront, or a social feed.",
+		"keyCharacteristics": [
+			"Compact desktop density with 44px controls and table-first work areas.",
+			"Warm charcoal neutrals, never pure black or pure white.",
+			"Rust primary used for commit actions, selection, focus, and links.",
+			"Status colors are muted and operational, not decorative.",
+			"Familiar controls win: buttons, fields, tables, tabs, switches, dialogs, and side navigation."
+		],
+		"rules": [
+			{
+				"name": "The Rust Is a Verb Rule",
+				"body": "Use the primary only when something is selected, focused, actionable, or committed. It is not decoration.",
+				"section": "colors"
+			},
+			{
+				"name": "The Charcoal Ladder Rule",
+				"body": "Depth comes from adjacent neutral layers, not large color jumps. Move from `background` to `surface` to `surface-elevated` before adding shadow.",
+				"section": "colors"
+			},
+			{
+				"name": "The Native Utility Rule",
+				"body": "Do not introduce display fonts, expressive typefaces, negative letter spacing, or fluid type. This is a desktop tool, not a campaign.",
+				"section": "typography"
+			},
+			{
+				"name": "The Flat Until Floating Rule",
+				"body": "Tables, cards, panels, rows, and settings groups stay flat. Only menus and dialogs cast shadows.",
+				"section": "elevation"
+			}
+		],
+		"dos": [
+			"Do preserve the desktop utility posture: dense, disciplined, and low-noise.",
+			"Do use 44px as the standard control height and keep compact table rows at 36px to 48px.",
+			"Do rely on 1px borders, sticky headers, and tonal layers before adding shadows.",
+			"Do reserve Workshop Rust for action, focus, selection, links, and active state.",
+			"Do keep status feedback visible around validation, save, dependency, and launch flows.",
+			"Do use familiar desktop patterns: side navigation, tables, tabs, forms, switches, and inline toolbar actions."
+		],
+		"donts": [
+			"Don't mimic a Workshop browser, feed, storefront, promotional landing page, social media product, or content-discovery surface.",
+			"Don't use pure black or pure white; keep neutrals warm and tinted.",
+			"Don't add gradient text, glassmorphism, decorative motion, hero metrics, or repeated identical card grids.",
+			"Don't use colored side-stripe borders on cards, list items, callouts, or alerts.",
+			"Don't introduce display fonts, oversized hero type, or marketing-style spacing.",
+			"Don't make inactive states full-saturation or visually louder than the user's current task."
+		]
+	}
 }
