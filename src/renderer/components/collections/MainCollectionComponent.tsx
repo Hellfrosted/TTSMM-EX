@@ -22,7 +22,6 @@ import {
 	type MainCollectionRowColumn
 } from './main-collection-row';
 import {
-	ALL_MAIN_COLUMN_TITLES,
 	AUTO_MEASURE_MAIN_COLUMN_TITLES,
 	COLUMN_AUTO_MEASURE_MAX_ROWS,
 	COLUMN_MEASUREMENT_SAMPLE_SIZE,
@@ -30,7 +29,6 @@ import {
 	areColumnWidthMapsEqual,
 	cacheColumnMeasurements,
 	formatSizeLabel,
-	getActiveMainColumnTitles,
 	getAllTags,
 	getCachedColumnMeasurements,
 	getColumnMeasurementCacheKey,
@@ -45,6 +43,7 @@ import {
 	measureBodyCellWidth,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
+import { createMainCollectionTableModel } from './main-collection-table-model';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -842,18 +841,11 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
 	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
-	const manuallyActiveColumnTitles = useMemo(
-		() => getActiveMainColumnTitles(columnActiveConfig ? { columnActiveConfig } : undefined),
-		[columnActiveConfig]
+	const tableModel = useMemo(
+		() => createMainCollectionTableModel({ config: mainConfig, availableTableWidth }),
+		[availableTableWidth, mainConfig]
 	);
-	const activeColumnTitles = useMemo(
-		() => getResponsiveMainColumnTitles(columnActiveConfig ? { columnActiveConfig } : undefined, availableTableWidth),
-		[availableTableWidth, columnActiveConfig]
-	);
-	const hiddenColumnTitles = useMemo(
-		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !manuallyActiveColumnTitles.includes(columnTitle)),
-		[manuallyActiveColumnTitles]
-	);
+	const { activeColumnTitles, hiddenColumnTitles } = tableModel;
 	const sampledRows = useMemo(() => deferredRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE), [deferredRows]);
 	const measurementInputKey = useMemo(
 		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
