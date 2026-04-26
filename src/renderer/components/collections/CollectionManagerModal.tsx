@@ -58,7 +58,7 @@ interface CollectionManagerModalProps {
 	deleteCollection: () => void;
 }
 
-interface CollectionNativeModalProps {
+interface CollectionDialogProps {
 	children: ReactNode;
 	footer?: ReactNode;
 	onCancel: () => void;
@@ -99,15 +99,7 @@ function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
 }
 
-function CollectionNativeModal({
-	children,
-	footer,
-	onCancel,
-	title,
-	variant = 'default',
-	width = 520,
-	wrapClassName
-}: CollectionNativeModalProps) {
+function CollectionDialog({ children, footer, onCancel, title, variant = 'default', width = 520, wrapClassName }: CollectionDialogProps) {
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
@@ -151,14 +143,14 @@ function CollectionNativeModal({
 			}}
 		>
 			<section
-				aria-labelledby="collection-native-modal-title"
+				aria-labelledby="collection-dialog-title"
 				aria-modal="true"
 				className={modalClassName}
 				role="dialog"
 				style={{ width: `min(${width}px, 100%)` }}
 			>
 				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id="collection-native-modal-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
+					<h2 id="collection-dialog-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
 						{title}
 					</h2>
 					<button
@@ -381,7 +373,7 @@ function CollectionManagerModal({
 	switch (modalType) {
 		case CollectionManagerModalType.WARN_DELETE:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="warning-modal"
 					title={`Delete "${activeCollectionName}"?`}
 					onCancel={closeModal}
@@ -408,13 +400,13 @@ function CollectionManagerModal({
 					<p>Delete the saved collection from TTSMM-EX.</p>
 					<p>Your installed mods and Steam subscriptions will stay unchanged.</p>
 					<p>This cannot be undone.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
 			const managerUID = getModManagerUID();
 			const managerData: ModData = getByUID(appState.mods, managerUID)!;
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="manager-warning-modal"
 					title="Mod manager must stay enabled"
 					onCancel={closeModal}
@@ -427,12 +419,12 @@ function CollectionManagerModal({
 					<p>TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.</p>
 					<p>Your current manager is {`${managerData.name} (${appState.config.workshopID})`}.</p>
 					<p>To switch managers, update the workshop item ID in Settings instead of disabling the current one here.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		case CollectionManagerModalType.ERRORS_FOUND:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="error-modal"
 					variant="validation"
 					title="Collection has blocking issues"
@@ -470,11 +462,11 @@ function CollectionManagerModal({
 					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
 					{renderValidationIssueList()}
 					<p>Review the list above before deciding whether to launch anyway.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="warning-modal"
 					variant="validation"
 					title="Collection has warnings"
@@ -511,7 +503,7 @@ function CollectionManagerModal({
 					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
 					{renderValidationIssueList()}
 					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.VIEW_SETTINGS: {
 			if (currentView !== CollectionViewType.MAIN) {
@@ -524,7 +516,7 @@ function CollectionManagerModal({
 			});
 
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="settings-modal"
 					variant="settings"
 					wrapClassName="px-3 pb-3 pt-[68px]"
@@ -621,7 +613,7 @@ function CollectionManagerModal({
 							})}
 						</div>
 					</form>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		case CollectionManagerModalType.EDIT_OVERRIDES: {
@@ -651,7 +643,7 @@ function CollectionManagerModal({
 			});
 
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="manager-override-modal"
 					title={`Edit Overrides For ${nextRecord.name}`}
 					width={620}
@@ -687,7 +679,7 @@ function CollectionManagerModal({
 							</div>
 						</div>
 					</form>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		default:
