@@ -52,6 +52,7 @@ interface CollectionNativeModalProps {
 	footer?: ReactNode;
 	onCancel: () => void;
 	title: string;
+	variant?: 'default' | 'settings' | 'validation';
 	width?: number;
 	wrapClassName?: string;
 }
@@ -82,10 +83,10 @@ interface CollectionNumberInputProps {
 }
 
 const collectionControlFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionInputClassName = [
-	'box-border min-h-control w-full rounded-md border border-border bg-surface px-3 text-text',
-	'disabled:cursor-not-allowed disabled:opacity-55',
+	'box-border min-h-control w-full rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
+	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
 	collectionControlFocusClassName
 ].join(' ');
 
@@ -93,7 +94,16 @@ function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
 }
 
-function CollectionNativeModal({ children, className, footer, onCancel, title, width = 520, wrapClassName }: CollectionNativeModalProps) {
+function CollectionNativeModal({
+	children,
+	className,
+	footer,
+	onCancel,
+	title,
+	variant = 'default',
+	width = 520,
+	wrapClassName
+}: CollectionNativeModalProps) {
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
@@ -107,8 +117,6 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 		};
 	}, [onCancel]);
 
-	const isValidationModal = className?.includes('CollectionValidationModal');
-	const isSettingsModal = className?.includes('CollectionSettingsModal');
 	const overlayClassName = [
 		'fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6',
 		wrapClassName
@@ -116,15 +124,15 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 		.filter(Boolean)
 		.join(' ');
 	const modalClassName = [
-		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
+		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
 		className
 	]
 		.filter(Boolean)
 		.join(' ');
 	const bodyClassName = [
 		'overflow-auto p-4',
-		isValidationModal ? 'max-h-[calc(100vh-224px)]' : undefined,
-		isSettingsModal ? 'pb-3 pt-2.5' : undefined
+		variant === 'validation' ? 'max-h-[calc(100vh-224px)]' : undefined,
+		variant === 'settings' ? 'pb-3 pt-2.5' : undefined
 	]
 		.filter(Boolean)
 		.join(' ');
@@ -174,11 +182,13 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 
 function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
 	const buttonClassName = [
-		'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-3.5 font-[650] text-text',
+		'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface-elevated px-3.5 font-[650] text-text',
 		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
 		'disabled:cursor-not-allowed disabled:opacity-55',
 		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
-		danger ? 'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]' : undefined,
+		danger
+			? 'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
+			: undefined,
 		collectionControlFocusClassName
 	]
 		.filter(Boolean)
@@ -202,7 +212,7 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 		<input
 			{...props}
 			className={[
-				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface transition-colors duration-150 ease-in-out',
+				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
 				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
 				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
 				'disabled:cursor-not-allowed disabled:opacity-55',
@@ -430,6 +440,7 @@ function CollectionManagerModal({
 				<CollectionNativeModal
 					key="error-modal"
 					className="CollectionValidationModal"
+					variant="validation"
 					title="Collection has blocking issues"
 					width={760}
 					onCancel={() => {
@@ -472,6 +483,7 @@ function CollectionManagerModal({
 				<CollectionNativeModal
 					key="warning-modal"
 					className="CollectionValidationModal"
+					variant="validation"
 					title="Collection has warnings"
 					width={760}
 					onCancel={() => {
@@ -522,6 +534,7 @@ function CollectionManagerModal({
 				<CollectionNativeModal
 					key="settings-modal"
 					className="CollectionSettingsModal"
+					variant="settings"
 					wrapClassName="px-3 pb-3 pt-[68px]"
 					title="Collection table settings"
 					width={760}
