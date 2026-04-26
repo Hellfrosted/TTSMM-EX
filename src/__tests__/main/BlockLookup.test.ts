@@ -8,6 +8,7 @@ import {
 	extractNuterraBlocksFromText,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
+import { createBlockLookupIndexer } from '../../main/block-lookup-indexer';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
@@ -173,6 +174,25 @@ describe('block lookup index', () => {
 			internalName: 'Bundle_Block_Internal',
 			sourceKind: 'bundle',
 			spawnCommand: 'SpawnBlock Bundle_Block(Bundle_Blocks)'
+		});
+	});
+});
+
+describe('block lookup indexer facade', () => {
+	it('delegates settings, stats, and search to one user data boundary', () => {
+		const userDataPath = createTempDir('ttsmm-block-lookup-indexer-');
+		const indexer = createBlockLookupIndexer(userDataPath);
+		const workshopRoot = path.normalize('C:/Steam/workshop/content/285920');
+
+		expect(indexer.readSettings()).toEqual({ workshopRoot: '' });
+		expect(indexer.saveSettings({ workshopRoot: '  C:/Steam/workshop/content/285920  ' })).toEqual({
+			workshopRoot
+		});
+		expect(indexer.readSettings()).toEqual({ workshopRoot });
+		expect(indexer.getStats()).toBeNull();
+		expect(indexer.search({ query: '', limit: 10 })).toEqual({
+			rows: [],
+			stats: null
 		});
 	});
 });
