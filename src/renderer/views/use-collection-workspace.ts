@@ -36,6 +36,7 @@ interface CollectionWorkspaceResult {
 	gameRunning: ReturnType<typeof useGameRunning>['gameRunning'];
 	bigDetails: boolean;
 	launchGame: () => Promise<void>;
+	launchAnyway: () => void;
 	launchGameWithErrors: ReturnType<typeof useGameLaunch>['launchGameWithErrors'];
 	modalType: CollectionManagerModalType;
 	openMainViewSettings: () => void;
@@ -218,6 +219,11 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		setCollectionErrors,
 		validateActiveCollection
 	]);
+	const launchAnyway = useCallback(() => {
+		setLaunchGameWithErrors(true);
+		const modList = getCollectionModDataList(appState.mods, activeCollection);
+		void closeLaunchModal(modList);
+	}, [activeCollection, appState.mods, closeLaunchModal, setLaunchGameWithErrors]);
 
 	return {
 		clearGameLaunchOverrideTimeout,
@@ -234,6 +240,7 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		getModDetails,
 		gameRunning,
 		launchGame,
+		launchAnyway,
 		launchGameWithErrors,
 		modalType,
 		openMainViewSettings,

@@ -28,7 +28,7 @@ import CollectionManagerToolbar from '../components/collections/CollectionManage
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
 import { logProfilerRender, measurePerf } from '../perf';
-import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
+import { getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
 	moveMainCollectionColumn,
@@ -166,14 +166,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		gameRunning,
 		getModDetails: handleGetModDetails,
 		launchGame,
+		launchAnyway: handleLaunchAnyway,
 		overrideGameRunning,
 		launchGameWithErrors,
 		modalType,
 		openMainViewSettings,
 		prewarmAlternateDetails,
 		setPrewarmAlternateDetails,
-		setLaunchGameWithErrors,
-		closeLaunchModal,
 		collections,
 		validation,
 		currentValidationStatus,
@@ -314,11 +313,6 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		},
 		[config, openNotification, updateState]
 	);
-	const handleLaunchAnyway = useCallback(() => {
-		setLaunchGameWithErrors(true);
-		const modList = getCollectionModDataList(mods, activeCollection);
-		void closeLaunchModal(modList);
-	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
 	const handleDeleteCollection = useCallback(() => {
 		void deleteCollection();
 	}, [deleteCollection]);
