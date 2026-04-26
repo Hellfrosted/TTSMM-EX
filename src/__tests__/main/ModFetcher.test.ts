@@ -6,6 +6,7 @@ import ModFetcher from '../../main/mod-fetcher';
 import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
 import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
+import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { createTempDir } from './test-utils';
 
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
@@ -162,6 +163,20 @@ describe('ModFetcher', () => {
 
 		expect(sender.send).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), 0.5, 'Loading mod details');
 		expect(sender.send).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), 1, 'Finished loading mods');
+	});
+
+	it('keeps workshop metadata helpers behind the metadata adapter', () => {
+		expect(chunkWorkshopIds([BigInt(1), BigInt(2)])).toEqual([[BigInt(1), BigInt(2)]]);
+		expect(createWorkshopPotentialMod(BigInt(42))).toEqual(
+			expect.objectContaining({
+				name: 'Workshop item 42',
+				type: 'workshop',
+				uid: 'workshop:42',
+				workshopID: BigInt(42)
+			})
+		);
+		expect(hasWorkshopModTag(['Blocks', 'Mods'])).toBe(true);
+		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {

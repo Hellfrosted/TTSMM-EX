@@ -14,10 +14,17 @@ import Steamworks, {
 	UserUGCListSortOrder
 } from './steamworks';
 import { clearPreviewAllowlist } from './preview-protocol';
-import { resolvePersonaName } from './steam-persona-cache';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
 import { ModInventoryProgress } from './mod-inventory-progress';
 import { getModDetailsFromPath, scanLocalMods } from './mod-local-scan';
+import {
+	chunkWorkshopIds,
+	createWorkshopPotentialMod,
+	getRawWorkshopDetailsForList,
+	getWorkshopDetailsMap,
+	hasWorkshopModTag,
+	populateWorkshopModMetadata
+} from './mod-workshop-metadata';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -27,10 +34,6 @@ interface ProgressSender {
 
 interface ModFetcherOptions {
 	skipWorkshopSteamworks?: boolean;
-}
-
-function chunk<Type>(arr: Type[], size: number): Type[][] {
-	return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 }
 
 function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[] {
@@ -51,7 +54,6 @@ function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[
 		});
 }
 
-const MAX_MODS_PER_PAGE = 50;
 const TERRATECH_APP_ID = 285920;
 
 function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
@@ -96,90 +98,6 @@ async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults
 		};
 		Steamworks.ugcGetUserItems(options);
 	});
-}
-
-async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promise<SteamUGCDetails[]> {
-	return new Promise((resolve, reject) => {
-		Steamworks.getUGCDetails(
-			workshopIDs.map((workshopID) => workshopID.toString()),
-			(steamDetails: SteamUGCDetails[]) => {
-				log.silly(
-					`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`
-				);
-				resolve(steamDetails);
-			},
-			(err: Error) => {
-				log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
-				log.error(err);
-				reject(err);
-			}
-		);
-	});
-}
-
-function createWorkshopPotentialMod(workshopID: bigint): ModData {
-	return {
-		uid: `${ModType.WORKSHOP}:${workshopID}`,
-		id: null,
-		type: ModType.WORKSHOP,
-		workshopID,
-		hasCode: false,
-		path: '',
-		name: `Workshop item ${workshopID.toString()}`
-	};
-}
-
-function hasWorkshopModTag(tags: string[] | undefined): boolean {
-	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
-}
-
-async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
-	if (!steamUGCDetails) {
-		return;
-	}
-
-	potentialMod.steamDependencies = steamUGCDetails.children;
-	potentialMod.steamDependenciesFetchedAt = Date.now();
-	potentialMod.description = steamUGCDetails.description;
-	potentialMod.name = steamUGCDetails.title;
-	potentialMod.tags = steamUGCDetails.tagsDisplayNames;
-	potentialMod.size = steamUGCDetails.fileSize;
-	potentialMod.dateAdded = new Date(steamUGCDetails.timeAddedToUserList * 1000);
-	potentialMod.dateCreated = new Date(steamUGCDetails.timeCreated * 1000);
-	potentialMod.lastWorkshopUpdate = new Date(steamUGCDetails.timeUpdated * 1000);
-	potentialMod.preview = steamUGCDetails.previewURL;
-
-	try {
-		potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
-	} catch (err) {
-		log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
-		log.warn(err);
-		potentialMod.authors = [steamUGCDetails.steamIDOwner];
-	}
-}
-
-async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map<bigint, SteamUGCDetails>> {
-	const workshopDetailMap = new Map<bigint, SteamUGCDetails>();
-
-	for (const workshopChunk of chunk([...workshopIDs], MAX_MODS_PER_PAGE)) {
-		if (workshopChunk.length === 0) {
-			continue;
-		}
-
-		try {
-			const workshopDetails = await getRawWorkshopDetailsForList(workshopChunk);
-			workshopDetails.forEach((detail) => {
-				workshopDetailMap.set(detail.publishedFileId, detail);
-			});
-		} catch (error) {
-			log.warn(
-				`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`
-			);
-			log.warn(error);
-		}
-	}
-
-	return workshopDetailMap;
 }
 
 export default class ModFetcher {
@@ -292,7 +210,7 @@ export default class ModFetcher {
 		knownInvalidMods: Set<bigint>,
 		modList: Set<bigint>
 	): Promise<Set<bigint>> {
-		const modChunks: bigint[][] = chunk([...modList], MAX_MODS_PER_PAGE);
+		const modChunks = chunkWorkshopIds([...modList]);
 		log.silly(JSON.stringify(modChunks, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
 
 		const modDependencies: Set<bigint> = new Set();
