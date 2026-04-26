@@ -524,14 +524,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			collection: appState.activeCollection as ModCollection,
 			launchingGame: appState.launchingGame,
 			config: currentViewConfig,
-			setEnabledModsCallback: setEnabledMods,
-			setEnabledCallback: handleEnableMod,
-			setDisabledCallback: handleDisableMod,
-			setMainColumnWidthCallback: handleSetMainColumnWidth,
-			setMainColumnVisibilityCallback: handleSetMainColumnVisibility,
-			setMainColumnOrderCallback: handleSetMainColumnOrder,
-			openMainViewSettingsCallback: handleOpenViewSettings,
-			getModDetails: handleGetModDetails
+			tableCommands: {
+				getModDetails: handleGetModDetails,
+				openSettings: handleOpenViewSettings,
+				setColumnOrder: handleSetMainColumnOrder,
+				setColumnVisibility: handleSetMainColumnVisibility,
+				setColumnWidth: handleSetMainColumnWidth,
+				setDisabled: handleDisableMod,
+				setEnabled: handleEnableMod,
+				setEnabledMods
+			}
 		}),
 		[
 			appState.activeCollection,

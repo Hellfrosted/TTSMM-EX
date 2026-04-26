@@ -52,6 +52,7 @@ import {
 	CollectionViewProps,
 	DisplayModData,
 	MainCollectionConfig,
+	MainCollectionTableCommands,
 	MainColumnTitles,
 	ModErrors,
 	ModType,
@@ -358,7 +359,9 @@ interface ColumnSchema {
 	renderSetup?: (props: MainCollectionSchemaProps) => MainCollectionCellRenderer;
 }
 
-type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
+type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'lastValidationStatus' | 'rows'> & {
+	getModDetails: MainCollectionTableCommands['getModDetails'];
+};
 
 interface MainCollectionFilter {
 	text: string;
@@ -774,6 +777,15 @@ function getHeaderCellProps(column: MainCollectionTableColumn) {
 	return column.onHeaderCell?.(column);
 }
 
+function createNoopTableCommands(): MainCollectionTableCommands {
+	return {
+		getModDetails: () => undefined,
+		setDisabled: () => undefined,
+		setEnabled: () => undefined,
+		setEnabledMods: () => undefined
+	};
+}
+
 function MainCollectionViewComponent(props: CollectionViewProps) {
 	const {
 		collection,
@@ -785,6 +797,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		lastValidationStatus,
 		openMainViewSettingsCallback,
 		rows,
+		tableCommands,
 		setDisabledCallback,
 		setEnabledCallback,
 		setEnabledModsCallback,
@@ -793,6 +806,31 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setMainColumnOrderCallback,
 		width
 	} = props;
+	const commands = useMemo<MainCollectionTableCommands>(
+		() =>
+			tableCommands ?? {
+				...createNoopTableCommands(),
+				getModDetails: getModDetails ?? (() => undefined),
+				openSettings: openMainViewSettingsCallback,
+				setColumnOrder: setMainColumnOrderCallback,
+				setColumnVisibility: setMainColumnVisibilityCallback,
+				setColumnWidth: setMainColumnWidthCallback,
+				setDisabled: setDisabledCallback ?? (() => undefined),
+				setEnabled: setEnabledCallback ?? (() => undefined),
+				setEnabledMods: setEnabledModsCallback ?? (() => undefined)
+			},
+		[
+			getModDetails,
+			openMainViewSettingsCallback,
+			setDisabledCallback,
+			setEnabledCallback,
+			setEnabledModsCallback,
+			setMainColumnOrderCallback,
+			setMainColumnVisibilityCallback,
+			setMainColumnWidthCallback,
+			tableCommands
+		]
+	);
 	const mainConfig = config as MainCollectionConfig | undefined;
 	const small = mainConfig?.smallRows;
 	const columnActiveConfig = mainConfig?.columnActiveConfig;
@@ -966,11 +1004,11 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		() => ({
 			collection,
 			config,
-			getModDetails,
+			getModDetails: commands.getModDetails,
 			lastValidationStatus,
 			rows
 		}),
-		[collection, config, getModDetails, lastValidationStatus, rows]
+		[collection, commands.getModDetails, config, lastValidationStatus, rows]
 	);
 	const sortState = useMainCollectionTableStore((state) => state.sortState);
 	const setSortState = useMainCollectionTableStore((state) => state.setSortState);
@@ -990,28 +1028,17 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					currentWidth,
 					draggingColumnTitle,
 					hiddenColumnTitles,
-					openMainViewSettingsCallback,
+					openMainViewSettingsCallback: commands.openSettings,
 					resolvedColumnWidths,
 					setDraggingColumnTitle,
-					setMainColumnOrderCallback,
-					setMainColumnVisibilityCallback,
-					setMainColumnWidthCallback,
+					setMainColumnOrderCallback: commands.setColumnOrder,
+					setMainColumnVisibilityCallback: commands.setColumnVisibility,
+					setMainColumnWidthCallback: commands.setColumnWidth,
 					tableRootRef
 				})
 			};
 		}) as MainCollectionTableColumn[];
-	}, [
-		columnActiveConfig,
-		activeColumnTitles,
-		columnSchemaProps,
-		draggingColumnTitle,
-		hiddenColumnTitles,
-		openMainViewSettingsCallback,
-		resolvedColumnWidths,
-		setMainColumnOrderCallback,
-		setMainColumnVisibilityCallback,
-		setMainColumnWidthCallback
-	]);
+	}, [columnActiveConfig, activeColumnTitles, commands, columnSchemaProps, draggingColumnTitle, hiddenColumnTitles, resolvedColumnWidths]);
 	useEffect(() => {
 		const nextSortState = getMainCollectionDefaultSortState(columns, sortState);
 		if (nextSortState !== sortState) {
@@ -1072,9 +1099,9 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 				selected,
 				rows: sortedRows.length
 			});
-			setEnabledModsCallback(selectionState.getNextCollectionMods(selected));
+			commands.setEnabledMods(selectionState.getNextCollectionMods(selected));
 		},
-		[selectionState, setEnabledModsCallback, sortedRows.length]
+		[commands, selectionState, sortedRows.length]
 	);
 	const setRowSelected = useCallback(
 		(record: DisplayModData, selected: boolean) => {
@@ -1083,12 +1110,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 				uid: record.uid
 			});
 			if (selected) {
-				setEnabledCallback(record.uid);
+				commands.setEnabled(record.uid);
 			} else {
-				setDisabledCallback(record.uid);
+				commands.setDisabled(record.uid);
 			}
 		},
-		[setDisabledCallback, setEnabledCallback]
+		[commands]
 	);
 	const openRowContextMenu = useCallback((record: DisplayModData) => {
 		api.openModContextMenu(record);
