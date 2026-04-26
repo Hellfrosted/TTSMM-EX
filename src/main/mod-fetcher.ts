@@ -1,18 +1,9 @@
 import log from 'electron-log';
-import fs from 'fs';
 
 import { ModData, ModType } from '../model';
 import { isSuccessful } from '../util/Promise';
 
-import Steamworks, {
-	GetUserItemsProps,
-	SteamPageResults,
-	SteamUGCDetails,
-	UGCItemState,
-	UGCMatchingType,
-	UserUGCList,
-	UserUGCListSortOrder
-} from './steamworks';
+import Steamworks, { SteamUGCDetails, UGCItemState } from './steamworks';
 import { clearPreviewAllowlist } from './preview-protocol';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
 import { ModInventoryProgress } from './mod-inventory-progress';
@@ -26,6 +17,7 @@ import {
 	hasWorkshopModTag,
 	populateWorkshopModMetadata
 } from './mod-workshop-metadata';
+import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -53,52 +45,6 @@ function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[
 			const { value } = settledResult;
 			return value;
 		});
-}
-
-const TERRATECH_APP_ID = 285920;
-
-function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
-	if (platform !== 'linux') {
-		return false;
-	}
-
-	try {
-		const installDir = Steamworks.getAppInstallDir(TERRATECH_APP_ID);
-		if (Steamworks.isAppInstalled(TERRATECH_APP_ID) && installDir && existsSync(installDir)) {
-			return false;
-		}
-
-		log.warn(
-			`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`
-		);
-		return true;
-	} catch (error) {
-		log.error('Failed to verify the Linux TerraTech installation before scanning workshop items.');
-		log.error(error);
-		return true;
-	}
-}
-
-async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
-	return new Promise((resolve, reject) => {
-		const options: GetUserItemsProps = {
-			options: {
-				app_id: 285920,
-				page_num: pageNum,
-				required_tag: 'Mods'
-			},
-			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
-			ugc_list: UserUGCList.Subscribed,
-			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
-			success_callback: (results: SteamPageResults) => {
-				resolve(results);
-			},
-			error_callback: (err: Error) => {
-				reject(err);
-			}
-		};
-		Steamworks.ugcGetUserItems(options);
-	});
 }
 
 export default class ModFetcher {

@@ -8,6 +8,7 @@ import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
+import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
 import { createTempDir } from './test-utils';
 
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
@@ -178,6 +179,14 @@ describe('ModFetcher', () => {
 		);
 		expect(hasWorkshopModTag(['Blocks', 'Mods'])).toBe(true);
 		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
+	});
+
+	it('keeps the workshop platform guard behind the paging adapter', () => {
+		expect(shouldSkipWorkshopFetch('win32')).toBe(false);
+		vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
+		vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+
+		expect(shouldSkipWorkshopFetch('linux')).toBe(true);
 	});
 
 	it('collects missing workshop dependencies without re-adding loaded or invalid mods', () => {
