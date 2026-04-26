@@ -14,7 +14,7 @@ import {
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
-import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection, ModData } from 'model';
+import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection } from 'model';
 import api from 'renderer/Api';
 import {
 	desktopButtonBaseClassName,
@@ -27,7 +27,7 @@ import {
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
+import { logProfilerRender, measurePerf } from '../perf';
 import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
@@ -154,30 +154,37 @@ interface CollectionViewRouteProps {
 
 function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const { openNotification } = useNotifications();
-	const [modalType, setModalType] = useState(CollectionManagerModalType.NONE);
-	const [currentRecord, setCurrentRecord] = useState<ModData>();
-	const [bigDetails, setBigDetails] = useState(true);
-	const [detailsActiveTabKey, setDetailsActiveTabKey] = useState('info');
 	const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useState<HalfDetailsLayout>();
-	const [prewarmAlternateDetails, setPrewarmAlternateDetails] = useState(false);
 	const guidedFixActive = false;
 	const { activeCollection, config, loadingMods, mods, updateState } = appState;
 
 	const {
+		bigDetails,
+		closeCurrentRecord,
+		closeModal,
 		gameRunning,
+		getModDetails: handleGetModDetails,
 		overrideGameRunning,
 		launchGameWithErrors,
+		modalType,
+		openMainViewSettings,
+		prewarmAlternateDetails,
+		setPrewarmAlternateDetails,
 		setLaunchGameWithErrors,
 		closeLaunchModal,
 		collections,
 		validation,
 		currentValidationStatus,
-		currentCollectionErrors
+		currentCollectionErrors,
+		currentRecord,
+		detailsActiveTabKey,
+		setBigDetails: handleExpandFooter,
+		setDetailsActiveTabKey,
+		setModalType
 	} = useCollectionWorkspace({
 		appState,
-		openNotification,
-		setModalType
+		openNotification
 	});
 
 	const {
@@ -195,8 +202,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		deleteCollection,
 		setEnabledMods,
 		toggleMod,
-		setModSubset,
-		recalculateModData
+		setModSubset
 	} = collections;
 	const { validatingMods, setCollectionErrors, validateActiveCollection } = validation;
 
@@ -257,18 +263,6 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		},
 		[toggleMod]
 	);
-	const handleCloseCurrentRecord = useCallback(() => {
-		startTransition(() => {
-			setCurrentRecord(undefined);
-			setDetailsActiveTabKey('info');
-			setPrewarmAlternateDetails(false);
-		});
-	}, []);
-	const handleExpandFooter = useCallback((showBigDetails: boolean) => {
-		startTransition(() => {
-			setBigDetails(showBigDetails);
-		});
-	}, []);
 	const handleToggleHalfLayout = useCallback(() => {
 		startTransition(() => {
 			setPreferredHalfDetailsLayout(halfDetailsLayout === 'side' ? 'bottom' : 'side');
@@ -282,17 +276,14 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		[setCollectionErrors, validateActiveCollection]
 	);
 	const handleReloadModList = useCallback(() => {
-		setCurrentRecord(undefined);
+		closeCurrentRecord();
 		updateState({ loadingMods: true, forceReloadMods: true });
-	}, [updateState]);
+	}, [closeCurrentRecord, updateState]);
 	const handleSaveCollection = useCallback(() => {
 		if (activeCollection) {
 			void saveCollection(activeCollection, true);
 		}
 	}, [activeCollection, saveCollection]);
-	const handleOpenViewSettings = useCallback(() => {
-		setModalType(CollectionManagerModalType.VIEW_SETTINGS);
-	}, []);
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
 			try {
@@ -361,32 +352,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		const modList = getCollectionModDataList(mods, activeCollection);
 		void closeLaunchModal(modList);
 	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
-	const handleCloseModal = useCallback(() => {
-		setModalType(CollectionManagerModalType.NONE);
-	}, []);
 	const handleDeleteCollection = useCallback(() => {
 		void deleteCollection();
 	}, [deleteCollection]);
-	const handleGetModDetails = useCallback(
-		(uid: string, record: ModData, showBigDetails?: boolean) => {
-			const isClosingCurrentRecord = currentRecord?.uid === uid;
-			markPerfInteraction(isClosingCurrentRecord ? 'collection.details.close' : 'collection.details.open', {
-				uid,
-				showBigDetails: showBigDetails ?? bigDetails
-			});
-			startTransition(() => {
-				setCurrentRecord(isClosingCurrentRecord ? undefined : record);
-				if (!isClosingCurrentRecord) {
-					setDetailsActiveTabKey('info');
-					setPrewarmAlternateDetails(false);
-				}
-				if (!isClosingCurrentRecord && showBigDetails !== undefined) {
-					setBigDetails(showBigDetails);
-				}
-			});
-		},
-		[bigDetails, currentRecord?.uid]
-	);
 
 	useEffect(() => {
 		if (!displayedCurrentRecord || loadingMods || currentView !== CollectionViewType.MAIN) {
@@ -430,7 +398,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails]);
+	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails, setPrewarmAlternateDetails]);
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({
@@ -445,7 +413,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			config: currentViewConfig,
 			tableCommands: {
 				getModDetails: handleGetModDetails,
-				openSettings: handleOpenViewSettings,
+				openSettings: openMainViewSettings,
 				setColumnOrder: handleSetMainColumnOrder,
 				setColumnVisibility: handleSetMainColumnVisibility,
 				setColumnWidth: handleSetMainColumnWidth,
@@ -464,7 +432,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleSetMainColumnOrder,
 			handleSetMainColumnWidth,
 			handleSetMainColumnVisibility,
-			handleOpenViewSettings,
+			openMainViewSettings,
 			currentValidationStatus,
 			madeEdits,
 			rows,
@@ -504,7 +472,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				currentRecord: displayedCurrentRecord,
 				activeTabKey: detailsActiveTabKey,
 				setActiveTabKey: setDetailsActiveTabKey,
-				closeFooterCallback: handleCloseCurrentRecord,
+				closeFooterCallback: closeCurrentRecord,
 				enableModCallback: handleEnableMod,
 				disableModCallback: handleDisableMod,
 				expandFooterCallback: handleExpandFooter,
@@ -538,7 +506,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			<ModLoadingViewLazy
 				appState={appState}
 				modLoadCompleteCallback={() => {
-					recalculateModData();
+					collections.recalculateModData();
 				}}
 			/>
 		</Suspense>
@@ -587,7 +555,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					duplicateCollectionCallback={duplicateCollection}
 					renameCollectionCallback={renameCollection}
 					saveCollectionCallback={handleSaveCollection}
-					openViewSettingsCallback={handleOpenViewSettings}
+					openViewSettingsCallback={openMainViewSettings}
 					openNotification={openNotification}
 					openModal={setModalType}
 				/>
@@ -602,7 +570,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						currentView={currentView}
 						collectionErrors={currentCollectionErrors}
 						openNotification={openNotification}
-						closeModal={handleCloseModal}
+						closeModal={closeModal}
 						currentRecord={displayedCurrentRecord}
 						deleteCollection={handleDeleteCollection}
 					/>
