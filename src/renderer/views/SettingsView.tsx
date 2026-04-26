@@ -1,30 +1,15 @@
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useId,
-	useState,
-	type ButtonHTMLAttributes,
-	type InputHTMLAttributes,
-	type ReactNode,
-	type SelectHTMLAttributes
-} from 'react';
+import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
 import { Edit3, Folder, Plus, X } from 'lucide-react';
 import {
-	desktopButtonBaseClassName,
-	desktopControlFocusClassName,
-	desktopDangerButtonToneClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledClassName,
-	desktopDisabledOpacityClassName,
-	desktopInputClassName,
-	desktopInputFocusClassName,
-	desktopPrimaryButtonToneClassName,
-	desktopSwitchClassName
-} from 'renderer/components/desktop-control-classes';
+	DesktopButton,
+	DesktopDialog as SettingsDialog,
+	DesktopInput,
+	DesktopSelect as SettingsSelect,
+	DesktopSwitch as SettingsSwitch
+} from 'renderer/components/DesktopControls';
 import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { getSettingsFormErrors } from 'renderer/settings-validation';
@@ -59,149 +44,9 @@ interface SettingsFieldProps {
 	children: ReactNode;
 }
 
-interface SettingsButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-	danger?: boolean;
-	icon?: ReactNode;
-	loading?: boolean;
-	variant?: 'default' | 'primary';
-}
-
-function SettingsButton({
-	children,
-	className,
-	danger,
-	disabled,
-	icon,
-	loading,
-	type = 'button',
-	variant = 'default',
-	...props
-}: SettingsButtonProps) {
-	const buttonToneClassName = danger
-		? desktopDangerButtonToneClassName
-		: variant === 'primary'
-			? desktopPrimaryButtonToneClassName
-			: desktopDefaultButtonToneClassName;
-	const buttonClassName = [
-		'SettingsButton',
-		desktopButtonBaseClassName,
-		desktopControlFocusClassName,
-		'disabled:opacity-[0.55]',
-		desktopDisabledOpacityClassName,
-		buttonToneClassName,
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
-
-	return (
-		<button {...props} type={type} disabled={disabled || loading} className={buttonClassName}>
-			{loading ? (
-				<span
-					className="size-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-					aria-hidden="true"
-				/>
-			) : icon ? (
-				<span className="inline-flex items-center">{icon}</span>
-			) : null}
-			{children ? <span className="inline-flex items-center">{children}</span> : null}
-		</button>
-	);
-}
-
-function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	const inputClassName = ['SettingsInput min-w-0', desktopInputClassName, desktopInputFocusClassName, desktopDisabledClassName, className]
-		.filter(Boolean)
-		.join(' ');
-
-	return <input {...props} className={inputClassName} />;
-}
-
-function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-	const selectClassName = [
-		'box-border min-h-control w-full min-w-0 cursor-pointer rounded-md border border-border bg-surface-elevated py-0 pl-[11px] pr-[34px] font-inherit text-text',
-		desktopControlFocusClassName,
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
-
-	return <select {...props} className={selectClassName} />;
-}
-
-function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	const switchClassName = ['SettingsSwitch mt-[9px]', desktopSwitchClassName, className].filter(Boolean).join(' ');
-
-	return <input {...props} type={type} className={switchClassName} />;
-}
-
 function SettingsInlineControls({ children, className }: { children: ReactNode; className?: string }) {
 	const controlsClassName = ['flex w-full min-w-0 items-stretch', className].filter(Boolean).join(' ');
 	return <div className={controlsClassName}>{children}</div>;
-}
-
-function SettingsDialog({
-	children,
-	footer,
-	onCancel,
-	open,
-	title
-}: {
-	children: ReactNode;
-	footer?: ReactNode;
-	onCancel: () => void;
-	open: boolean;
-	title: string;
-}) {
-	const titleId = useId();
-	useEffect(() => {
-		if (!open) {
-			return undefined;
-		}
-
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				onCancel();
-			}
-		};
-
-		window.addEventListener('keydown', handleKeyDown);
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [onCancel, open]);
-
-	if (!open) {
-		return null;
-	}
-
-	return (
-		<div
-			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6"
-			role="presentation"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) {
-					onCancel();
-				}
-			}}
-		>
-			<section
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby={titleId}
-				className="flex max-h-[min(680px,calc(100vh_-_48px))] w-[min(560px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
-			>
-				<div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id={titleId} className="m-0 text-lg leading-[1.3] text-text">
-						{title}
-					</h2>
-					<SettingsButton aria-label="Close dialog" icon={<X size={16} />} onClick={onCancel} />
-				</div>
-				<div className="overflow-auto p-4">{children}</div>
-				{footer ? <div className="flex items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</div> : null}
-			</section>
-		</div>
-	);
 }
 
 function formatLogLevelLabel(level: string) {
@@ -429,15 +274,15 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					}}
 					footer={
 						<>
-							<SettingsButton
+							<DesktopButton
 								key="cancel-settings"
 								onClick={() => {
 									closeModal({ restoreSnapshot: true });
 								}}
 							>
 								Cancel
-							</SettingsButton>
-							<SettingsButton
+							</DesktopButton>
+							<DesktopButton
 								key="save-settings"
 								variant="primary"
 								onClick={() => {
@@ -445,13 +290,13 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								Done
-							</SettingsButton>
+							</DesktopButton>
 						</>
 					}
 				>
 					<div className="LoggerNameForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="logger-id" label="Logger ID" error={configErrors?.[`editingLogConfig.${editingContextIndex}.loggerID`]}>
-							<SettingsInput
+							<DesktopInput
 								id="logger-id"
 								value={editingContext.loggerID}
 								onChange={(event) => {
@@ -476,7 +321,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					}}
 					footer={
 						<>
-							<SettingsButton
+							<DesktopButton
 								variant="primary"
 								key="no-changes"
 								onClick={() => {
@@ -485,16 +330,16 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								Keep Current Manager
-							</SettingsButton>
-							<SettingsButton
+							</DesktopButton>
+							<DesktopButton
 								key="cancel-edit"
 								onClick={() => {
 									closeModal({ restoreSnapshot: true });
 								}}
 							>
 								Cancel
-							</SettingsButton>
-							<SettingsButton
+							</DesktopButton>
+							<DesktopButton
 								key="save-settings"
 								variant="primary"
 								onClick={() => {
@@ -502,13 +347,13 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								}}
 							>
 								Save Manager ID
-							</SettingsButton>
+							</DesktopButton>
 						</>
 					}
 				>
 					<div className="WorkshopIDForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="workshop-id" label="Workshop item ID" required>
-							<SettingsInput
+							<DesktopInput
 								id="workshop-id"
 								inputMode="numeric"
 								pattern="[0-9]*"
@@ -547,8 +392,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									error={configErrors?.localDir}
 									tooltip="Optional. Use this only when you develop or test local mods."
 								>
-									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
-										<SettingsInput
+									<SettingsInlineControls className="[&_.DesktopButton]:shrink-0 [&_.DesktopButton]:rounded-l-none [&_.DesktopInput]:min-w-0 [&_.DesktopInput]:rounded-r-none">
+										<DesktopInput
 											id="localDir"
 											disabled={selectingDirectory}
 											value={editingConfig.localDir ?? ''}
@@ -562,7 +407,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												}
 											}}
 										/>
-										<SettingsButton
+										<DesktopButton
 											aria-label="Browse for the Local Mods directory"
 											icon={<Folder size={16} />}
 											onClick={() => {
@@ -579,10 +424,10 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									extra={isLinux ? 'Unused on Linux. TerraTech is launched through Steam.' : undefined}
 								>
 									{isLinux ? (
-										<SettingsInput id="gameExec" disabled value="Launched through Steam on Linux" />
+										<DesktopInput id="gameExec" disabled value="Launched through Steam on Linux" />
 									) : (
-										<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
-											<SettingsInput
+										<SettingsInlineControls className="[&_.DesktopButton]:shrink-0 [&_.DesktopButton]:rounded-l-none [&_.DesktopInput]:min-w-0 [&_.DesktopInput]:rounded-r-none">
+											<DesktopInput
 												id="gameExec"
 												disabled={selectingDirectory}
 												value={editingConfig.gameExec ?? ''}
@@ -596,7 +441,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													}
 												}}
 											/>
-											<SettingsButton
+											<DesktopButton
 												aria-label="Browse for the TerraTech executable"
 												icon={<Folder size={16} />}
 												onClick={() => {
@@ -612,8 +457,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									error={configErrors?.logsDir}
 									tooltip="Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder."
 								>
-									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
-										<SettingsInput
+									<SettingsInlineControls className="[&_.DesktopButton]:shrink-0 [&_.DesktopButton]:rounded-l-none [&_.DesktopInput]:min-w-0 [&_.DesktopInput]:rounded-r-none">
+										<DesktopInput
 											id="logsDir"
 											disabled={selectingDirectory}
 											value={editingConfig.logsDir ?? ''}
@@ -627,7 +472,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												}
 											}}
 										/>
-										<SettingsButton
+										<DesktopButton
 											aria-label="Browse for the logs directory"
 											icon={<Folder size={16} />}
 											onClick={() => {
@@ -682,14 +527,14 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									required
 									tooltip="The Steam Workshop item ID for the mod manager package this app should launch with."
 								>
-									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
-										<SettingsInput
+									<SettingsInlineControls className="[&_.DesktopButton]:shrink-0 [&_.DesktopButton]:rounded-l-none [&_.DesktopInput]:min-w-0 [&_.DesktopInput]:rounded-r-none">
+										<DesktopInput
 											id="workshopID"
 											aria-label="Current mod manager workshop item ID"
 											value={editingConfig.workshopID.toString()}
 											disabled
 										/>
-										<SettingsButton
+										<DesktopButton
 											aria-label="Edit the mod manager workshop item ID"
 											icon={<Edit3 size={16} />}
 											variant="primary"
@@ -704,7 +549,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						<div key="additional-commands" className="flex">
 							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-[18px] py-4">
 								<SettingsField id="extraParams" label="Launch Arguments">
-									<SettingsInput
+									<DesktopInput
 										id="extraParams"
 										value={editingConfig.extraParams ?? ''}
 										onChange={(event) => {
@@ -749,9 +594,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																</option>
 															))}
 														</SettingsSelect>
-														<SettingsInlineControls className="flex-[2_1_16rem] [&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:flex-auto [&_.SettingsInput]:rounded-r-none">
-															<SettingsInput id={id} value={config.loggerID} disabled />
-															<SettingsButton
+														<SettingsInlineControls className="flex-[2_1_16rem] [&_.DesktopButton]:shrink-0 [&_.DesktopButton]:rounded-l-none [&_.DesktopInput]:min-w-0 [&_.DesktopInput]:flex-auto [&_.DesktopInput]:rounded-r-none">
+															<DesktopInput id={id} value={config.loggerID} disabled />
+															<DesktopButton
 																aria-label={`Edit logger override ${index + 1}`}
 																icon={<Edit3 size={16} />}
 																variant="primary"
@@ -760,7 +605,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																}}
 															/>
 														</SettingsInlineControls>
-														<SettingsButton
+														<DesktopButton
 															aria-label={`Remove logger override ${index + 1}`}
 															icon={<X size={16} />}
 															danger
@@ -774,7 +619,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 											);
 										})}
 										<div className="flex justify-start">
-											<SettingsButton
+											<DesktopButton
 												icon={<Plus size={16} />}
 												onClick={() => {
 													addLogConfig();
@@ -782,20 +627,20 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												variant="primary"
 											>
 												Add Override
-											</SettingsButton>
+											</DesktopButton>
 										</div>
 									</div>
 								</details>
 							</div>
 						</div>
 					</div>
-					<div className="flex w-full flex-wrap items-center justify-center gap-3 pt-2.5 max-[1199px]:justify-start max-[1199px]:[&_.SettingsButton]:w-full max-[1199px]:[&_.SettingsButton]:flex-[1_1_100%]">
-						<SettingsButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
+					<div className="flex w-full flex-wrap items-center justify-center gap-3 pt-2.5 max-[1199px]:justify-start max-[1199px]:[&_.DesktopButton]:w-full max-[1199px]:[&_.DesktopButton]:flex-[1_1_100%]">
+						<DesktopButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
 							Reset Changes
-						</SettingsButton>
-						<SettingsButton loading={savingConfig} disabled={!madeConfigEdits} variant="primary" type="submit">
+						</DesktopButton>
+						<DesktopButton loading={savingConfig} disabled={!madeConfigEdits} variant="primary" type="submit">
 							Save Changes
-						</SettingsButton>
+						</DesktopButton>
 					</div>
 				</form>
 			</main>

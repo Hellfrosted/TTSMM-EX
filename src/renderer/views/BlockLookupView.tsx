@@ -1,4 +1,4 @@
-import { Profiler, memo, useCallback, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Profiler, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useOutletContext } from 'react-router-dom';
@@ -11,10 +11,10 @@ import {
 	desktopControlBaseClassName,
 	desktopControlFocusClassName,
 	desktopDisabledClassName,
-	desktopPrimaryButtonToneClassName,
 	desktopSwitchClassName,
 	joinClassNames
 } from 'renderer/components/desktop-control-classes';
+import { DesktopButton as BlockLookupButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
 import { logProfilerRender, markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import {
@@ -76,12 +76,6 @@ async function copyToClipboard(text: string) {
 	await navigator.clipboard.writeText(text);
 }
 
-interface BlockLookupButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-	icon?: ReactNode;
-	loading?: boolean;
-	variant?: 'default' | 'primary';
-}
-
 interface BlockLookupSwitchProps {
 	'aria-label': string;
 	checked: boolean;
@@ -108,35 +102,9 @@ interface BlockLookupTableOptionsModalProps {
 
 const blockLookupControlClassName = [desktopControlBaseClassName, desktopDisabledClassName, desktopControlFocusClassName].join(' ');
 
-function BlockLookupButton({ children, className, icon, loading, type = 'button', variant = 'default', ...props }: BlockLookupButtonProps) {
-	const buttonClassName = [
-		blockLookupControlClassName,
-		'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650]',
-		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-		variant === 'primary' ? desktopPrimaryButtonToneClassName : undefined,
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
-
-	return (
-		<button {...props} type={type} className={buttonClassName} disabled={props.disabled || loading}>
-			{loading ? (
-				<span
-					className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-					aria-hidden="true"
-				/>
-			) : (
-				icon
-			)}
-			<span className="inline-flex min-w-0 items-center">{children}</span>
-		</button>
-	);
-}
-
 function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLookupSwitchProps) {
 	return (
-		<input
+		<DesktopSwitch
 			{...props}
 			className={joinClassNames(desktopSwitchClassName, 'm-0')}
 			checked={checked}
@@ -152,7 +120,7 @@ function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLooku
 
 function BlockLookupNumberInput({ disabled, max, min, onChange, placeholder, step, value, ...props }: BlockLookupNumberInputProps) {
 	return (
-		<input
+		<DesktopInput
 			{...props}
 			className={[blockLookupControlClassName, 'w-full px-[11px] outline-none'].join(' ')}
 			disabled={disabled}
@@ -171,56 +139,20 @@ function BlockLookupNumberInput({ disabled, max, min, onChange, placeholder, ste
 }
 
 function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLookupTableOptionsModalProps) {
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				onCancel();
-			}
-		};
-
-		window.addEventListener('keydown', handleKeyDown);
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [onCancel]);
-
 	return (
-		<div
-			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] px-3 pb-3 pt-[68px]"
-			role="presentation"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) {
-					onCancel();
-				}
-			}}
+		<DesktopDialog
+			open
+			title="Block lookup table options"
+			titleClassName="text-[1.05rem] font-bold"
+			closeLabel="Close modal"
+			onCancel={onCancel}
+			overlayClassName="px-3 pb-3 pt-[68px]"
+			panelClassName="max-h-[calc(100vh-48px)] w-[min(760px,100%)] max-w-[calc(100vw-32px)]"
+			bodyClassName="pb-3 pt-2.5"
+			footer={footer}
 		>
-			<section
-				aria-labelledby="block-lookup-table-options-title"
-				aria-modal="true"
-				className="flex max-h-[calc(100vh-48px)] w-[min(760px,100%)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
-				role="dialog"
-			>
-				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id="block-lookup-table-options-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
-						Block lookup table options
-					</h2>
-					<button
-						className={[
-							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
-							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							desktopControlFocusClassName
-						].join(' ')}
-						type="button"
-						aria-label="Close modal"
-						onClick={onCancel}
-					>
-						<X size={18} aria-hidden="true" />
-					</button>
-				</header>
-				<div className="overflow-auto p-4 pb-3 pt-2.5">{children}</div>
-				<footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</footer>
-			</section>
-		</div>
+			{children}
+		</DesktopDialog>
 	);
 }
 
