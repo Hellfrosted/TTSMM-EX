@@ -17,6 +17,7 @@ import { clearPreviewAllowlist } from './preview-protocol';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
 import { ModInventoryProgress } from './mod-inventory-progress';
 import { getModDetailsFromPath, scanLocalMods } from './mod-local-scan';
+import { collectMissingWorkshopDependencies } from './mod-workshop-dependencies';
 import {
 	chunkWorkshopIds,
 	createWorkshopPotentialMod,
@@ -229,14 +230,9 @@ export default class ModFetcher {
 					workshopMap.set(modid!, mod);
 				});
 
-				// After this round has been added to the mod map, check if any items are missing
-				modDetails.forEach((mod: ModData) => {
-					if (mod.steamDependencies) {
-						mod.steamDependencies
-							.filter((dependency) => !workshopMap.has(dependency) && !knownInvalidMods.has(dependency))
-							.forEach((missingDependency) => modDependencies.add(missingDependency));
-					}
-				});
+				collectMissingWorkshopDependencies(modDetails, workshopMap, knownInvalidMods).forEach((missingDependency) =>
+					modDependencies.add(missingDependency)
+				);
 			} catch (e) {
 				log.error(e instanceof Error ? e : 'Error processing chunk');
 				this.updateModLoadingProgress(modChunks[i].length);
@@ -296,14 +292,9 @@ export default class ModFetcher {
 			});
 			pageNum += 1;
 		}
-		// After this round has been added to the mod map, check if any items are missing
-		[...workshopMap.values()].forEach((modData: ModData) => {
-			if (modData.steamDependencies) {
-				modData.steamDependencies
-					.filter((dependency) => !workshopMap.has(dependency))
-					.forEach((missingDependency) => this.knownWorkshopMods.add(missingDependency));
-			}
-		});
+		collectMissingWorkshopDependencies(workshopMap.values(), workshopMap).forEach((missingDependency) =>
+			this.knownWorkshopMods.add(missingDependency)
+		);
 
 		if (workshopMap.size !== numProcessedWorkshop) {
 			log.debug(

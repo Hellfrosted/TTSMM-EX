@@ -6,6 +6,7 @@ import ModFetcher from '../../main/mod-fetcher';
 import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
 import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
+import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { createTempDir } from './test-utils';
 
@@ -177,6 +178,30 @@ describe('ModFetcher', () => {
 		);
 		expect(hasWorkshopModTag(['Blocks', 'Mods'])).toBe(true);
 		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
+	});
+
+	it('collects missing workshop dependencies without re-adding loaded or invalid mods', () => {
+		const loadedDependency = BigInt(2);
+		const invalidDependency = BigInt(3);
+		const missingDependency = BigInt(4);
+		const workshopMap = new Map<bigint, { uid: string }>([[loadedDependency, { uid: 'workshop:2' }]]);
+		const knownInvalidMods = new Set([invalidDependency]);
+
+		expect(
+			collectMissingWorkshopDependencies(
+				[
+					{
+						uid: 'workshop:1',
+						id: null,
+						type: 'workshop',
+						hasCode: false,
+						steamDependencies: [loadedDependency, invalidDependency, missingDependency]
+					}
+				],
+				workshopMap as never,
+				knownInvalidMods
+			)
+		).toEqual(new Set([missingDependency]));
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {
