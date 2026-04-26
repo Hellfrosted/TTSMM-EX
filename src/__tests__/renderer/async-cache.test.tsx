@@ -43,7 +43,6 @@ describe('renderer async cache', () => {
 
 	it('updates collection detail and list cache entries after collection writes', async () => {
 		const queryClient = createTestQueryClient();
-		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		const collection = { name: 'fresh', mods: ['local:mod-a'] };
 
@@ -55,12 +54,10 @@ describe('renderer async cache', () => {
 		expect(window.electron.updateCollection).toHaveBeenCalledWith(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toBe(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default', 'fresh']);
-		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.collections.root() });
 	});
 
 	it('removes collection detail and list cache entries after collection deletes', async () => {
 		const queryClient = createTestQueryClient();
-		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		queryClient.setQueryData(queryKeys.collections.list(), ['default', 'archived']);
 		queryClient.setQueryData(queryKeys.collections.detail('archived'), { name: 'archived', mods: [] });
 
@@ -72,12 +69,10 @@ describe('renderer async cache', () => {
 		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
 		expect(queryClient.getQueryData(queryKeys.collections.detail('archived'))).toBeUndefined();
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default']);
-		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.collections.root() });
 	});
 
 	it('moves collection detail and list cache entries after collection renames', async () => {
 		const queryClient = createTestQueryClient();
-		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		const collection = { name: 'default', mods: ['local:mod-a'] };
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		queryClient.setQueryData(queryKeys.collections.detail('default'), collection);
@@ -91,7 +86,6 @@ describe('renderer async cache', () => {
 		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
 		expect(queryClient.getQueryData(queryKeys.collections.detail('renamed'))).toEqual({ name: 'renamed', mods: ['local:mod-a'] });
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['renamed']);
-		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.collections.root() });
 	});
 
 	it('loads individual collections through query options', async () => {

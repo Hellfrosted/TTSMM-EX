@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType } from 'model';
 import type { NotificationProps } from 'model';
+import api from 'renderer/Api';
 import { useDeleteCollectionMutation, useRenameCollectionMutation, useUpdateCollectionMutation } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { getVisibleCollectionRows } from 'renderer/collection-mod-projection';
@@ -71,7 +72,8 @@ export function useCollections({
 			try {
 				await updateCollectionFileMutation(targetCollection);
 				return true;
-			} catch {
+			} catch (error) {
+				api.logger.error(error);
 				return false;
 			}
 		},
@@ -83,7 +85,8 @@ export function useCollections({
 			try {
 				await deleteCollectionFileMutation(collectionName);
 				return true;
-			} catch {
+			} catch (error) {
+				api.logger.error(error);
 				return false;
 			}
 		},
@@ -98,7 +101,8 @@ export function useCollections({
 					newName
 				});
 				return true;
-			} catch {
+			} catch (error) {
+				api.logger.error(error);
 				return false;
 			}
 		},

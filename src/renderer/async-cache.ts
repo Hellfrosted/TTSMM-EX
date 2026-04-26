@@ -111,10 +111,6 @@ function removeCollectionQueryData(queryClient: QueryClient, collectionName: str
 	queryClient.removeQueries({ queryKey: queryKeys.collections.detail(collectionName), exact: true });
 }
 
-function invalidateCollectionQueries(queryClient: QueryClient) {
-	return queryClient.invalidateQueries({ queryKey: queryKeys.collections.root() });
-}
-
 function addCollectionNameToList(queryClient: QueryClient, collectionName: string) {
 	queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) => {
 		if (currentNames.includes(collectionName)) {
@@ -177,7 +173,6 @@ export function useUpdateCollectionMutation() {
 		onSuccess: (collection) => {
 			setCollectionQueryData(queryClient, collection);
 			addCollectionNameToList(queryClient, collection.name);
-			return invalidateCollectionQueries(queryClient);
 		}
 	});
 }
@@ -190,7 +185,6 @@ export function useDeleteCollectionMutation() {
 		onSuccess: (collectionName) => {
 			removeCollectionQueryData(queryClient, collectionName);
 			removeCollectionNameFromList(queryClient, collectionName);
-			return invalidateCollectionQueries(queryClient);
 		}
 	});
 }
@@ -206,7 +200,6 @@ export function useRenameCollectionMutation() {
 			queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) =>
 				currentNames.map((currentName) => (currentName === previousName ? collection.name : currentName))
 			);
-			return invalidateCollectionQueries(queryClient);
 		}
 	});
 }
