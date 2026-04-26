@@ -46,6 +46,25 @@ describe('main-collection-table-model', () => {
 		expect(model.activeColumnTitles).toEqual([MainColumnTitles.ID, MainColumnTitles.NAME, MainColumnTitles.TYPE, MainColumnTitles.STATE]);
 	});
 
+	it('resolves configured and auto column widths with the visible table model', () => {
+		const model = createMainCollectionTableModel({
+			config: {
+				columnWidthConfig: {
+					[MainColumnTitles.NAME]: 320
+				}
+			},
+			autoColumnWidths: {
+				[MainColumnTitles.NAME]: 500,
+				[MainColumnTitles.ID]: 20
+			},
+			availableTableWidth: 640
+		});
+
+		expect(model.resolvedColumnWidths[MainColumnTitles.NAME]).toBe(320);
+		expect(model.resolvedColumnWidths[MainColumnTitles.ID]).toBe(32);
+		expect(Object.keys(model.resolvedColumnWidths)).toEqual([MainColumnTitles.TYPE, MainColumnTitles.NAME, MainColumnTitles.ID]);
+	});
+
 	it('sorts rows through configured column comparators', () => {
 		const rows = [createRow('workshop:3', 'Charlie', 100), createRow('workshop:1', 'Alpha', 300), createRow('workshop:2', 'Bravo', 200)];
 		const columns = [

@@ -2,10 +2,16 @@ import { MainColumnTitles, type DisplayModData, type MainCollectionConfig } from
 import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { measurePerf } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
-import { ALL_MAIN_COLUMN_TITLES, getActiveMainColumnTitles, getResponsiveMainColumnTitles } from './main-collection-table-layout';
+import {
+	ALL_MAIN_COLUMN_TITLES,
+	getActiveMainColumnTitles,
+	getColumnWidths,
+	getResponsiveMainColumnTitles
+} from './main-collection-table-layout';
 
 interface MainCollectionTableModelInput {
 	config?: MainCollectionConfig;
+	autoColumnWidths?: Record<string, number>;
 	availableTableWidth?: number;
 }
 
@@ -13,6 +19,7 @@ interface MainCollectionTableModel {
 	manuallyActiveColumnTitles: MainColumnTitles[];
 	activeColumnTitles: MainColumnTitles[];
 	hiddenColumnTitles: MainColumnTitles[];
+	resolvedColumnWidths: Record<string, number>;
 }
 
 type MainCollectionSortOrder = 'ascend' | 'descend' | null | undefined;
@@ -29,17 +36,20 @@ interface MainCollectionSortableColumn {
 
 export function createMainCollectionTableModel({
 	config,
+	autoColumnWidths,
 	availableTableWidth = 0
 }: MainCollectionTableModelInput): MainCollectionTableModel {
 	const manuallyActiveColumnTitles = getActiveMainColumnTitles(config);
 	const activeColumnTitles = getResponsiveMainColumnTitles(config, availableTableWidth);
 	const activeColumnTitleSet = new Set(manuallyActiveColumnTitles);
 	const hiddenColumnTitles = ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !activeColumnTitleSet.has(columnTitle));
+	const resolvedColumnWidths = getColumnWidths(config, autoColumnWidths, availableTableWidth);
 
 	return {
 		manuallyActiveColumnTitles,
 		activeColumnTitles,
-		hiddenColumnTitles
+		hiddenColumnTitles,
+		resolvedColumnWidths
 	};
 }
 

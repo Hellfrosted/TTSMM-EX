@@ -33,7 +33,6 @@ import {
 	getColumnMeasurementCacheKey,
 	getColumnPixelWidth,
 	getColumnWidthVariableName,
-	getColumnWidths,
 	getDefaultMainColumnWidth,
 	getMainCollectionTableScrollWidth,
 	getMeasurementRowSignature,
@@ -810,10 +809,10 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
 	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
 	const tableModel = useMemo(
-		() => createMainCollectionTableModel({ config: mainConfig, availableTableWidth }),
-		[availableTableWidth, mainConfig]
+		() => createMainCollectionTableModel({ config: mainConfig, autoColumnWidths, availableTableWidth }),
+		[autoColumnWidths, availableTableWidth, mainConfig]
 	);
-	const { activeColumnTitles, hiddenColumnTitles } = tableModel;
+	const { activeColumnTitles, hiddenColumnTitles, resolvedColumnWidths } = tableModel;
 	const sampledRows = useMemo(() => deferredRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE), [deferredRows]);
 	const measurementInputKey = useMemo(
 		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
@@ -834,10 +833,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const measurementCacheKey = useMemo(
 		() => getColumnMeasurementCacheKey(measurementStateKey, measuredColumnTitles),
 		[measuredColumnTitles, measurementStateKey]
-	);
-	const resolvedColumnWidths = useMemo(
-		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
-		[autoColumnWidths, availableTableWidth, config]
 	);
 	const tableRootRef = useRef<HTMLDivElement | null>(null);
 	const syncedColumnTitlesRef = useRef<string[]>([]);
