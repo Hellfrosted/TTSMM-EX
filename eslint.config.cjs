@@ -56,6 +56,7 @@ module.exports = [
 			'@typescript-eslint/no-explicit-any': 'warn',
 			'promise/always-return': 'warn',
 			'promise/catch-or-return': ['warn', { terminationMethod: ['catch', 'asCallback', 'finally'] }],
+			'react-hooks/incompatible-library': 'off',
 			'react-hooks/preserve-manual-memoization': 'off',
 			'react-hooks/set-state-in-effect': 'off'
 		}

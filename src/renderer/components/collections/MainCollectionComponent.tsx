@@ -1090,7 +1090,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		],
 		[columns]
 	);
-	// eslint-disable-next-line react-hooks/incompatible-library
 	const table = useReactTable({
 		data: sortedRows,
 		columns: tableColumnDefs,
