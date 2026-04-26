@@ -23,6 +23,8 @@
 		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
+		"smoke:ui": "npm run build && node --import=tsx ./scripts/smoke-ui.ts",
+		"smoke:ui:packaged": "npm run package && node --import=tsx ./scripts/smoke-ui.ts --packaged",
 		"test": "vitest run",
 		"typecheck": "tsc -b",
 		"validate": "npm run lint && npm run deadcode && npm run typecheck && npm test && npm run build",

@@ -170,6 +170,10 @@ function AppShell() {
 	});
 
 	useEffect(() => {
+		if (window.electron.uiSmokeMode) {
+			return undefined;
+		}
+
 		navigateToSteamworks();
 		const unsubscribeModRefresh = api.onModRefreshRequested(() => {
 			startForcedModReload();

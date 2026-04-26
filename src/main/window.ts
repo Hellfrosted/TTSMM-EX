@@ -202,7 +202,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		mainWindow.setTitle(`${name} v${app.getVersion()}`);
 		ensureSteamAppIdFile();
 		onDidFinishLoad();
-		if (!isDevelopment) {
+		if (!isDevelopment && process.env.TTSMM_EX_DISABLE_AUTO_UPDATES !== '1') {
 			void import('electron-updater').then(({ autoUpdater }) => autoUpdater.checkForUpdates()).catch(log.error);
 		}
 	});

@@ -43,6 +43,7 @@ export type ProgressChangeCallback = (
 
 export interface ElectronApi {
 	platform: ElectronPlatform;
+	uiSmokeMode: boolean;
 	log: ElectronLogFunctions;
 	updateLogLevel: (level: LogLevel) => void;
 	getUserDataPath: () => Promise<string>;

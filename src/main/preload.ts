@@ -22,6 +22,8 @@ const subscribe = <TArgs extends unknown[]>(channel: ValidChannel, callback: (..
 
 const electronApi: ElectronApi = {
 	platform: process.platform,
+	uiSmokeMode:
+		process.env.TTSMM_EX_UI_SMOKE === '1' || process.argv.includes('--ttsmm-ex-ui-smoke') || process.argv.includes('ttsmm-ex-ui-smoke'),
 	log: log.functions,
 	updateLogLevel: (level) => {
 		send(ipcSendChannels.updateLogLevel, level);

@@ -74,6 +74,8 @@ Other useful commands:
 npm run start:desktop
 npm run validate
 npm run smoke:steamworks
+npm run smoke:ui
+npm run smoke:ui:packaged
 ```
 
 This repo assumes Steamworks is available. Source builds without it are not a supported setup.
@@ -185,6 +187,8 @@ Use the existing app theme variables from `src/renderer/theme.ts` and `src/rende
 - `npm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `npm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
+- `npm run smoke:ui`: build the app, launch Electron with an isolated user-data directory, Steamworks bypass, and deterministic UI-smoke state, then verify startup, Collection, Block Lookup, and Settings render nonblank screenshots under `release/smoke/ui`
+- `npm run smoke:ui:packaged`: package the app, launch the packaged `app.asar` with the same isolated UI-smoke profile, then run the same GUI checkpoints against packaged app contents
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`
 - `npm run package`: package for the current platform default target
 - `npm run package:linux`: build both Linux package formats

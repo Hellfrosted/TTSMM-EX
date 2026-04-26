@@ -78,6 +78,35 @@ export const setActiveCollection = (payload?: ModCollection): AppAction => ({
 });
 
 function createInitialAppState(): AppStateData {
+	if (window.electron.uiSmokeMode) {
+		const activeCollection: ModCollection = {
+			name: 'default',
+			mods: []
+		};
+		const allCollections = new Map<string, ModCollection>([[activeCollection.name, activeCollection]]);
+		const allCollectionNames = new Set<string>([activeCollection.name]);
+
+		return {
+			config: {
+				...DEFAULT_CONFIG,
+				activeCollection: activeCollection.name,
+				currentPath: '/collections/main'
+			},
+			userDataPath: '',
+			mods: new SessionMods('', []),
+			allCollections,
+			allCollectionNames,
+			activeCollection,
+			firstModLoad: true,
+			sidebarCollapsed: true,
+			launchingGame: false,
+			initializedConfigs: true,
+			savingConfig: false,
+			configErrors: {},
+			forceReloadMods: false
+		};
+	}
+
 	return {
 		config: DEFAULT_CONFIG,
 		userDataPath: '',
