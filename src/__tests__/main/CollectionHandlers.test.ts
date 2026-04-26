@@ -5,10 +5,10 @@ import {
 	listCollections,
 	readCollectionFile,
 	refersToSameCollectionPath,
-	registerCollectionHandlers,
 	renameCollectionFile,
 	updateCollectionFile
-} from '../../main/ipc/collection-handlers';
+} from '../../main/collection-store';
+import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
 
