@@ -7,7 +7,7 @@ import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-re
 import api from 'renderer/Api';
 import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
-import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
+import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	MainCollectionVirtualHeaderRow,
@@ -43,7 +43,13 @@ import {
 	measureBodyCellWidth,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
-import { createMainCollectionTableModel } from './main-collection-table-model';
+import {
+	createMainCollectionTableModel,
+	getMainCollectionDefaultSortState,
+	getMainCollectionSorterCompare,
+	sortMainCollectionRows,
+	type MainCollectionSorter
+} from './main-collection-table-model';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -361,11 +367,6 @@ interface MainCollectionFilter {
 	value: Key;
 }
 
-type MainCollectionSortOrder = 'ascend' | 'descend' | null | undefined;
-type MainCollectionSorter =
-	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
-	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
-	| undefined;
 interface StateTagConfig {
 	tone?: keyof typeof APP_TAG_STYLES;
 	rank: number;
@@ -776,39 +777,6 @@ interface MainCollectionTableColumn extends MainCollectionRowColumn, MainCollect
 	onHeaderCell?: (column: MainCollectionTableColumn) => ResizableHeaderCellProps;
 }
 
-function getSorterCompare(sorter: MainCollectionSorter) {
-	if (typeof sorter === 'function') {
-		return sorter;
-	}
-
-	if (sorter && typeof sorter === 'object' && 'compare' in sorter && typeof sorter.compare === 'function') {
-		return sorter.compare;
-	}
-
-	return undefined;
-}
-
-function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], sortState: MainSortState) {
-	return measurePerf(
-		'collection.table.sortRows',
-		() => {
-			const column = columns.find((candidate) => candidate.title === sortState.columnTitle);
-			const compare = getSorterCompare(column?.sorter);
-			if (!compare) {
-				return rows;
-			}
-
-			const direction = sortState.order === 'ascend' ? 1 : -1;
-			return [...rows].sort((left, right) => direction * compare(left, right, sortState.order));
-		},
-		{
-			rows: rows.length,
-			column: sortState.columnTitle,
-			order: sortState.order
-		}
-	);
-}
-
 function getHeaderCellProps(column: MainCollectionTableColumn) {
 	return column.onHeaderCell?.(column);
 }
@@ -1056,18 +1024,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setMainColumnWidthCallback
 	]);
 	useEffect(() => {
-		if (columns.some((column) => column.title === sortState.columnTitle && getSorterCompare(column.sorter))) {
-			return;
+		const nextSortState = getMainCollectionDefaultSortState(columns, sortState);
+		if (nextSortState !== sortState) {
+			setSortState(nextSortState);
 		}
-
-		const defaultColumn =
-			columns.find((column) => column.title === MainColumnTitles.NAME && getSorterCompare(column.sorter)) ??
-			columns.find((column) => getSorterCompare(column.sorter));
-		if (defaultColumn) {
-			setSortState({ columnTitle: defaultColumn.title, order: 'ascend' });
-		}
-	}, [columns, setSortState, sortState.columnTitle]);
-	const sortedRows = useMemo(() => sortRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
+	}, [columns, setSortState, sortState]);
+	const sortedRows = useMemo(() => sortMainCollectionRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
 	const tableColumnDefs = useMemo<ColumnDef<DisplayModData>[]>(
 		() => [
 			{
@@ -1166,7 +1128,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								sortState={sortState}
 								sortedRowsCount={sortedRows.length}
 								getHeaderCellProps={getHeaderCellProps}
-								isColumnSortable={(column) => !!getSorterCompare(column.sorter)}
+								isColumnSortable={(column) => !!getMainCollectionSorterCompare(column.sorter)}
 								onSortStateChange={setSortState}
 							/>
 						</thead>
