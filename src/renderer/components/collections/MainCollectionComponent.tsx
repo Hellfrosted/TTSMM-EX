@@ -37,7 +37,6 @@ import {
 	getMainCollectionTableScrollWidth,
 	getMeasurementRowSignature,
 	getRenderedColumnBodyCells,
-	getResponsiveMainColumnTitles,
 	measureBodyCellWidth,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
@@ -719,19 +718,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 
 const mainColumnSchemaByTitle = new Map(MAIN_COLUMN_SCHEMA.map((column) => [column.title, column]));
 
-function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0): ColumnSchema[] {
-	return getResponsiveMainColumnTitles(config, availableTableWidth)
-		.map((columnTitle) => mainColumnSchemaByTitle.get(columnTitle))
-		.filter((column): column is ColumnSchema => !!column);
-}
-
 function getColumnSchema(
 	props: MainCollectionSchemaProps,
-	columnWidthConfig?: Record<string, number>,
-	availableTableWidth = 0
+	activeColumnTitles: MainColumnTitles[],
+	columnWidthConfig?: Record<string, number>
 ): MainCollectionTableColumn[] {
-	const { config } = props;
-	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
+	const activeColumns = activeColumnTitles
+		.map((columnTitle) => mainColumnSchemaByTitle.get(columnTitle))
+		.filter((column): column is ColumnSchema => !!column);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME)
 		? MainColumnTitles.NAME
 		: MainColumnTitles.ID;
@@ -981,7 +975,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const sortState = useMainCollectionTableStore((state) => state.sortState);
 	const setSortState = useMainCollectionTableStore((state) => state.setSortState);
 	const columns = useMemo<MainCollectionTableColumn[]>(() => {
-		return getColumnSchema(columnSchemaProps, resolvedColumnWidths, availableTableWidth).map((column) => {
+		return getColumnSchema(columnSchemaProps, activeColumnTitles, resolvedColumnWidths).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
 			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
 			if (!columnTitle || !currentWidth) {
@@ -1008,11 +1002,11 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		}) as MainCollectionTableColumn[];
 	}, [
 		columnActiveConfig,
+		activeColumnTitles,
 		columnSchemaProps,
 		draggingColumnTitle,
 		hiddenColumnTitles,
 		openMainViewSettingsCallback,
-		availableTableWidth,
 		resolvedColumnWidths,
 		setMainColumnOrderCallback,
 		setMainColumnVisibilityCallback,
