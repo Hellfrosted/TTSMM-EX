@@ -6,10 +6,10 @@ import type { CollectionNamingModalType } from './CollectionNamingModal';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
 const collectionToolbarFocusClassName =
-	'focus-visible:relative focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+	'focus-visible:relative focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 const collectionToolbarControlClassName = [
-	'box-border min-h-control rounded-md border border-border bg-surface text-text',
-	'disabled:cursor-not-allowed disabled:opacity-55',
+	'box-border min-h-control rounded-md border border-border bg-surface-elevated text-text',
+	'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
 	collectionToolbarFocusClassName
 ].join(' ');
 const collectionToolbarButtonBaseClassName = [
@@ -23,7 +23,7 @@ const collectionToolbarPrimaryButtonClassName = [
 ].join(' ');
 const collectionToolbarDangerButtonClassName = [
 	collectionToolbarButtonBaseClassName,
-	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
+	'border-error bg-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_86%,var(--app-color-surface-alt))]'
 ].join(' ');
 const collectionToolbarLabelClassName = 'inline-flex min-w-0 items-center overflow-hidden text-ellipsis max-[1100px]:hidden';
 
@@ -157,7 +157,7 @@ function CollectionManagementToolbarComponent({
 					<div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 max-[1100px]:gap-x-2.5 max-[720px]:gap-2">
 						<div className="min-w-[220px] max-w-[360px] flex-[0_1_280px] max-[1100px]:max-w-none max-[1100px]:basis-full max-[720px]:min-w-0">
 							<select
-								className={[collectionToolbarControlClassName, 'w-full px-3'].join(' ')}
+								className={[collectionToolbarControlClassName, 'w-full px-[11px]'].join(' ')}
 								value={activeCollection?.name || ''}
 								aria-label="Select the active collection"
 								onChange={(event) => {
@@ -310,7 +310,7 @@ function CollectionManagementToolbarComponent({
 							<div className="flex min-h-control w-full items-center">
 								<div className="flex w-full min-w-0">
 									<input
-										className={[collectionToolbarControlClassName, 'min-w-0 flex-auto rounded-r-none px-3'].join(' ')}
+										className={[collectionToolbarControlClassName, 'min-w-0 flex-auto rounded-r-none px-[11px]'].join(' ')}
 										aria-label="Search mods by name, ID, author, or tag"
 										placeholder="Search mods by name, ID, author, or tag"
 										onChange={(event) => {
