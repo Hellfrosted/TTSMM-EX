@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks, { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks';
 import ModFetcher from '../../main/mod-fetcher';
 import { scanModInventory } from '../../main/mod-inventory-scan';
+import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { createTempDir } from './test-utils';
 
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
@@ -120,6 +121,19 @@ describe('ModFetcher', () => {
 		).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadePack' })]);
 
 		expect(fetchMods).toHaveBeenCalledTimes(1);
+	});
+
+	it('reports inventory progress through a shared progress tracker', async () => {
+		const sender = { send: vi.fn() };
+		const progress = new ModInventoryProgress(sender);
+		progress.localMods = 1;
+		progress.workshopMods = 1;
+
+		await progress.addLoaded(1);
+		progress.finish();
+
+		expect(sender.send).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), 0.5, 'Loading mod details');
+		expect(sender.send).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), 1, 'Finished loading mods');
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {

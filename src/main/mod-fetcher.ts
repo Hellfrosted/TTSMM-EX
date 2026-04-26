@@ -1,9 +1,8 @@
 import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
-import { Mutex } from 'async-mutex';
 
-import { ModData, ModType, ProgressTypes, ValidChannel } from '../model';
+import { ModData, ModType } from '../model';
 import { isSuccessful } from '../util/Promise';
 
 import Steamworks, {
@@ -18,6 +17,7 @@ import Steamworks, {
 import { clearPreviewAllowlist, registerPreviewImage } from './preview-protocol';
 import { resolvePersonaName } from './steam-persona-cache';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
+import { ModInventoryProgress } from './mod-inventory-progress';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
@@ -315,13 +315,7 @@ export default class ModFetcher {
 
 	skipWorkshopSteamworks: boolean;
 
-	localMods: number;
-
-	workshopMods: number;
-
-	loadedMods: number;
-
-	modCountMutex: Mutex;
+	progress: ModInventoryProgress;
 
 	constructor(
 		progressSender: ProgressSender,
@@ -336,22 +330,13 @@ export default class ModFetcher {
 		this.platform = platform;
 		this.skipWorkshopSteamworks = options.skipWorkshopSteamworks ?? isSteamworksBypassEnabled();
 
-		this.localMods = 0;
-		this.workshopMods = 0;
-		this.loadedMods = 0;
-		this.modCountMutex = new Mutex();
+		this.progress = new ModInventoryProgress(progressSender);
 
 		knownWorkshopMods.forEach((workshopid) => this.knownWorkshopMods.add(workshopid));
 	}
 
 	updateModLoadingProgress(size: number) {
-		this.modCountMutex.runExclusive(() => {
-			const current = this.loadedMods;
-			this.loadedMods += size;
-			const total = (this.localMods || 0) + (this.workshopMods || 0);
-			log.silly(`Loaded ${size} new mods. Old total: ${current}, Local: ${this.localMods}, Workshop: ${this.workshopMods}`);
-			this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, (current + size) / total, 'Loading mod details');
-		});
+		this.progress.addLoaded(size);
 	}
 
 	async fetchLocalMods(localModDirs: string[]): Promise<ModData[]> {
@@ -517,7 +502,7 @@ export default class ModFetcher {
 
 		while (lastProcessed > 0) {
 			const { items, totalItems, numReturned } = await getSteamSubscribedPage(pageNum);
-			this.workshopMods = totalItems;
+			this.progress.workshopMods = totalItems;
 			numProcessedWorkshop += numReturned;
 			lastProcessed = numReturned;
 			log.debug(`Total items: ${totalItems}, Returned by Steam: ${numReturned}, Processed this chunk: ${items.length}`);
@@ -554,7 +539,7 @@ export default class ModFetcher {
 
 		// continue to query steam until all dependencies are met via BFS search
 		while (this.knownWorkshopMods.size > 0) {
-			this.workshopMods += missingKnownWorkshopMods.size;
+			this.progress.workshopMods += missingKnownWorkshopMods.size;
 
 			missingKnownWorkshopMods = await this.processWorkshopModList(workshopMap, knownInvalidMods, missingKnownWorkshopMods);
 			this.knownWorkshopMods.forEach((workshopID) => {
@@ -574,7 +559,7 @@ export default class ModFetcher {
 		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...knownWorkshopMods]);
 
 		log.debug(`All subscribed items: [${allSubscribedItems}]`);
-		this.workshopMods = workshopIDs.size;
+		this.progress.workshopMods = workshopIDs.size;
 		const workshopDetailsMap = await getWorkshopDetailsMap(workshopIDs);
 
 		const modResponses = await Promise.allSettled<ModData | null>(
@@ -596,7 +581,7 @@ export default class ModFetcher {
 					.readdirSync(this.localPath, { withFileTypes: true })
 					.filter((dirent) => dirent.isDirectory())
 					.map((dirent) => dirent.name);
-				this.localMods = localModDirs.length;
+				this.progress.localMods = localModDirs.length;
 			} catch {
 				log.error(`Failed to read local mods in ${localModDirs}`);
 			}
@@ -606,7 +591,7 @@ export default class ModFetcher {
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done
-		this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, 1.0, 'Finished loading mods'); // Return a value > 1.0 to signal we are done
+		this.progress.finish(); // Return a value > 1.0 to signal we are done
 		return allMods;
 	}
 }
