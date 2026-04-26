@@ -16,8 +16,8 @@ const PRODUCTION_RENDERER_CSP_DIRECTIVES = [
 	['default-src', "'self'"],
 	['img-src', "'self'", 'data:', 'blob:', 'image:', 'https:'],
 	['connect-src', "'self'", 'https:'],
-	['style-src', "'self'", "'unsafe-inline'"],
-	['script-src', "'self'"],
+	['style-src', "'self'", 'file:', "'unsafe-inline'"],
+	['script-src', "'self'", 'file:'],
 	['object-src', "'none'"],
 	['base-uri', "'self'"]
 ] as const;

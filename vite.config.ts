@@ -73,7 +73,7 @@ function rendererContentSecurityPolicyPlugin(isDevelopment: boolean): PluginOpti
 	return {
 		name: 'ttsmm-renderer-csp',
 		transformIndexHtml(html) {
-			return applyRendererContentSecurityPolicy(html, { isDevelopment });
+			return applyRendererContentSecurityPolicy(html, { isDevelopment }).replaceAll(' crossorigin', '');
 		}
 	};
 }
@@ -137,6 +137,7 @@ export function createRendererConfig(isDevelopment: boolean): InlineConfig {
 	return {
 		configFile: false,
 		root: resolvePath('src/renderer'),
+		base: './',
 		resolve: {
 			alias
 		},
