@@ -27,11 +27,6 @@ import {
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { useGameRunning } from '../hooks/collections/useGameRunning';
-import { useGameLaunch } from '../hooks/collections/useGameLaunch';
-import { useCollections } from '../hooks/collections/useCollections';
-import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
-import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
 import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
@@ -41,6 +36,7 @@ import {
 	setMainCollectionColumnVisibility,
 	setMainCollectionColumnWidth
 } from '../view-config-persistence';
+import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
 const loadCollectionManagerModal = () => import('../components/collections/CollectionManagerModal');
@@ -152,12 +148,6 @@ const MIN_SIDE_BY_SIDE_WIDTH = 1120;
 const MIN_COLLECTION_TABLE_WIDTH = 640;
 const MIN_COLLECTION_TABLE_HEIGHT = 320;
 
-interface ValidationCallbacks {
-	cancelValidation: () => void;
-	resetValidationState: () => void;
-	validateActiveCollection: (launchIfValid: boolean, options?: { config?: CollectionWorkspaceAppState['config'] }) => Promise<void>;
-}
-
 interface CollectionViewRouteProps {
 	appState: CollectionWorkspaceAppState;
 }
@@ -171,56 +161,23 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useState<HalfDetailsLayout>();
 	const [prewarmAlternateDetails, setPrewarmAlternateDetails] = useState(false);
-	const validationCallbacksRef = useRef<ValidationCallbacks | undefined>(undefined);
-	const hasValidatedLoadedModsRef = useRef(false);
 	const guidedFixActive = false;
 	const { activeCollection, config, loadingMods, mods, updateState } = appState;
 
 	const {
 		gameRunning,
 		overrideGameRunning,
-		setOverrideGameRunning,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset
-	} = useGameRunning();
-
-	const { launchGameWithErrors, setLaunchGameWithErrors, launchMods } = useGameLaunch({
+		launchGameWithErrors,
+		setLaunchGameWithErrors,
+		closeLaunchModal,
+		collections,
+		validation,
+		currentValidationStatus,
+		currentCollectionErrors
+	} = useCollectionWorkspace({
 		appState,
 		openNotification,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset,
-		setOverrideGameRunning
-	});
-
-	const closeLaunchModal = useCallback(
-		async (mods: ModData[]) => {
-			await launchMods(mods);
-			setModalType(CollectionManagerModalType.NONE);
-		},
-		[launchMods]
-	);
-
-	const collections = useCollections({
-		appState,
-		openNotification,
-		cancelValidation: () => validationCallbacksRef.current?.cancelValidation(),
-		resetValidationState: () => validationCallbacksRef.current?.resetValidationState(),
-		validateActiveCollection: async (launchIfValid: boolean) => {
-			await validationCallbacksRef.current?.validateActiveCollection(launchIfValid);
-		},
 		setModalType
-	});
-
-	const validation = useCollectionValidation({
-		appState,
-		openNotification,
-		setModalType,
-		persistCollection: collections.persistCollection,
-		launchMods: closeLaunchModal
 	});
 
 	const {
@@ -241,45 +198,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		setModSubset,
 		recalculateModData
 	} = collections;
-	const {
-		collectionErrors,
-		validatingMods,
-		lastValidationStatus,
-		setCollectionErrors,
-		validateActiveCollection,
-		isValidationCurrentForCollection
-	} = validation;
-
-	const currentValidationStatus = isValidationCurrentForCollection(appState.activeCollection) ? lastValidationStatus : undefined;
-	const currentCollectionErrors = isValidationCurrentForCollection(appState.activeCollection) ? collectionErrors : undefined;
-
-	useEffect(() => {
-		validationCallbacksRef.current = {
-			cancelValidation: validation.cancelValidation,
-			resetValidationState: validation.resetValidationState,
-			validateActiveCollection: validation.validateActiveCollection
-		};
-	}, [validation.cancelValidation, validation.resetValidationState, validation.validateActiveCollection]);
-
-	useEffect(() => {
-		if (loadingMods) {
-			hasValidatedLoadedModsRef.current = false;
-			return;
-		}
-
-		recalculateModData();
-		if (!hasValidatedLoadedModsRef.current) {
-			hasValidatedLoadedModsRef.current = true;
-			void validateActiveCollection(false);
-		}
-	}, [loadingMods, recalculateModData, validateActiveCollection]);
-
-	useModMetadata(appState, () => {
-		recalculateModData();
-		if (!loadingMods) {
-			void validateActiveCollection(false);
-		}
-	});
+	const { validatingMods, setCollectionErrors, validateActiveCollection } = validation;
 
 	const launchGame = useCallback(async () => {
 		api.logger.info('validating and launching game');
