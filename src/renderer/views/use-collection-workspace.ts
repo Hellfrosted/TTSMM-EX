@@ -1,5 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
+import api from 'renderer/Api';
+import { getCollectionModDataList } from 'renderer/collection-mod-projection';
 import { markPerfInteraction } from 'renderer/perf';
 import { useCollections } from 'renderer/hooks/collections/useCollections';
 import { useCollectionValidation } from 'renderer/hooks/collections/useCollectionValidation';
@@ -33,6 +35,7 @@ interface CollectionWorkspaceResult {
 	getModDetails: (uid: string, record: ModData, showBigDetails?: boolean) => void;
 	gameRunning: ReturnType<typeof useGameRunning>['gameRunning'];
 	bigDetails: boolean;
+	launchGame: () => Promise<void>;
 	launchGameWithErrors: ReturnType<typeof useGameLaunch>['launchGameWithErrors'];
 	modalType: CollectionManagerModalType;
 	openMainViewSettings: () => void;
@@ -189,6 +192,32 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		},
 		[setCollectionErrors, validateActiveCollection]
 	);
+	const launchGame = useCallback(async () => {
+		api.logger.info('validating and launching game');
+
+		if (loadingMods) {
+			return;
+		}
+
+		if (currentValidationStatus && !collections.madeEdits && activeCollection) {
+			const modDataList = getCollectionModDataList(appState.mods, activeCollection);
+			await closeLaunchModal(modDataList);
+			return;
+		}
+
+		appState.updateState({ launchingGame: true });
+		setCollectionErrors(undefined);
+		await validateActiveCollection(true);
+	}, [
+		activeCollection,
+		appState,
+		closeLaunchModal,
+		collections.madeEdits,
+		currentValidationStatus,
+		loadingMods,
+		setCollectionErrors,
+		validateActiveCollection
+	]);
 
 	return {
 		clearGameLaunchOverrideTimeout,
@@ -204,6 +233,7 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		detailsActiveTabKey,
 		getModDetails,
 		gameRunning,
+		launchGame,
 		launchGameWithErrors,
 		modalType,
 		openMainViewSettings,

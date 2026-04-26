@@ -165,6 +165,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		closeModal,
 		gameRunning,
 		getModDetails: handleGetModDetails,
+		launchGame,
 		overrideGameRunning,
 		launchGameWithErrors,
 		modalType,
@@ -205,35 +206,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		toggleMod,
 		setModSubset
 	} = collections;
-	const { validatingMods, setCollectionErrors, validateActiveCollection } = validation;
-
-	const launchGame = useCallback(async () => {
-		api.logger.info('validating and launching game');
-
-		if (loadingMods) {
-			return;
-		}
-
-		if (currentValidationStatus && !madeEdits && activeCollection) {
-			const modDataList = getCollectionModDataList(mods, activeCollection);
-			await closeLaunchModal(modDataList);
-			return;
-		}
-
-		updateState({ launchingGame: true });
-		setCollectionErrors(undefined);
-		await validateActiveCollection(true);
-	}, [
-		activeCollection,
-		closeLaunchModal,
-		currentValidationStatus,
-		loadingMods,
-		madeEdits,
-		mods,
-		setCollectionErrors,
-		updateState,
-		validateActiveCollection
-	]);
+	const { validatingMods } = validation;
 
 	const currentView = CollectionViewType.MAIN;
 
