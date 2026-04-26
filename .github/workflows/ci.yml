@@ -31,3 +31,11 @@ jobs:
 
       - name: Validate app
         run: npm run validate
+
+      - name: Smoke UI
+        if: runner.os == 'Windows'
+        run: npm run smoke:ui
+
+      - name: Smoke UI
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run smoke:ui
