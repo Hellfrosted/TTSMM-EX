@@ -3,6 +3,7 @@ import { MainColumnTitles, ModType, compareModDataDisplayName, type DisplayModDa
 import {
 	createMainCollectionTableModel,
 	getMainCollectionDefaultSortState,
+	getMainCollectionSelectionModel,
 	sortMainCollectionRows
 } from '../../renderer/components/collections/main-collection-table-model';
 
@@ -73,5 +74,17 @@ describe('main-collection-table-model', () => {
 			columnTitle: MainColumnTitles.NAME,
 			order: 'ascend'
 		});
+	});
+
+	it('derives visible selection state and select-all-visible updates', () => {
+		const rows = [createRow('workshop:1', 'Alpha', 300), createRow('workshop:2', 'Bravo', 200), createRow('workshop:3', 'Charlie', 100)];
+		const selection = getMainCollectionSelectionModel(['workshop:2', 'local:kept'], rows);
+
+		expect(selection.visibleModIds).toEqual(['workshop:1', 'workshop:2', 'workshop:3']);
+		expect(selection.selectedVisibleCount).toBe(1);
+		expect(selection.allVisibleSelected).toBe(false);
+		expect(selection.someVisibleSelected).toBe(true);
+		expect(selection.getNextCollectionMods(true)).toEqual(new Set(['local:kept', 'workshop:1', 'workshop:2', 'workshop:3']));
+		expect(selection.getNextCollectionMods(false)).toEqual(new Set(['local:kept']));
 	});
 });

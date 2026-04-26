@@ -5,7 +5,6 @@ import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
-import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
@@ -46,6 +45,7 @@ import {
 import {
 	createMainCollectionTableModel,
 	getMainCollectionDefaultSortState,
+	getMainCollectionSelectionModel,
 	getMainCollectionSorterCompare,
 	sortMainCollectionRows,
 	type MainCollectionSorter
@@ -1076,16 +1076,16 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					start: index * estimatedRowHeight
 				}));
 	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), tableRows.length * estimatedRowHeight);
-	const selectionState = useMemo(() => getCollectionSelectionState(collection.mods, sortedRows), [collection.mods, sortedRows]);
+	const selectionState = useMemo(() => getMainCollectionSelectionModel(collection.mods, sortedRows), [collection.mods, sortedRows]);
 	const setAllVisibleSelected = useCallback(
 		(selected: boolean) => {
 			markPerfInteraction('collection.rowSelect.allVisible', {
 				selected,
 				rows: sortedRows.length
 			});
-			setEnabledModsCallback(setVisibleCollectionRowsSelected(collection.mods, sortedRows, selected));
+			setEnabledModsCallback(selectionState.getNextCollectionMods(selected));
 		},
-		[collection.mods, setEnabledModsCallback, sortedRows]
+		[selectionState, setEnabledModsCallback, sortedRows.length]
 	);
 	const setRowSelected = useCallback(
 		(record: DisplayModData, selected: boolean) => {

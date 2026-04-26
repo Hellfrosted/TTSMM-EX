@@ -1,4 +1,5 @@
 import { MainColumnTitles, type DisplayModData, type MainCollectionConfig } from 'model';
+import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { measurePerf } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
 import { ALL_MAIN_COLUMN_TITLES, getActiveMainColumnTitles, getResponsiveMainColumnTitles } from './main-collection-table-layout';
@@ -85,4 +86,13 @@ export function sortMainCollectionRows(rows: DisplayModData[], columns: MainColl
 			order: sortState.order
 		}
 	);
+}
+
+export function getMainCollectionSelectionModel(collectionMods: string[], visibleRows: DisplayModData[]) {
+	const selectionState = getCollectionSelectionState(collectionMods, visibleRows);
+
+	return {
+		...selectionState,
+		getNextCollectionMods: (selected: boolean) => setVisibleCollectionRowsSelected(collectionMods, visibleRows, selected)
+	};
 }
