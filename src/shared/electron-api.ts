@@ -7,7 +7,7 @@ import type {
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from './block-lookup';
-import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
+import type { CollectionLifecycleCommand, LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
 
 export type ElectronLogFunctions = {
 	info: (message: unknown) => void;
@@ -36,9 +36,8 @@ export interface ElectronApi {
 	updateConfig: (config: AppConfig) => Promise<boolean>;
 	readCollection: (collection: string) => Promise<ModCollection | null>;
 	readCollectionsList: () => Promise<string[]>;
-	updateCollection: (collection: ModCollection) => Promise<boolean>;
-	renameCollection: (collection: ModCollection, newName: string) => Promise<boolean>;
-	deleteCollection: (collection: string) => Promise<boolean>;
+	saveCollectionContent: (collection: ModCollection) => Promise<boolean>;
+	executeCollectionLifecycleCommand: (command: CollectionLifecycleCommand) => Promise<boolean>;
 	pathExists: (targetPath: string, expectedType?: PathType) => Promise<boolean>;
 	discoverGameExecutable: () => Promise<string | null>;
 	selectPath: (directory: boolean, title: string) => Promise<string | null>;

@@ -11,7 +11,7 @@ import type {
 	BlockLookupSettings
 } from 'shared/block-lookup';
 import type { ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
-import type { SteamworksStatus } from 'shared/ipc';
+import type { CollectionLifecycleCommand, SteamworksStatus } from 'shared/ipc';
 
 const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
 
@@ -20,7 +20,7 @@ export function parseExtraLaunchParams(extraParams: string): string[] {
 	return [...matches].map((match) => match[1] ?? match[2] ?? match[0]).filter((arg) => arg.length > 0);
 }
 
-class API {
+export class API {
 	platform: ElectronPlatform;
 
 	userDataPath: string | undefined;
@@ -157,16 +157,12 @@ class API {
 		return window.electron.readCollectionsList();
 	}
 
-	updateCollection(collection: ModCollection): Promise<boolean> {
-		return window.electron.updateCollection(collection);
+	saveCollectionContent(collection: ModCollection): Promise<boolean> {
+		return window.electron.saveCollectionContent(collection);
 	}
 
-	deleteCollection(collection: string): Promise<boolean> {
-		return window.electron.deleteCollection(collection);
-	}
-
-	renameCollection(collection: ModCollection, newName: string): Promise<boolean> {
-		return window.electron.renameCollection(collection, newName);
+	executeCollectionLifecycleCommand(command: CollectionLifecycleCommand): Promise<boolean> {
+		return window.electron.executeCollectionLifecycleCommand(command);
 	}
 
 	selectPath(directory: boolean, title: string): Promise<string | null> {

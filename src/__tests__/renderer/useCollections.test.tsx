@@ -121,7 +121,7 @@ describe('useCollections', () => {
 		});
 
 		await waitFor(() => {
-			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'fresh', mods: [] });
+			expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'create', collection: { name: 'fresh', mods: [] } });
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'fresh' }));
 		});
 		expect(appState.allCollections.get('default')).toBe(defaultCollection);
@@ -163,7 +163,7 @@ describe('useCollections', () => {
 		});
 
 		await waitFor(() => {
-			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'default', mods: ['local:dirty'] });
+			expect(window.electron.saveCollectionContent).toHaveBeenCalledWith({ name: 'default', mods: ['local:dirty'] });
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'alt' }));
 		});
 		expect(resetValidationState).toHaveBeenCalled();
@@ -225,8 +225,8 @@ describe('useCollections', () => {
 			await result.current.createNewCollection('fresh');
 		});
 
-		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'fresh', mods: [] });
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('fresh');
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'create', collection: { name: 'fresh', mods: [] } });
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'delete', collection: 'fresh' });
 		expect(appState.allCollections.has('fresh')).toBe(false);
 		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.config.activeCollection).toBe('default');
@@ -255,8 +255,16 @@ describe('useCollections', () => {
 			await result.current.renameCollection('renamed');
 		});
 
-		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(1, { name: 'default', mods: ['local:dirty'] }, 'renamed');
-		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(2, { name: 'renamed', mods: ['local:dirty'] }, 'default');
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenNthCalledWith(1, {
+			action: 'rename',
+			collection: { name: 'default', mods: ['local:dirty'] },
+			newName: 'renamed'
+		});
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenNthCalledWith(2, {
+			action: 'rename',
+			collection: { name: 'renamed', mods: ['local:dirty'] },
+			newName: 'default'
+		});
 		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.config.activeCollection).toBe('default');
 		expect(appState.allCollections.has('renamed')).toBe(false);
@@ -289,8 +297,8 @@ describe('useCollections', () => {
 			await result.current.deleteCollection();
 		});
 
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
-		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'archived', mods: ['local:dirty'] });
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'delete', collection: 'archived' });
+		expect(window.electron.saveCollectionContent).toHaveBeenCalledWith({ name: 'archived', mods: ['local:dirty'] });
 		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.config.activeCollection).toBe('archived');
 		expect(appState.allCollections.has('archived')).toBe(true);
@@ -322,7 +330,7 @@ describe('useCollections', () => {
 			await result.current.deleteCollection();
 		});
 
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('default');
+		expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'delete', collection: 'default' });
 		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.config.activeCollection).toBe('archived');
 		expect(appState.allCollections.has('default')).toBe(false);

@@ -1,4 +1,5 @@
 import type { ModData } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
 
 export enum ValidChannel {
 	STEAMWORKS_INITED = 'steamworks-inited',
@@ -19,10 +20,9 @@ export enum ValidChannel {
 	READ_CONFIG = 'read-config',
 	UPDATE_CONFIG = 'update-config',
 	READ_COLLECTION = 'read-collection',
-	DELETE_COLLECTION = 'delete-collection',
-	RENAME_COLLECTION = 'rename-collection',
 	READ_COLLECTIONS = 'read-collections-list',
 	UPDATE_COLLECTION = 'update-collection',
+	COLLECTION_LIFECYCLE_COMMAND = 'collection-lifecycle-command',
 	SELECT_PATH = 'select-path',
 	BLOCK_LOOKUP_READ_SETTINGS = 'block-lookup-read-settings',
 	BLOCK_LOOKUP_SAVE_SETTINGS = 'block-lookup-save-settings',
@@ -69,3 +69,18 @@ export interface ModMetadataUpdatePayload {
 	uid: string;
 	update: Partial<ModData>;
 }
+
+export type CollectionLifecycleCommand =
+	| {
+			action: 'create';
+			collection: ModCollection;
+	  }
+	| {
+			action: 'rename';
+			collection: ModCollection;
+			newName: string;
+	  }
+	| {
+			action: 'delete';
+			collection: string;
+	  };

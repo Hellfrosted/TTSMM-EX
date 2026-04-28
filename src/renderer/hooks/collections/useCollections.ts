@@ -83,7 +83,7 @@ export function useCollections({
 	const rawPersistCollection = useCallback(
 		async (collection: ModCollection) => {
 			const targetCollection = cloneCollection(collection);
-			const writeSuccess = await api.updateCollection(targetCollection);
+			const writeSuccess = await api.saveCollectionContent(targetCollection);
 			if (!writeSuccess) {
 				openNotification(
 					{
@@ -337,7 +337,7 @@ export function useCollections({
 				};
 
 				try {
-					const writeSuccess = await api.updateCollection(newCollection);
+					const writeSuccess = await api.executeCollectionLifecycleCommand({ action: 'create', collection: newCollection });
 					if (!writeSuccess) {
 						openNotification(
 							{
@@ -358,7 +358,7 @@ export function useCollections({
 
 					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Created collection ${name} but failed to activate it`);
 					if (!configPersisted) {
-						const rolledBack = await api.deleteCollection(name);
+						const rolledBack = await api.executeCollectionLifecycleCommand({ action: 'delete', collection: name });
 						if (!rolledBack) {
 							notifyRollbackFailure(`Failed to roll back collection ${name} after the config update failed`);
 						}
@@ -430,7 +430,7 @@ export function useCollections({
 				const oldName = activeCollection.name;
 
 				try {
-					const writeSuccess = await api.updateCollection(newCollection);
+					const writeSuccess = await api.executeCollectionLifecycleCommand({ action: 'create', collection: newCollection });
 					if (!writeSuccess) {
 						openNotification(
 							{
@@ -451,7 +451,7 @@ export function useCollections({
 
 					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Duplicated collection ${oldName} but failed to activate ${name}`);
 					if (!configPersisted) {
-						const rolledBack = await api.deleteCollection(name);
+						const rolledBack = await api.executeCollectionLifecycleCommand({ action: 'delete', collection: name });
 						if (!rolledBack) {
 							notifyRollbackFailure(`Failed to roll back duplicated collection ${name} after the config update failed`);
 						}
@@ -512,7 +512,7 @@ export function useCollections({
 				setSavingCollection(true);
 
 				try {
-					const updateSuccess = await api.renameCollection(cloneCollection(activeCollection), name);
+					const updateSuccess = await api.executeCollectionLifecycleCommand({ action: 'rename', collection: cloneCollection(activeCollection), newName: name });
 					if (!updateSuccess) {
 						openNotification(
 							{
@@ -539,7 +539,7 @@ export function useCollections({
 
 					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Renamed collection ${oldName} but failed to persist the active collection change`);
 					if (!configPersisted) {
-						const rolledBack = await api.renameCollection(renamedCollection, oldName);
+						const rolledBack = await api.executeCollectionLifecycleCommand({ action: 'rename', collection: renamedCollection, newName: oldName });
 						if (!rolledBack) {
 							notifyRollbackFailure(`Failed to restore collection ${oldName} after the config update failed`);
 						}
@@ -594,7 +594,7 @@ export function useCollections({
 			const deletedCollection = cloneCollection(activeCollection);
 
 			try {
-				const deleteSuccess = await api.deleteCollection(name);
+				const deleteSuccess = await api.executeCollectionLifecycleCommand({ action: 'delete', collection: name });
 				if (!deleteSuccess) {
 					openNotification(
 						{
@@ -638,7 +638,7 @@ export function useCollections({
 				const configPersisted = await persistConfigAndReportFailure(nextConfig, `Deleted collection ${name} but failed to persist the replacement selection`);
 				if (!configPersisted) {
 					if (createdFallbackCollection) {
-						const deletedFallbackCollection = await api.deleteCollection(nextActiveCollection.name);
+						const deletedFallbackCollection = await api.executeCollectionLifecycleCommand({ action: 'delete', collection: nextActiveCollection.name });
 						if (!deletedFallbackCollection) {
 							notifyRollbackFailure(`Failed to remove the fallback collection after the config update failed`);
 						}
@@ -725,7 +725,7 @@ export function useCollections({
 				setSavingCollection(true);
 				try {
 					const targetCollection = cloneCollection(collection);
-					const writeSuccess = await api.updateCollection(targetCollection);
+					const writeSuccess = await api.saveCollectionContent(targetCollection);
 					if (!writeSuccess) {
 						openNotification(
 							{

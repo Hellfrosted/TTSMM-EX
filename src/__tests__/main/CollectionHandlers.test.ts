@@ -4,10 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	listCollections,
 	readCollectionFile,
-	refersToSameCollectionPath,
 	renameCollectionFile,
 	updateCollectionFile
-} from '../../main/ipc/collection-handlers';
+} from '../../main/collection-lifecycle';
 import { createTempDir } from './test-utils';
 
 describe('collection handlers', () => {
@@ -110,7 +109,9 @@ describe('collection handlers', () => {
 		});
 	});
 
-	it('treats realpath aliases as the same collection path', () => {
+	it('treats realpath aliases as the same collection path during rename', () => {
+		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
+
 		const originalExistsSync = fs.existsSync;
 		const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockImplementation(((targetPath) => {
 			if (String(targetPath).endsWith('default.json') || String(targetPath).endsWith('Default.json')) {
@@ -127,9 +128,7 @@ describe('collection handlers', () => {
 			return String(targetPath);
 		}) as typeof fs.realpathSync.native);
 
-		expect(refersToSameCollectionPath(path.join(tempDir, 'collections', 'default.json'), path.join(tempDir, 'collections', 'Default.json'))).toBe(
-			true
-		);
+		expect(renameCollectionFile(tempDir, { name: 'default', mods: ['local:new'] }, 'Default')).toBe(true);
 
 		realpathNativeSpy.mockRestore();
 		existsSyncSpy.mockRestore();

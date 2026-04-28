@@ -338,7 +338,7 @@ export default function ConfigLoading() {
 				mods: [],
 				name: 'default'
 			};
-			const createdDefaultCollection = await api.updateCollection(defaultCollection);
+			const createdDefaultCollection = await api.executeCollectionLifecycleCommand({ action: 'create', collection: defaultCollection });
 			if (!createdDefaultCollection) {
 				haltBootOnPersistenceFailure('Failed to persist the default collection during boot');
 				return;

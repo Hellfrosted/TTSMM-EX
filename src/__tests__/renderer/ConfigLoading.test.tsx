@@ -80,7 +80,7 @@ describe('ConfigLoading', () => {
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ gameExec: discoveredExecutable }));
-			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'default', mods: [] });
+			expect(window.electron.executeCollectionLifecycleCommand).toHaveBeenCalledWith({ action: 'create', collection: { name: 'default', mods: [] } });
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'default' }));
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('default');
@@ -342,7 +342,7 @@ describe('ConfigLoading', () => {
 			userOverrides: new Map()
 		});
 		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
-		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.executeCollectionLifecycleCommand).mockResolvedValueOnce(false);
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -387,7 +387,7 @@ describe('ConfigLoading', () => {
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
 		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
-		expect(window.electron.updateCollection).not.toHaveBeenCalled();
+		expect(window.electron.executeCollectionLifecycleCommand).not.toHaveBeenCalled();
 	});
 
 	it('halts boot and surfaces a config load error instead of treating it as first launch', async () => {
@@ -410,6 +410,6 @@ describe('ConfigLoading', () => {
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
 		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
 		expect(window.electron.discoverGameExecutable).not.toHaveBeenCalled();
-		expect(window.electron.updateCollection).not.toHaveBeenCalled();
+		expect(window.electron.executeCollectionLifecycleCommand).not.toHaveBeenCalled();
 	});
 });

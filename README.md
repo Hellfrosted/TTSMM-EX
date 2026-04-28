@@ -94,6 +94,12 @@ Files of interest:
 - `config.json`
 - `collections/*.json`
 
+### Collection IPC Boundaries
+
+Collection Lifecycle Commands are the renderer-facing authority for collection identity changes: create, rename, and delete. IPC handlers register the lifecycle command channel and delegate file work to the collection lifecycle service; file-path helpers stay out of the IPC module.
+
+Collection Content Save is separate. It writes selected mod contents through `update-collection` / `saveCollectionContent` for an existing collection payload, and it is not the place to add rename, delete, create, or switch shortcuts.
+
 ## Packaging
 
 Artifacts are written to `release/build`.
