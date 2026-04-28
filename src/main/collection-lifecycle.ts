@@ -116,7 +116,15 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 			return false;
 		}
 
-		writeUtf8FileAtomic(newpath, serializedCollection);
+		try {
+			writeUtf8FileAtomic(newpath, serializedCollection);
+		} catch (error) {
+			if (!sameCollectionPath) {
+				throw error;
+			}
+
+			writeUtf8FileAtomic(oldpath, serializedCollection);
+		}
 		if (oldCollectionExists && oldpath !== newpath && !sameCollectionPath) {
 			try {
 				fs.unlinkSync(oldpath);
