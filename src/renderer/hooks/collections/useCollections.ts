@@ -419,7 +419,6 @@ export function useCollections({
 			openNotification,
 			persistConfigAndReportFailure,
 			persistDirtyDraft,
-			rawPersistCollection,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
 		]
@@ -506,11 +505,11 @@ export function useCollections({
 		[
 			appState,
 			commitCollectionState,
-			madeEdits,
+			dirtyDraft,
 			notifyRollbackFailure,
 			openNotification,
 			persistConfigAndReportFailure,
-			rawPersistCollection,
+			persistDirtyDraft,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
 		]
@@ -731,7 +730,6 @@ export function useCollections({
 			dirtyDraft,
 			persistConfigAndReportFailure,
 			persistDirtyDraft,
-			rawPersistCollection,
 			resetValidationState,
 			runQueuedCollectionWrite
 		]
