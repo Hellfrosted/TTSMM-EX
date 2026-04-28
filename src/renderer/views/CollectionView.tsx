@@ -24,6 +24,7 @@ import { useGameRunning } from '../hooks/collections/useGameRunning';
 import { useGameLaunch } from '../hooks/collections/useGameLaunch';
 import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
+import { useCollectionWorkspaceSession } from '../hooks/collections/useCollectionWorkspaceSession';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { cloneAppConfig } from '../hooks/collections/utils';
 import { writeConfig } from '../util/config-write';
@@ -195,7 +196,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const {
 		searchString,
-		madeEdits,
+		dirtyDraft,
 		filteredRows,
 		savingCollection,
 		onSearchChange,
@@ -220,8 +221,19 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		isValidationCurrentForCollection
 	} = validation;
 
-	const currentValidationStatus = isValidationCurrentForCollection(appState.activeCollection) ? lastValidationStatus : undefined;
-	const currentCollectionErrors = isValidationCurrentForCollection(appState.activeCollection) ? collectionErrors : undefined;
+	const collectionWorkspaceSession = useCollectionWorkspaceSession({
+		dirtyDraft,
+		savingCollection,
+		validationIsCurrent: isValidationCurrentForCollection(appState.activeCollection),
+		validationStatus: lastValidationStatus,
+		validationResult: collectionErrors,
+		validatingMods,
+		loadingMods: appState.loadingMods,
+		launchingGame: appState.launchingGame,
+		modalType,
+		gameRunning,
+		overrideGameRunning
+	});
 
 	useEffect(() => {
 		validationCallbacksRef.current = {
@@ -259,7 +271,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			return;
 		}
 
-		if (currentValidationStatus && !madeEdits && activeCollection) {
+		if (collectionWorkspaceSession.launchReadiness.canLaunchValidatedDraft && activeCollection) {
 			const modDataList = activeCollection.mods
 				.map((modUID) => getByUID(mods, modUID))
 				.filter((modData): modData is ModData => !!modData);
@@ -270,7 +282,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		appState.updateState({ launchingGame: true });
 		setCollectionErrors(undefined);
 		await validateActiveCollection(true);
-	}, [appState, closeLaunchModal, currentValidationStatus, madeEdits, setCollectionErrors, validateActiveCollection]);
+	}, [appState, closeLaunchModal, collectionWorkspaceSession.launchReadiness.canLaunchValidatedDraft, setCollectionErrors, validateActiveCollection]);
 
 	const currentView = CollectionViewType.MAIN;
 
@@ -532,14 +544,14 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({
-			madeEdits,
-			lastValidationStatus: currentValidationStatus,
+			madeEdits: collectionWorkspaceSession.dirtyDraft.hasChanges,
+			lastValidationStatus: collectionWorkspaceSession.validationStatus,
 			rows,
 			filteredRows: visibleRows,
 			height: '100%',
 			width: '100%',
 			collection: appState.activeCollection as ModCollection,
-			launchingGame: appState.launchingGame,
+			launchingGame: collectionWorkspaceSession.launchReadiness.launchingGame,
 			config: currentViewConfig,
 			setEnabledModsCallback: setEnabledMods,
 			setEnabledCallback: handleEnableMod,
@@ -552,7 +564,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		}),
 		[
 			appState.activeCollection,
-			appState.launchingGame,
+			collectionWorkspaceSession.launchReadiness.launchingGame,
 			currentViewConfig,
 			handleDisableMod,
 			handleEnableMod,
@@ -561,8 +573,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleSetMainColumnVisibility,
 			handleSetMainColumnOrder,
 			handleOpenViewSettings,
-			currentValidationStatus,
-			madeEdits,
+			collectionWorkspaceSession.dirtyDraft.hasChanges,
+			collectionWorkspaceSession.validationStatus,
 			rows,
 			setEnabledMods,
 			visibleRows
@@ -582,20 +594,18 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
-	const launchDisabled =
-		appState.loadingMods || overrideGameRunning || gameRunning || modalType !== CollectionManagerModalType.NONE || appState.launchingGame;
-	const validateIcon = validatingMods ? (
+	const validateIcon = collectionWorkspaceSession.validationProgress.validatingMods ? (
 		<SyncOutlined spin />
-	) : currentValidationStatus === true ? (
+	) : collectionWorkspaceSession.validationStatus === true ? (
 		<CheckCircleOutlined />
-	) : currentValidationStatus === false ? (
+	) : collectionWorkspaceSession.validationStatus === false ? (
 		<CloseCircleOutlined />
 	) : (
 		<SyncOutlined />
 	);
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
-				lastValidationStatus: currentValidationStatus,
+				lastValidationStatus: collectionWorkspaceSession.validationStatus,
 				appState,
 				halfLayoutMode: halfDetailsLayout,
 				currentRecord: displayedCurrentRecord,
@@ -670,9 +680,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
-					savingCollection={savingCollection}
+					savingCollection={collectionWorkspaceSession.saveProgress.savingCollection}
 					onSearchChangeCallback={onSearchChange}
-					madeEdits={madeEdits}
+					madeEdits={collectionWorkspaceSession.dirtyDraft.hasChanges}
 					onReloadModListCallback={handleReloadModList}
 					onSearchCallback={onSearch}
 					changeActiveCollectionCallback={changeActiveCollection}
@@ -694,7 +704,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						modalType={modalType}
 						launchGameWithErrors={!!launchGameWithErrors}
 						currentView={currentView}
-						collectionErrors={currentCollectionErrors}
+						collectionErrors={collectionWorkspaceSession.validationResult}
 						openNotification={openNotification}
 						closeModal={handleCloseModal}
 						currentRecord={displayedCurrentRecord}
@@ -820,20 +830,25 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						<Button
 							aria-label="Validate Collection"
 							icon={validateIcon}
-							danger={currentValidationStatus === false}
-							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
+							danger={collectionWorkspaceSession.validationStatus === false}
+							disabled={
+								appState.loadingMods ||
+								modalType !== CollectionManagerModalType.NONE ||
+								collectionWorkspaceSession.validationProgress.validatingMods ||
+								collectionWorkspaceSession.launchReadiness.launchingGame
+							}
 							onClick={() => {
 								handleValidateCollection();
 							}}
 						>
 							Validate Collection
 						</Button>
-						{appState.launchingGame ? (
+						{collectionWorkspaceSession.launchReadiness.launchingGame ? (
 							<Popover content="Already launching game">
 								<Button
 									type="primary"
-									loading={appState.launchingGame}
-									disabled={launchDisabled}
+									loading={collectionWorkspaceSession.launchReadiness.launchingGame}
+									disabled={collectionWorkspaceSession.launchReadiness.disabled}
 									onClick={() => {
 										void launchGame();
 									}}
@@ -845,8 +860,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 							<Popover content="Game already running">
 								<Button
 									type="primary"
-									loading={appState.launchingGame}
-									disabled={launchDisabled}
+									loading={collectionWorkspaceSession.launchReadiness.launchingGame}
+									disabled={collectionWorkspaceSession.launchReadiness.disabled}
 									onClick={() => {
 										void launchGame();
 									}}
@@ -857,8 +872,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						) : (
 							<Button
 								type="primary"
-								loading={appState.launchingGame}
-								disabled={launchDisabled}
+								loading={collectionWorkspaceSession.launchReadiness.launchingGame}
+								disabled={collectionWorkspaceSession.launchReadiness.disabled}
 								onClick={() => {
 									void launchGame();
 								}}

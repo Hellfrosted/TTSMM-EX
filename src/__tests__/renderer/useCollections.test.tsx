@@ -92,6 +92,10 @@ describe('useCollections', () => {
 		expect(appState.activeCollection?.mods).toEqual([`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]);
 		expect(appState.allCollections.get('archived')).toBe(archivedCollection);
 		expect(result.current.madeEdits).toBe(true);
+		expect(result.current.dirtyDraft).toEqual({
+			hasChanges: true,
+			collection: appState.activeCollection
+		});
 	});
 
 	it('preserves untouched collection objects when creating a collection', async () => {
@@ -168,6 +172,10 @@ describe('useCollections', () => {
 		});
 		expect(resetValidationState).toHaveBeenCalled();
 		expect(result.current.madeEdits).toBe(false);
+		expect(result.current.dirtyDraft).toEqual({
+			hasChanges: false,
+			collection: undefined
+		});
 		expect(appState.activeCollection).toEqual(altCollection);
 	});
 

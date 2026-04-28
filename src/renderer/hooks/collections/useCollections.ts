@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppConfig, AppState, CollectionManagerModalType, ModCollection, ModData, ModType, filterRows } from 'model';
 import api from 'renderer/Api';
 import type { NotificationProps } from 'model';
@@ -14,6 +14,11 @@ interface UseCollectionsOptions {
 	resetValidationState: () => void;
 	validateActiveCollection: (launchIfValid: boolean) => Promise<void>;
 	setModalType: (modalType: CollectionManagerModalType) => void;
+}
+
+export interface CollectionDirtyDraft {
+	hasChanges: boolean;
+	collection: ModCollection | undefined;
 }
 
 export function useCollections({
@@ -40,6 +45,14 @@ export function useCollections({
 	const getModManagerUID = useCallback(() => {
 		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
 	}, [appState.config.workshopID]);
+
+	const dirtyDraft = useMemo<CollectionDirtyDraft>(
+		() => ({
+			hasChanges: madeEdits,
+			collection: madeEdits ? appState.activeCollection : undefined
+		}),
+		[appState.activeCollection, madeEdits]
+	);
 
 	const hasSameSelectedMods = useCallback((selectedMods: string[], nextSelectedMods: string[]) => {
 		return selectedMods.length === nextSelectedMods.length && selectedMods.every((uid, index) => uid === nextSelectedMods[index]);
@@ -104,6 +117,17 @@ export function useCollections({
 			return runQueuedCollectionWrite(() => rawPersistCollection(collection));
 		},
 		[rawPersistCollection, runQueuedCollectionWrite]
+	);
+
+	const persistDirtyDraft = useCallback(
+		(draft: CollectionDirtyDraft) => {
+			if (!draft.hasChanges || !draft.collection) {
+				return Promise.resolve(true);
+			}
+
+			return rawPersistCollection(draft.collection);
+		},
+		[rawPersistCollection]
 	);
 
 	const commitCollectionState = useCallback(
@@ -322,12 +346,9 @@ export function useCollections({
 			}
 
 			await runQueuedCollectionWrite(async () => {
-				const { activeCollection } = appState;
-				if (madeEdits && activeCollection) {
-					const persisted = await rawPersistCollection(activeCollection);
-					if (!persisted) {
-						return;
-					}
+				const persistedDraft = await persistDirtyDraft(dirtyDraft);
+				if (!persistedDraft) {
+					return;
 				}
 
 				setSavingCollection(true);
@@ -393,10 +414,11 @@ export function useCollections({
 		[
 			appState,
 			commitCollectionState,
-			madeEdits,
+			dirtyDraft,
 			notifyRollbackFailure,
 			openNotification,
 			persistConfigAndReportFailure,
+			persistDirtyDraft,
 			rawPersistCollection,
 			runQueuedCollectionWrite,
 			validateCollectionNameOrNotify
@@ -415,11 +437,9 @@ export function useCollections({
 					return;
 				}
 
-				if (madeEdits) {
-					const persisted = await rawPersistCollection(activeCollection);
-					if (!persisted) {
-						return;
-					}
+				const persistedDraft = await persistDirtyDraft(dirtyDraft);
+				if (!persistedDraft) {
+					return;
 				}
 
 				setSavingCollection(true);
@@ -684,14 +704,11 @@ export function useCollections({
 			}
 
 			await runQueuedCollectionWrite(async () => {
-				const { activeCollection } = appState;
 				setSavingCollection(true);
 				try {
-					if (madeEdits && activeCollection) {
-						const persisted = await rawPersistCollection(activeCollection);
-						if (!persisted) {
-							return;
-						}
+					const persistedDraft = await persistDirtyDraft(dirtyDraft);
+					if (!persistedDraft) {
+						return;
 					}
 
 					const nextConfig = withActiveCollection(appState.config, name);
@@ -711,8 +728,9 @@ export function useCollections({
 		[
 			appState,
 			commitCollectionState,
-			madeEdits,
+			dirtyDraft,
 			persistConfigAndReportFailure,
+			persistDirtyDraft,
 			rawPersistCollection,
 			resetValidationState,
 			runQueuedCollectionWrite
@@ -761,6 +779,7 @@ export function useCollections({
 	return {
 		searchString,
 		filteredRows,
+		dirtyDraft,
 		madeEdits,
 		savingCollection,
 		setMadeEdits,
