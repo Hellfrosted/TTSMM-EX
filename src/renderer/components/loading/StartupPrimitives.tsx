@@ -38,10 +38,6 @@ interface StartupActionsProps extends HTMLAttributes<HTMLDivElement> {
 	children: ReactNode;
 }
 
-interface StartupErrorTextProps extends HTMLAttributes<HTMLElement> {
-	children: ReactNode;
-}
-
 export function StartupScreen({ children }: { children: ReactNode }) {
 	return (
 		<div className="flex h-full min-h-0 w-full min-w-0 flex-1 bg-background">
@@ -211,21 +207,5 @@ export function StartupActions({ children, className, ...props }: StartupActions
 		<div {...props} className={actionsClassName}>
 			{children}
 		</div>
-	);
-}
-
-export function StartupErrorText({ children, className, ...props }: StartupErrorTextProps) {
-	const errorClassName = [
-		'block max-w-full rounded-sm border px-3 py-2.5 text-error [overflow-wrap:anywhere]',
-		getStatusSurfaceClassName('error'),
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
-
-	return (
-		<code {...props} className={errorClassName}>
-			{children}
-		</code>
 	);
 }

@@ -5,6 +5,7 @@ import {
 	type NuterraSteamBetaMatchingPolicy,
 	type NuterraSteamCompatibilityOptions
 } from './nuterrasteam-compatibility';
+import { getSteamDependencyName } from '../shared/workshop-dependency-snapshot';
 
 interface DependencyGraphSession {
 	dependencyGraph: ModDependencyGraph;
@@ -245,17 +246,6 @@ function addDependencyEdge(graph: ModDependencyGraphBuilder, dependentKey: strin
 	dependentKeys.add(dependentKey);
 }
 
-function shouldCreateEquivalentDescriptor(input: {
-	dependencyName: string | undefined;
-	equivalentDependencyId: string | undefined;
-	equivalentWorkshopDependencyId: string | undefined;
-}) {
-	return (
-		input.equivalentDependencyId !== undefined &&
-		(input.equivalentWorkshopDependencyId !== undefined || input.equivalentDependencyId !== input.dependencyName)
-	);
-}
-
 function applyDependencyEdges(
 	session: DependencyGraphSession,
 	policy: NuterraSteamBetaMatchingPolicy,
@@ -269,22 +259,19 @@ function applyDependencyEdges(
 		const myDescriptorKey = myDescriptor ? getRegisteredDescriptorKey(graph, myDescriptor) : undefined;
 		if (myDescriptorKey) {
 			mod.steamDependencies?.forEach((workshopID) => {
-				const dependencyName = mod.steamDependencyNames?.[workshopID.toString()];
-				const equivalentWorkshopDependencyId = policy.getEquivalentDependencyIdForWorkshopId(workshopID);
+				const dependencyName = getSteamDependencyName(mod.steamDependencyNames, workshopID);
 				const equivalentDependencyId = targetPolicy.getEquivalentDependencyIdForTarget({
+					workshopID,
+					name: dependencyName
+				});
+				const equivalentDescriptorId = targetPolicy.getEquivalentDescriptorIdForTarget({
 					workshopID,
 					name: dependencyName
 				});
 				const descriptor =
 					graph.workshopIdToDescriptor.get(workshopID) ||
 					findExistingDescriptorForModId(equivalentDependencyId, graph, policy) ||
-					(shouldCreateEquivalentDescriptor({
-						dependencyName,
-						equivalentDependencyId,
-						equivalentWorkshopDependencyId
-					})
-						? ensureDescriptorForModId(equivalentDependencyId, graph, policy)
-						: undefined) ||
+					(equivalentDescriptorId ? ensureDescriptorForModId(equivalentDescriptorId, graph, policy) : undefined) ||
 					ensureDescriptorForWorkshopId(workshopID, graph);
 				graph.workshopIdToDescriptor.set(workshopID, descriptor);
 				registerDescriptor(graph, descriptor);

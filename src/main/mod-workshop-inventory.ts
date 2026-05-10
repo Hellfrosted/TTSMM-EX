@@ -104,7 +104,7 @@ async function fetchLinuxWorkshopInventory({
 	return [...modsWithDetails, ...filterSettledModResults(missingDetailResponses)];
 }
 
-async function buildWorkshopMods(
+export async function buildWorkshopMods(
 	steamDetails: SteamUGCDetails[],
 	buildWorkshopMod: LinuxWorkshopInventoryInput['buildWorkshopMod'],
 	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false

@@ -88,7 +88,7 @@ export function createAppShellViewModel(inputs: AppShellInputs) {
 	return {
 		disableNavigation:
 			inputs.launchingGame || isLoadingRoute || inputs.savingConfig || inputs.madeConfigEdits || inputs.configErrorCount > 0,
-		hasCollectionWorkspace: !!inputs.activeCollection || !!inputs.loadingMods,
+		hasCollectionWorkspace: showCollections || !!inputs.activeCollection || !!inputs.loadingMods,
 		isBlockLookupRoute,
 		isLoadingRoute,
 		isSettingsRoute,

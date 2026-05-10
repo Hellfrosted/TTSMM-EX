@@ -9,7 +9,7 @@ export const appConfigPayloadSchema = z
 		language: z.string(),
 		localDir: z.string().optional(),
 		gameExec: z.string(),
-		workshopID: z.bigint(),
+		workshopID: z.bigint().positive(),
 		activeCollection: z.string().optional(),
 		extraParams: z.string().optional(),
 		logParams: z.record(z.string(), z.string()).optional(),
@@ -21,7 +21,7 @@ export const appConfigPayloadSchema = z
 		ignoredValidationErrors: z.instanceof(Map),
 		userOverrides: z.instanceof(Map),
 		pureVanilla: z.boolean().optional(),
-		treatNuterraSteamBetaAsEquivalent: z.boolean().optional()
+		treatNuterraSteamBetaAsEquivalent: z.boolean()
 	})
 	.passthrough();
 

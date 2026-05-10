@@ -1,8 +1,9 @@
 import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AppConfig } from 'model/AppConfig';
-import { ModType } from 'model/Mod';
+import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
+import type { SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
 import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -39,6 +40,22 @@ interface ModLoadingState {
 
 type ModLoadingAction = { type: 'progress'; progress: number; message: string } | { type: 'failed'; message: string } | { type: 'retry' };
 
+function getKnownModIds(allCollections: Map<string, ModCollection>, workshopID: AppConfig['workshopID'], forceReloadMods: boolean) {
+	const knownMods = forceReloadMods
+		? new Set<string>()
+		: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
+	knownMods.add(createModManagerUid(workshopID));
+	return [...knownMods].sort();
+}
+
+function getUserOverridesKey(userOverrides: Map<string, ModDataOverride>) {
+	return JSON.stringify(
+		[...userOverrides.entries()]
+			.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
+			.map(([uid, override]) => [uid, override.id ?? null, override.tags ? [...override.tags].sort() : []])
+	);
+}
+
 function reduceModLoadingState(state: ModLoadingState, action: ModLoadingAction): ModLoadingState {
 	switch (action.type) {
 		case 'progress':
@@ -64,7 +81,7 @@ function reduceModLoadingState(state: ModLoadingState, action: ModLoadingAction)
 
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
 	const queryClient = useQueryClient();
-	const { allCollections, config: rawConfig, forceReloadMods, updateState: updateAppState } = appState;
+	const { allCollections, config: rawConfig, forceReloadMods, loadingMods, updateState: updateAppState } = appState;
 	const config = rawConfig as AppConfig;
 	const [state, dispatchLoading] = useReducer(reduceModLoadingState, {
 		loadError: undefined,
@@ -74,11 +91,24 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	});
 	const { loadError, progress, progressMessage, retryCount } = state;
 	const loadRequestIdRef = useRef(0);
-	const completeModLoad = useEffectEvent(() => {
+	const userOverridesRef = useRef(config.userOverrides);
+	userOverridesRef.current = config.userOverrides;
+	const metadataScanKey = `${getKnownModIds(allCollections, config.workshopID, !!forceReloadMods).join('\n')}\u0000${getUserOverridesKey(config.userOverrides)}`;
+	const commitModLoad = useEffectEvent((mods: SessionMods) => {
+		updateAppState({
+			mods,
+			firstModLoad: true,
+			loadingMods: false,
+			forceReloadMods: false
+		});
 		modLoadCompleteCallback();
 	});
 
 	useEffect(() => {
+		if (!loadingMods) {
+			return;
+		}
+
 		const requestId = loadRequestIdRef.current + 1;
 		loadRequestIdRef.current = requestId;
 		const unsubscribeProgress = api.onProgressChange((type: ProgressTypes, nextProgress: number, nextProgressMessage: string) => {
@@ -91,10 +121,8 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			}
 		});
 
-		const allKnownMods: Set<string> = forceReloadMods
-			? new Set<string>()
-			: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
-		allKnownMods.add(`${ModType.WORKSHOP}:${config.workshopID}`);
+		const knownModIdsKey = metadataScanKey.split('\u0000', 1)[0];
+		const allKnownMods = new Set(knownModIdsKey ? knownModIdsKey.split('\n') : []);
 
 		void queryClient
 			.fetchQuery(
@@ -103,7 +131,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 					knownMods: allKnownMods,
 					forceReload: !!forceReloadMods,
 					attempt: retryCount,
-					userOverrides: config.userOverrides,
+					userOverrides: userOverridesRef.current,
 					treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
 				})
 			)
@@ -111,13 +139,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				if (loadRequestIdRef.current !== requestId) {
 					return mods;
 				}
-				updateAppState({
-					mods,
-					firstModLoad: true,
-					loadingMods: false,
-					forceReloadMods: false
-				});
-				completeModLoad();
+				commitModLoad(mods);
 				return mods;
 			})
 			.catch((error) => {
@@ -134,17 +156,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				loadRequestIdRef.current += 1;
 			}
 		};
-	}, [
-		allCollections,
-		config.localDir,
-		config.treatNuterraSteamBetaAsEquivalent,
-		config.userOverrides,
-		config.workshopID,
-		forceReloadMods,
-		queryClient,
-		retryCount,
-		updateAppState
-	]);
+	}, [config.localDir, config.treatNuterraSteamBetaAsEquivalent, forceReloadMods, loadingMods, metadataScanKey, queryClient, retryCount]);
 
 	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';

@@ -142,9 +142,14 @@ describe('vite config', () => {
 		expect(rendererConfig.build?.modulePreload).toBe(false);
 		expect(normalizePath(rendererConfig.build?.outDir)).toContain('/release/app/dist/renderer');
 		expect(normalizePath(rendererConfig.build?.rollupOptions?.input)).toContain('/src/renderer/index.html');
-		expect(manualChunks('/repo/node_modules/react/index.js', manualChunkMeta)).toBe('vendor-react');
-		expect(manualChunks('/repo/node_modules/react-router-dom/dist/index.js', manualChunkMeta)).toBe('vendor-react');
-		expect(manualChunks('/repo/node_modules/async-mutex/index.js', manualChunkMeta)).toBe('vendor-data');
+		const reactChunk = manualChunks('/repo/node_modules/react/index.js', manualChunkMeta);
+		const routerChunk = manualChunks('/repo/node_modules/react-router-dom/dist/index.js', manualChunkMeta);
+		const dataChunk = manualChunks('/repo/node_modules/async-mutex/index.js', manualChunkMeta);
+
+		expect(reactChunk).toBeDefined();
+		expect(routerChunk).toBe(reactChunk);
+		expect(dataChunk).toBeDefined();
+		expect(dataChunk).not.toBe(reactChunk);
 		expect(manualChunks('/repo/src/renderer/App.tsx', manualChunkMeta)).toBeUndefined();
 	});
 

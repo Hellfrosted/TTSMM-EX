@@ -11,7 +11,6 @@ import type {
 import type { BlockLookupColumnKey, BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 
 type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
-const MAX_SEARCH_RESULTS = 1000;
 
 interface BlockLookupSettingsState {
 	settings: BlockLookupSettings;
@@ -19,7 +18,7 @@ interface BlockLookupSettingsState {
 	workshopRoot: string;
 }
 
-export type BlockLookupIndexRunPhase = 'running' | 'success' | 'error';
+type BlockLookupIndexRunPhase = 'running' | 'success' | 'error';
 
 export interface BlockLookupIndexRunStatus {
 	actionLabel: string;
@@ -101,7 +100,7 @@ export function reduceBlockLookupWorkspaceSession(
 		case 'build-index-completed':
 			return {
 				...state,
-				...createBlockLookupBuildIndexState(event.result),
+				...createBlockLookupBuildIndexState(event.result, state.settings),
 				indexRunStatus: createBlockLookupIndexRunSuccessStatus(event.result, event.forceRebuild)
 			};
 		case 'build-index-failed':
@@ -219,10 +218,8 @@ export function reduceBlockLookupWorkspaceSession(
 }
 
 export function createBlockLookupSearchRequest(query: string) {
-	const trimmedQuery = query.trim();
 	return {
-		query,
-		limit: trimmedQuery ? MAX_SEARCH_RESULTS : undefined
+		query
 	};
 }
 
@@ -300,7 +297,7 @@ function getBlockLookupBuildActionLabel(forceRebuild: boolean) {
 	return forceRebuild ? 'Full rebuild' : 'Index update';
 }
 
-export function createBlockLookupIndexRunProgressStatus(forceRebuild: boolean): BlockLookupIndexRunStatus {
+function createBlockLookupIndexRunProgressStatus(forceRebuild: boolean): BlockLookupIndexRunStatus {
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
 	return {
 		actionLabel,
@@ -310,7 +307,7 @@ export function createBlockLookupIndexRunProgressStatus(forceRebuild: boolean): 
 	};
 }
 
-export function createBlockLookupIndexRunSuccessStatus(result: BlockLookupBuildResult, forceRebuild: boolean): BlockLookupIndexRunStatus {
+function createBlockLookupIndexRunSuccessStatus(result: BlockLookupBuildResult, forceRebuild: boolean): BlockLookupIndexRunStatus {
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
 	return {
 		actionLabel,
@@ -322,7 +319,7 @@ export function createBlockLookupIndexRunSuccessStatus(result: BlockLookupBuildR
 	};
 }
 
-export function createBlockLookupIndexRunFailureStatus(message: string, forceRebuild: boolean): BlockLookupIndexRunStatus {
+function createBlockLookupIndexRunFailureStatus(message: string, forceRebuild: boolean): BlockLookupIndexRunStatus {
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
 	return {
 		actionLabel,
@@ -350,8 +347,15 @@ export function createBlockLookupSettingsSaveState(
 	return createBlockLookupBootstrapState(settings, currentStats);
 }
 
-export function createBlockLookupBuildIndexState(result: BlockLookupBuildResult): BlockLookupSettingsState {
-	return createBlockLookupBootstrapState(result.settings, result.stats);
+export function createBlockLookupBuildIndexState(
+	result: BlockLookupBuildResult,
+	settings: BlockLookupSettings = { workshopRoot: '' }
+): BlockLookupSettingsState {
+	return {
+		settings,
+		stats: result.stats,
+		workshopRoot: settings.workshopRoot
+	};
 }
 
 export function createBlockLookupBootstrapCacheProjection(
@@ -362,6 +366,8 @@ export function createBlockLookupBootstrapCacheProjection(
 
 function getBlockLookupSortValue(record: BlockLookupRecord, sortKey: BlockLookupColumnKey) {
 	switch (sortKey) {
+		case 'preview':
+			return record.blockName;
 		case 'spawnCommand':
 			return record.spawnCommand;
 		case 'blockName':

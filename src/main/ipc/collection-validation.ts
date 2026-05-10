@@ -10,15 +10,19 @@ import type {
 } from 'shared/collection-lifecycle';
 import type { StartupCollectionResolutionRequest } from 'shared/startup-collection-resolution';
 import type { ValidChannel } from 'shared/ipc';
+import { MAX_COLLECTION_MODS } from 'shared/collection-payload';
 import { appConfigPayloadSchema } from './config-validation';
 import { parseIpcPayload } from './ipc-validation';
-
-const MAX_COLLECTION_MODS = 100_000;
 
 const collectionNameSchema = z.string();
 const modCollectionSchema = z
 	.object({
 		name: collectionNameSchema,
+		mods: z.array(z.string()).max(MAX_COLLECTION_MODS)
+	})
+	.passthrough();
+const storedModCollectionSchema = z
+	.object({
 		mods: z.array(z.string()).max(MAX_COLLECTION_MODS)
 	})
 	.passthrough();
@@ -42,6 +46,10 @@ export function parseCollectionNamePayload(channel: ValidChannel, payload: unkno
 
 export function parseModCollectionPayload(channel: ValidChannel, payload: unknown): ModCollection {
 	return parseIpcPayload(channel, modCollectionSchema, payload) as ModCollection;
+}
+
+export function parseStoredModCollectionPayload(channel: ValidChannel, payload: unknown): Pick<ModCollection, 'mods'> {
+	return parseIpcPayload(channel, storedModCollectionSchema, payload);
 }
 
 export function parseCollectionContentSaveRequest(channel: ValidChannel, payload: unknown): CollectionContentSaveRequest {

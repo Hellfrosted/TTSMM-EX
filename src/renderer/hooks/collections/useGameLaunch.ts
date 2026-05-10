@@ -45,16 +45,16 @@ export function useGameLaunch({
 			void pollGameRunning();
 
 			try {
-				const success = await pause(
-					1000,
-					api.launchGame,
-					config.gameExec,
-					config.workshopID,
-					config.closeOnLaunch,
-					mods,
-					config.pureVanilla,
-					config.logParams,
-					config.extraParams
+				const success = await pause(1000, () =>
+					api.launchGame(
+						config.gameExec,
+						config.workshopID,
+						config.closeOnLaunch,
+						mods,
+						config.pureVanilla,
+						config.logParams,
+						config.extraParams
+					)
 				);
 
 				if (launchRequestRef.current !== requestId) {

@@ -222,7 +222,7 @@ describe('collection handlers', () => {
 				collectionName: 'default',
 				mods: ['local:new']
 			})
-		).resolves.toEqual({ ok: true });
+		).resolves.toEqual({ ok: true, collection: { name: 'default', mods: ['local:new'] } });
 		await expect(
 			invoke(ValidChannel.UPDATE_COLLECTION, {
 				collectionName: 'fresh',
@@ -253,14 +253,15 @@ describe('collection handlers', () => {
 				closeOnLaunch: false,
 				language: 'english',
 				gameExec: '',
-				workshopID: BigInt(0),
+				workshopID: BigInt(2790161231),
 				logsDir: '',
 				activeCollection: 'missing',
 				steamMaxConcurrency: 5,
 				currentPath: '/collections/main',
 				viewConfigs: {},
 				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
+				userOverrides: new Map(),
+				treatNuterraSteamBetaAsEquivalent: true
 			}
 		});
 

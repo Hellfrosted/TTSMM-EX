@@ -58,6 +58,7 @@ export function AppRoutes() {
 					<Route path="*" element={<Navigate replace to="main" />} />
 				</Route>
 			</Route>
+			<Route path="*" element={<Navigate replace to="/collections/main" />} />
 		</Routes>
 	);
 }

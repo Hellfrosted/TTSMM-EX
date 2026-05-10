@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ValidGreenworksChannels } from '../../main/steamworks/types';
 
 const mockSteamworks = {
@@ -23,6 +23,10 @@ describe('steam persona resolution', () => {
 				personaStateChangeListener = callback;
 			}
 		});
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('resolves by persona-state-change event and reuses the in-flight promise', async () => {
@@ -54,6 +58,5 @@ describe('steam persona resolution', () => {
 		vi.advanceTimersByTime(5000);
 
 		await expect(lookup).resolves.toBe('456');
-		vi.useRealTimers();
 	});
 });

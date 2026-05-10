@@ -52,4 +52,21 @@ describe('collection-manager-form-validation', () => {
 			columnOrder: [MainColumnTitles.NAME]
 		});
 	});
+
+	it('normalizes table settings so Name or ID remains visible', () => {
+		const config = toMainCollectionConfig({
+			smallRows: false,
+			columnActiveConfig: {
+				[MainColumnTitles.NAME]: false,
+				[MainColumnTitles.ID]: false
+			},
+			columnWidthConfig: {}
+		});
+
+		expect(config).toEqual({
+			columnActiveConfig: {
+				[MainColumnTitles.ID]: false
+			}
+		});
+	});
 });

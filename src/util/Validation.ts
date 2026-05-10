@@ -1,6 +1,5 @@
 import { AppConfigKeys } from 'model/AppConfig';
 import api from 'renderer/Api';
-import { TT_APP_ID } from 'renderer/Constants';
 import type { ElectronPlatform } from 'shared/electron-api';
 import { PathType } from 'shared/ipc';
 
@@ -32,11 +31,6 @@ export async function validateSettingsPath(field: string, value: string): Promis
 						return undefined;
 					}
 					return "The local mods directory should end with 'TerraTech/LocalMods'";
-				case 'workshopDir':
-					if (normalizedValue.endsWith(TT_APP_ID)) {
-						return undefined;
-					}
-					return `The workshop directory should end with TT app ID 'Steam/steamapps/workshop/content/${TT_APP_ID}'`;
 				case AppConfigKeys.LOGS_DIR:
 					if (normalizedValue.toLowerCase().includes('logs')) {
 						return undefined;

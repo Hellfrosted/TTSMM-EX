@@ -73,6 +73,7 @@ function SteamworksAppHarness({ currentPath, initializedConfigs }: { currentPath
 describe('SteamworksVerification', () => {
 	afterEach(() => {
 		cleanup();
+		vi.useRealTimers();
 	});
 
 	it('returns to mod collections after reloading Steamworks', async () => {
@@ -209,6 +210,5 @@ describe('SteamworksVerification', () => {
 		expect(setTimeoutSpy).toHaveBeenCalledTimes(scheduledTimeoutsBeforeUnmount);
 
 		setTimeoutSpy.mockRestore();
-		vi.useRealTimers();
 	});
 });

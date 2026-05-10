@@ -66,11 +66,15 @@ export default function MenuBar({ config, disableNavigation, onWorkspacePreview,
 		const nextConfig = { ...configRef.current, currentPath: nextPath };
 		const persistPath = async () => {
 			try {
-				await writeConfig(nextConfig);
+				const persistedConfig = await writeConfig(nextConfig);
 				if (!mountedRef.current) {
 					return;
 				}
+				configRef.current = persistedConfig;
 				persistedPathRef.current = nextPath;
+				startTransition(() => {
+					updateState({ config: persistedConfig });
+				});
 			} catch (error) {
 				api.logger.error(error);
 				if (!mountedRef.current) {

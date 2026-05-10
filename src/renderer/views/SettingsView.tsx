@@ -24,9 +24,10 @@ import {
 } from 'renderer/components/DesktopControls';
 import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
-import { getSettingsFormErrors } from 'renderer/settings-validation';
+import { APP_LOG_LEVEL_OPTIONS, NLOG_LEVEL_OPTIONS, getSettingsFormErrors } from 'renderer/settings-validation';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { validateSettingsPath } from 'util/Validation';
+import { DEFAULT_WORKSHOP_ID } from 'shared/app-config-defaults';
 
 type SettingsViewAppState = Pick<AppState, 'config' | 'configErrors' | 'madeConfigEdits' | 'savingConfig' | 'updateState'>;
 
@@ -36,16 +37,6 @@ interface SettingsViewProps {
 
 type SettingsConfigErrors = Record<string, string>;
 
-const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
-const NLOG_LEVEL_OPTIONS = [
-	NLogLevel.OFF,
-	NLogLevel.FATAL,
-	NLogLevel.ERROR,
-	NLogLevel.WARN,
-	NLogLevel.INFO,
-	NLogLevel.DEBUG,
-	NLogLevel.TRACE
-] as const;
 const MAX_WORKSHOP_ID_DIGITS = 20;
 
 interface SettingsFieldProps {
@@ -70,7 +61,11 @@ function formatLogLevelLabel(level: string) {
 
 function parseWorkshopIDInput(value: string) {
 	const digits = value.replace(/[^\d]/g, '').slice(0, MAX_WORKSHOP_ID_DIGITS);
-	return BigInt(digits || 0);
+	if (!digits) {
+		return DEFAULT_WORKSHOP_ID;
+	}
+	const workshopID = BigInt(digits);
+	return workshopID > 0n ? workshopID : DEFAULT_WORKSHOP_ID;
 }
 
 function joinFieldClassNames(...classNames: Array<string | false | undefined>) {
@@ -745,7 +740,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 									<SettingsSwitch
 										id="treatNuterraSteamBetaAsEquivalent"
 										aria-label="Treat NuterraSteam and NuterraSteam Beta as equivalent"
-										checked={editingConfig.treatNuterraSteamBetaAsEquivalent ?? true}
+										checked={editingConfig.treatNuterraSteamBetaAsEquivalent}
 										onChange={(event) => {
 											setField('treatNuterraSteamBetaAsEquivalent', event.target.checked);
 										}}

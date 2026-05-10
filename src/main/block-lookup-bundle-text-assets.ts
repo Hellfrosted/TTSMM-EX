@@ -7,7 +7,7 @@ import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
 interface ExtractorFileResult {
 	sourcePath: string;
 	textAssets: BlockLookupTextAsset[];
-	errors?: string[];
+	errors: string[];
 }
 
 interface ExtractorOutput {
@@ -16,9 +16,7 @@ interface ExtractorOutput {
 }
 
 interface BlockLookupBundleTextAssetOptions {
-	allowEmbeddedFallback?: boolean;
 	extractorPath?: string | null;
-	maxEmbeddedFallbackBytes?: number;
 }
 
 export interface BlockLookupBundleTextAssetExtractionOutcome {
@@ -27,8 +25,6 @@ export interface BlockLookupBundleTextAssetExtractionOutcome {
 	status: 'success' | 'issue';
 	textAssets: BlockLookupTextAsset[];
 }
-
-const MAX_EMBEDDED_BUNDLE_FALLBACK_BYTES = 32 * 1024 * 1024;
 
 function getExecutableName() {
 	return process.platform === 'win32' ? 'block-lookup-extractor.exe' : 'block-lookup-extractor';
@@ -63,7 +59,8 @@ function isExtractorFileResult(value: unknown): value is ExtractorFileResult {
 		typeof value.sourcePath === 'string' &&
 		Array.isArray(value.textAssets) &&
 		value.textAssets.every(isExtractorTextAsset) &&
-		(value.errors === undefined || (Array.isArray(value.errors) && value.errors.every((error) => typeof error === 'string')))
+		Array.isArray(value.errors) &&
+		value.errors.every((error) => typeof error === 'string')
 	);
 }
 
@@ -76,81 +73,6 @@ function parseExtractorOutput(stdout: string): ExtractorOutput {
 		version: 1,
 		files: parsed.files
 	};
-}
-
-function extractBundleTextAssetsByEmbeddedText(
-	sourcePath: string,
-	maxEmbeddedFallbackBytes = MAX_EMBEDDED_BUNDLE_FALLBACK_BYTES
-): BlockLookupTextAsset[] {
-	const sourceFd = fs.openSync(sourcePath, 'r');
-	let buffer: Buffer;
-	try {
-		const stats = fs.fstatSync(sourceFd);
-		if (!stats.isFile()) {
-			throw new Error(`Block Lookup bundle source is not a regular file: ${sourcePath}`);
-		}
-		if (stats.size > maxEmbeddedFallbackBytes) {
-			throw new Error(`Block Lookup bundle source exceeds embedded fallback size limit: ${sourcePath}`);
-		}
-
-		buffer = Buffer.alloc(stats.size);
-		let bytesRead = 0;
-		while (bytesRead < buffer.length) {
-			const readCount = fs.readSync(sourceFd, buffer, bytesRead, buffer.length - bytesRead, bytesRead);
-			if (readCount === 0) {
-				break;
-			}
-			bytesRead += readCount;
-		}
-		if (bytesRead < buffer.length) {
-			buffer = buffer.subarray(0, bytesRead);
-		}
-	} finally {
-		fs.closeSync(sourceFd);
-	}
-
-	const assetName = path.basename(sourcePath, path.extname(sourcePath));
-	return [buffer.toString('utf8'), buffer.toString('utf16le')]
-		.filter((text) => text.includes('NuterraBlock'))
-		.map((text) => ({
-			assetName,
-			text
-		}));
-}
-
-function getExtractionIssueMessage(error: unknown) {
-	return error instanceof Error ? error.message : String(error);
-}
-
-function extractBundleTextAssetOutcomesFallback(
-	sourcePaths: readonly string[],
-	maxEmbeddedFallbackBytes?: number
-): Map<string, BlockLookupBundleTextAssetExtractionOutcome> {
-	const results = new Map<string, BlockLookupBundleTextAssetExtractionOutcome>();
-	for (const sourcePath of sourcePaths) {
-		try {
-			results.set(sourcePath, {
-				issues: [],
-				sourcePath,
-				status: 'success',
-				textAssets: extractBundleTextAssetsByEmbeddedText(sourcePath, maxEmbeddedFallbackBytes)
-			});
-		} catch (error) {
-			log.warn(`Failed to index block bundle source ${sourcePath}`);
-			log.warn(error);
-			results.set(sourcePath, {
-				issues: [getExtractionIssueMessage(error)],
-				sourcePath,
-				status: 'issue',
-				textAssets: []
-			});
-		}
-	}
-	return results;
-}
-
-function shouldUseEmbeddedFallback(allowEmbeddedFallback = process.env.NODE_ENV !== 'production') {
-	return allowEmbeddedFallback;
 }
 
 function runBundleTextAssetExtractor(extractorPath: string, sourcePaths: readonly string[]) {
@@ -184,11 +106,7 @@ export async function extractBundleTextAssetOutcomes(
 ): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> {
 	const extractorPath = options.extractorPath === undefined ? findBlockLookupExtractorPath() : options.extractorPath;
 	if (!extractorPath) {
-		if (!shouldUseEmbeddedFallback(options.allowEmbeddedFallback)) {
-			throw new Error('Block Lookup native extractor is unavailable in a packaged runtime.');
-		}
-		log.warn('Block Lookup native extractor is unavailable; falling back to embedded text scanning.');
-		return extractBundleTextAssetOutcomesFallback(sourcePaths, options.maxEmbeddedFallbackBytes);
+		throw new Error('Block Lookup native extractor is unavailable.');
 	}
 
 	try {
@@ -207,10 +125,10 @@ export async function extractBundleTextAssetOutcomes(
 			})
 		);
 		output.files.forEach((file) => {
-			if (file.errors?.length) {
+			if (file.errors.length) {
 				log.warn(`Block Lookup native extractor reported issues for ${file.sourcePath}: ${file.errors.join('; ')}`);
 			}
-			const issues = file.errors ?? [];
+			const issues = file.errors;
 			results.set(file.sourcePath, {
 				issues,
 				sourcePath: file.sourcePath,
@@ -220,14 +138,9 @@ export async function extractBundleTextAssetOutcomes(
 		});
 		return results;
 	} catch (error) {
-		if (!shouldUseEmbeddedFallback(options.allowEmbeddedFallback)) {
-			log.warn('Block Lookup native extractor failed in a packaged runtime.');
-			log.warn(error);
-			throw error;
-		}
-		log.warn('Block Lookup native extractor failed; falling back to embedded text scanning.');
+		log.warn('Block Lookup native extractor failed.');
 		log.warn(error);
-		return extractBundleTextAssetOutcomesFallback(sourcePaths, options.maxEmbeddedFallbackBytes);
+		throw error;
 	}
 }
 

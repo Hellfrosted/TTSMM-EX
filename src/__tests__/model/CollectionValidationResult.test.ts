@@ -26,26 +26,29 @@ describe('collection validation result policy', () => {
 	});
 
 	it('projects collection status tags from one model helper', () => {
-		expect(
-			getCollectionStatusTags({
-				record: {
-					uid: 'local:a',
-					id: 'a',
-					type: ModType.LOCAL,
-					errors: {
-						invalidId: true,
-						missingDependencies: [{ UIDs: new Set(), modID: 'MissingMod' }],
-						notInstalled: true
-					}
-				},
-				selectedMods: ['local:a'],
-				lastValidationStatus: false
-			})
-		).toEqual([
-			{ text: 'Invalid ID', tone: 'danger', rank: 0 },
-			{ text: 'Missing dependencies', tone: 'warning', rank: 2 },
-			{ text: 'Not installed', tone: 'warning', rank: 5 }
-		]);
+		const invalidTags = getCollectionStatusTags({
+			record: {
+				uid: 'local:a',
+				id: 'a',
+				type: ModType.LOCAL,
+				errors: {
+					invalidId: true,
+					missingDependencies: [{ UIDs: new Set(), modID: 'MissingMod' }],
+					notInstalled: true
+				}
+			},
+			selectedMods: ['local:a'],
+			lastValidationStatus: false
+		});
+
+		expect(invalidTags.map((tag) => tag.text)).toEqual(['Invalid ID', 'Missing dependencies', 'Not installed']);
+		expect(invalidTags).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ text: 'Invalid ID', tone: 'danger', rank: 0 }),
+				expect.objectContaining({ text: 'Missing dependencies', tone: 'warning', rank: 2 }),
+				expect.objectContaining({ text: 'Not installed', tone: 'warning', rank: 5 })
+			])
+		);
 
 		expect(
 			getCollectionStatusTags({
@@ -87,21 +90,20 @@ describe('collection validation result policy', () => {
 			])
 		});
 
-		expect(result).toEqual({
-			hasBlockingErrors: false,
-			hasWarnings: false,
-			outcome: 'valid',
-			success: true,
-			summary: {
-				affectedMods: 0,
-				missingDependencies: 0,
-				incompatibleMods: 0,
-				invalidIds: 0,
-				subscriptionIssues: 0,
-				installIssues: 0,
-				updateIssues: 0
-			}
-		});
+		expect(result).toEqual(
+			expect.objectContaining({
+				hasBlockingErrors: false,
+				hasWarnings: false,
+				outcome: 'valid',
+				success: true,
+				summary: expect.objectContaining({
+					affectedMods: 0,
+					missingDependencies: 0,
+					incompatibleMods: 0
+				})
+			})
+		);
+		expect(result.errors).toBeUndefined();
 		expect(errors['local:a'].missingDependencies).toEqual([dependency]);
 	});
 

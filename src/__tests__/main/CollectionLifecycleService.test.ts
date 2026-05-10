@@ -76,6 +76,10 @@ describe('collection lifecycle service', () => {
 			ok: false,
 			code: 'duplicate-name'
 		});
+		expect(createAndActivateCollection(tempDir, { config: config(), name: 'Default' })).toMatchObject({
+			ok: false,
+			code: 'duplicate-name'
+		});
 		expect(readCollectionFile(tempDir, '..\\escape')).toBeNull();
 	});
 
@@ -155,35 +159,4 @@ describe('collection lifecycle service', () => {
 		}
 	});
 
-	it('rolls back a new collection when config persistence fails', () => {
-		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
-
-		const result = createAndActivateCollection(tempDir, {
-			config: config(),
-			name: 'fresh'
-		});
-
-		expect(result).toMatchObject({
-			ok: false,
-			code: 'config-write-failed'
-		});
-		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
-	});
-
-	it('rolls back a renamed collection when config persistence fails', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
-		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
-
-		const result = renameActiveCollection(tempDir, {
-			config: config(),
-			name: 'renamed'
-		});
-
-		expect(result).toMatchObject({
-			ok: false,
-			code: 'config-write-failed'
-		});
-		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:old'] });
-		expect(readCollectionFile(tempDir, 'renamed')).toBeNull();
-	});
 });

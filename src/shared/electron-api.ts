@@ -21,6 +21,7 @@ import type {
 	BlockLookupSettings
 } from './block-lookup';
 import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
+import type { ModContextMenuRequest } from './mod-context-menu';
 import type { WorkshopDependencyRefreshResult } from './workshop-dependency-snapshot';
 
 export type ElectronLogFunctions = {
@@ -92,7 +93,7 @@ export interface ElectronApi {
 	unsubscribeMod: (workshopID: bigint) => Promise<boolean>;
 	openModBrowser: (workshopID: bigint) => void;
 	openModSteam: (workshopID: bigint) => void;
-	openModContextMenu: (record: ModData) => void;
+	openModContextMenu: (request: ModContextMenuRequest) => void;
 	onProgressChange: (callback: ProgressChangeCallback) => Unsubscribe;
 	onModMetadataUpdate: (callback: (uid: string, update: Partial<ModData>) => void) => Unsubscribe;
 	onModRefreshRequested: (callback: () => void) => Unsubscribe;

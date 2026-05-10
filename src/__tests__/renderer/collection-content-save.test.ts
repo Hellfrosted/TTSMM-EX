@@ -20,7 +20,7 @@ describe('collection-content-save', () => {
 		const persistCollectionFile = vi.fn(async (nextCollection: ModCollection) => {
 			persistedCollection = { ...nextCollection, mods: [...nextCollection.mods] };
 			nextCollection.mods.push('local:mutated');
-			return { ok: true } as const;
+			return { ok: true, collection: persistedCollection } as const;
 		});
 
 		const outcome = await runCollectionContentSave({
@@ -45,7 +45,7 @@ describe('collection-content-save', () => {
 		const outcome = await runCollectionContentSave({
 			collection: { name: 'default', mods: ['local:a'] },
 			logger: { error: vi.fn() },
-			persistCollectionFile: vi.fn(async () => ({ ok: true }) as const),
+			persistCollectionFile: vi.fn(async () => ({ ok: true, collection: { name: 'default', mods: ['local:a'] } }) as const),
 			pureSave: false,
 			showSuccessNotification: true
 		});

@@ -3,6 +3,7 @@ import log from 'electron-log';
 import type { ElectronApi } from 'shared/electron-api';
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import { ValidChannel } from 'shared/ipc';
+import { isUiSmokeRunRequest } from 'shared/ui-smoke';
 
 const invoke = <TResult>(channel: ValidChannel, ...args: unknown[]): Promise<TResult> => {
 	return ipcRenderer.invoke(channel, ...args) as Promise<TResult>;
@@ -31,8 +32,7 @@ function createInvokeApi(): IpcInvokeApi {
 const electronApi: ElectronApi = {
 	...createInvokeApi(),
 	platform: process.platform,
-	uiSmokeMode:
-		process.env.TTSMM_EX_UI_SMOKE === '1' || process.argv.includes('--ttsmm-ex-ui-smoke') || process.argv.includes('ttsmm-ex-ui-smoke'),
+	uiSmokeMode: isUiSmokeRunRequest(process.env, process.argv),
 	log: log.functions,
 	updateLogLevel: (level) => {
 		send(ipcSendChannels.updateLogLevel, level);

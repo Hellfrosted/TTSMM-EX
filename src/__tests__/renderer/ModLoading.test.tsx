@@ -78,6 +78,182 @@ describe('ModLoading', () => {
 		expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
 	});
 
+	it('does not restart the metadata scan when equivalent state objects are rerendered', async () => {
+		const activeCollection = { name: 'default', mods: ['local:kept'] };
+		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
+		let resolveMetadata!: (mods: SessionMods) => void;
+		vi.mocked(window.electron.readModMetadata).mockReturnValue(
+			new Promise((resolve) => {
+				resolveMetadata = resolve;
+			})
+		);
+		const appState = createAppState({
+			activeCollection,
+			allCollectionNames: new Set(['default']),
+			allCollections: new Map([['default', activeCollection]]),
+			loadingMods: true,
+			mods: new SessionMods('', [])
+		});
+		const modLoadCompleteCallback = vi.fn();
+		const queryClient = createTestQueryClient();
+
+		const { rerender } = renderWithQueryClient(
+			<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		});
+
+		const equivalentCollection = { name: 'default', mods: ['local:kept'] };
+		const equivalentState = {
+			...appState,
+			allCollections: new Map([['default', equivalentCollection]]),
+			config: { ...appState.config, userOverrides: new Map(appState.config.userOverrides) }
+		};
+
+		rerender(<ModLoadingComponent appState={equivalentState} modLoadCompleteCallback={modLoadCompleteCallback} />);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		expect(modLoadCompleteCallback).not.toHaveBeenCalled();
+
+		resolveMetadata(refreshedMods);
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		});
+		expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not restart after a force refresh commits and rerenders before unmounting', async () => {
+		const activeCollection = { name: 'default', mods: ['local:kept'] };
+		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
+		vi.mocked(window.electron.readModMetadata).mockResolvedValue(refreshedMods);
+		const sharedState = createAppState({
+			activeCollection,
+			allCollectionNames: new Set(['default']),
+			allCollections: new Map([['default', activeCollection]]),
+			forceReloadMods: true,
+			loadingMods: true,
+			mods: new SessionMods('', [])
+		});
+		const updateState = vi.fn((props: Partial<AppState>) => {
+			Object.assign(sharedState, props);
+		});
+		const modLoadCompleteCallback = vi.fn();
+		const queryClient = createTestQueryClient();
+
+		const { rerender } = renderWithQueryClient(
+			<ModLoadingComponent appState={{ ...sharedState, updateState }} modLoadCompleteCallback={modLoadCompleteCallback} />,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		});
+		expect(sharedState.loadingMods).toBe(false);
+		expect(sharedState.forceReloadMods).toBe(false);
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+
+		const equivalentCollection = { name: 'default', mods: ['local:kept'] };
+		const nextUpdateState = vi.fn((props: Partial<AppState>) => {
+			Object.assign(sharedState, props);
+		});
+		rerender(
+			<ModLoadingComponent
+				appState={{
+					...sharedState,
+					allCollections: new Map([['default', equivalentCollection]]),
+					config: { ...sharedState.config, userOverrides: new Map(sharedState.config.userOverrides) },
+					updateState: nextUpdateState
+				}}
+				modLoadCompleteCallback={modLoadCompleteCallback}
+			/>
+		);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		expect(nextUpdateState).not.toHaveBeenCalled();
+	});
+
+	it('does not read metadata again when the loader remounts with the same scan inputs', async () => {
+		const activeCollection = { name: 'default', mods: ['local:kept'] };
+		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
+		vi.mocked(window.electron.readModMetadata).mockResolvedValue(refreshedMods);
+		const sharedState = createAppState({
+			activeCollection,
+			allCollectionNames: new Set(['default']),
+			allCollections: new Map([['default', activeCollection]]),
+			loadingMods: true,
+			mods: new SessionMods('', [])
+		});
+		const modLoadCompleteCallback = vi.fn();
+		const queryClient = createTestQueryClient();
+
+		const firstRender = renderWithQueryClient(
+			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		});
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+
+		firstRender.unmount();
+		renderWithQueryClient(
+			<ModLoadingComponent appState={{ ...sharedState, loadingMods: true }} modLoadCompleteCallback={modLoadCompleteCallback} />,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(2);
+		});
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+	});
+
+	it('reads metadata again when a force reload remounts with the same scan inputs', async () => {
+		const activeCollection = { name: 'default', mods: ['local:kept'] };
+		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
+		vi.mocked(window.electron.readModMetadata).mockResolvedValue(refreshedMods);
+		const sharedState = createAppState({
+			activeCollection,
+			allCollectionNames: new Set(['default']),
+			allCollections: new Map([['default', activeCollection]]),
+			forceReloadMods: true,
+			loadingMods: true,
+			mods: new SessionMods('', [])
+		});
+		const modLoadCompleteCallback = vi.fn();
+		const queryClient = createTestQueryClient();
+
+		const firstRender = renderWithQueryClient(
+			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
+		});
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+
+		firstRender.unmount();
+		renderWithQueryClient(
+			<ModLoadingComponent
+				appState={{ ...sharedState, forceReloadMods: true, loadingMods: true }}
+				modLoadCompleteCallback={modLoadCompleteCallback}
+			/>,
+			{ queryClient }
+		);
+
+		await waitFor(() => {
+			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(2);
+		});
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(2);
+	});
+
 	it('refreshes mod metadata without changing the active collection', async () => {
 		const activeCollection = { name: 'default', mods: ['local:kept'] };
 		const refreshedMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);

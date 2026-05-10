@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NLogLevel } from 'model';
+import { LogLevel, NLogLevel } from 'model';
 import type { AppConfig } from 'model';
 
 export interface LogConfig {
@@ -11,7 +11,8 @@ export interface EditingConfig extends AppConfig {
 	editingLogConfig: LogConfig[];
 }
 
-const nLogLevelValues = [
+export const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
+export const NLOG_LEVEL_OPTIONS = [
 	NLogLevel.OFF,
 	NLogLevel.FATAL,
 	NLogLevel.ERROR,
@@ -23,7 +24,7 @@ const nLogLevelValues = [
 
 const logConfigSchema = z.object({
 	loggerID: z.string(),
-	level: z.enum(nLogLevelValues)
+	level: z.enum(NLOG_LEVEL_OPTIONS)
 });
 
 const settingsFormShapeSchema = z.object({

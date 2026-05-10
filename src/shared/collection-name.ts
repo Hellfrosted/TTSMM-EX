@@ -60,3 +60,11 @@ export function validateCollectionName(name: string): string | undefined {
 export function isValidCollectionName(name: string): boolean {
 	return validateCollectionName(name) === undefined;
 }
+
+export function getCollectionNameComparisonKey(name: string): string {
+	return name.toLowerCase();
+}
+
+export function collectionNamesEqual(left: string, right: string): boolean {
+	return getCollectionNameComparisonKey(left) === getCollectionNameComparisonKey(right);
+}

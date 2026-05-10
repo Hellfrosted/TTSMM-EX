@@ -10,7 +10,7 @@ function getNow() {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 }
 
-export function isPerfLoggingEnabled() {
+function isPerfLoggingEnabled() {
 	if (typeof window === 'undefined') {
 		return false;
 	}
@@ -65,7 +65,7 @@ export async function measurePerfAsync<T>(name: string, run: () => Promise<T>, m
 	}
 }
 
-export const logProfilerRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration, startTime, commitTime) => {
+const logProfilerRender: ProfilerOnRenderCallback = (id, phase, actualDuration, baseDuration, startTime, commitTime) => {
 	if (!isPerfLoggingEnabled()) {
 		return;
 	}

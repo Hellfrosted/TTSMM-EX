@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { ModCollection } from 'model/ModCollection';
-
-const MAX_COLLECTION_CONTENT_SAVE_MODS = 100_000;
+import { MAX_COLLECTION_MODS } from './collection-payload';
 
 export interface CollectionContentSaveRequest {
 	collectionName: string;
@@ -12,6 +11,7 @@ type CollectionContentSaveFailureCode = 'missing-collection' | 'write-failed';
 
 export type CollectionContentSaveResult =
 	| {
+			collection: ModCollection;
 			ok: true;
 	  }
 	| {
@@ -23,7 +23,7 @@ export type CollectionContentSaveResult =
 export const collectionContentSaveRequestSchema = z
 	.object({
 		collectionName: z.string(),
-		mods: z.array(z.string()).max(MAX_COLLECTION_CONTENT_SAVE_MODS)
+		mods: z.array(z.string()).max(MAX_COLLECTION_MODS)
 	})
 	.passthrough();
 

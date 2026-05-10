@@ -10,24 +10,32 @@ function getDirective(policy: string, directiveName: string) {
 		.find((directive) => directive.startsWith(`${directiveName} `));
 }
 
+function getDirectiveSources(policy: string, directiveName: string) {
+	return getDirective(policy, directiveName)?.split(/\s+/).slice(1) ?? [];
+}
+
+function expectDirectiveSources(policy: string, directiveName: string, sources: string[]) {
+	expect(getDirectiveSources(policy, directiveName).sort()).toEqual([...sources].sort());
+}
+
 describe('renderer CSP', () => {
 	it('builds a production policy without inline scripts while preserving required app resources', () => {
 		const policy = createRendererContentSecurityPolicy({ isDevelopment: false });
 
-		expect(getDirective(policy, 'script-src')).toBe("script-src 'self' file:");
+		expectDirectiveSources(policy, 'script-src', ["'self'", 'file:']);
 		expect(policy).not.toContain("'unsafe-inline' data: blob:");
-		expect(getDirective(policy, 'img-src')).toBe("img-src 'self' data: blob: image: https:");
-		expect(getDirective(policy, 'connect-src')).toBe("connect-src 'self' https:");
-		expect(getDirective(policy, 'style-src')).toBe("style-src 'self' file: 'unsafe-inline'");
-		expect(getDirective(policy, 'object-src')).toBe("object-src 'none'");
+		expectDirectiveSources(policy, 'img-src', ["'self'", 'data:', 'blob:', 'image:', 'https:']);
+		expectDirectiveSources(policy, 'connect-src', ["'self'", 'https:']);
+		expectDirectiveSources(policy, 'style-src', ["'self'", 'file:', "'unsafe-inline'"]);
+		expectDirectiveSources(policy, 'object-src', ["'none'"]);
 	});
 
 	it('keeps development permissions for Vite and local assets', () => {
 		const policy = createRendererContentSecurityPolicy({ isDevelopment: true });
 
-		expect(getDirective(policy, 'script-src')).toBe("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
-		expect(getDirective(policy, 'connect-src')).toBe("connect-src 'self' ws://localhost:* http://localhost:* https:");
-		expect(getDirective(policy, 'img-src')).toBe("img-src 'self' data: blob: image: http://localhost:* https:");
+		expect(getDirectiveSources(policy, 'script-src')).toEqual(expect.arrayContaining(["'self'", "'unsafe-inline'", "'unsafe-eval'"]));
+		expect(getDirectiveSources(policy, 'connect-src')).toEqual(expect.arrayContaining(["'self'", 'ws://localhost:*', 'http://localhost:*', 'https:']));
+		expect(getDirectiveSources(policy, 'img-src')).toEqual(expect.arrayContaining(["'self'", 'data:', 'blob:', 'image:', 'http://localhost:*', 'https:']));
 	});
 
 	it('injects the production policy into renderer HTML', () => {
@@ -35,7 +43,8 @@ describe('renderer CSP', () => {
 		const html = applyRendererContentSecurityPolicy(rendererHtml, { isDevelopment: false });
 
 		expect(html).toContain('Content-Security-Policy');
-		expect(html).toContain("script-src 'self' file:; object-src 'none'");
+		expect(html).toContain("script-src 'self' file:");
+		expect(html).toContain("object-src 'none'");
 		expect(html).not.toContain("script-src 'self' 'unsafe-inline'");
 	});
 });

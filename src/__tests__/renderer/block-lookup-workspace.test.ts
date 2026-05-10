@@ -67,10 +67,10 @@ describe('block-lookup-workspace', () => {
 		});
 	});
 
-	it('creates search requests with a cap only for non-empty queries', () => {
-		expect(createBlockLookupSearchRequest('')).toEqual({ query: '', limit: undefined });
-		expect(createBlockLookupSearchRequest('  ')).toEqual({ query: '  ', limit: undefined });
-		expect(createBlockLookupSearchRequest('cab')).toEqual({ query: 'cab', limit: 1000 });
+	it('creates search requests without owning result caps', () => {
+		expect(createBlockLookupSearchRequest('')).toEqual({ query: '' });
+		expect(createBlockLookupSearchRequest('  ')).toEqual({ query: '  ' });
+		expect(createBlockLookupSearchRequest('cab')).toEqual({ query: 'cab' });
 	});
 
 	it('filters block lookup rows and creates contiguous row ranges', () => {
@@ -98,10 +98,10 @@ describe('block-lookup-workspace', () => {
 			stats,
 			workshopRoot: '/saved'
 		});
-		expect(createBlockLookupBuildIndexState({ settings: { workshopRoot: '/built' }, stats })).toEqual({
-			settings: { workshopRoot: '/built' },
+		expect(createBlockLookupBuildIndexState({ stats }, settings)).toEqual({
+			settings,
 			stats,
-			workshopRoot: '/built'
+			workshopRoot: '/workshop'
 		});
 	});
 
@@ -128,7 +128,7 @@ describe('block-lookup-workspace', () => {
 		const buildState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
 			forceRebuild: false,
-			result: { settings: { workshopRoot: '/built' }, stats: { ...stats, blocks: 4 } }
+			result: { stats: { ...stats, blocks: 4 } }
 		});
 		const failedBuildState = reduceBlockLookupWorkspaceSession(buildState, {
 			type: 'build-index-failed',
@@ -155,7 +155,7 @@ describe('block-lookup-workspace', () => {
 		expect(savedState.stats).toEqual({ ...stats, blocks: 1 });
 		expect(buildState).toEqual(
 			expect.objectContaining({
-				settings: { workshopRoot: '/built' },
+				settings: { workshopRoot: '/saved' },
 				stats: { ...stats, blocks: 4 },
 				indexRunStatus: {
 					actionLabel: 'Index update',
@@ -163,7 +163,7 @@ describe('block-lookup-workspace', () => {
 					phase: 'success',
 					title: 'Index update complete'
 				},
-				workshopRoot: '/built'
+				workshopRoot: '/saved'
 			})
 		);
 		expect(failedBuildState.indexRunStatus).toEqual({
@@ -190,12 +190,12 @@ describe('block-lookup-workspace', () => {
 		const builtState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
 			forceRebuild: false,
-			result: { settings: { workshopRoot: '/built' }, stats: { ...stats, blocks: 4 } }
+			result: { stats: { ...stats, blocks: 4 } }
 		});
 
 		expect(createBlockLookupBootstrapCacheProjection(bootstrappedState)).toEqual([{ workshopRoot: '/workshop' }, stats]);
 		expect(createBlockLookupBootstrapCacheProjection(savedState)).toEqual([{ workshopRoot: '/saved' }, stats]);
-		expect(createBlockLookupBootstrapCacheProjection(builtState)).toEqual([{ workshopRoot: '/built' }, { ...stats, blocks: 4 }]);
+		expect(createBlockLookupBootstrapCacheProjection(builtState)).toEqual([{ workshopRoot: '/saved' }, { ...stats, blocks: 4 }]);
 	});
 
 	it('retains the selected block lookup row across refreshed search results', () => {

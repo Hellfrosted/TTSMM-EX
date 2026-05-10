@@ -1,4 +1,5 @@
 import type { AppConfig, ModCollection } from '../model';
+import { collectionNamesEqual } from '../shared/collection-name';
 import type { CollectionLifecycleFailureCode, CollectionLifecycleResult } from '../shared/collection-lifecycle';
 import type { StartupCollectionResolutionResult } from '../shared/startup-collection-resolution';
 import { deleteCollectionFile, readCollectionFile, renameCollectionFile } from './collection-store';
@@ -253,7 +254,9 @@ export function resolveStartupActiveCollectionTransition(
 	}
 
 	if (request.config.activeCollection) {
-		const activeCollection = collections.find((collection) => collection.name === request.config.activeCollection);
+		const activeCollection = collections.find((collection) =>
+			collectionNamesEqual(collection.name, request.config.activeCollection ?? '')
+		);
 		if (activeCollection) {
 			return createStartupTransitionSuccess(request.config, activeCollection, collections);
 		}

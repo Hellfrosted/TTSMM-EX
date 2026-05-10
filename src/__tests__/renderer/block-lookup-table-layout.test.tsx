@@ -1,4 +1,3 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles } from '../../model';
@@ -53,15 +52,17 @@ describe('block-lookup-table-layout', () => {
 	it('adds table padding when calculating virtual table scroll width', () => {
 		expect(
 			getBlockLookupTableScrollWidth([
+				createColumn({ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, width: 92, defaultWidth: 92, minWidth: 76 }),
 				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
 				createColumn({ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, width: 220, defaultWidth: 220, minWidth: 120 })
 			])
-		).toBe(BLOCK_LOOKUP_TABLE_PADDING_WIDTH + 360 + 220);
+		).toBe(BLOCK_LOOKUP_TABLE_PADDING_WIDTH + 92 + 360 + 220);
 	});
 
 	it('keeps responsive columns within constrained widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
+				createColumn({ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, width: 92, defaultWidth: 92, minWidth: 76 }),
 				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
 				createColumn({ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, width: 220, defaultWidth: 220, minWidth: 120 }),
 				createColumn({ key: 'modTitle', title: BlockLookupColumnTitles.MOD, width: 200, defaultWidth: 200, minWidth: 120 }),
@@ -70,7 +71,7 @@ describe('block-lookup-table-layout', () => {
 			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'internalName']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['preview', 'spawnCommand', 'blockName', 'modTitle']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + resolveBlockLookupColumnWidth(column), 32)).toBeLessThanOrEqual(
 			560
 		);
@@ -79,6 +80,7 @@ describe('block-lookup-table-layout', () => {
 	it('fills block lookup viewport width with flexible columns', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
+				createColumn({ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, width: 92, defaultWidth: 92, minWidth: 76 }),
 				createColumn({ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, width: 220, defaultWidth: 220, minWidth: 120 }),
 				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
 				createColumn({ key: 'modTitle', title: BlockLookupColumnTitles.MOD, width: 200, defaultWidth: 200, minWidth: 120 })
@@ -86,6 +88,7 @@ describe('block-lookup-table-layout', () => {
 			1000
 		);
 
+		expect(responsiveColumns.find((column) => column.key === 'preview')?.width).toBe(92);
 		expect(responsiveColumns.find((column) => column.key === 'spawnCommand')?.width).toBeGreaterThan(360);
 		expect(responsiveColumns.find((column) => column.key === 'blockName')?.width).toBeGreaterThan(220);
 		expect(responsiveColumns.find((column) => column.key === 'modTitle')?.width).toBeGreaterThan(200);
@@ -96,6 +99,7 @@ describe('block-lookup-table-layout', () => {
 	});
 
 	it('centers block lookup cells except block names', () => {
+		expect(getBlockLookupCellAlignment('preview')).toBe('center');
 		expect(getBlockLookupCellAlignment('spawnCommand')).toBe('center');
 		expect(getBlockLookupCellAlignment('blockName')).toBe('left');
 		expect(getBlockLookupCellAlignment('internalName')).toBe('center');

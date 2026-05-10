@@ -6,7 +6,7 @@ import log from 'electron-log';
 import path from 'path';
 import { z } from 'zod';
 
-import { ModType, PathType, ValidChannel, createModUid } from '../../model';
+import { PathType, ValidChannel, createModManagerUid } from '../../model';
 import { TERRATECH_STEAM_APP_ID } from '../../shared/terratech';
 import { expandUserPath } from '../path-utils';
 import { findSteamLibraryPaths } from '../steam-library-discovery';
@@ -132,7 +132,7 @@ export function launchGameProcess(
 	homeDir: string = os.homedir()
 ): Promise<boolean> {
 	log.info('Launching game with custom args:');
-	const allArgs = ['+custom_mod_list', workshopID ? `[${createModUid(ModType.WORKSHOP, workshopID)}]` : '[]', ...args];
+	const allArgs = ['+custom_mod_list', workshopID ? `[${createModManagerUid(workshopID)}]` : '[]', ...args];
 	log.info(allArgs);
 	const quitApp = quit ?? (() => app.quit());
 	const resolvedGameExec = expandUserPath(gameExec, homeDir) ?? gameExec;

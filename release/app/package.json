@@ -17,7 +17,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "form-data": "^4.0.5",
     "greenworks": "github:FLSoz/greenworks",
     "ps-list": "^9.0.0"
   }

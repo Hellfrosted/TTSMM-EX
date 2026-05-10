@@ -191,7 +191,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		const shouldReloadMods =
 			config.localDir !== configToSave.localDir ||
 			config.workshopID !== configToSave.workshopID ||
-			(config.treatNuterraSteamBetaAsEquivalent ?? true) !== (configToSave.treatNuterraSteamBetaAsEquivalent ?? true);
+			config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
 		const nextLogLevel = configToSave.logLevel;
 		const shouldUpdateLogLevel = config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 

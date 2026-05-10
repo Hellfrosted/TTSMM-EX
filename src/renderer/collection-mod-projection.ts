@@ -6,14 +6,13 @@ import {
 	ModType,
 	type SessionMods,
 	getByUID,
-	getCorpDisplayName,
-	getCorpType,
 	getModDataDisplayId,
 	getModDataDisplayName,
 	getRows,
+	createWorkshopPlaceholderMod,
 	parseModUid
 } from 'model';
-import { getCanonicalCollectionTagLabel } from './collection-tags';
+import { getAllCollectionTags, getCollectionTagSearchTexts } from './collection-tags';
 
 interface CollectionSelectionState {
 	selectedMods: Set<string>;
@@ -30,14 +29,9 @@ export function getCollectionRows(session: SessionMods): ModData[] {
 function createMissingCollectionRow(uid: string): ModData {
 	const parsedUid = parseModUid(uid);
 	if (parsedUid?.type === ModType.WORKSHOP && /^\d+$/.test(parsedUid.id)) {
-		const workshopID = BigInt(parsedUid.id);
 		return {
+			...createWorkshopPlaceholderMod(BigInt(parsedUid.id)),
 			uid,
-			id: null,
-			type: ModType.WORKSHOP,
-			workshopID,
-			name: `Workshop item ${parsedUid.id}`,
-			hasCode: false
 		};
 	}
 
@@ -81,10 +75,6 @@ function includesSearchText(value: string | undefined | null, normalizedSearch: 
 	return value?.toLowerCase().includes(normalizedSearch) ?? false;
 }
 
-function isDisplayableTag(tag: string | undefined | null) {
-	return !!tag && tag.trim().length > 0 && !/[\u0000-\u001F\u007F]/.test(tag);
-}
-
 function rowMatchesSearch(row: ModData, normalizedSearch: string) {
 	if (includesSearchText(getModDataDisplayName(row), normalizedSearch)) {
 		return true;
@@ -102,30 +92,11 @@ function rowMatchesSearch(row: ModData, normalizedSearch: string) {
 		return true;
 	}
 
-	return [...(row.tags || []), ...(row.overrides?.tags || [])].filter(isDisplayableTag).some((tag) => {
-		if (includesSearchText(tag, normalizedSearch)) {
-			return true;
-		}
-
-		const corp = getCorpType(tag);
-		return (
-			corp !== null &&
-			(includesSearchText(corp.toString(), normalizedSearch) || includesSearchText(getCorpDisplayName(corp), normalizedSearch))
-		);
-	});
+	return getCollectionTagSearchTexts(row as DisplayModData).some((tag) => includesSearchText(tag, normalizedSearch));
 }
 
 export function getCollectionRowFilterTags(row: ModData) {
-	return [...(row.tags || []), ...(row.overrides?.tags || [])].reduce<string[]>((tags, tag) => {
-		if (!isDisplayableTag(tag) || tag.toLowerCase() === 'mods') {
-			return tags;
-		}
-		const label = getCanonicalCollectionTagLabel(tag);
-		if (!tags.some((existingTag) => existingTag.toLowerCase() === label.toLowerCase())) {
-			tags.push(label);
-		}
-		return tags;
-	}, []);
+	return getAllCollectionTags(row as DisplayModData);
 }
 
 export function filterCollectionRowsByTags(rows: ModData[], selectedTags: readonly string[]): ModData[] {

@@ -1,11 +1,15 @@
 import React from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import App, { AppViewStage } from '../renderer/App';
+import App, { AppShell, AppViewStage, resetInitialSteamworksVerificationForTests } from '../renderer/App';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
+import { DEFAULT_CONFIG } from '../renderer/Constants';
+import { queryClient } from '../renderer/query-client';
 import { AppRoutes } from '../renderer/routes';
-import { useAppStateSelector } from '../renderer/state/app-state';
+import { AppStateProvider, useAppStateSelector } from '../renderer/state/app-state';
+import { createTestQueryClient } from './renderer/test-utils';
 
 function AppFlowProbe() {
 	const location = useLocation();
@@ -21,8 +25,36 @@ function AppFlowProbe() {
 	);
 }
 
+function InitializedConfigSeeder() {
+	const updateState = useAppStateSelector((state) => state.updateState);
+
+	React.useLayoutEffect(() => {
+		updateState({ initializedConfigs: true });
+	}, [updateState]);
+
+	return null;
+}
+
+function AppShellInitializedHarness() {
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [queryClient] = React.useState(() => createTestQueryClient());
+
+	return (
+		<QueryClientProvider client={queryClient}>
+			<AppStateProvider navigate={(path) => void navigate(path)}>
+				<InitializedConfigSeeder />
+				<AppShell />
+				<div data-testid="location">{location.pathname}</div>
+			</AppStateProvider>
+		</QueryClientProvider>
+	);
+}
+
 afterEach(() => {
 	cleanup();
+	queryClient.clear();
+	resetInitialSteamworksVerificationForTests();
 });
 
 describe('App', () => {
@@ -37,6 +69,28 @@ describe('App', () => {
 		expect(stage).toHaveAttribute('aria-hidden', 'true');
 		expect(stage).toHaveAttribute('data-active', 'false');
 		expect(stage).not.toHaveAttribute('inert');
+	});
+
+	it('moves focus out of an inactive view stage before hiding it from assistive tech', async () => {
+		const { rerender } = render(
+			<AppViewStage active={true} name="collections">
+				<button type="button">Focused row</button>
+			</AppViewStage>
+		);
+		const focusedRow = screen.getByRole('button', { name: 'Focused row' });
+		focusedRow.focus();
+		expect(focusedRow).toHaveFocus();
+
+		rerender(
+			<AppViewStage active={false} name="collections">
+				<button type="button">Focused row</button>
+			</AppViewStage>
+		);
+
+		await waitFor(() => {
+			expect(focusedRow).not.toHaveFocus();
+			expect(focusedRow.closest('[data-view-stage="collections"]')).toHaveAttribute('aria-hidden', 'true');
+		});
 	});
 
 	it('renders an accessible view-stage loading fallback', () => {
@@ -88,6 +142,84 @@ describe('App', () => {
 		});
 
 		expect(reloadSteamworksHandler).toEqual(expect.any(Function));
+	});
+
+	it('does not force Steamworks verification again when the shell remounts after config startup initialized', async () => {
+		render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<Routes>
+					<Route path="*" element={<AppShellInitializedHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.onModRefreshRequested).toHaveBeenCalledTimes(1);
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
+		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+	});
+
+	it('runs the startup loading routes once before entering the collection workspace', async () => {
+		render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<AppRoutes />
+			</MemoryRouter>
+		);
+
+		await waitFor(
+			() => {
+				expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+				expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+				expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+			},
+			{ timeout: 3000 }
+		);
+		await new Promise((resolve) => setTimeout(resolve, 750));
+
+		expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+		expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
+		expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
+		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+		expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+	});
+
+	it('does not loop when the saved startup route points at a loading screen', async () => {
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map(),
+			currentPath: '/loading/steamworks'
+		});
+
+		render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<AppRoutes />
+			</MemoryRouter>
+		);
+
+		await waitFor(
+			() => {
+				expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+				expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+				expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+			},
+			{ timeout: 3000 }
+		);
+		await new Promise((resolve) => setTimeout(resolve, 750));
+
+		expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+		expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
+		expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
+		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+		expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
 	});
 
 	it('defines explicit elements for staged leaf routes', async () => {

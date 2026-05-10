@@ -8,7 +8,6 @@ interface BlockLookupSourceIndexingAdapters {
 }
 
 interface BlockLookupSourceIndexResult {
-	records: BlockLookupRecord[];
 	recordsBySourcePath: Map<string, BlockLookupRecord[]>;
 }
 
@@ -18,15 +17,7 @@ export async function indexBlockLookupSources(
 ): Promise<BlockLookupSourceIndexResult> {
 	const extractRecordsFromSourcesImpl = adapters.extractRecordsFromSources ?? extractRecordsFromSources;
 	const recordsBySourcePath = await extractRecordsFromSourcesImpl(sources, adapters.sourceExtractionAdapters);
-	const records: BlockLookupRecord[] = [];
-
-	for (const source of sources) {
-		const sourceRecords = recordsBySourcePath.get(source.sourcePath) ?? [];
-		records.push(...sourceRecords);
-	}
-
 	return {
-		records,
 		recordsBySourcePath
 	};
 }

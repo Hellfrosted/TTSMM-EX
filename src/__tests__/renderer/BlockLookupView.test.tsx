@@ -28,6 +28,7 @@ const TEST_RECORD: BlockLookupRecord = {
 	workshopId: '12345',
 	sourceKind: 'json',
 	sourcePath: 'C:\\Steam\\steamapps\\workshop\\content\\285920\\12345\\BlockJSON\\TestCannon.json',
+	previewBounds: { x: 3, y: 1, z: 1 },
 	preferredAlias: 'Alpha_Cannon(Test_Blocks)',
 	fallbackAlias: 'Alpha_Cannon(Test_Blocks)',
 	spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)',
@@ -110,6 +111,7 @@ describe('BlockLookupView', () => {
 	it('keeps Block Lookup columns within constrained desktop widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
+				{ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, visible: true, width: 92, defaultWidth: 92, minWidth: 76 },
 				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
 				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, defaultWidth: 220, minWidth: 120 },
 				{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, width: 220, defaultWidth: 220, minWidth: 136 },
@@ -118,7 +120,7 @@ describe('BlockLookupView', () => {
 			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'internalName']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['preview', 'spawnCommand', 'blockName', 'modTitle']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(
 			560
 		);
@@ -140,6 +142,10 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 
 		expect((await screen.findAllByText('SpawnBlock Alpha_Cannon(Test_Blocks)')).length).toBeGreaterThan(0);
+		const preview = screen.getAllByRole('img', { name: 'Block preview for Alpha Cannon' })[0];
+		expect(preview).toHaveClass('BlockLookupBlockPreview--weapon');
+		const previewImage = preview.querySelector('.BlockLookupBlockPreviewImage');
+		expect(previewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
 		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
 
 		await waitFor(() => {
@@ -167,6 +173,16 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
+		const alphaPreviewImage = screen
+			.getAllByRole('img', { name: 'Block preview for Alpha Cannon' })[0]
+			.querySelector('.BlockLookupBlockPreviewImage');
+		const betaPreviewImage = screen
+			.getAllByRole('img', { name: 'Block preview for Beta Shield' })[0]
+			.querySelector('.BlockLookupBlockPreviewImage');
+		expect(alphaPreviewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+		expect(betaPreviewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+		expect(alphaPreviewImage).not.toHaveAttribute('src', expect.stringContaining('image://'));
+		expect(betaPreviewImage).not.toHaveAttribute('src', alphaPreviewImage?.getAttribute('src') ?? '');
 		const betaCell = screen.getAllByText('Beta Shield')[0];
 		const betaRow = betaCell.closest('tr');
 		expect(betaRow).not.toBeNull();
@@ -698,7 +714,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -709,7 +725,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -748,7 +764,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -759,7 +775,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -790,7 +806,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -801,7 +817,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})

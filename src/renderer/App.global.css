@@ -1219,6 +1219,11 @@ a:hover {
 	min-height: 18px;
 }
 
+.BlockLookupVirtualRow.CompactBlockLookupRow .BlockLookupBlockPreview--table {
+	width: 28px;
+	height: 28px;
+}
+
 .BlockLookupVirtualLoading,
 .BlockLookupVirtualEmpty {
 	position: absolute;
@@ -1269,7 +1274,7 @@ a:hover {
 
 .BlockLookupDetailsGrid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+	grid-template-columns: minmax(0, 260px) repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 	align-items: start;
 	gap: 10px 16px;
 }
@@ -1279,6 +1284,258 @@ a:hover {
 	flex-direction: column;
 	gap: 3px;
 	min-width: 0;
+}
+
+.BlockLookupSelectedPreview {
+	display: grid !important;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: 10px !important;
+	min-width: min(260px, 100%);
+	padding-right: 4px;
+}
+
+.BlockLookupSelectedPreview strong {
+	display: block;
+	min-width: 0;
+	color: var(--app-color-text);
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.BlockLookupBlockPreview {
+	--block-preview-accent: oklch(0.64 0.09 42);
+	--block-preview-accent-muted: oklch(0.38 0.055 42);
+	--block-preview-accent-dark: oklch(0.26 0.04 42);
+	--block-preview-body-width: 46%;
+	--block-preview-body-height: 44%;
+	position: relative;
+	display: inline-grid;
+	place-items: center;
+	flex: 0 0 auto;
+	width: 36px;
+	height: 36px;
+	color: var(--app-color-text);
+	isolation: isolate;
+	overflow: visible;
+}
+
+.BlockLookupBlockPreview--detail {
+	width: 58px;
+	height: 58px;
+}
+
+.BlockLookupBlockPreviewImage {
+	position: relative;
+	z-index: 2;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	filter: drop-shadow(0 2px 2px color-mix(in srgb, var(--app-color-background) 72%, transparent));
+	pointer-events: none;
+}
+
+.BlockLookupBlockPreviewShape {
+	position: absolute;
+	left: calc((100% - var(--block-preview-body-width)) / 2);
+	top: calc((100% - var(--block-preview-body-height)) / 2 + 2%);
+	width: var(--block-preview-body-width);
+	height: var(--block-preview-body-height);
+	filter: drop-shadow(0 2px 2px color-mix(in srgb, var(--app-color-background) 72%, transparent));
+	transform: translateY(1px);
+}
+
+.BlockLookupBlockPreviewFace {
+	position: absolute;
+	border: 1px solid color-mix(in oklch, var(--block-preview-accent) 38%, var(--app-color-border));
+}
+
+.BlockLookupBlockPreviewFace--top {
+	left: 22%;
+	top: 0;
+	width: 56%;
+	height: 38%;
+	background: color-mix(in oklch, var(--block-preview-accent) 48%, var(--app-color-surface-elevated));
+	clip-path: polygon(50% 0, 100% 46%, 50% 100%, 0 46%);
+}
+
+.BlockLookupBlockPreviewFace--left {
+	left: 0;
+	top: 30%;
+	width: 50%;
+	height: 54%;
+	background: color-mix(in oklch, var(--block-preview-accent-muted) 58%, var(--app-color-surface));
+	clip-path: polygon(0 0, 100% 31%, 100% 100%, 0 68%);
+}
+
+.BlockLookupBlockPreviewFace--right {
+	right: 0;
+	top: 30%;
+	width: 50%;
+	height: 54%;
+	background: color-mix(in oklch, var(--block-preview-accent-dark) 56%, var(--app-color-surface-alt));
+	clip-path: polygon(0 31%, 100% 0, 100% 68%, 0 100%);
+}
+
+.BlockLookupBlockPreviewIcon {
+	position: relative;
+	z-index: 3;
+	width: 38%;
+	height: 38%;
+	object-fit: contain;
+	filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--app-color-background) 70%, transparent));
+	opacity: 0.92;
+	pointer-events: none;
+}
+
+.BlockLookupBlockPreviewDetail {
+	position: absolute;
+	z-index: 2;
+	border: 1px solid color-mix(in oklch, var(--block-preview-accent) 36%, var(--app-color-border));
+	background: color-mix(in oklch, var(--block-preview-accent) 62%, var(--app-color-surface-elevated));
+	pointer-events: none;
+}
+
+.BlockLookupBlockPreview--weapon .BlockLookupBlockPreviewDetail--primary {
+	right: 4%;
+	top: 42%;
+	width: 34%;
+	height: 12%;
+	border-radius: 999px;
+	transform: rotate(-10deg);
+}
+
+.BlockLookupBlockPreview--weapon .BlockLookupBlockPreviewDetail--secondary {
+	right: 24%;
+	top: 34%;
+	width: 14%;
+	height: 14%;
+	border-radius: 50%;
+	background: var(--block-preview-accent-dark);
+}
+
+.BlockLookupBlockPreview--wheel .BlockLookupBlockPreviewDetail--primary,
+.BlockLookupBlockPreview--wheel .BlockLookupBlockPreviewDetail--secondary {
+	bottom: 4%;
+	width: 24%;
+	height: 24%;
+	border: 2px solid color-mix(in oklch, var(--block-preview-accent-dark) 76%, black);
+	border-radius: 50%;
+	background: color-mix(in oklch, var(--block-preview-accent-muted) 46%, var(--app-color-background));
+}
+
+.BlockLookupBlockPreview--wheel .BlockLookupBlockPreviewDetail--primary {
+	left: 18%;
+}
+
+.BlockLookupBlockPreview--wheel .BlockLookupBlockPreviewDetail--secondary {
+	right: 18%;
+}
+
+.BlockLookupBlockPreview--cab .BlockLookupBlockPreviewDetail--primary {
+	left: 30%;
+	top: 14%;
+	width: 40%;
+	height: 28%;
+	border-radius: 48% 48% 26% 26%;
+	background: color-mix(in oklch, var(--block-preview-accent) 28%, white);
+	clip-path: polygon(24% 0, 76% 0, 100% 82%, 0 82%);
+}
+
+.BlockLookupBlockPreview--anchor .BlockLookupBlockPreviewDetail--primary {
+	left: 24%;
+	bottom: 3%;
+	width: 52%;
+	height: 16%;
+	border-radius: 0 0 999px 999px;
+	background: var(--block-preview-accent-dark);
+}
+
+.BlockLookupBlockPreview--anchor .BlockLookupBlockPreviewDetail--secondary {
+	left: 42%;
+	top: 6%;
+	width: 16%;
+	height: 30%;
+	border-radius: 999px;
+}
+
+.BlockLookupBlockPreview--power .BlockLookupBlockPreviewDetail--primary {
+	left: 40%;
+	top: 14%;
+	width: 24%;
+	height: 52%;
+	background: color-mix(in oklch, var(--block-preview-accent) 64%, white);
+	clip-path: polygon(44% 0, 100% 0, 64% 38%, 100% 38%, 28% 100%, 44% 54%, 0 54%);
+}
+
+.BlockLookupBlockPreview--resource .BlockLookupBlockPreviewDetail--primary,
+.BlockLookupBlockPreview--resource .BlockLookupBlockPreviewDetail--secondary {
+	width: 18%;
+	height: 18%;
+	border-radius: 2px;
+}
+
+.BlockLookupBlockPreview--resource .BlockLookupBlockPreviewDetail--primary {
+	left: 29%;
+	top: 25%;
+	box-shadow:
+		8px 6px 0 color-mix(in oklch, var(--block-preview-accent-muted) 58%, var(--app-color-surface)),
+		1px 14px 0 color-mix(in oklch, var(--block-preview-accent-dark) 58%, var(--app-color-surface-alt));
+}
+
+.BlockLookupBlockPreview--resource .BlockLookupBlockPreviewDetail--secondary {
+	display: none;
+}
+
+.BlockLookupBlockPreview--shield .BlockLookupBlockPreviewDetail--primary {
+	left: 22%;
+	top: 18%;
+	width: 56%;
+	height: 56%;
+	border-width: 2px;
+	border-radius: 50%;
+	background: color-mix(in oklch, var(--block-preview-accent) 16%, transparent);
+}
+
+.BlockLookupBlockPreview--flight .BlockLookupBlockPreviewDetail--primary {
+	left: 7%;
+	top: 39%;
+	width: 86%;
+	height: 20%;
+	background: color-mix(in oklch, var(--block-preview-accent) 56%, var(--app-color-surface));
+	clip-path: polygon(0 65%, 44% 0, 100% 50%, 44% 100%);
+}
+
+.BlockLookupBlockPreview--structure .BlockLookupBlockPreviewDetail--primary {
+	left: 24%;
+	top: 25%;
+	width: 52%;
+	height: 38%;
+	background:
+		linear-gradient(90deg, transparent 48%, color-mix(in oklch, var(--block-preview-accent-dark) 44%, transparent) 48% 54%, transparent 54%),
+		linear-gradient(0deg, transparent 48%, color-mix(in oklch, var(--block-preview-accent-dark) 44%, transparent) 48% 54%, transparent 54%);
+	border-radius: 3px;
+}
+
+.BlockLookupBlockPreview--utility .BlockLookupBlockPreviewDetail--primary {
+	left: 28%;
+	top: 22%;
+	width: 44%;
+	height: 36%;
+	border-radius: 4px;
+	background:
+		radial-gradient(circle at 28% 34%, color-mix(in oklch, var(--block-preview-accent) 80%, white) 0 9%, transparent 10%),
+		linear-gradient(
+			90deg,
+			transparent 0 58%,
+			color-mix(in oklch, var(--block-preview-accent-dark) 50%, transparent) 59% 64%,
+			transparent 65%
+		),
+		color-mix(in oklch, var(--block-preview-accent-muted) 58%, var(--app-color-surface));
 }
 
 .BlockLookupTableHeaderCell {

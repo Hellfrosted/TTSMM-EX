@@ -1,12 +1,6 @@
-import {
-	BlockLookupColumnTitles,
-	MainColumnTitles,
-	getMainColumnMinWidth,
-	type AppConfig,
-	type BlockLookupViewConfig,
-	type MainCollectionConfig
-} from 'model';
+import { BlockLookupColumnTitles, MainColumnTitles, type AppConfig, type BlockLookupViewConfig, type MainCollectionConfig } from 'model';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import type { BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 
 export interface BlockLookupColumnConfig {
@@ -32,6 +26,7 @@ interface BlockLookupDraftColumnState {
 }
 
 export const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
+	{ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, visible: true, defaultWidth: 92, minWidth: 76 },
 	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, defaultWidth: 320, minWidth: 140 },
 	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, defaultWidth: 200, minWidth: 96 },
 	{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, defaultWidth: 220, minWidth: 136 },
@@ -89,6 +84,32 @@ function defaultEquivalentOrder<T extends string>(order: readonly T[], defaultOr
 	return order.length === defaultOrder.length && order.every((column, index) => column === defaultOrder[index]);
 }
 
+export function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: boolean, columnActiveConfig?: Record<string, boolean>) {
+	if (visible) {
+		return true;
+	}
+
+	if (columnTitle === MainColumnTitles.ID && columnActiveConfig?.[MainColumnTitles.NAME] === false) {
+		return false;
+	}
+
+	if (columnTitle === MainColumnTitles.NAME && columnActiveConfig?.[MainColumnTitles.ID] === false) {
+		return false;
+	}
+
+	return true;
+}
+
+function normalizeMainColumnActiveConfig(config?: MainCollectionConfig) {
+	const mainColumnTitles = Object.values(MainColumnTitles);
+	const knownColumnSet = new Set<string>(mainColumnTitles);
+	const columnActiveConfig = compactRecord(config?.columnActiveConfig || {}, knownColumnSet, (active) => typeof active === 'boolean');
+	if (columnActiveConfig?.[MainColumnTitles.NAME] === false && columnActiveConfig[MainColumnTitles.ID] === false) {
+		delete columnActiveConfig[MainColumnTitles.NAME];
+	}
+	return columnActiveConfig;
+}
+
 export function normalizeMainCollectionConfig(config?: MainCollectionConfig): MainCollectionConfig {
 	const mainColumnTitles = Object.values(MainColumnTitles);
 	const knownColumnSet = new Set<string>(mainColumnTitles);
@@ -97,10 +118,10 @@ export function normalizeMainCollectionConfig(config?: MainCollectionConfig): Ma
 
 	const normalizedConfig: MainCollectionConfig = {
 		...(config || {}),
-		columnActiveConfig: compactRecord(config?.columnActiveConfig || {}, knownColumnSet, (active) => typeof active === 'boolean'),
+		columnActiveConfig: normalizeMainColumnActiveConfig(config),
 		columnWidthConfig: columnWidthConfig
 			? Object.entries(columnWidthConfig).reduce<Record<string, number>>((nextWidths, [column, width]) => {
-					nextWidths[column] = Math.max(getMainColumnMinWidth(column as MainColumnTitles), Math.round(width));
+					nextWidths[column] = Math.max(getResolvedMainColumnMinWidth(column as MainColumnTitles), Math.round(width));
 					return nextWidths;
 				}, {})
 			: undefined,
@@ -158,7 +179,7 @@ export function setMainCollectionDetailsOverlaySize(config: AppConfig, layout: '
 }
 
 export function setMainCollectionColumnWidth(config: AppConfig, column: MainColumnTitles, width: number) {
-	const normalizedWidth = Math.max(getMainColumnMinWidth(column), Math.round(width));
+	const normalizedWidth = Math.max(getResolvedMainColumnMinWidth(column), Math.round(width));
 	if (config.viewConfigs.main?.columnWidthConfig?.[column] === normalizedWidth) {
 		return undefined;
 	}
@@ -175,6 +196,10 @@ export function setMainCollectionColumnWidth(config: AppConfig, column: MainColu
 
 export function setMainCollectionColumnVisibility(config: AppConfig, column: MainColumnTitles, visible: boolean) {
 	const currentColumnActiveConfig = config.viewConfigs.main?.columnActiveConfig || {};
+	if (!canSetMainColumnVisibility(column, visible, currentColumnActiveConfig)) {
+		return undefined;
+	}
+
 	const currentlyVisible = currentColumnActiveConfig[column] !== false;
 	if (currentlyVisible === visible) {
 		return undefined;

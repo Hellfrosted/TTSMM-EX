@@ -1,4 +1,5 @@
 export enum BlockLookupColumnTitles {
+	PREVIEW = 'Preview',
 	SPAWN_COMMAND = 'SpawnBlock Command',
 	BLOCK = 'Block',
 	INTERNAL_NAME = 'Internal block name',

@@ -64,6 +64,21 @@ export function createModUid(type: ModType | string, id: string | bigint | numbe
 	return `${type}:${id.toString()}`;
 }
 
+export function createModManagerUid(workshopID: string | bigint | number): string {
+	return createModUid(ModType.WORKSHOP, workshopID);
+}
+
+export function createWorkshopPlaceholderMod(workshopID: bigint): ModData {
+	return {
+		uid: createModUid(ModType.WORKSHOP, workshopID),
+		id: null,
+		type: ModType.WORKSHOP,
+		workshopID,
+		name: `Workshop item ${workshopID.toString()}`,
+		hasCode: false
+	};
+}
+
 export function parseModUid(uid: string): ParsedModUid | null {
 	const separatorIndex = uid.indexOf(':');
 	if (separatorIndex <= 0 || separatorIndex === uid.length - 1 || uid.indexOf(':', separatorIndex + 1) !== -1) {

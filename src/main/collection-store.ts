@@ -4,7 +4,11 @@ import log from 'electron-log';
 import { ModCollection, ValidChannel } from '../model';
 import { validateCollectionName } from '../shared/collection-name';
 import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from './storage';
-import { parseModCollectionPayload } from './ipc/collection-validation';
+import { parseStoredModCollectionPayload } from './ipc/collection-validation';
+
+function serializeCollectionFile(collection: Pick<ModCollection, 'mods'>): string {
+	return JSON.stringify({ mods: [...collection.mods] }, null, 4);
+}
 
 function resolveCollectionFilePath(userDataPath: string, collectionName: string): string | null {
 	const validationError = validateCollectionName(collectionName);
@@ -53,9 +57,11 @@ export function readCollectionFile(userDataPath: string, collection: string): Mo
 	}
 
 	try {
-		const data = parseModCollectionPayload(ValidChannel.READ_COLLECTION, readJsonFile<unknown>(collectionPath));
-		data.name = collection;
-		return data;
+		const data = parseStoredModCollectionPayload(ValidChannel.READ_COLLECTION, readJsonFile<unknown>(collectionPath));
+		return {
+			name: collection,
+			mods: [...data.mods]
+		};
 	} catch (error) {
 		log.error(`Failed to read collection file ${collectionPath}`);
 		log.error(error);
@@ -84,7 +90,7 @@ export function updateCollectionFile(userDataPath: string, collection: ModCollec
 	}
 
 	try {
-		writeUtf8FileAtomic(filepath, JSON.stringify({ ...collection, mods: [...collection.mods] }, null, 4));
+		writeUtf8FileAtomic(filepath, serializeCollectionFile(collection));
 		return true;
 	} catch (error) {
 		log.error(error);
@@ -101,12 +107,7 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 
 	log.info(`Renaming file ${oldpath} to ${newpath}`);
 	try {
-		const renamedCollection: ModCollection = {
-			...collection,
-			name: newName,
-			mods: [...collection.mods]
-		};
-		const serializedCollection = JSON.stringify(renamedCollection, null, 4);
+		const serializedCollection = serializeCollectionFile(collection);
 		const oldCollectionExists = fs.existsSync(oldpath);
 		const newCollectionExists = fs.existsSync(newpath);
 		const sameCollectionPath = oldCollectionExists && newCollectionExists && refersToSameCollectionPath(oldpath, newpath);

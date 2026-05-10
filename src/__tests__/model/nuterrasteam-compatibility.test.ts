@@ -5,6 +5,7 @@ import {
 	NUTERRASTEAM_BETA_WORKSHOP_ID,
 	NUTERRASTEAM_CANONICAL_MOD_ID
 } from '../../model/nuterrasteam-compatibility';
+import { createModDependencyTargetSatisfactionPolicy } from '../../model/mod-dependency-target';
 
 describe('NuterraSteam Beta Matching policy', () => {
 	it('defaults compatibility on and normalizes Nuterra variant dependency IDs', () => {
@@ -34,7 +35,7 @@ describe('NuterraSteam Beta Matching policy', () => {
 	});
 
 	it('matches Workshop Dependency Names against loaded Nuterra variants', () => {
-		const policy = createNuterraSteamBetaMatchingPolicy();
+		const policy = createModDependencyTargetSatisfactionPolicy();
 		const stableMod = {
 			uid: 'workshop:2484820102',
 			type: ModType.WORKSHOP,
@@ -43,11 +44,11 @@ describe('NuterraSteam Beta Matching policy', () => {
 			name: 'NuterraSteam'
 		};
 
-		expect(policy.isWorkshopDependencyNameSatisfiedByMod('NuterraSteam (Beta)', stableMod)).toBe(true);
+		expect(policy.isDependencyTargetSatisfiedByMod({ name: 'NuterraSteam (Beta)' }, stableMod)).toBe(true);
 	});
 
-	it('does not satisfy generic Workshop dependencies by display name alone', () => {
-		const policy = createNuterraSteamBetaMatchingPolicy();
+	it('satisfies explicit dependency names against loaded mod identity text', () => {
+		const policy = createModDependencyTargetSatisfactionPolicy();
 		const sameNamedMod = {
 			uid: 'workshop:22',
 			type: ModType.WORKSHOP,
@@ -56,7 +57,7 @@ describe('NuterraSteam Beta Matching policy', () => {
 			name: 'Shared Dependency'
 		};
 
-		expect(policy.isWorkshopDependencyNameSatisfiedByMod('Shared Dependency', sameNamedMod)).toBe(false);
+		expect(policy.isDependencyTargetSatisfiedByMod({ name: 'Shared Dependency' }, sameNamedMod)).toBe(true);
 	});
 
 	it('matches the raw Nuterra beta Workshop dependency ID against loaded Nuterra variants only when enabled', () => {
@@ -68,10 +69,12 @@ describe('NuterraSteam Beta Matching policy', () => {
 			name: 'NuterraSteam'
 		};
 
-		expect(createNuterraSteamBetaMatchingPolicy().isWorkshopDependencySatisfiedByMod(NUTERRASTEAM_BETA_WORKSHOP_ID, stableMod)).toBe(true);
+		expect(createModDependencyTargetSatisfactionPolicy().isDependencyTargetSatisfiedByMod({ workshopID: NUTERRASTEAM_BETA_WORKSHOP_ID }, stableMod)).toBe(
+			true
+		);
 		expect(
-			createNuterraSteamBetaMatchingPolicy({ treatNuterraSteamBetaAsEquivalent: false }).isWorkshopDependencySatisfiedByMod(
-				NUTERRASTEAM_BETA_WORKSHOP_ID,
+			createModDependencyTargetSatisfactionPolicy({ treatNuterraSteamBetaAsEquivalent: false }).isDependencyTargetSatisfiedByMod(
+				{ workshopID: NUTERRASTEAM_BETA_WORKSHOP_ID },
 				stableMod
 			)
 		).toBe(false);

@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import type { BlockLookupBuildRequest, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
+import {
+	BLOCK_LOOKUP_SEARCH_RESULT_LIMIT,
+	type BlockLookupBuildRequest,
+	type BlockLookupSearchRequest,
+	type BlockLookupSettings
+} from 'shared/block-lookup';
 import type { ValidChannel } from 'shared/ipc';
 import { parseIpcPayload } from './ipc-validation';
 
 const MAX_BLOCK_LOOKUP_MOD_SOURCES = 20_000;
 const MAX_BLOCK_LOOKUP_QUERY_LENGTH = 1_000;
-const MAX_BLOCK_LOOKUP_SEARCH_LIMIT = 1_000;
 
 const blockLookupModSourceSchema = z.object({
 	uid: z.string().min(1),
@@ -28,7 +32,7 @@ const blockLookupBuildRequestSchema = z.object({
 
 const blockLookupSearchRequestSchema = z.object({
 	query: z.string().max(MAX_BLOCK_LOOKUP_QUERY_LENGTH),
-	limit: z.number().int().positive().max(MAX_BLOCK_LOOKUP_SEARCH_LIMIT).optional()
+	limit: z.number().int().positive().max(BLOCK_LOOKUP_SEARCH_RESULT_LIMIT).optional()
 });
 
 export function parseBlockLookupSettingsPayload(channel: ValidChannel, payload: unknown): BlockLookupSettings {

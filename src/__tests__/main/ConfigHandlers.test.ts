@@ -51,6 +51,7 @@ function createValidConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 		viewConfigs: {},
 		ignoredValidationErrors: new Map(),
 		userOverrides: new Map(),
+		treatNuterraSteamBetaAsEquivalent: true,
 		...overrides
 	};
 }

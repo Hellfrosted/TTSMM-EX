@@ -26,6 +26,8 @@ describe('startup-loading', () => {
 		expect(normalizeStartupPath('/collections')).toBe('/collections/main');
 		expect(normalizeStartupPath('/settings')).toBe('/collections/main');
 		expect(normalizeStartupPath('/block-lookup')).toBe('/collections/main');
+		expect(normalizeStartupPath('/loading/config')).toBe('/collections/main');
+		expect(normalizeStartupPath('/loading/steamworks')).toBe('/collections/main');
 		expect(normalizeStartupPath('/collections/main')).toBe('/collections/main');
 	});
 

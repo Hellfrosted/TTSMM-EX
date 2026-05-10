@@ -101,7 +101,7 @@ describe('renderer async cache', () => {
 		});
 
 		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'fresh', mods: ['local:mod-a'] });
-		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toBe(collection);
+		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toEqual(collection);
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default']);
 		expectNoCollectionRefetch(refetchSpies);
 	});

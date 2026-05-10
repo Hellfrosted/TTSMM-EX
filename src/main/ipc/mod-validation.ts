@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ModType, type ModData } from '../../model';
+import type { ModContextMenuRequest } from 'shared/mod-context-menu';
 import type { ValidChannel } from 'shared/ipc';
 import { parseIpcPayload } from './ipc-validation';
 
@@ -13,17 +13,11 @@ const readModMetadataPayloadSchema = z.object({
 	treatNuterraSteamBetaAsEquivalent: z.boolean().optional()
 });
 
-const modContextMenuRecordSchema = z
+const modContextMenuRequestSchema = z
 	.object({
-		uid: z.string().min(1),
-		id: z.string().nullable(),
-		type: z.enum(ModType),
-		path: z.string().optional(),
-		workshopID: z.bigint().positive().optional(),
-		subscribed: z.boolean().optional(),
-		needsUpdate: z.boolean().optional()
+		uid: z.string().min(1)
 	})
-	.passthrough();
+	.strict();
 
 export function parseWorkshopIdPayload(channel: ValidChannel, payload: unknown): bigint {
 	return parseIpcPayload(channel, workshopIdSchema, payload);
@@ -42,6 +36,6 @@ export function parseReadModMetadataPayload(
 	});
 }
 
-export function parseModContextMenuPayload(channel: ValidChannel, payload: unknown): ModData {
-	return parseIpcPayload(channel, modContextMenuRecordSchema, payload) as ModData;
+export function parseModContextMenuPayload(channel: ValidChannel, payload: unknown): ModContextMenuRequest {
+	return parseIpcPayload(channel, modContextMenuRequestSchema, payload);
 }

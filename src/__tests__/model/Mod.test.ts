@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { compareModDataDisplayId, compareModDataDisplayName, getModDataDisplayId, getModDataDisplayName, ModType } from '../../model/Mod';
+import {
+	compareModDataDisplayId,
+	compareModDataDisplayName,
+	createModManagerUid,
+	getModDataDisplayId,
+	getModDataDisplayName,
+	ModType
+} from '../../model/Mod';
 
 describe('mod display ids', () => {
+	it('creates the configured mod manager uid through the model helper', () => {
+		expect(createModManagerUid(BigInt(42))).toBe('workshop:42');
+	});
+
 	it('prefers the workshop id for workshop mods', () => {
 		expect(
 			getModDataDisplayId({

@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
-import {
-	createCollectionNameFormSchema,
-	getCollectionNameError,
-	type CollectionNameFormValues,
-	type CollectionNamingModalType
-} from 'renderer/collection-form-validation';
+import { createCollectionNameFormSchema, type CollectionNameFormValues, type CollectionNamingModalType } from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopDialog, DesktopInput } from 'renderer/components/DesktopControls';
 
 interface CollectionNamingModalProps {
@@ -52,7 +47,7 @@ export default function CollectionNamingModal({
 		resolver: zodResolver(collectionNameFormSchema)
 	});
 	const nameField = form.register('name');
-	const watchedName = useWatch({ control: form.control, name: 'name' }) ?? '';
+	useWatch({ control: form.control, name: 'name' });
 
 	useEffect(() => {
 		const animationFrame = window.requestAnimationFrame(() => {
@@ -63,6 +58,10 @@ export default function CollectionNamingModal({
 			window.cancelAnimationFrame(animationFrame);
 		};
 	}, []);
+
+	useEffect(() => {
+		void form.trigger('name');
+	}, [form]);
 
 	const currentModal = useMemo(
 		() =>
@@ -95,15 +94,7 @@ export default function CollectionNamingModal({
 		[duplicateCollectionCallback, modalType, newCollectionCallback, renameCollectionCallback]
 	);
 
-	const currentModalError = useMemo(
-		() =>
-			getCollectionNameError(watchedName, {
-				activeCollectionName,
-				allCollectionNames,
-				modalType
-			}),
-		[activeCollectionName, allCollectionNames, modalType, watchedName]
-	);
+	const currentModalError = form.formState.errors.name?.message;
 
 	const closeWhenIdle = () => {
 		if (!savingCollection) {

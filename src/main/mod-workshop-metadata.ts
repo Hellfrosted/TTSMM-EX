@@ -1,6 +1,6 @@
 import log from 'electron-log';
 import type { ModData } from '../model';
-import { ModType } from '../model';
+import { createWorkshopPlaceholderMod } from '../model';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { resolvePersonaName } from './steam-persona-cache';
 
@@ -33,13 +33,8 @@ export async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promi
 
 export function createWorkshopPotentialMod(workshopID: bigint): ModData {
 	return {
-		uid: `${ModType.WORKSHOP}:${workshopID}`,
-		id: null,
-		type: ModType.WORKSHOP,
-		workshopID,
-		hasCode: false,
-		path: '',
-		name: `Workshop item ${workshopID.toString()}`
+		...createWorkshopPlaceholderMod(workshopID),
+		path: ''
 	};
 }
 

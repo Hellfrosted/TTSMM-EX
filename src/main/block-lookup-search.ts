@@ -1,4 +1,4 @@
-import type { BlockLookupSearchResult, PersistedBlockLookupIndex } from 'shared/block-lookup';
+import { BLOCK_LOOKUP_SEARCH_RESULT_LIMIT, type BlockLookupSearchResult, type PersistedBlockLookupIndex } from 'shared/block-lookup';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 
 interface SearchableBlockLookupRecord {
@@ -72,6 +72,7 @@ export function searchWarmBlockLookupRecords(
 
 	const normalizedQuery = query.trim().toLowerCase();
 	const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+	const effectiveLimit = limit ?? (tokens.length > 0 ? BLOCK_LOOKUP_SEARCH_RESULT_LIMIT : undefined);
 	const rows = index.records
 		.filter((record) => {
 			if (tokens.length === 0) {
@@ -98,7 +99,7 @@ export function searchWarmBlockLookupRecords(
 		.map((record) => record.record);
 
 	return {
-		rows: limit && limit > 0 ? rows.slice(0, limit) : rows,
+		rows: effectiveLimit && effectiveLimit > 0 ? rows.slice(0, effectiveLimit) : rows,
 		stats: index.stats
 	};
 }

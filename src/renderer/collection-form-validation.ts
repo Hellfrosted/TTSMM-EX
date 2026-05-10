@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { validateCollectionName } from 'shared/collection-name';
+import { collectionNamesEqual, getCollectionNameComparisonKey, validateCollectionName } from 'shared/collection-name';
 
 export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 
@@ -22,12 +22,18 @@ export function getCollectionNameError(name: string, options: CollectionNameVali
 	}
 
 	const trimmedName = name.trim();
-	if (options.modalType === 'rename-collection' && trimmedName === options.activeCollectionName) {
+	if (
+		options.modalType === 'rename-collection' &&
+		options.activeCollectionName &&
+		collectionNamesEqual(trimmedName, options.activeCollectionName)
+	) {
 		return 'Collection name is unchanged';
 	}
 
-	const normalizedName = trimmedName.toLowerCase();
-	const collectionNameExists = [...options.allCollectionNames].some((collectionName) => collectionName.toLowerCase() === normalizedName);
+	const normalizedName = getCollectionNameComparisonKey(trimmedName);
+	const collectionNameExists = [...options.allCollectionNames].some(
+		(collectionName) => getCollectionNameComparisonKey(collectionName) === normalizedName
+	);
 	if (collectionNameExists) {
 		return 'A collection with that name already exists';
 	}

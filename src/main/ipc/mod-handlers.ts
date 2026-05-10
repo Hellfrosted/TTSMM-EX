@@ -5,6 +5,7 @@ import type { SteamworksStatus } from 'shared/ipc';
 import { getWorkshopDependencySnapshotMetadataUpdate, type WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 
 import { ModData, ModType, SessionMods, ValidChannel, createModUid, parseWorkshopModUid } from '../../model';
+import { cloneModData } from '../../model/SessionMods';
 import { openExternalUrl } from '../external-links';
 import { getModDetailsFromPath } from '../mod-fetcher';
 import { scanModInventory } from '../mod-inventory-scan';
@@ -20,6 +21,25 @@ interface MainWindowProvider {
 }
 
 type ScanModInventory = typeof scanModInventory;
+
+interface ModContextMenuRecordStore {
+	get: (uid: string) => ModData | undefined;
+	replace: (mods: Iterable<ModData>) => void;
+}
+
+export function createModContextMenuRecordStore(): ModContextMenuRecordStore {
+	let recordsByUid = new Map<string, ModData>();
+
+	return {
+		get(uid) {
+			const record = recordsByUid.get(uid);
+			return record ? cloneModData(record) : undefined;
+		},
+		replace(mods) {
+			recordsByUid = new Map([...mods].map((mod) => [mod.uid, cloneModData(mod)]));
+		}
+	};
+}
 
 export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus?: () => SteamworksStatus) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
@@ -63,7 +83,10 @@ function createUnsubscribeModHandler(steamworks = Steamworks, getSteamStatus?: (
 	};
 }
 
-export function createReadModMetadataHandler(scanInventory: ScanModInventory = scanModInventory) {
+export function createReadModMetadataHandler(
+	scanInventory: ScanModInventory = scanModInventory,
+	contextMenuRecords?: ModContextMenuRecordStore
+) {
 	return async (
 		event: { sender: WebContents },
 		localDir: string | undefined,
@@ -95,6 +118,7 @@ export function createReadModMetadataHandler(scanInventory: ScanModInventory = s
 				progressSender: event.sender,
 				treatNuterraSteamBetaAsEquivalent: validatedPayload.treatNuterraSteamBetaAsEquivalent
 			});
+			contextMenuRecords?.replace(modsList);
 			return new SessionMods(resolvedLocalDir, modsList);
 		} catch (error) {
 			log.error('Failed to get mod info:');
@@ -254,6 +278,8 @@ export function registerModHandlers(
 	getSteamStatus: () => SteamworksStatus,
 	tryInitSteamworks: () => SteamworksStatus
 ) {
+	const contextMenuRecords = createModContextMenuRecordStore();
+
 	registerValidatedIpcListener(ipcMain, ValidChannel.OPEN_MOD_STEAM, (_event, workshopID: bigint) => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.OPEN_MOD_STEAM, workshopID);
 		openExternalUrl(`steam://url/CommunityFilePage/${validatedWorkshopID}`);
@@ -279,7 +305,7 @@ export function registerModHandlers(
 		return downloadMod(event, workshopID);
 	});
 
-	const readModMetadata = createReadModMetadataHandler();
+	const readModMetadata = createReadModMetadataHandler(scanModInventory, contextMenuRecords);
 	registerValidatedIpcHandler(
 		ipcMain,
 		ValidChannel.READ_MOD_METADATA,
@@ -298,8 +324,13 @@ export function registerModHandlers(
 		return steamworksInit();
 	});
 
-	registerValidatedIpcListener(ipcMain, ValidChannel.OPEN_MOD_CONTEXT_MENU, (_event, record: ModData) => {
-		const validatedRecord = parseModContextMenuPayload(ValidChannel.OPEN_MOD_CONTEXT_MENU, record);
-		Menu.buildFromTemplate(createContextMenuTemplate(validatedRecord, mainWindowProvider)).popup();
+	registerValidatedIpcListener(ipcMain, ValidChannel.OPEN_MOD_CONTEXT_MENU, (_event, request: unknown) => {
+		const validatedRequest = parseModContextMenuPayload(ValidChannel.OPEN_MOD_CONTEXT_MENU, request);
+		const record = contextMenuRecords.get(validatedRequest.uid);
+		if (!record) {
+			log.warn(`Cannot open mod context menu for unknown mod ${validatedRequest.uid}`);
+			return;
+		}
+		Menu.buildFromTemplate(createContextMenuTemplate(record, mainWindowProvider)).popup();
 	});
 }

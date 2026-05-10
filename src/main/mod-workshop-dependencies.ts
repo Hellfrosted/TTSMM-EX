@@ -1,5 +1,6 @@
 import type { ModData } from '../model';
 import { createModDependencyTargetSatisfactionPolicy, type NuterraSteamCompatibilityOptions } from '../model';
+import { getSteamDependencyName } from 'shared/workshop-dependency-snapshot';
 
 export function collectMissingWorkshopDependencies(
 	mods: Iterable<ModData>,
@@ -16,7 +17,7 @@ export function collectMissingWorkshopDependencies(
 				if (workshopMap.has(dependency) || knownInvalidMods.has(dependency)) {
 					return false;
 				}
-				const dependencyName = mod.steamDependencyNames?.[dependency.toString()];
+				const dependencyName = getSteamDependencyName(mod.steamDependencyNames, dependency);
 				if (
 					loadedWorkshopMods.some((loadedMod) =>
 						policy.isDependencyTargetSatisfiedByMod({ workshopID: dependency, name: dependencyName }, loadedMod)

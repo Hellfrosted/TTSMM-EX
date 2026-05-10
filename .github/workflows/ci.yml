@@ -6,6 +6,10 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -26,7 +30,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Lint
         run: pnpm run lint
@@ -39,6 +43,14 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Upload Vitest report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: vitest-report
+          path: reports/vitest
+          if-no-files-found: ignore
 
   build-and-smoke:
     runs-on: ${{ matrix.os }}
@@ -119,19 +131,19 @@ jobs:
 
       - name: Install dependencies
         if: runner.os != 'Windows'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Install dependencies
         if: runner.os == 'Windows'
-        run: pnpm install --frozen-lockfile --store-dir "$env:PNPM_STORE_DIR"
+        run: pnpm install --frozen-lockfile --prefer-offline --store-dir "$env:PNPM_STORE_DIR"
 
       - name: Install app runtime dependencies
         if: runner.os != 'Windows'
-        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --ignore-scripts
+        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts
 
       - name: Install app runtime dependencies
         if: runner.os == 'Windows'
-        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
+        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
 
       - name: Cache Cargo build
         if: runner.os != 'Windows'
@@ -170,3 +182,11 @@ jobs:
       - name: Smoke UI
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum pnpm run smoke:ui:built
+
+      - name: Upload UI smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-smoke-${{ runner.os }}
+          path: release/smoke/ui
+          if-no-files-found: ignore

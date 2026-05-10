@@ -1,5 +1,6 @@
 import path from 'path';
 import { cloneCollection, type AppConfig, type ModCollection } from '../model';
+import { collectionNamesEqual } from '../shared/collection-name';
 import { listCollections, readCollectionFile, updateCollectionFile } from './collection-store';
 import { writeConfigFile } from './config-store';
 
@@ -54,7 +55,12 @@ export function readActiveCollection(userDataPath: string, request: { config: Ap
 }
 
 export function hasSavedCollectionName(userDataPath: string, name: string, currentName?: string) {
-	return listCollections(userDataPath).some((collectionName) => collectionName !== currentName && collectionName === name);
+	return listCollections(userDataPath).some((collectionName) => {
+		if (currentName && collectionNamesEqual(collectionName, currentName)) {
+			return false;
+		}
+		return collectionNamesEqual(collectionName, name);
+	});
 }
 
 export function selectReplacementCollection(
@@ -62,7 +68,7 @@ export function selectReplacementCollection(
 	deletedName: string
 ): { collection: ModCollection; createdFallback: boolean } | undefined {
 	const remainingName = listCollections(userDataPath)
-		.filter((name) => name !== deletedName)
+		.filter((name) => !collectionNamesEqual(name, deletedName))
 		.sort()[0];
 	if (remainingName) {
 		const collection = readCollectionFile(userDataPath, remainingName);

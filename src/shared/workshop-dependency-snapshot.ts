@@ -114,11 +114,26 @@ export function getWorkshopDependencySnapshotMetadataUpdate(
 		return result.snapshot;
 	}
 	if (result.status === 'unknown') {
-		return {
-			steamDependencies: undefined,
-			steamDependencyNames: undefined,
-			steamDependenciesFetchedAt: result.checkedAt
-		};
+		return createUnknownWorkshopDependencySnapshotMetadata(result.checkedAt);
 	}
 	return undefined;
+}
+
+export function getSteamDependencyNameKey(workshopID: bigint): string {
+	return workshopID.toString();
+}
+
+export function getSteamDependencyName(
+	steamDependencyNames: Readonly<Record<string, string>> | undefined,
+	workshopID: bigint
+): string | undefined {
+	return steamDependencyNames?.[getSteamDependencyNameKey(workshopID)];
+}
+
+export function createUnknownWorkshopDependencySnapshotMetadata(now: number): WorkshopDependencySnapshotMetadata {
+	return {
+		steamDependencies: undefined,
+		steamDependencyNames: undefined,
+		steamDependenciesFetchedAt: now
+	};
 }

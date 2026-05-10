@@ -27,6 +27,7 @@
 		"smoke:ui:built": "node --import=tsx ./scripts/smoke-ui.ts",
 		"smoke:ui:packaged": "pnpm run package && pnpm run smoke:ui:built -- --packaged",
 		"test": "vitest run",
+		"bench:route-switch": "cross-env TTSMM_ROUTE_BENCH=1 vitest run src/__tests__/renderer/route-switch-latency.test.tsx",
 		"typecheck": "tsc -b",
 		"validate": "pnpm run lint && pnpm run deadcode && pnpm run typecheck && pnpm test && pnpm run build",
 		"verify:push": "pnpm run validate",

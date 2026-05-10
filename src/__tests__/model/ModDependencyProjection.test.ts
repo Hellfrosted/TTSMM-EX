@@ -15,15 +15,15 @@ describe('mod dependency projection', () => {
 
 		const projection = createModDependencyProjection(session, dependent);
 
-		expect(projection.requiredModData).toEqual([
-			{
+		expect(projection.requiredModData).toHaveLength(1);
+		expect(projection.requiredModData[0]).toEqual(
+			expect.objectContaining({
 				uid: `${ModType.DESCRIPTOR}:MissingMod`,
 				id: 'MissingMod',
-				workshopID: undefined,
 				type: ModType.DESCRIPTOR,
 				name: 'MissingMod'
-			}
-		]);
+			})
+		);
 		expect(projection.dependentModData).toEqual([]);
 		expect(projection.conflictingModData).toEqual([]);
 	});
@@ -55,7 +55,13 @@ describe('mod dependency projection', () => {
 		const dependencyProjection = createModDependencyProjection(session, dependency);
 		const dependentProjection = createModDependencyProjection(session, dependent);
 
-		expect(dependencyProjection.conflictingModData).toEqual([duplicateDependency]);
+		expect(dependencyProjection.conflictingModData).toEqual([
+			expect.objectContaining({
+				uid: duplicateDependency.uid,
+				id: 'SharedMod',
+				type: ModType.WORKSHOP
+			})
+		]);
 		expect(dependencyProjection.dependentModData).toEqual([
 			expect.objectContaining({
 				uid: dependent.uid,

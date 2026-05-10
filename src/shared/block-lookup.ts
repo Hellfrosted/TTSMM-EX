@@ -1,7 +1,14 @@
-export const BLOCK_LOOKUP_INDEX_VERSION = 1;
+export const BLOCK_LOOKUP_INDEX_VERSION = 2;
+export const BLOCK_LOOKUP_SEARCH_RESULT_LIMIT = 1000;
 export { TERRATECH_STEAM_APP_ID } from './terratech';
 
 export type BlockLookupSourceKind = 'vanilla' | 'json' | 'bundle';
+
+export interface BlockLookupPreviewBounds {
+	x: number;
+	y: number;
+	z: number;
+}
 
 export interface BlockLookupModSource {
 	uid: string;
@@ -19,6 +26,7 @@ export interface BlockLookupRecord {
 	workshopId: string;
 	sourceKind: BlockLookupSourceKind;
 	sourcePath: string;
+	previewBounds?: BlockLookupPreviewBounds;
 	preferredAlias: string;
 	fallbackAlias: string;
 	spawnCommand: string;
@@ -66,7 +74,6 @@ export interface BlockLookupSearchResult {
 }
 
 export interface BlockLookupBuildResult {
-	settings: BlockLookupSettings;
 	stats: BlockLookupIndexStats;
 }
 
@@ -75,4 +82,5 @@ export interface PersistedBlockLookupIndex {
 	builtAt: string;
 	sources: BlockLookupIndexSource[];
 	records: BlockLookupRecord[];
+	sourceRecords?: BlockLookupRecord[];
 }

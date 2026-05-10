@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { type ModCollection, type NotificationProps } from 'model';
+import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
 import api from 'renderer/Api';
 import { applyAuthoritativeCollectionStateToCache } from 'renderer/async-cache';
 import { runCollectionContentSave } from 'renderer/collection-content-save';
@@ -25,6 +25,20 @@ interface UseCollectionLifecycleCommandsOptions {
 
 export interface CollectionContentSaveCommandOptions {
 	showSuccessNotification?: boolean;
+}
+
+function getCollectionContentSaveStateUpdate(
+	appState: CollectionWorkspaceAppState,
+	targetCollection: ModCollection
+): Pick<CollectionWorkspaceAppState, 'activeCollection' | 'allCollections'> {
+	const nextCollection = cloneCollection(targetCollection);
+	const allCollections = new Map(appState.allCollections);
+	allCollections.set(nextCollection.name, nextCollection);
+
+	return {
+		activeCollection: appState.activeCollection?.name === nextCollection.name ? nextCollection : appState.activeCollection,
+		allCollections
+	};
 }
 
 export function useCollectionLifecycleCommands({
@@ -123,6 +137,9 @@ export function useCollectionLifecycleCommands({
 						showSuccessNotification: options.showSuccessNotification ?? true
 					});
 					writeAccepted = saveOutcome.writeAccepted;
+					if (writeAccepted) {
+						updateState(getCollectionContentSaveStateUpdate(appState, saveOutcome.targetCollection));
+					}
 					if (saveOutcome.notification) {
 						openNotification(saveOutcome.notification.props, saveOutcome.notification.type);
 					}
@@ -145,13 +162,15 @@ export function useCollectionLifecycleCommands({
 			return writeAccepted;
 		},
 		[
+			appState,
 			madeEdits,
 			onCollectionContentSaveCompleted,
 			openNotification,
 			persistCollectionFile,
 			runQueuedCollectionWrite,
 			setMadeEdits,
-			setSavingCollection
+			setSavingCollection,
+			updateState
 		]
 	);
 

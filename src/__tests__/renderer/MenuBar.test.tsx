@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('MenuBar', () => {
-	it('persists sidebar navigation without mutating app config state on the click path', async () => {
+	it('persists sidebar navigation and commits the returned app config state', async () => {
 		const appState = createAppState({
 			config: {
 				...createAppState().config,
@@ -78,8 +78,10 @@ describe('MenuBar', () => {
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ currentPath: '/settings' }));
 		});
-		expect(harness.getByTestId('persisted-path')).toHaveTextContent('/collections/main');
-		expect(appState.updateState).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(appState.config.currentPath).toBe('/settings');
+		});
+		expect(appState.updateState).toHaveBeenCalledWith({ config: expect.objectContaining({ currentPath: '/settings' }) });
 	}, 10000);
 
 	it('rolls back the route if path persistence fails', async () => {
@@ -143,8 +145,9 @@ describe('MenuBar', () => {
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ currentPath: '/block-lookup' }));
 		});
-		expect(harness.getByTestId('persisted-path')).toHaveTextContent('/collections/main');
-		expect(appState.updateState).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(appState.config.currentPath).toBe('/block-lookup');
+		});
 	}, 10000);
 
 	it('cycles primary workspaces forward with Ctrl+Tab and backward with Ctrl+Shift+Tab', async () => {
@@ -178,7 +181,9 @@ describe('MenuBar', () => {
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
 		});
-		expect(harness.getByTestId('persisted-path')).toHaveTextContent('/collections/main');
+		await waitFor(() => {
+			expect(appState.config.currentPath).toBe('/block-lookup');
+		});
 	}, 10000);
 
 	it('does not cycle workspaces with Ctrl+Tab while navigation is disabled', async () => {
@@ -230,14 +235,14 @@ describe('MenuBar', () => {
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
 		});
-		expect(appState.updateState).not.toHaveBeenCalled();
+		expect(appState.loadingMods).toBe(false);
 
 		fireEvent.click(getCollectionsMenuItem(view.container));
 		expect(onWorkspacePreview).toHaveBeenLastCalledWith('/collections/main');
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/collections/main');
 		});
-		expect(appState.updateState).not.toHaveBeenCalled();
+		expect(appState.loadingMods).toBe(false);
 	}, 10000);
 
 	it('rolls back to the last persisted path when a later navigation write fails', async () => {

@@ -11,6 +11,8 @@ import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 
 type BlockLookupBootstrapQueryData = readonly [BlockLookupSettings, BlockLookupIndexStats | null];
 
+const MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS = Number.POSITIVE_INFINITY;
+
 export const queryKeys = {
 	config: {
 		root: () => ['config'] as const,
@@ -104,7 +106,7 @@ interface ModMetadataQueryOptionsInput {
 	forceReload: boolean;
 	attempt: number;
 	userOverrides: Map<string, ModDataOverride>;
-	treatNuterraSteamBetaAsEquivalent?: boolean;
+	treatNuterraSteamBetaAsEquivalent: boolean;
 }
 
 function getUserOverridesQueryKey(userOverrides: Map<string, ModDataOverride>) {
@@ -128,19 +130,12 @@ export function modMetadataQueryOptions({
 	};
 
 	return queryOptions({
-		queryKey: queryKeys.mods.metadataScan(
-			localDir,
-			knownModIds,
-			forceReload,
-			attempt,
-			treatNuterraSteamBetaAsEquivalent ?? true,
-			userOverridesKey
-		),
+		queryKey: queryKeys.mods.metadataScan(localDir, knownModIds, forceReload, attempt, treatNuterraSteamBetaAsEquivalent, userOverridesKey),
 		queryFn: () =>
 			api
 				.readModMetadata(localDir, new Set(knownModIds), dependencyGraphOptions)
 				.then((mods) => hydrateSessionMods(mods, userOverrides, dependencyGraphOptions)),
-		staleTime: 0
+		staleTime: forceReload ? 0 : MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS
 	});
 }
 
@@ -210,9 +205,9 @@ export function useUpdateCollectionMutation() {
 
 	return useMutation({
 		mutationFn: updateCollectionMutationFn,
-		onSuccess: (result, collection) => {
+		onSuccess: (result) => {
 			if (result.ok) {
-				setCollectionQueryData(queryClient, collection);
+				setCollectionQueryData(queryClient, result.collection);
 			}
 		}
 	});

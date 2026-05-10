@@ -1,17 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { BlockLookupRecord } from 'shared/block-lookup';
+import type { BlockLookupPreviewBounds, BlockLookupRecord } from 'shared/block-lookup';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 
 const NAME_RE = /"Name"\s*:\s*"([^"]+)"/i;
 const ID_RE = /"ID"\s*:\s*(\d+)/i;
 const UNITY_NAME_RE = /"m_Name"\s*:\s*"([^"]+)"/i;
+const BLOCK_EXTENTS_RE = /"BlockExtents"\s*:\s*\{([\s\S]*?)\}/i;
 const BUNDLE_SCAN_CONTEXT_CHARS = 8192;
 
 export interface ExtractedTextBlock {
 	blockName: string;
 	blockId: string;
 	internalName: string;
+	previewBounds?: BlockLookupPreviewBounds;
 }
 
 export interface BlockLookupTextAsset {
@@ -44,6 +46,27 @@ export function humanizeBlockLookupIdentifier(value: string): string {
 		.trim();
 }
 
+function readBlockLookupNumberProperty(text: string, propertyName: keyof BlockLookupPreviewBounds): number | undefined {
+	const match = new RegExp(`"${propertyName}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, 'i').exec(text);
+	const value = match ? Number(match[1]) : undefined;
+	return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function parseBlockLookupPreviewBounds(text: string): BlockLookupPreviewBounds | undefined {
+	const extentsBody = BLOCK_EXTENTS_RE.exec(text)?.[1];
+	if (!extentsBody) {
+		return undefined;
+	}
+	const x = readBlockLookupNumberProperty(extentsBody, 'x');
+	const y = readBlockLookupNumberProperty(extentsBody, 'y');
+	const z = readBlockLookupNumberProperty(extentsBody, 'z');
+	return x && y && z ? { x, y, z } : undefined;
+}
+
+function hasNamelessNuterraBlockShape(text: string): boolean {
+	return /"NuterraBlock"\s*:\s*\{/i.test(text);
+}
+
 export function buildBlockLookupAliases(blockName: string, modTitle: string): { preferredAlias: string; fallbackAlias: string } {
 	return {
 		preferredAlias: `${observedNormalize(blockName)}(${observedNormalize(modTitle)})`,
@@ -64,6 +87,7 @@ export function createBlockLookupRecord(
 		workshopId: source.workshopId,
 		sourceKind: source.sourceKind,
 		sourcePath: source.sourcePath,
+		previewBounds: block.previewBounds,
 		preferredAlias: aliases.preferredAlias,
 		fallbackAlias: aliases.fallbackAlias,
 		spawnCommand: `SpawnBlock ${aliases.preferredAlias}`,
@@ -72,7 +96,8 @@ export function createBlockLookupRecord(
 }
 
 function parseNuterraBlockText(text: string, fallbackInternalName: string): ExtractedTextBlock | null {
-	const name = NAME_RE.exec(text)?.[1]?.trim();
+	const explicitName = NAME_RE.exec(text)?.[1]?.trim();
+	const name = explicitName || (hasNamelessNuterraBlockShape(text) ? humanizeBlockLookupIdentifier(fallbackInternalName) : '');
 	if (!name) {
 		return null;
 	}
@@ -80,7 +105,8 @@ function parseNuterraBlockText(text: string, fallbackInternalName: string): Extr
 	return {
 		blockName: name,
 		blockId: ID_RE.exec(text)?.[1] || '',
-		internalName: UNITY_NAME_RE.exec(text)?.[1]?.trim() || fallbackInternalName
+		internalName: UNITY_NAME_RE.exec(text)?.[1]?.trim() || fallbackInternalName,
+		previewBounds: parseBlockLookupPreviewBounds(text)
 	};
 }
 

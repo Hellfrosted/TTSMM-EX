@@ -48,7 +48,7 @@ export function createBlockLookupIndexPlan(
 ): BlockLookupIndexPlan {
 	const existingSourceMap = new Map(existingIndex.sources.map((source) => [source.sourcePath, source]));
 	const existingRecordsBySource = new Map<string, BlockLookupRecord[]>();
-	existingIndex.records.forEach((record) => {
+	(existingIndex.sourceRecords ?? existingIndex.records).forEach((record) => {
 		const records = existingRecordsBySource.get(record.sourcePath) || [];
 		records.push(record);
 		existingRecordsBySource.set(record.sourcePath, records);

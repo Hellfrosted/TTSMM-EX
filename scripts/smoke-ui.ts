@@ -4,11 +4,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { repoRoot, releaseAppDistPath, releaseBuildPath } from './lib/paths';
-
-const USER_DATA_DIR_OVERRIDE_ENV = 'TTSMM_EX_USER_DATA_DIR';
-const UI_SMOKE_ENV = 'TTSMM_EX_UI_SMOKE';
-const UI_SMOKE_OUTPUT_ENV = 'TTSMM_EX_UI_SMOKE_OUTPUT';
-const UI_SMOKE_SCREENSHOT_DIR_ENV = 'TTSMM_EX_UI_SMOKE_SCREENSHOT_DIR';
+import { createDefaultAppConfig } from '../src/shared/app-config-defaults';
+import { UI_SMOKE_ENV, UI_SMOKE_OUTPUT_ENV, UI_SMOKE_SCREENSHOT_DIR_ENV } from '../src/shared/ui-smoke';
+import { USER_DATA_DIR_OVERRIDE_ENV } from '../src/shared/user-data';
 
 const electronBinary = path.join(repoRoot, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
 const mainEntryPath = path.join(releaseAppDistPath, 'main', 'main.js');
@@ -61,30 +59,21 @@ function resolveLaunchCommand() {
 }
 
 function seedSmokeUserData() {
+	const config = {
+		...createDefaultAppConfig(process.platform),
+		activeCollection: 'default',
+		gameExec: process.execPath,
+		ignoredValidationErrors: {},
+		userOverrides: {}
+	};
 	fs.mkdirSync(userDataPath, { recursive: true });
 	fs.writeFileSync(
 		path.join(userDataPath, 'config.json'),
-		JSON.stringify(
-			{
-				gameExec: process.execPath,
-				workshopID: '2790161231',
-				logsDir: '',
-				closeOnLaunch: false,
-				language: 'english',
-				activeCollection: 'default',
-				steamMaxConcurrency: 5,
-				currentPath: '/collections/main',
-				viewConfigs: {},
-				ignoredValidationErrors: {},
-				userOverrides: {}
-			},
-			null,
-			4
-		),
+		JSON.stringify(config, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 4),
 		'utf8'
 	);
 	fs.mkdirSync(path.join(userDataPath, 'collections'), { recursive: true });
-	fs.writeFileSync(path.join(userDataPath, 'collections', 'default.json'), JSON.stringify({ name: 'default', mods: [] }, null, 4), 'utf8');
+	fs.writeFileSync(path.join(userDataPath, 'collections', 'default.json'), JSON.stringify({ mods: [] }, null, 4), 'utf8');
 }
 
 fs.rmSync(smokeRoot, { recursive: true, force: true });

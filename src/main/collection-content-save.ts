@@ -22,5 +22,14 @@ export function saveExistingCollectionContent(userDataPath: string, request: Col
 		};
 	}
 
-	return { ok: true };
+	const savedCollection = readCollectionFile(userDataPath, request.collectionName);
+	if (!savedCollection) {
+		return {
+			ok: false,
+			code: 'write-failed',
+			message: `Failed to read saved collection ${request.collectionName}`
+		};
+	}
+
+	return { ok: true, collection: savedCollection };
 }

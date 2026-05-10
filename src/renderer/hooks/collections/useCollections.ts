@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useMemo, useState } from 'react';
-import { cloneCollection, ModCollection, ModType, type ModData } from 'model';
+import { cloneCollection, createModManagerUid, ModCollection, type ModData } from 'model';
 import type { NotificationProps } from 'model';
 import api from 'renderer/Api';
 import { useUpdateCollectionMutation } from 'renderer/async-cache';
@@ -84,7 +84,7 @@ export function useCollections({
 	);
 
 	const getModManagerUID = useCallback(() => {
-		return `${ModType.WORKSHOP}:${config.workshopID}`;
+		return createModManagerUid(config.workshopID);
 	}, [config.workshopID]);
 
 	const runQueuedCollectionWrite = useCallback(

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BlockLookupColumnTitles, MainColumnTitles, type BlockLookupViewConfig, type MainCollectionConfig } from '../../model';
 import {
 	blockLookupColumnsToConfig,
+	canSetMainColumnVisibility,
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
 	getConfiguredBlockLookupColumns,
@@ -22,6 +23,7 @@ describe('view-config-persistence', () => {
 			},
 			columnWidthConfig: {
 				[MainColumnTitles.NAME]: 10,
+				[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 10,
 				Legacy: 999
 			},
 			columnOrder: ['Legacy', MainColumnTitles.ID, MainColumnTitles.ID, MainColumnTitles.NAME],
@@ -34,12 +36,33 @@ describe('view-config-persistence', () => {
 				[MainColumnTitles.NAME]: false
 			},
 			columnWidthConfig: {
-				[MainColumnTitles.NAME]: 144
+				[MainColumnTitles.NAME]: 144,
+				[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 154
 			},
 			columnOrder: [MainColumnTitles.ID, MainColumnTitles.NAME],
 			detailsOverlayWidth: 360,
 			detailsOverlayHeight: 220
 		});
+	});
+
+	it('keeps either Name or ID visible in normalized main collection config', () => {
+		expect(
+			normalizeMainCollectionConfig({
+				columnActiveConfig: {
+					[MainColumnTitles.NAME]: false,
+					[MainColumnTitles.ID]: false,
+					[MainColumnTitles.TAGS]: false
+				}
+			})
+		).toEqual({
+			columnActiveConfig: {
+				[MainColumnTitles.ID]: false,
+				[MainColumnTitles.TAGS]: false
+			}
+		});
+
+		expect(canSetMainColumnVisibility(MainColumnTitles.ID, false, { [MainColumnTitles.NAME]: false })).toBe(false);
+		expect(canSetMainColumnVisibility(MainColumnTitles.NAME, false, { [MainColumnTitles.ID]: false })).toBe(false);
 	});
 
 	it('updates and clears main collection details overlay sizes', () => {
@@ -152,6 +175,7 @@ describe('view-config-persistence', () => {
 		expect(columns.map((column) => column.title)).toEqual([
 			BlockLookupColumnTitles.INTERNAL_NAME,
 			BlockLookupColumnTitles.BLOCK,
+			BlockLookupColumnTitles.PREVIEW,
 			BlockLookupColumnTitles.SPAWN_COMMAND,
 			BlockLookupColumnTitles.MOD
 		]);

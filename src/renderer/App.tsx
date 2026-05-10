@@ -1,4 +1,4 @@
-import { Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -41,6 +41,12 @@ const MenuBarLazy = lazy(async () => {
 	return { default: module.default };
 });
 
+let initialSteamworksVerificationRequested = false;
+
+export function resetInitialSteamworksVerificationForTests() {
+	initialSteamworksVerificationRequested = false;
+}
+
 interface AppViewStageProps extends PropsWithChildren {
 	active: boolean;
 	name: 'loading' | 'collections' | 'settings' | 'block-lookup';
@@ -48,12 +54,36 @@ interface AppViewStageProps extends PropsWithChildren {
 }
 
 export function AppViewStage({ active, children, name, overflow = 'hidden' }: AppViewStageProps) {
+	const stageRef = useRef<HTMLDivElement>(null);
+	const [containsFocus, setContainsFocus] = useState(false);
+	const hideFromAssistiveTech = !active && !containsFocus;
+
+	useLayoutEffect(() => {
+		if (active || !containsFocus) {
+			return;
+		}
+
+		const activeElement = document.activeElement;
+		if (activeElement instanceof HTMLElement && stageRef.current?.contains(activeElement)) {
+			activeElement.blur();
+		}
+	}, [active, containsFocus]);
+
 	return (
 		<div
-			aria-hidden={!active}
+			ref={stageRef}
+			aria-hidden={hideFromAssistiveTech || undefined}
 			className={`AppViewStage${active ? ' is-active' : ''}`}
 			data-active={active ? 'true' : 'false'}
 			data-view-stage={name}
+			onBlurCapture={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+					setContainsFocus(false);
+				}
+			}}
+			onFocusCapture={() => {
+				setContainsFocus(true);
+			}}
 			style={{
 				overflow
 			}}
@@ -150,7 +180,7 @@ function MenuBarStageView({
 	);
 }
 
-function AppShell() {
+export function AppShell() {
 	const location = useLocation();
 	const [previewPathname, setPreviewPathname] = useState<string | null>(null);
 	const committedPathnameRef = useRef(location.pathname);
@@ -163,6 +193,9 @@ function AppShell() {
 	const configErrorCount = useAppStateSelector((state) => Object.keys(state.configErrors || {}).length);
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
+	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
+	const initializedConfigsRef = useRef(initializedConfigs);
+	initializedConfigsRef.current = initializedConfigs;
 	const initialRouteKind = getAppRouteKind(location.pathname);
 	const [mountedStages, setMountedStages] = useState({
 		blockLookup: initialRouteKind === 'block-lookup',
@@ -182,6 +215,12 @@ function AppShell() {
 	const navigateToSteamworks = useEffectEvent(() => {
 		navigateApp('/loading/steamworks');
 	});
+	const navigateToInitialSteamworks = useEffectEvent(() => {
+		if (!initialSteamworksVerificationRequested && !initializedConfigsRef.current) {
+			initialSteamworksVerificationRequested = true;
+			navigateToSteamworks();
+		}
+	});
 	const startForcedModReload = useEffectEvent(() => {
 		updateAppState({ loadingMods: true, forceReloadMods: true });
 	});
@@ -196,7 +235,9 @@ function AppShell() {
 			return undefined;
 		}
 
-		navigateToSteamworks();
+		const initialSteamworksTimeoutId = window.setTimeout(() => {
+			navigateToInitialSteamworks();
+		}, 0);
 		const unsubscribeModRefresh = api.onModRefreshRequested(() => {
 			startForcedModReload();
 		});
@@ -205,6 +246,7 @@ function AppShell() {
 		});
 
 		return () => {
+			window.clearTimeout(initialSteamworksTimeoutId);
 			unsubscribeModRefresh();
 			unsubscribeReloadSteamworks();
 		};

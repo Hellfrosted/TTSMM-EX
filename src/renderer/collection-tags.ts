@@ -1,6 +1,6 @@
 import { getCorpDisplayName, getCorpType, type DisplayModData } from 'model';
 
-export function getCanonicalCollectionTagLabel(tag: string) {
+function getCanonicalCollectionTagLabel(tag: string) {
 	const corp = getCorpType(tag);
 	return corp ? getCorpDisplayName(corp) : tag.trim();
 }
@@ -20,4 +20,16 @@ export function getAllCollectionTags(record: DisplayModData) {
 		}
 	});
 	return [...tags.values()];
+}
+
+export function getCollectionTagSearchTexts(record: DisplayModData) {
+	const searchTexts = new Set<string>();
+	getAllCollectionTags(record).forEach((label) => {
+		searchTexts.add(label);
+		const corp = getCorpType(label);
+		if (corp) {
+			searchTexts.add(corp.toString());
+		}
+	});
+	return [...searchTexts];
 }

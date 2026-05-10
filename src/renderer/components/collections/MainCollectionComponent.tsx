@@ -2,7 +2,7 @@ import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Clock3, Code2, HardDrive, LoaderCircle, PanelRightOpen, TriangleAlert } from 'lucide-react';
+import { Clock3, Code2, LoaderCircle, PanelRightOpen, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
@@ -55,7 +55,6 @@ import {
 	MainColumnTitles,
 	ModErrors,
 	ModType,
-	getMainColumnMinWidth,
 	getModDataDisplayName,
 	compareModDataDisplayName,
 	getModDataDisplayId,
@@ -65,10 +64,9 @@ import {
 	getCollectionStatusTags,
 	type CollectionStatusTag
 } from 'model';
+import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { formatDateStr } from 'util/Date';
 
-import steam from '../../../../assets/steam.png';
-import ttmm from '../../../../assets/ttmm.png';
 import Corp_Icon_HE from '../../../../assets/Corp_Icon_HE.png';
 import Corp_Icon_BF from '../../../../assets/Corp_Icon_BF.png';
 import Corp_Icon_GC from '../../../../assets/Corp_Icon_GC.png';
@@ -79,6 +77,7 @@ import Corp_Icon_SPE from '../../../../assets/Corp_Icon_SPE.png';
 import Icon_Skins from '../../../../assets/paintbrush.svg';
 import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
 import Icon_Corps from '../../../../assets/faction-flag.svg';
+import { getModTypeLabel, ModTypeIcon } from './mod-type-presentation';
 
 const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
 const SIZE_METER_MIN_BYTES = 10 * 1024;
@@ -187,40 +186,9 @@ function MainCollectionIcon({ children, label, className = '' }: { children: Rea
 	);
 }
 
-function getModTypeLabel(type: ModType) {
-	switch (type) {
-		case ModType.LOCAL:
-			return 'Local mod';
-		case ModType.TTQMM:
-			return 'TTMM mod';
-		case ModType.WORKSHOP:
-			return 'Steam Workshop mod';
-		default:
-			return 'Mod';
-	}
-}
-
 function compareModType(left: DisplayModData, right: DisplayModData) {
 	const typeComparison = getModTypeLabel(left.type).localeCompare(getModTypeLabel(right.type));
 	return typeComparison || compareModDataDisplayName(left, right);
-}
-
-function getImageSrcFromType(type: ModType, size = 15) {
-	const label = getModTypeLabel(type);
-	switch (type) {
-		case ModType.LOCAL:
-			return (
-				<MainCollectionIcon label={label}>
-					<HardDrive size={size} aria-hidden="true" />
-				</MainCollectionIcon>
-			);
-		case ModType.TTQMM:
-			return <img src={ttmm} width={size} alt={label} key="type" title={label} />;
-		case ModType.WORKSHOP:
-			return <img src={steam} width={size} alt={label} key="type" title={label} />;
-		default:
-			return null;
-	}
 }
 
 enum TypeTag {
@@ -416,7 +384,11 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 		renderSetup: (props: MainCollectionSchemaProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
-			return (type: ModType) => <span className="CollectionTypeIndicator">{getImageSrcFromType(type, small ? 22 : 30)}</span>;
+			return (type: ModType) => (
+				<span className="CollectionTypeIndicator">
+					<ModTypeIcon type={type} size={small ? 22 : 30} className="MainCollectionIcon" />
+				</span>
+			);
 		},
 		width: getDefaultMainColumnWidth(MainColumnTitles.TYPE),
 		sorter: compareModType,
@@ -952,7 +924,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 						}, 0);
 
 						if (measuredWidth > 0) {
-							measuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
+							measuredWidths[columnTitle] = Math.max(getResolvedMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
 						}
 					});
 
@@ -1107,7 +1079,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		[commands]
 	);
 	const openRowContextMenu = useCallback((record: DisplayModData) => {
-		api.openModContextMenu(record);
+		api.openModContextMenu({ uid: record.uid });
 	}, []);
 	const highlightRow = useCallback((record: DisplayModData) => {
 		setHighlightedRowUid(record.uid);

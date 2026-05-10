@@ -4,7 +4,11 @@ import type {
 	WorkshopDependencySnapshotLookupResult,
 	WorkshopDependencySnapshotMetadata
 } from 'shared/workshop-dependency-snapshot';
-import { getWorkshopDependencySnapshotMetadataUpdate } from 'shared/workshop-dependency-snapshot';
+import {
+	createUnknownWorkshopDependencySnapshotMetadata,
+	getSteamDependencyNameKey,
+	getWorkshopDependencySnapshotMetadataUpdate
+} from 'shared/workshop-dependency-snapshot';
 import { chunkWorkshopIds, getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import type { SteamUGCDetails } from './steamworks';
 import { EResult } from './steamworks/types';
@@ -52,7 +56,7 @@ export function createWorkshopDependencySnapshot(
 
 	const steamDependencyNames = Object.fromEntries(
 		steamUGCDetails.children
-			.map((dependencyID) => [dependencyID.toString(), dependencyNames.get(dependencyID)] as const)
+			.map((dependencyID) => [getSteamDependencyNameKey(dependencyID), dependencyNames.get(dependencyID)] as const)
 			.filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
 	);
 
@@ -74,11 +78,7 @@ export function createWorkshopDependencySnapshotMetadata(
 	}
 
 	if (steamUGCDetails.result === EResult.k_EResultOK) {
-		return {
-			steamDependencies: undefined,
-			steamDependencyNames: undefined,
-			steamDependenciesFetchedAt: now
-		};
+		return createUnknownWorkshopDependencySnapshotMetadata(now);
 	}
 
 	return undefined;

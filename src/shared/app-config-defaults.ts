@@ -2,7 +2,7 @@ import type { AppConfig } from 'model/AppConfig';
 import { ModErrorType } from 'model/CollectionValidation';
 import type { ModDataOverride } from 'model/Mod';
 
-const DEFAULT_WORKSHOP_ID = BigInt(2790161231);
+export const DEFAULT_WORKSHOP_ID = BigInt(2790161231);
 
 function getDefaultExecutablePath(platform: string): string {
 	switch (platform) {
@@ -16,16 +16,16 @@ function getDefaultExecutablePath(platform: string): string {
 }
 
 function toWorkshopId(value: unknown, fallback: bigint): bigint {
+	let parsed: bigint | undefined;
 	if (typeof value === 'bigint') {
-		return value;
+		parsed = value;
+	} else if (typeof value === 'number' && Number.isInteger(value)) {
+		parsed = BigInt(value);
+	} else if (typeof value === 'string' && /^\d+$/.test(value)) {
+		parsed = BigInt(value);
 	}
-	if (typeof value === 'number' && Number.isInteger(value)) {
-		return BigInt(value);
-	}
-	if (typeof value === 'string' && /^\d+$/.test(value)) {
-		return BigInt(value);
-	}
-	return fallback;
+
+	return parsed !== undefined && parsed > 0n ? parsed : fallback;
 }
 
 function normalizeIgnoredValidationErrors(value: unknown): AppConfig['ignoredValidationErrors'] {

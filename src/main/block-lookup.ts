@@ -5,6 +5,7 @@ import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	BlockLookupBuildRequest,
 	BlockLookupIndexStats,
+	BlockLookupPreviewBounds,
 	BlockLookupSearchResult,
 	BlockLookupSettings,
 	PersistedBlockLookupIndex
@@ -78,6 +79,21 @@ function readString(value: unknown) {
 	return typeof value === 'string' ? value : undefined;
 }
 
+function readPositiveNumber(value: unknown) {
+	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function normalizeBlockLookupPreviewBounds(value: unknown): BlockLookupPreviewBounds | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const bounds = value as Record<string, unknown>;
+	const x = readPositiveNumber(bounds.x);
+	const y = readPositiveNumber(bounds.y);
+	const z = readPositiveNumber(bounds.z);
+	return x && y && z ? { x, y, z } : undefined;
+}
+
 function normalizeBlockLookupSource(source: unknown): PersistedBlockLookupIndex['sources'][number] | undefined {
 	if (!source || typeof source !== 'object') {
 		return undefined;
@@ -127,6 +143,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 	const fallbackAlias = readString(indexRecord.fallbackAlias);
 	const spawnCommand = readString(indexRecord.spawnCommand);
 	const fallbackSpawnCommand = readString(indexRecord.fallbackSpawnCommand);
+	const previewBounds = normalizeBlockLookupPreviewBounds(indexRecord.previewBounds);
 
 	if (
 		blockName === undefined ||
@@ -152,6 +169,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 		workshopId,
 		sourceKind,
 		sourcePath,
+		previewBounds,
 		preferredAlias,
 		fallbackAlias,
 		spawnCommand,
@@ -169,15 +187,23 @@ function normalizeBlockLookupIndex(index: unknown): PersistedBlockLookupIndex {
 		return createEmptyIndex();
 	}
 
+	const records = indexRecord.records
+		.map((record) => normalizeBlockLookupRecord(record))
+		.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record);
+	const sourceRecords = Array.isArray(indexRecord.sourceRecords)
+		? indexRecord.sourceRecords
+				.map((record) => normalizeBlockLookupRecord(record))
+				.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record)
+		: undefined;
+
 	return {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
 		builtAt: typeof indexRecord.builtAt === 'string' ? indexRecord.builtAt : '',
 		sources: indexRecord.sources
 			.map((source) => normalizeBlockLookupSource(source))
 			.filter((source): source is PersistedBlockLookupIndex['sources'][number] => !!source),
-		records: indexRecord.records
-			.map((record) => normalizeBlockLookupRecord(record))
-			.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record)
+		records,
+		sourceRecords
 	};
 }
 
@@ -192,13 +218,11 @@ function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookup
 export async function buildBlockLookupIndex(
 	userDataPath: string,
 	request: BlockLookupBuildRequest
-): Promise<{ stats: BlockLookupIndexStats; settings: BlockLookupSettings }> {
+): Promise<{ stats: BlockLookupIndexStats }> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
 	const build = await createBlockLookupIndexBuild(existingIndex, request);
 	writeBlockLookupIndex(userDataPath, build.index);
-	const settings = writeBlockLookupSettings(userDataPath, build.settings);
 	return {
-		settings,
 		stats: build.stats
 	};
 }

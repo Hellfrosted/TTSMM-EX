@@ -111,12 +111,14 @@ describe('collection-mod-projection', () => {
 	it('ignores non-printable workshop tags when filtering', () => {
 		const rows: ModData[] = [
 			{ uid: 'workshop:1', id: 'BadTag', name: 'Bad Tag Mod', type: ModType.WORKSHOP, tags: ['\u0000\u0000\u0000\u0000'] },
-			{ uid: 'workshop:2', id: 'GoodTag', name: 'Good Tag Mod', type: ModType.WORKSHOP, tags: ['Blocks'] }
+			{ uid: 'workshop:2', id: 'GoodTag', name: 'Good Tag Mod', type: ModType.WORKSHOP, tags: ['Blocks', ' mods ', 'bf'] }
 		];
 
 		expect(getCollectionRowFilterTags(rows[0])).toEqual([]);
+		expect(getCollectionRowFilterTags(rows[1])).toEqual(['Blocks', 'Better Future']);
 		expect(filterCollectionRows(rows, '\u0000')).toEqual([]);
-		expect(filterCollectionRowsByTags(rows, ['Blocks'])).toEqual([rows[1]]);
+		expect(filterCollectionRows(rows, 'bf')).toEqual([rows[1]]);
+		expect(filterCollectionRowsByTags(rows, ['Better Future'])).toEqual([rows[1]]);
 	});
 
 	it('uses the latest session record for the displayed details row and falls back to the current record', () => {

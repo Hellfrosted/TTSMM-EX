@@ -10,13 +10,18 @@ const NOT_FOUND_ERROR = -6;
 const activePreviewTokens = new Map<string, string>();
 const previousPreviewTokens = new Map<string, string>();
 
+function isAllowedPreviewFileName(fileName: string): boolean {
+	const normalizedName = fileName.toLowerCase();
+	return normalizedName === 'preview.png' || normalizedName.endsWith(' preview.png');
+}
+
 function normalizePreviewPath(previewPath: string): string {
 	return path.normalize(path.resolve(previewPath));
 }
 
 function resolveRegisteredPreviewPath(previewPath: string): string | null {
 	const normalizedPath = normalizePreviewPath(previewPath);
-	if (path.basename(normalizedPath).toLowerCase() !== 'preview.png') {
+	if (!isAllowedPreviewFileName(path.basename(normalizedPath))) {
 		return null;
 	}
 	if (!fs.existsSync(normalizedPath)) {
@@ -31,7 +36,7 @@ function resolveRegisteredPreviewPath(previewPath: string): string | null {
 			log.warn(`Rejected preview path outside mod directory: ${previewPath}`);
 			return null;
 		}
-		if (path.basename(realPath).toLowerCase() !== 'preview.png') {
+		if (!isAllowedPreviewFileName(path.basename(realPath))) {
 			return null;
 		}
 		return realPath;
@@ -76,7 +81,7 @@ export function resolvePreviewImageRequest(requestUrl: string): string | null {
 			return null;
 		}
 		const expectedFilename = path.basename(resolvedPath).toLowerCase();
-		if (expectedFilename !== 'preview.png') {
+		if (!isAllowedPreviewFileName(expectedFilename)) {
 			return null;
 		}
 		if (!fs.existsSync(resolvedPath)) {

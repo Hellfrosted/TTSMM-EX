@@ -80,7 +80,7 @@ function createElectronMock() {
 		updateConfig: vi.fn(async (config) => config),
 		readCollection: vi.fn(async () => null),
 		readCollectionsList: vi.fn(async () => []),
-		updateCollection: vi.fn(async () => ({ ok: true })),
+		updateCollection: vi.fn(async (request) => ({ ok: true, collection: { name: request.collectionName, mods: [...request.mods] } })),
 		createCollectionLifecycle: vi.fn(async (request) =>
 			lifecycleSuccess(request.config, {
 				name: request.name,
@@ -124,7 +124,6 @@ function createElectronMock() {
 		readBlockLookupSettings: vi.fn(async () => ({ workshopRoot: '' })),
 		saveBlockLookupSettings: vi.fn(async (settings) => settings),
 		buildBlockLookupIndex: vi.fn(async () => ({
-			settings: { workshopRoot: '' },
 			stats: {
 				sources: 0,
 				scanned: 0,
@@ -193,6 +192,25 @@ if (typeof window !== 'undefined') {
 			removeEventListener: noop,
 			dispatchEvent: () => false
 		})),
+		writable: true,
+		configurable: true
+	});
+
+	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
+		return {
+			observe: vi.fn(),
+			unobserve: vi.fn(),
+			disconnect: vi.fn()
+		};
+	});
+
+	Object.defineProperty(window, 'ResizeObserver', {
+		value: ResizeObserverMock,
+		writable: true,
+		configurable: true
+	});
+	Object.defineProperty(globalThis, 'ResizeObserver', {
+		value: ResizeObserverMock,
 		writable: true,
 		configurable: true
 	});

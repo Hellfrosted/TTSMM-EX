@@ -69,8 +69,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			try {
 				const request = createBlockLookupSearchRequest(nextQuery);
 				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(queryClient, request), {
-					queryLength: nextQuery.length,
-					limit: request.limit
+					queryLength: nextQuery.length
 				});
 				dispatchSessionEvent({ type: 'search-completed', requestId, result });
 			} catch (error) {

@@ -1,6 +1,5 @@
 import type { NLogLevel } from 'model/AppConfig';
-import { ModType, createModUid, type ModData } from 'model/Mod';
-import { MOD_MANAGER_WORKSHOP_ID } from 'shared/terratech';
+import { createModManagerUid, type ModData } from 'model/Mod';
 
 const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
 
@@ -31,10 +30,7 @@ export function createGameLaunchCommand(input: {
 	let passedWorkshopID: string | null = workshopIDText;
 
 	let addMods = true;
-	if (
-		actualMods.length === 0 ||
-		(actualMods.length === 1 && actualMods[0] === `[${createModUid(ModType.WORKSHOP, MOD_MANAGER_WORKSHOP_ID)}]`)
-	) {
+	if (actualMods.length === 0 || (actualMods.length === 1 && actualMods[0] === `[${createModManagerUid(input.workshopID)}]`)) {
 		if (input.pureVanilla) {
 			passedWorkshopID = null;
 			addMods = false;

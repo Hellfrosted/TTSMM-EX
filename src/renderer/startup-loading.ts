@@ -12,7 +12,12 @@ export function normalizeStartupPath(currentPath: string | undefined): string {
 	}
 
 	const normalizedPath = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
-	if (normalizedPath === '/collections' || normalizedPath.startsWith('/block-lookup') || normalizedPath.startsWith('/settings')) {
+	if (
+		normalizedPath === '/collections' ||
+		normalizedPath.startsWith('/block-lookup') ||
+		normalizedPath.startsWith('/settings') ||
+		normalizedPath.startsWith('/loading')
+	) {
 		return '/collections/main';
 	}
 

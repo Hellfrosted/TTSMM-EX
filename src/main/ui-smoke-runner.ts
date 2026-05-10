@@ -1,6 +1,17 @@
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { app, type BrowserWindow } from 'electron';
+import {
+	isUiSmokeRunRequest,
+	readPrefixedArgValue,
+	UI_SMOKE_OUTPUT_ARG,
+	UI_SMOKE_OUTPUT_ENV,
+	UI_SMOKE_OUTPUT_PLAIN_ARG,
+	UI_SMOKE_SCREENSHOT_DIR_ARG,
+	UI_SMOKE_SCREENSHOT_DIR_ENV,
+	UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG
+} from 'shared/ui-smoke';
 
 interface UiSmokeCheckpoint {
 	name: string;
@@ -30,15 +41,6 @@ interface UiSmokeCheckpointMetrics {
 	visible: boolean;
 	background: string;
 }
-
-const UI_SMOKE_OUTPUT_ENV = 'TTSMM_EX_UI_SMOKE_OUTPUT';
-const UI_SMOKE_SCREENSHOT_DIR_ENV = 'TTSMM_EX_UI_SMOKE_SCREENSHOT_DIR';
-const UI_SMOKE_ARG = '--ttsmm-ex-ui-smoke';
-const UI_SMOKE_OUTPUT_ARG = '--ttsmm-ex-ui-smoke-output=';
-const UI_SMOKE_SCREENSHOT_DIR_ARG = '--ttsmm-ex-ui-smoke-screenshot-dir=';
-const UI_SMOKE_PLAIN_ARG = 'ttsmm-ex-ui-smoke';
-const UI_SMOKE_OUTPUT_PLAIN_ARG = 'ttsmm-ex-ui-smoke-output=';
-const UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG = 'ttsmm-ex-ui-smoke-screenshot-dir=';
 
 const CHECKPOINTS: UiSmokeCheckpoint[] = [
 	{ name: 'startup', selector: '.AppRoot' },
@@ -106,6 +108,134 @@ function isRenderableCheckpoint(metrics: UiSmokeCheckpointMetrics) {
 		metrics.windowWidth > 0 &&
 		metrics.windowHeight > 0
 	);
+}
+
+function parsePngChunks(png: Buffer) {
+	const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+	if (!png.subarray(0, pngSignature.length).equals(pngSignature)) {
+		return undefined;
+	}
+
+	const chunks: { type: string; data: Buffer }[] = [];
+	let offset = pngSignature.length;
+	while (offset + 12 <= png.length) {
+		const length = png.readUInt32BE(offset);
+		const type = png.toString('ascii', offset + 4, offset + 8);
+		const dataStart = offset + 8;
+		const dataEnd = dataStart + length;
+		if (dataEnd + 4 > png.length) {
+			return undefined;
+		}
+		chunks.push({ type, data: png.subarray(dataStart, dataEnd) });
+		offset = dataEnd + 4;
+		if (type === 'IEND') {
+			break;
+		}
+	}
+
+	return chunks;
+}
+
+function getPngPixelLayout(channels: number, width: number, inflated: Buffer) {
+	const stride = width * channels;
+	const rowLength = stride + 1;
+	if (stride <= 0 || inflated.length % rowLength !== 0) {
+		return undefined;
+	}
+	return { rowLength, stride };
+}
+
+function unfilterPngScanlines(inflated: Buffer, width: number, height: number, channels: number) {
+	const layout = getPngPixelLayout(channels, width, inflated);
+	if (!layout || inflated.length < layout.rowLength * height) {
+		return undefined;
+	}
+
+	const output = Buffer.alloc(layout.stride * height);
+	for (let y = 0; y < height; y += 1) {
+		const inputRowStart = y * layout.rowLength;
+		const outputRowStart = y * layout.stride;
+		const previousRowStart = outputRowStart - layout.stride;
+		const filter = inflated[inputRowStart];
+		for (let x = 0; x < layout.stride; x += 1) {
+			const rawValue = inflated[inputRowStart + 1 + x];
+			const left = x >= channels ? output[outputRowStart + x - channels] : 0;
+			const up = y > 0 ? output[previousRowStart + x] : 0;
+			const upLeft = y > 0 && x >= channels ? output[previousRowStart + x - channels] : 0;
+			let nextValue: number;
+			if (filter === 0) {
+				nextValue = rawValue;
+			} else if (filter === 1) {
+				nextValue = rawValue + left;
+			} else if (filter === 2) {
+				nextValue = rawValue + up;
+			} else if (filter === 3) {
+				nextValue = rawValue + Math.floor((left + up) / 2);
+			} else if (filter === 4) {
+				const p = left + up - upLeft;
+				const pa = Math.abs(p - left);
+				const pb = Math.abs(p - up);
+				const pc = Math.abs(p - upLeft);
+				nextValue = rawValue + (pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft);
+			} else {
+				return undefined;
+			}
+			output[outputRowStart + x] = nextValue & 0xff;
+		}
+	}
+
+	return output;
+}
+
+function hasVisiblePngContent(png: Buffer) {
+	const chunks = parsePngChunks(png);
+	if (!chunks) {
+		return false;
+	}
+
+	const header = chunks.find((chunk) => chunk.type === 'IHDR')?.data;
+	if (!header || header.length < 13) {
+		return false;
+	}
+
+	const width = header.readUInt32BE(0);
+	const height = header.readUInt32BE(4);
+	const bitDepth = header[8];
+	const colorType = header[9];
+	const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : undefined;
+	if (width <= 0 || height <= 0 || bitDepth !== 8 || !channels) {
+		return false;
+	}
+
+	const compressed = Buffer.concat(chunks.filter((chunk) => chunk.type === 'IDAT').map((chunk) => chunk.data));
+	if (compressed.length === 0) {
+		return false;
+	}
+
+	const pixels = unfilterPngScanlines(zlib.inflateSync(compressed), width, height, channels);
+	if (!pixels) {
+		return false;
+	}
+
+	let firstVisiblePixel: number[] | undefined;
+	for (let index = 0; index < pixels.length; index += channels) {
+		const alpha = channels === 4 ? (pixels[index + 3] ?? 0) : 255;
+		if (alpha === 0) {
+			continue;
+		}
+		const pixel = [pixels[index] ?? 0, pixels[index + 1] ?? 0, pixels[index + 2] ?? 0];
+		if (!firstVisiblePixel) {
+			firstVisiblePixel = pixel;
+			continue;
+		}
+		const colorDistance =
+			Math.abs(pixel[0] - firstVisiblePixel[0]) + Math.abs(pixel[1] - firstVisiblePixel[1]) + Math.abs(pixel[2] - firstVisiblePixel[2]);
+		if (colorDistance > 12) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 async function waitForRenderableCheckpoint(window: BrowserWindow, checkpoint: UiSmokeCheckpoint, timeoutMs = 30000) {
@@ -199,7 +329,11 @@ async function captureCheckpoint(window: BrowserWindow, checkpoint: UiSmokeCheck
 	showSmokeWindow(window);
 	await delay(150);
 	const image = await window.webContents.capturePage();
-	fs.writeFileSync(screenshotPath, image.toPNG());
+	const png = image.toPNG();
+	fs.writeFileSync(screenshotPath, png);
+	if (!hasVisiblePngContent(png)) {
+		throw new Error(`Renderer checkpoint ${checkpoint.name} screenshot looked blank: ${screenshotPath}`);
+	}
 	return { ...checkpoint, screenshotPath, metrics };
 }
 
@@ -208,21 +342,17 @@ function writeOutput(outputPath: string, output: unknown) {
 	fs.writeFileSync(outputPath, JSON.stringify(output, null, 2), 'utf8');
 }
 
-function readArgValue(prefix: string, argv: string[] = process.argv) {
-	const arg = argv.find((value) => value.startsWith(prefix));
-	return arg ? arg.slice(prefix.length) : undefined;
-}
-
 export function isUiSmokeRun(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv) {
-	return env.TTSMM_EX_UI_SMOKE === '1' || argv.includes(UI_SMOKE_ARG) || argv.includes(UI_SMOKE_PLAIN_ARG);
+	return isUiSmokeRunRequest(env, argv);
 }
 
 export async function runUiSmoke(window: BrowserWindow, env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv) {
-	const outputPath = env[UI_SMOKE_OUTPUT_ENV] || readArgValue(UI_SMOKE_OUTPUT_ARG, argv) || readArgValue(UI_SMOKE_OUTPUT_PLAIN_ARG, argv);
+	const outputPath =
+		env[UI_SMOKE_OUTPUT_ENV] || readPrefixedArgValue(UI_SMOKE_OUTPUT_ARG, argv) || readPrefixedArgValue(UI_SMOKE_OUTPUT_PLAIN_ARG, argv);
 	const screenshotDir =
 		env[UI_SMOKE_SCREENSHOT_DIR_ENV] ||
-		readArgValue(UI_SMOKE_SCREENSHOT_DIR_ARG, argv) ||
-		readArgValue(UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG, argv);
+		readPrefixedArgValue(UI_SMOKE_SCREENSHOT_DIR_ARG, argv) ||
+		readPrefixedArgValue(UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG, argv);
 	if (!outputPath || !screenshotDir) {
 		throw new Error(`${UI_SMOKE_OUTPUT_ENV} and ${UI_SMOKE_SCREENSHOT_DIR_ENV} are required for UI smoke runs.`);
 	}

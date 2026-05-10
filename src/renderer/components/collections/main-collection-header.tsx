@@ -12,13 +12,14 @@ import type {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { MainColumnTitles } from 'model';
+import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
+import { canSetMainColumnVisibility } from 'renderer/view-config-persistence';
 import {
 	DEFAULT_SELECTION_COLUMN_WIDTH,
 	getColumnWidthStyle,
 	getColumnWidthVariableName,
-	getResolvedMainColumnMinWidth,
 	isMainColumnTitle,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
@@ -393,21 +394,7 @@ export function ResizableHeaderCell({
 	);
 }
 
-export function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: boolean, columnActiveConfig?: Record<string, boolean>) {
-	if (visible) {
-		return true;
-	}
-
-	if (columnTitle === MainColumnTitles.ID && columnActiveConfig?.[MainColumnTitles.NAME] === false) {
-		return false;
-	}
-
-	if (columnTitle === MainColumnTitles.NAME && columnActiveConfig?.[MainColumnTitles.ID] === false) {
-		return false;
-	}
-
-	return true;
-}
+export { canSetMainColumnVisibility };
 
 export function getNextMainCollectionSortState(currentSort: MainSortState, columnTitle: string): MainSortState {
 	if (currentSort.columnTitle !== columnTitle) {

@@ -1,12 +1,6 @@
-import {
-	type DisplayModData,
-	type MainCollectionConfig,
-	MainColumnTitles,
-	getMainColumnMinWidth,
-	getModDataDisplayId,
-	getModDataDisplayName
-} from 'model';
+import { type DisplayModData, type MainCollectionConfig, MainColumnTitles, getModDataDisplayId, getModDataDisplayName } from 'model';
 import { getAllCollectionTags } from 'renderer/collection-tags';
+import { getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { APP_FONT_FAMILY } from 'renderer/theme';
 import { formatDateStr } from 'util/Date';
 import {
@@ -89,14 +83,6 @@ export function isMainColumnTitle(value: string): value is MainColumnTitles {
 
 export function getDefaultMainColumnWidth(columnTitle: MainColumnTitles) {
 	return DEFAULT_MAIN_COLUMN_WIDTHS[columnTitle];
-}
-
-function getHeaderMinimumWidth(columnTitle: MainColumnTitles) {
-	return Math.ceil(columnTitle.length * 8 + 34);
-}
-
-export function getResolvedMainColumnMinWidth(columnTitle: MainColumnTitles) {
-	return Math.max(getMainColumnMinWidth(columnTitle), getHeaderMinimumWidth(columnTitle));
 }
 
 export function getActiveMainColumnTitles(config: MainCollectionConfig | undefined) {

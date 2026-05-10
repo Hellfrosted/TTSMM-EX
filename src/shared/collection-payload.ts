@@ -1,0 +1,1 @@
+export const MAX_COLLECTION_MODS = 100_000;

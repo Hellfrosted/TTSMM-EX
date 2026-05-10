@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
-import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
 import {
 	createModDependencyProjection,
@@ -30,9 +30,7 @@ import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { APP_TAG_STYLES } from 'renderer/theme';
 import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
 import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './mod-details-presentation';
-
-import steam from '../../../../assets/steam.png';
-import ttmm from '../../../../assets/ttmm.png';
+import { ModTypeIcon } from './mod-type-presentation';
 
 interface DetailDescriptionItem {
 	label: ReactNode;
@@ -153,37 +151,6 @@ function DetailTabs({ activeKey, items, onChange }: { activeKey: string; items: 
 			</div>
 		</div>
 	);
-}
-
-function getModTypeLabel(type: ModType) {
-	switch (type) {
-		case ModType.LOCAL:
-			return 'Local mod';
-		case ModType.TTQMM:
-			return 'TTMM mod';
-		case ModType.WORKSHOP:
-			return 'Steam Workshop mod';
-		default:
-			return 'Mod';
-	}
-}
-
-function getImageSrcFromType(type: ModType, size = 15) {
-	const label = getModTypeLabel(type);
-	switch (type) {
-		case ModType.LOCAL:
-			return (
-				<DetailIcon label={label}>
-					<HardDrive size={size} aria-hidden="true" />
-				</DetailIcon>
-			);
-		case ModType.TTQMM:
-			return <img src={ttmm} width={size} alt={label} title={label} key="type" />;
-		case ModType.WORKSHOP:
-			return <img src={steam} width={size} alt={label} title={label} key="type" />;
-		default:
-			return null;
-	}
 }
 
 enum DependenciesTableType {
@@ -345,7 +312,7 @@ const NAME_SCHEMA: DetailColumn = {
 const TYPE_SCHEMA: DetailColumn = {
 	title: 'Type',
 	dataIndex: 'type',
-	render: (type: ModType) => getImageSrcFromType(type, 20),
+	render: (type: ModType) => <ModTypeIcon type={type} size={20} className="ModDetailIcon" />,
 	width: 65,
 	align: 'center'
 };

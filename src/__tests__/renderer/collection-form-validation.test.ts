@@ -11,5 +11,15 @@ describe('collection form validation', () => {
 
 		expect(getCollectionNameError(' default ', options)).toBe('Collection name cannot start or end with whitespace');
 		expect(getCollectionNameError('default', options)).toBe('Collection name is unchanged');
+		expect(getCollectionNameError('Default', options)).toBe('Collection name is unchanged');
+	});
+
+	it('uses the shared collection-name equivalence rule for duplicate preflight', () => {
+		expect(
+			getCollectionNameError('Default', {
+				allCollectionNames: new Set(['default']),
+				modalType: 'new-collection'
+			})
+		).toBe('A collection with that name already exists');
 	});
 });

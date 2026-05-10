@@ -13,9 +13,6 @@ export interface NuterraSteamBetaMatchingPolicy {
 	areDependencyTextsEquivalent(left: string | undefined | null, right: string | undefined | null): boolean;
 	isModVariant(mod: ModData): boolean;
 	isVariantText(value: string | undefined | null): boolean;
-	getEquivalentDependencyIdForWorkshopId(workshopID: bigint): string | undefined;
-	isWorkshopDependencyNameSatisfiedByMod(dependencyName: string | undefined | null, mod: ModData): boolean;
-	isWorkshopDependencySatisfiedByMod(workshopID: bigint, mod: ModData): boolean;
 	normalizeDependencyId(modID: string | undefined | null): string | undefined;
 }
 
@@ -56,32 +53,11 @@ export function createNuterraSteamBetaMatchingPolicy(options: NuterraSteamCompat
 		return isNuterraSteamVariantText(getModDataId(mod)) || isNuterraSteamVariantText(mod.name);
 	}
 
-	function isWorkshopDependencyNameSatisfiedByMod(dependencyName: string | undefined | null, mod: ModData): boolean {
-		if (!enabled || !isNuterraSteamVariantText(dependencyName)) {
-			return false;
-		}
-		return isNuterraSteamVariantText(getModDataId(mod)) || isNuterraSteamVariantText(mod.name);
-	}
-
-	function getEquivalentDependencyIdForWorkshopId(workshopID: bigint): string | undefined {
-		return enabled && workshopID === NUTERRASTEAM_BETA_WORKSHOP_ID ? NUTERRASTEAM_CANONICAL_MOD_ID : undefined;
-	}
-
-	function isWorkshopDependencySatisfiedByMod(workshopID: bigint, mod: ModData): boolean {
-		if (mod.workshopID === workshopID) {
-			return true;
-		}
-		return getEquivalentDependencyIdForWorkshopId(workshopID) !== undefined && isModVariant(mod);
-	}
-
 	return {
 		enabled,
 		areDependencyTextsEquivalent,
-		getEquivalentDependencyIdForWorkshopId,
 		isModVariant,
 		isVariantText: isNuterraSteamVariantText,
-		isWorkshopDependencyNameSatisfiedByMod,
-		isWorkshopDependencySatisfiedByMod,
 		normalizeDependencyId
 	};
 }

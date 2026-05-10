@@ -59,6 +59,7 @@ describe('ModFetcher', () => {
 		try {
 			fs.mkdirSync(modDir, { recursive: true });
 			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle'), 'bundle');
+			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle preview.png'), 'preview');
 			const progress = new ModInventoryProgress({ send: vi.fn() });
 
 			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
@@ -66,7 +67,8 @@ describe('ModFetcher', () => {
 					uid: 'local:AdapterBundle',
 					id: 'AdapterBundle',
 					name: 'AdapterBundle',
-					path: modDir
+					path: modDir,
+					preview: expect.stringMatching(/^image:\/\/preview\//)
 				})
 			]);
 			expect(createLocalPotentialMod(tempDir, 'AdapterPack')).toEqual(

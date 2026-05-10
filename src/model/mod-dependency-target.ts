@@ -1,5 +1,10 @@
 import { type ModData, getModDataId } from './Mod';
-import { createNuterraSteamBetaMatchingPolicy, type NuterraSteamCompatibilityOptions } from './nuterrasteam-compatibility';
+import {
+	NUTERRASTEAM_BETA_WORKSHOP_ID,
+	NUTERRASTEAM_CANONICAL_MOD_ID,
+	createNuterraSteamBetaMatchingPolicy,
+	type NuterraSteamCompatibilityOptions
+} from './nuterrasteam-compatibility';
 
 interface ModDependencyTarget {
 	name?: string;
@@ -7,6 +12,7 @@ interface ModDependencyTarget {
 }
 
 export interface ModDependencyTargetSatisfactionPolicy {
+	getEquivalentDescriptorIdForTarget(target: ModDependencyTarget): string | undefined;
 	getEquivalentDependencyIdForTarget(target: ModDependencyTarget): string | undefined;
 	isDependencyTargetSatisfiedByMod(target: ModDependencyTarget, mod: ModData): boolean;
 }
@@ -16,15 +22,44 @@ export function createModDependencyTargetSatisfactionPolicy(
 ): ModDependencyTargetSatisfactionPolicy {
 	const nuterraSteamPolicy = createNuterraSteamBetaMatchingPolicy(options);
 
+	function getEquivalentDependencyIdForWorkshopId(workshopID: bigint): string | undefined {
+		return nuterraSteamPolicy.enabled && workshopID === NUTERRASTEAM_BETA_WORKSHOP_ID ? NUTERRASTEAM_CANONICAL_MOD_ID : undefined;
+	}
+
 	function getEquivalentDependencyIdForTarget(target: ModDependencyTarget): string | undefined {
 		if (target.workshopID) {
-			const equivalentWorkshopDependencyId = nuterraSteamPolicy.getEquivalentDependencyIdForWorkshopId(target.workshopID);
+			const equivalentWorkshopDependencyId = getEquivalentDependencyIdForWorkshopId(target.workshopID);
 			if (equivalentWorkshopDependencyId) {
 				return equivalentWorkshopDependencyId;
 			}
 		}
 
 		return nuterraSteamPolicy.normalizeDependencyId(target.name);
+	}
+
+	function getEquivalentDescriptorIdForTarget(target: ModDependencyTarget): string | undefined {
+		const equivalentDependencyId = getEquivalentDependencyIdForTarget(target);
+		if (
+			equivalentDependencyId !== undefined &&
+			(getEquivalentDependencyIdForWorkshopId(target.workshopID ?? 0n) !== undefined || equivalentDependencyId !== target.name)
+		) {
+			return equivalentDependencyId;
+		}
+		return undefined;
+	}
+
+	function isWorkshopDependencyNameSatisfiedByMod(dependencyName: string | undefined | null, mod: ModData): boolean {
+		if (!nuterraSteamPolicy.enabled || !nuterraSteamPolicy.isVariantText(dependencyName)) {
+			return false;
+		}
+		return nuterraSteamPolicy.isModVariant(mod);
+	}
+
+	function isWorkshopDependencySatisfiedByMod(workshopID: bigint, mod: ModData): boolean {
+		if (mod.workshopID === workshopID) {
+			return true;
+		}
+		return getEquivalentDependencyIdForWorkshopId(workshopID) !== undefined && nuterraSteamPolicy.isModVariant(mod);
 	}
 
 	function isDependencyTextSatisfiedByMod(dependencyText: string | undefined, mod: ModData) {
@@ -43,11 +78,11 @@ export function createModDependencyTargetSatisfactionPolicy(
 			return true;
 		}
 
-		if (target.workshopID && nuterraSteamPolicy.isWorkshopDependencySatisfiedByMod(target.workshopID, mod)) {
+		if (target.workshopID && isWorkshopDependencySatisfiedByMod(target.workshopID, mod)) {
 			return true;
 		}
 
-		if (target.name && nuterraSteamPolicy.isWorkshopDependencyNameSatisfiedByMod(target.name, mod)) {
+		if (target.name && isWorkshopDependencyNameSatisfiedByMod(target.name, mod)) {
 			return true;
 		}
 
@@ -55,6 +90,7 @@ export function createModDependencyTargetSatisfactionPolicy(
 	}
 
 	return {
+		getEquivalentDescriptorIdForTarget,
 		getEquivalentDependencyIdForTarget,
 		isDependencyTargetSatisfiedByMod
 	};

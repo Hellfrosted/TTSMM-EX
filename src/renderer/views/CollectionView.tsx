@@ -249,6 +249,15 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const activeFilterCount = selectedFilterTags.length + (searchString.trim().length > 0 ? 1 : 0);
 	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord, currentCollectionErrors);
 	const currentViewConfig = config.viewConfigs?.[currentView];
+	const tableCollection = useMemo(
+		() =>
+			activeCollection ??
+			({
+				name: config.activeCollection || 'default',
+				mods: []
+			} satisfies ModCollection),
+		[activeCollection, config.activeCollection]
+	);
 	const {
 		setMainDetailsOverlaySize: persistMainDetailsOverlaySize,
 		setMainColumnOrder: persistMainColumnOrder,
@@ -390,7 +399,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 			height: '100%',
 			width: '100%',
 			detailsOpen: !!displayedCurrentRecord,
-			collection: appState.activeCollection as ModCollection,
+			collection: tableCollection,
 			launchingGame: appState.launchingGame,
 			config: currentViewConfig,
 			availableTags: availableFilterTags,
@@ -408,7 +417,6 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 			}
 		}),
 		[
-			appState.activeCollection,
 			appState.launchingGame,
 			availableFilterTags,
 			currentViewConfig,
@@ -425,6 +433,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 			rows,
 			selectedFilterTags,
 			setEnabledMods,
+			tableCollection,
 			visibleRows
 		]
 	);

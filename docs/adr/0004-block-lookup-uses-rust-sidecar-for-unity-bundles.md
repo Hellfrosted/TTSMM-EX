@@ -16,7 +16,7 @@ Block Lookup bundle extraction uses a small Rust sidecar executable invoked by t
 
 The first parser backend is `io_unity`, selected because it is MIT/Apache licensed and already exposes UnityFS, serialized file, and TextAsset access. The sidecar contract does not expose `io_unity` types, so the parser backend can change without changing Block Lookup index storage or renderer behavior.
 
-The sidecar is packaged with the app as a runtime resource. If it is unavailable during local development, the main process may fall back to best-effort embedded text scanning, but packaged builds should include the sidecar.
+The sidecar is packaged with the app as a runtime resource. If it is unavailable, Block Lookup bundle extraction fails instead of falling back to a TypeScript parser; Rust owns the bundle parsing path.
 
 ## Consequences
 

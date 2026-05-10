@@ -6,8 +6,7 @@ import { ModInventoryProgress } from './mod-inventory-progress';
 import { scanLocalMods } from './mod-local-scan';
 import { getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import { hydrateWorkshopMod } from './mod-workshop-hydration';
-import { fetchWorkshopInventory, filterSettledModResults } from './mod-workshop-inventory';
-import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
+import { buildWorkshopMods, fetchWorkshopInventory, filterSettledModResults } from './mod-workshop-inventory';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -72,18 +71,11 @@ export async function buildWorkshopMod(
 }
 
 export async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
-	const dependencySnapshots = await ingestWorkshopDependencySnapshotBatch(steamDetails);
-	const modResponses = await Promise.allSettled<ModData | null>(
-		steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
-			const mod = await buildWorkshopMod(context, steamUGCDetails.publishedFileId, steamUGCDetails);
-			const dependencySnapshot = dependencySnapshots.get(steamUGCDetails.publishedFileId);
-			if (mod && dependencySnapshot) {
-				applyWorkshopDependencySnapshotResult(mod, dependencySnapshot);
-			}
-			return mod;
-		})
+	return buildWorkshopMods(
+		steamDetails,
+		(workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
+			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem)
 	);
-	return filterSettledModResults(modResponses);
 }
 
 async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {

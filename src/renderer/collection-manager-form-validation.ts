@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { MainColumnTitles, getMainColumnMinWidth, type MainCollectionConfig } from 'model';
+import { MainColumnTitles, type MainCollectionConfig } from 'model';
+import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { normalizeMainCollectionConfig } from 'renderer/view-config-persistence';
 
 export interface MainCollectionTableSettingsFormValues {
@@ -30,7 +31,7 @@ export const mainCollectionTableSettingsSchema = z
 				return;
 			}
 
-			const minimumWidth = getMainColumnMinWidth(column);
+			const minimumWidth = getResolvedMainColumnMinWidth(column);
 			if (width < minimumWidth) {
 				context.addIssue({
 					code: 'custom',
@@ -63,7 +64,7 @@ export function setMainTableSettingsColumnWidth(
 ): MainCollectionTableSettingsFormValues {
 	const nextColumnWidthConfig = { ...values.columnWidthConfig };
 	if (typeof width === 'number') {
-		nextColumnWidthConfig[column] = Math.max(getMainColumnMinWidth(column), Math.round(width));
+		nextColumnWidthConfig[column] = Math.max(getResolvedMainColumnMinWidth(column), Math.round(width));
 	} else {
 		delete nextColumnWidthConfig[column];
 	}

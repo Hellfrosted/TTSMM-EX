@@ -21,6 +21,7 @@ import type {
 	BlockLookupSettings
 } from 'shared/block-lookup';
 import type { CollectionContentSaveRequest, CollectionContentSaveResult } from 'shared/collection-content-save';
+import type { ModContextMenuRequest } from 'shared/mod-context-menu';
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import type { ElectronApi, ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
@@ -239,8 +240,8 @@ class API {
 		this.sendElectron('openModSteam', workshopID);
 	}
 
-	openModContextMenu(record: ModData) {
-		this.sendElectron('openModContextMenu', record);
+	openModContextMenu(request: ModContextMenuRequest) {
+		this.sendElectron('openModContextMenu', request);
 	}
 
 	downloadMod(workshopID: bigint): Promise<boolean> {

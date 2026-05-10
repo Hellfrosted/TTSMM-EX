@@ -8,5 +8,12 @@
 		"moduleResolution": "Bundler",
 		"types": ["node"]
 	},
-	"include": ["vite.config.ts", "vitest.config.ts", "scripts/**/*.ts", "src/shared/renderer-csp.ts"]
+	"include": [
+		"vite.config.ts",
+		"vitest.config.ts",
+		"scripts/**/*.ts",
+		"src/model/**/*.ts",
+		"src/shared/**/*.ts",
+		"src/main/user-data.ts"
+	]
 }

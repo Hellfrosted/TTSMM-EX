@@ -6,20 +6,21 @@ import {
 	CollectionErrors,
 	CollectionManagerModalType,
 	CollectionViewType,
+	createModManagerUid,
 	getByUID,
 	MainColumnTitles,
 	MainCollectionConfig,
 	ModData,
-	ModType,
-	NotificationProps,
-	getMainColumnMinWidth
+	NotificationProps
 } from 'model';
 import api from 'renderer/Api';
+import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { getValidationIssueList } from 'renderer/collection-validation-run';
 import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { persistConfigChange } from 'renderer/util/config-write';
+import { canSetMainColumnVisibility } from 'renderer/view-config-persistence';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,
@@ -304,11 +305,8 @@ function MainTableSettingsForm({
 				{Object.values(MainColumnTitles).map((id: MainColumnTitles) => {
 					const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
 					const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
-					const cannotDisable =
-						isChecked &&
-						((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
-							(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
-					const minimumWidth = getMainColumnMinWidth(id);
+					const cannotDisable = isChecked && !canSetMainColumnVisibility(id, false, columnActiveConfig);
+					const minimumWidth = getResolvedMainColumnMinWidth(id);
 
 					return (
 						<div
@@ -392,7 +390,7 @@ function CollectionManagerModal({
 	const overrideFormDirty = overrideForm.formState.isDirty;
 
 	const getModManagerUID = () => {
-		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
+		return createModManagerUid(appState.config.workshopID);
 	};
 
 	const setDraftColumnWidth = (columnId: MainColumnTitles, width?: number | null) => {

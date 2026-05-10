@@ -67,12 +67,13 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 		input.logger.error(error);
 	}
 	const writeAccepted = result.ok;
+	const savedCollection = result.ok ? result.collection : targetCollection;
 
 	const notification: CollectionContentSaveNotification | undefined = writeAccepted
 		? input.showSuccessNotification
 			? {
 					props: {
-						message: `Saved collection ${targetCollection.name}`,
+						message: `Saved collection ${savedCollection.name}`,
 						placement: 'bottomRight',
 						duration: 1
 					},
@@ -95,7 +96,7 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 		},
 		notification,
 		result,
-		targetCollection,
+		targetCollection: savedCollection,
 		writeAccepted
 	};
 }
