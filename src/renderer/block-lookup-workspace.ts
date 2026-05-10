@@ -19,7 +19,7 @@ interface BlockLookupSettingsState {
 	workshopRoot: string;
 }
 
-export interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsState {
+interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsState {
 	activeSearchRequestId: number;
 	availableModFilters: string[];
 	buildingIndex: boolean;
@@ -36,7 +36,7 @@ export interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsSta
 	selectionAnchorRowKey?: string;
 }
 
-export type BlockLookupWorkspaceSessionEvent =
+type BlockLookupWorkspaceSessionEvent =
 	| { type: 'bootstrap-loaded'; settings: BlockLookupSettings; stats: BlockLookupIndexStats | null }
 	| { type: 'build-index-completed'; result: BlockLookupBuildResult }
 	| { type: 'build-index-finished' }
@@ -299,7 +299,7 @@ export function createBlockLookupBootstrapCacheProjection(
 	return [state.settings, state.stats] as const;
 }
 
-export function getBlockLookupSortValue(record: BlockLookupRecord, sortKey: BlockLookupColumnKey) {
+function getBlockLookupSortValue(record: BlockLookupRecord, sortKey: BlockLookupColumnKey) {
 	switch (sortKey) {
 		case 'spawnCommand':
 			return record.spawnCommand;

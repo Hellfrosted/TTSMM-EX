@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { CollectionNamingModalType } from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopIconButton, DesktopInput, DesktopSelect, DesktopToolbarButton } from 'renderer/components/DesktopControls';
+import { desktopControlFocusClassName, joinClassNames } from 'renderer/components/desktop-control-classes';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
@@ -35,8 +36,10 @@ const toolbarMenuButtonClassName =
 	'ToolbarMenuButton inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[760px]:flex-1';
 const toolbarMenuClassName =
 	'ToolbarMenuSurface absolute right-0 top-[calc(100%+6px)] z-30 flex min-w-56 flex-col rounded-sm border border-border bg-surface-elevated p-1.5 shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]';
-const toolbarMenuItemClassName =
-	'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none';
+const toolbarMenuItemClassName = joinClassNames(
+	'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
+	desktopControlFocusClassName
+);
 
 interface CollectionManagementToolbarProps {
 	madeEdits: boolean;
@@ -275,7 +278,7 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 						<button
 							key={action.label}
 							type="button"
-							className={`${toolbarMenuItemClassName}${action.danger ? ' text-error' : ''}`}
+							className={joinClassNames(toolbarMenuItemClassName, action.danger ? 'text-error' : undefined)}
 							disabled={action.disabled}
 							role="menuitem"
 							onClick={() => {
@@ -658,7 +661,7 @@ function CollectionManagementToolbarComponent({
 					sortedCollectionNames={sortedCollectionNames}
 				/>
 				{numResults !== undefined ? (
-					<div className="min-w-0 shrink-0 text-[0.92rem] text-text-muted max-[760px]:w-full" aria-live="polite">
+					<div className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[760px]:w-full" aria-live="polite">
 						<span>{`${numResults} mod${numResults === 1 ? '' : 's'} shown`}</span>
 					</div>
 				) : null}

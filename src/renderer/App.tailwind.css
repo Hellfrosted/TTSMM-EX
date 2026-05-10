@@ -3,6 +3,14 @@
 @theme inline {
 	--font-sans: var(--app-font-body);
 	--font-display: var(--app-font-display);
+	--font-mono: var(--app-font-mono);
+	--text-caption: var(--app-text-caption);
+	--text-sm-ui: var(--app-text-sm);
+	--text-ui: var(--app-text-ui);
+	--text-body: var(--app-text-body);
+	--text-subheading: var(--app-text-subheading);
+	--text-title: var(--app-text-title);
+	--text-display: var(--app-text-display);
 	--spacing-control: var(--app-control-height);
 	--color-background: var(--app-color-background);
 	--color-foreground: var(--app-color-text-base);

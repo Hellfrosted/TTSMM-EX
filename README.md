@@ -33,8 +33,8 @@ Steam must be installed, running, and signed in from the same Linux or Windows i
 
 ## Build from source requirements
 
-- Node `>=20.19 <26`
-- pnpm `10.x` with lockfile v9 support
+- Node `>=24 <26`
+- pnpm `>=11 <12`
 - Rust toolchain with `cargo` for source builds that build or package Block Lookup bundle extraction
 - Steam desktop client
 - Steamworks SDK for source builds that need Steam integration

@@ -38,6 +38,7 @@ describe('useCollectionRowProjection', () => {
 		});
 
 		await waitFor(() => {
+			expect(result.current.rows.map((row) => row.uid)).toEqual(['workshop:paint', 'local:utility']);
 			expect(result.current.searchString).toBe('paint');
 			expect(result.current.filteredRows?.map((row) => row.uid)).toEqual(['workshop:paint']);
 		});
@@ -75,6 +76,7 @@ describe('useCollectionRowProjection', () => {
 		});
 
 		await waitFor(() => {
+			expect(result.current.rows.map((row) => row.uid)).toEqual(['workshop:paint', 'local:utility', 'local:extra']);
 			expect(result.current.filteredRows?.map((row) => row.uid)).toEqual(['local:utility', 'local:extra']);
 		});
 	});

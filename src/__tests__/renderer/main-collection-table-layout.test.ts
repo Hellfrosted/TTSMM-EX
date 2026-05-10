@@ -6,6 +6,7 @@ import {
 	getColumnWidthStyle,
 	getColumnWidthVariableName,
 	getColumnWidths,
+	getMainCollectionAvailableTableWidth,
 	getMainCollectionTableScrollWidth,
 	getMainCollectionVirtualColumnStyle,
 	isMainColumnTitle,
@@ -145,5 +146,15 @@ describe('main-collection-table-layout', () => {
 
 		expect(widths[MainColumnTitles.NAME]).toBeGreaterThanOrEqual(180);
 		expect(totalWidth).toBe(900);
+	});
+
+	it('measures the collection table content width without root padding', () => {
+		const tableRoot = document.createElement('div');
+		tableRoot.style.paddingLeft = '8px';
+		tableRoot.style.paddingRight = '8px';
+		Object.defineProperty(tableRoot, 'clientWidth', { configurable: true, value: 916 });
+
+		expect(getMainCollectionAvailableTableWidth(tableRoot)).toBe(900);
+		expect(getMainCollectionAvailableTableWidth(tableRoot, 884)).toBe(884);
 	});
 });

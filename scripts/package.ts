@@ -1,10 +1,10 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import chalk from 'chalk';
 import { cleanReleaseArtifacts } from './lib/release';
 import { repoRoot } from './lib/paths';
 import { runPackageManager } from './lib/package-manager';
+import { terminalStyle } from './lib/terminal-style';
 
 type PublishMode = 'never' | 'onTagOrDraft';
 
@@ -164,7 +164,9 @@ for (let index = 0; index < cliArgs.length; index += 1) {
 
 if (requiredPlatform && process.platform !== requiredPlatform) {
 	console.error(
-		chalk.red(`This command requires ${requiredPlatform}. Current platform: ${process.platform}. Run it from a matching environment.`)
+		terminalStyle.error(
+			`This command requires ${requiredPlatform}. Current platform: ${process.platform}. Run it from a matching environment.`
+		)
 	);
 	process.exit(1);
 }

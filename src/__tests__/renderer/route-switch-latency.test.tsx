@@ -106,6 +106,8 @@ function createBenchmarkData() {
 }
 
 function configureBrowserTimingMocks() {
+	window.localStorage.setItem('ttsmm.perf', '1');
+
 	const ResizeObserverMock = vi.fn(function ResizeObserverMock(this: ResizeObserver) {
 		return {
 			observe: vi.fn(),
@@ -219,7 +221,7 @@ async function assertRouteContentReady(target: RouteTarget) {
 			if (target === 'collections') {
 				const stage = getActiveStage('collections');
 				expect(within(stage).getByRole('table', { hidden: true })).toBeInTheDocument();
-				expect(within(stage).getByRole('button', { name: 'Validate Collection' })).toBeEnabled();
+				expect(within(stage).getByRole('button', { name: /Validate Collection|Collection Ready/ })).toBeEnabled();
 				return;
 			}
 			if (target === 'blockLookup') {

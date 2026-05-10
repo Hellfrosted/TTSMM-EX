@@ -17,26 +17,26 @@ interface ActiveCollectionTransitionBaseRequest {
 	dirtyCollection?: ModCollection;
 }
 
-export interface CreateActiveCollectionTransitionRequest extends ActiveCollectionTransitionBaseRequest {
+interface CreateActiveCollectionTransitionRequest extends ActiveCollectionTransitionBaseRequest {
 	collection: ModCollection;
 }
 
-export interface SwitchActiveCollectionTransitionRequest extends ActiveCollectionTransitionBaseRequest {
+interface SwitchActiveCollectionTransitionRequest extends ActiveCollectionTransitionBaseRequest {
 	name: string;
 }
 
-export interface RenameActiveCollectionTransitionRequest {
+interface RenameActiveCollectionTransitionRequest {
 	config: AppConfig;
 	activeCollection: ModCollection;
 	name: string;
 }
 
-export interface DeleteActiveCollectionTransitionRequest {
+interface DeleteActiveCollectionTransitionRequest {
 	config: AppConfig;
 	activeCollection: ModCollection;
 }
 
-export interface ResolveStartupActiveCollectionTransitionRequest {
+interface ResolveStartupActiveCollectionTransitionRequest {
 	config: AppConfig;
 }
 

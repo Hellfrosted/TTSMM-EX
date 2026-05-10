@@ -19,6 +19,7 @@ import {
 } from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { measurePerfAsync } from 'renderer/perf';
+import { formatErrorMessage } from 'renderer/util/error-message';
 
 type BlockLookupWorkflowAppState = Pick<AppState, 'config' | 'mods'>;
 
@@ -48,6 +49,9 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const { config: appConfig, mods } = appState;
 	const { gameExec } = appConfig;
 	const searchRequestIdRef = useRef(0);
+	const skippedInitialSearchEffectRef = useRef(false);
+	const queryRef = useRef(query);
+	queryRef.current = query;
 	const modSources = useMemo(() => collectBlockLookupModSources({ mods }), [mods]);
 
 	const buildRequest = useCallback(
@@ -76,7 +80,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				openNotification(
 					{
 						message: 'Block lookup search failed',
-						description: String(error),
+						description: formatErrorMessage(error),
 						placement: 'topRight',
 						duration: 3
 					},
@@ -100,7 +104,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					return;
 				}
 				dispatchSessionEvent({ type: 'bootstrap-loaded', settings: nextSettings, stats: nextStats });
-				await refreshResults('');
+				await refreshResults(queryRef.current);
 			} catch (error) {
 				api.logger.error(error);
 			}
@@ -112,6 +116,11 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	}, [queryClient, refreshResults]);
 
 	useEffect(() => {
+		if (!skippedInitialSearchEffectRef.current) {
+			skippedInitialSearchEffectRef.current = true;
+			return;
+		}
+
 		const timeoutId = window.setTimeout(() => {
 			void refreshResults(query);
 		}, 180);
@@ -140,7 +149,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			openNotification(
 				{
 					message: 'Could not save block lookup path',
-					description: String(error),
+					description: formatErrorMessage(error),
 					placement: 'topRight',
 					duration: 3
 				},
@@ -177,7 +186,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			openNotification(
 				{
 					message: 'Auto-detect failed',
-					description: String(error),
+					description: formatErrorMessage(error),
 					placement: 'topRight',
 					duration: 3
 				},
@@ -214,7 +223,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				openNotification(
 					{
 						message: 'Block index update failed',
-						description: String(error),
+						description: formatErrorMessage(error),
 						placement: 'topRight',
 						duration: 4
 					},

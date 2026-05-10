@@ -65,6 +65,19 @@ describe('DesktopDialog', () => {
 		appRoot.remove();
 	});
 
+	it('falls back to the document body when the app root is unavailable', () => {
+		render(
+			<div>
+				<DesktopDialog open title="Fallback dialog" onCancel={vi.fn()}>
+					<input aria-label="Fallback field" />
+				</DesktopDialog>
+			</div>
+		);
+
+		const dialog = screen.getByRole('dialog', { name: 'Fallback dialog' });
+		expect(dialog.parentElement?.parentElement).toBe(document.body);
+	});
+
 	it('focuses the dialog, traps tab, closes on Escape, restores focus, and hides siblings', async () => {
 		const onCancel = vi.fn();
 		render(<DialogHarness onCancel={onCancel} />);

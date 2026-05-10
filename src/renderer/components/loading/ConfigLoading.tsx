@@ -22,6 +22,7 @@ import { applyAuthoritativeCollectionStateToCache, configQueryOptions } from 're
 import { validateSettingsPath } from 'util/Validation';
 import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
+import { formatErrorMessage } from 'renderer/util/error-message';
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
 	const errors: { [field: string]: string } = {};
@@ -158,7 +159,7 @@ export default function ConfigLoading() {
 			updateAppState({ userDataPath: path });
 		} catch (error) {
 			api.logger.error(error);
-			dispatchLoading({ type: 'user-data-path-failed', message: String(error) });
+			dispatchLoading({ type: 'user-data-path-failed', message: formatErrorMessage(error) });
 		}
 	});
 
@@ -171,7 +172,7 @@ export default function ConfigLoading() {
 			api.logger.error(error);
 			updateAppState({
 				configErrors: {
-					undefined: `Internal exception while validating AppConfig:\n${String(error)}`
+					undefined: `Internal exception while validating AppConfig:\n${formatErrorMessage(error)}`
 				}
 			});
 		} finally {
@@ -222,7 +223,7 @@ export default function ConfigLoading() {
 			}
 		} catch (error) {
 			api.logger.error(error);
-			dispatchLoading({ type: 'config-load-failed', message: String(error) });
+			dispatchLoading({ type: 'config-load-failed', message: formatErrorMessage(error) });
 		}
 	});
 
@@ -268,7 +269,7 @@ export default function ConfigLoading() {
 				navigateApp(navigation.path);
 			} catch (error) {
 				api.logger.error(error);
-				haltBootOnPersistenceFailure(String(error));
+				haltBootOnPersistenceFailure(formatErrorMessage(error));
 				return;
 			}
 		})();

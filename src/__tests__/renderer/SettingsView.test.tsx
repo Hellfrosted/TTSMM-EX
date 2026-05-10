@@ -122,6 +122,9 @@ describe('SettingsView', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
 
 		expect(await screen.findAllByText('Duplicate logger IDs')).toHaveLength(2);
+		const overrideInput = screen.getByLabelText('Override 2');
+		expect(overrideInput).toHaveAttribute('aria-invalid', 'true');
+		expect(overrideInput).toHaveAccessibleDescription('Duplicate logger IDs');
 		expect(window.electron.updateConfig).not.toHaveBeenCalled();
 	});
 

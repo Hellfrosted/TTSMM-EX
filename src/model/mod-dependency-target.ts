@@ -1,7 +1,7 @@
 import { type ModData, getModDataId } from './Mod';
 import { createNuterraSteamBetaMatchingPolicy, type NuterraSteamCompatibilityOptions } from './nuterrasteam-compatibility';
 
-export interface ModDependencyTarget {
+interface ModDependencyTarget {
 	name?: string;
 	workshopID?: bigint;
 }

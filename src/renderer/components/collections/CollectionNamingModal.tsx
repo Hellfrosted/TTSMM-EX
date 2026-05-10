@@ -118,7 +118,7 @@ export default function CollectionNamingModal({
 		<DesktopDialog
 			open
 			title={currentModal.title}
-			titleClassName="text-base font-bold"
+			titleClassName="text-body font-bold"
 			closeLabel="Close collection naming modal"
 			onCancel={closeModal}
 			panelClassName="w-[min(520px,100%)]"
@@ -157,11 +157,11 @@ export default function CollectionNamingModal({
 					aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
 					aria-invalid={currentModalError ? 'true' : 'false'}
 				/>
-				<span id={collectionNameHelpId} className="text-[0.9rem] leading-[1.4] text-text-muted">
+				<span id={collectionNameHelpId} className="text-ui leading-[var(--app-leading-ui)] text-text-muted">
 					{currentModal.fieldHelp}
 				</span>
 				{currentModalError ? (
-					<span id={collectionNameErrorId} className="text-[0.9rem] leading-[1.4] text-error">
+					<span id={collectionNameErrorId} className="text-ui leading-[var(--app-leading-ui)] text-error">
 						{currentModalError}
 					</span>
 				) : null}

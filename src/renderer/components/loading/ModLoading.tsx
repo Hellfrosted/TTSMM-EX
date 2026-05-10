@@ -6,6 +6,7 @@ import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
 import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { formatErrorMessage } from 'renderer/util/error-message';
 import { ProgressTypes } from 'shared/ipc';
 import {
 	StartupActions,
@@ -124,7 +125,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 					return;
 				}
 				api.logger.error(error);
-				dispatchLoading({ type: 'failed', message: error instanceof Error ? error.message : String(error) });
+				dispatchLoading({ type: 'failed', message: formatErrorMessage(error) });
 			});
 
 		return () => {

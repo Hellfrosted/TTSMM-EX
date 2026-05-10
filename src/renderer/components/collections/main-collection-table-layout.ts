@@ -179,6 +179,11 @@ function getHorizontalInsets(element: Element) {
 	);
 }
 
+function getHorizontalPadding(element: Element) {
+	const style = window.getComputedStyle(element);
+	return parsePixelValue(style.paddingLeft) + parsePixelValue(style.paddingRight);
+}
+
 function getHorizontalMargins(element: Element) {
 	const style = window.getComputedStyle(element);
 	return parsePixelValue(style.marginLeft) + parsePixelValue(style.marginRight);
@@ -290,6 +295,14 @@ export function formatSizeLabel(size?: number) {
 
 export function getAllTags(record: DisplayModData) {
 	return getAllCollectionTags(record);
+}
+
+export function getMainCollectionAvailableTableWidth(tableRoot: HTMLElement, observedContentWidth?: number) {
+	if (typeof observedContentWidth === 'number' && observedContentWidth > 0) {
+		return Math.round(observedContentWidth);
+	}
+
+	return Math.max(0, Math.round(tableRoot.clientWidth - getHorizontalPadding(tableRoot)));
 }
 
 export function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {

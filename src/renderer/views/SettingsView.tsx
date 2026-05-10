@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, memo, useCallback, useEffect, useState, type AriaAttributes, type ReactNode } from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
@@ -14,6 +14,7 @@ import {
 import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { getSettingsFormErrors } from 'renderer/settings-validation';
+import { formatErrorMessage } from 'renderer/util/error-message';
 import { validateSettingsPath } from 'util/Validation';
 
 type SettingsViewAppState = Pick<AppState, 'config' | 'configErrors' | 'madeConfigEdits' | 'savingConfig' | 'updateState'>;
@@ -34,6 +35,7 @@ const NLOG_LEVEL_OPTIONS = [
 	NLogLevel.DEBUG,
 	NLogLevel.TRACE
 ] as const;
+const MAX_WORKSHOP_ID_DIGITS = 20;
 
 interface SettingsFieldProps {
 	id: string;
@@ -45,12 +47,17 @@ interface SettingsFieldProps {
 	children: ReactNode;
 }
 
+interface SettingsFieldControlProps extends AriaAttributes {
+	children?: ReactNode;
+	id?: string;
+}
+
 function formatLogLevelLabel(level: string) {
 	return level.toUpperCase();
 }
 
 function parseWorkshopIDInput(value: string) {
-	const digits = value.replace(/[^\d]/g, '');
+	const digits = value.replace(/[^\d]/g, '').slice(0, MAX_WORKSHOP_ID_DIGITS);
 	return BigInt(digits || 0);
 }
 
@@ -65,24 +72,69 @@ async function getSettingsPathError(field: string, value: string | undefined) {
 	return validateSettingsPath(field, value);
 }
 
+function mergeAriaDescribedBy(currentValue: AriaAttributes['aria-describedby'], nextValue: string | undefined) {
+	const current = typeof currentValue === 'string' ? currentValue.trim() : '';
+	const next = nextValue?.trim() ?? '';
+	return [current, next].filter(Boolean).join(' ') || undefined;
+}
+
+function enhanceSettingsFieldChildren(children: ReactNode, fieldId: string, describedBy: string | undefined, invalid: boolean): ReactNode {
+	if (!describedBy && !invalid) {
+		return children;
+	}
+
+	return Children.map(children, (child) => {
+		if (!isValidElement<SettingsFieldControlProps>(child)) {
+			return child;
+		}
+
+		const childChildren = child.props.children;
+		const nextChildren =
+			childChildren === undefined ? undefined : enhanceSettingsFieldChildren(childChildren, fieldId, describedBy, invalid);
+		const nextProps: SettingsFieldControlProps = {};
+
+		if (nextChildren !== childChildren) {
+			nextProps.children = nextChildren;
+		}
+
+		if (child.props.id === fieldId) {
+			if (describedBy) {
+				nextProps['aria-describedby'] = mergeAriaDescribedBy(child.props['aria-describedby'], describedBy);
+			}
+			if (invalid) {
+				nextProps['aria-invalid'] = true;
+			}
+		}
+
+		return Object.keys(nextProps).length > 0 ? cloneElement(child, nextProps) : child;
+	});
+}
+
 function SettingsField({ id, label, required, error, extra, tooltip, children }: SettingsFieldProps) {
 	const helpId = `${id}-help`;
 	const errorId = `${id}-error`;
+	const describedBy = [extra ? helpId : undefined, error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
+	const enhancedChildren = enhanceSettingsFieldChildren(children, id, describedBy, !!error);
+
 	return (
 		<div className="mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
-			<label className="min-h-control whitespace-normal pt-2 text-base leading-[1.35] text-text" htmlFor={id} title={tooltip}>
+			<label
+				className="min-h-control whitespace-normal pt-2 text-body leading-[var(--app-leading-ui)] text-text"
+				htmlFor={id}
+				title={tooltip}
+			>
 				{required ? <span className="mr-1 text-error">*</span> : null}
 				{label}
 			</label>
 			<div className="flex min-w-0 flex-col gap-1.5">
-				{children}
+				{enhancedChildren}
 				{extra ? (
-					<div className="text-xs leading-[1.35] text-text-muted" id={helpId}>
+					<div className="text-caption leading-[var(--app-leading-ui)] text-text-muted" id={helpId}>
 						{extra}
 					</div>
 				) : null}
 				{error ? (
-					<div className="text-xs font-[650] leading-[1.35] text-error" id={errorId} role="alert">
+					<div className="text-caption font-[650] leading-[var(--app-leading-ui)] text-error" id={errorId} role="alert">
 						{error}
 					</div>
 				) : null}
@@ -158,7 +210,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 
 				updateConfigErrors(field);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
+				const message = formatErrorMessage(error);
 				updateConfigErrors(field, message);
 				throw new Error(message);
 			}
@@ -202,7 +254,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 				openNotification(
 					{
 						message: 'Could not open the file picker',
-						description: error instanceof Error ? error.message : String(error),
+						description: formatErrorMessage(error),
 						placement: 'bottomLeft',
 						duration: null
 					},
@@ -410,6 +462,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 							<DesktopInput
 								id="workshop-id"
 								inputMode="numeric"
+								maxLength={MAX_WORKSHOP_ID_DIGITS}
 								pattern="[0-9]*"
 								value={editingConfig.workshopID.toString()}
 								onChange={(event) => {
@@ -420,10 +473,10 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 					</div>
 				</SettingsDialog>
 			) : null}
-			<main className="box-border h-full w-full overflow-hidden bg-background text-text">
-				<div className="px-6 pt-5">
-					<h1 className="m-0 font-display text-[28px] leading-tight text-text">Settings</h1>
-					<p className="mb-0 mt-2 max-w-[70ch]">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
+			<main className="SettingsShell bg-background text-text">
+				<div className="SettingsHeader">
+					<h1 className="SettingsTitle">Settings</h1>
+					<p className="SettingsIntro">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
 				</div>
 				<form
 					onSubmit={form.handleSubmit(
@@ -435,11 +488,11 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						}
 					)}
 					autoComplete="off"
-					className="box-border h-[calc(100%-78px)] px-6 py-5 max-[1100px]:px-5"
+					className="SettingsForm"
 				>
-					<div className="CollectionSettings mb-2.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-x-6 gap-y-5 max-[991px]:grid-cols-1">
-						<div key="misc-app-settings" className="flex max-[991px]:mb-5">
-							<div className="box-border flex h-full flex-1 flex-col rounded-sm border border-border bg-surface px-4.5 py-4">
+					<div className="SettingsPanels CollectionSettings">
+						<div key="misc-app-settings" className="SettingsPanelWrap">
+							<div className="SettingsPanel">
 								<SettingsField
 									id="localDir"
 									label="Local Mods Folder"
@@ -614,8 +667,8 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 								</SettingsField>
 							</div>
 						</div>
-						<div key="additional-commands" className="flex">
-							<div className="box-border flex h-full flex-1 flex-col rounded-sm border border-border bg-surface px-4.5 py-4">
+						<div key="additional-commands" className="SettingsPanelWrap">
+							<div className="SettingsPanel">
 								<SettingsField id="extraParams" label="Launch Arguments">
 									<DesktopInput
 										id="extraParams"
@@ -697,8 +750,8 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 							</div>
 						</div>
 					</div>
-					<div className="flex w-full flex-wrap items-center justify-center gap-3 pt-2.5 max-[1199px]:justify-start max-[1199px]:[&_.DesktopButton]:w-full max-[1199px]:[&_.DesktopButton]:flex-[1_1_100%]">
-						<span className="min-h-5 text-sm font-[650] text-[color-mix(in_srgb,var(--app-color-primary)_76%,white)]" aria-live="polite">
+					<div className="SettingsActions">
+						<span className="SettingsDirtyState" aria-live="polite">
 							{madeConfigEdits ? 'Unsaved changes' : ''}
 						</span>
 						<DesktopButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>

@@ -43,6 +43,7 @@ interface UseCollectionsResult {
 	persistCollection: (collection: ModCollection) => Promise<boolean>;
 	recalculateModData: () => void;
 	renameCollection: (name: string) => Promise<void>;
+	rows: ModData[];
 	saveCollection: (collection: ModCollection, pureSave: boolean, options?: CollectionContentSaveCommandOptions) => Promise<boolean>;
 	savingCollection: boolean;
 	searchString: string;
@@ -66,7 +67,7 @@ export function useCollections({
 	const collectionWriteQueue = useMemo(() => createCollectionWriteQueue(), []);
 	const { config, updateState } = appState;
 	const { mutateAsync: updateCollectionFileMutation } = useUpdateCollectionMutation();
-	const { filteredRows, onSearch, onSearchChange, recalculateModData, searchString } = useCollectionRowProjection({
+	const { filteredRows, onSearch, onSearchChange, recalculateModData, rows, searchString } = useCollectionRowProjection({
 		collection: appState.activeCollection,
 		mods: appState.mods
 	});
@@ -207,6 +208,7 @@ export function useCollections({
 		filteredRows,
 		madeEdits,
 		savingCollection,
+		rows,
 		setMadeEdits,
 		getModManagerUID,
 		persistCollection,

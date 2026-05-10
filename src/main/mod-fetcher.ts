@@ -15,11 +15,11 @@ interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
 }
 
-export interface ModFetcherOptions {
+interface ModFetcherOptions {
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
-export interface ModInventoryContext {
+interface ModInventoryContext {
 	localPath?: string;
 	knownWorkshopMods: Set<bigint>;
 	platform: NodeJS.Platform;
@@ -86,7 +86,7 @@ export async function processSteamModResults(context: ModInventoryContext, steam
 	return filterSettledModResults(modResponses);
 }
 
-export async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {
+async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {
 	const steamDetails = await getRawWorkshopDetailsForList(workshopIDs);
 	return processSteamModResults(context, steamDetails);
 }

@@ -110,7 +110,7 @@ interface MainCollectionVirtualRowProps {
 	columns: MainCollectionRowColumn[];
 	highlighted: boolean;
 	detailsOpen?: boolean;
-	measureElement: (element: HTMLTableRowElement | null) => void;
+	measureElement?: (element: HTMLTableRowElement | null) => void;
 	record: DisplayModData;
 	rowIndex: number;
 	selected: boolean;
@@ -156,6 +156,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 			className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}${highlighted ? ' is-selected' : ''}`}
 			dataIndex={rowIndex}
 			measureElement={measureElement}
+			rowHeight={small ? 34 : 48}
 			start={start}
 			width={tableWidth}
 			aria-label={`Mod row for ${rowLabel}. Press Enter or Space to select the row.`}

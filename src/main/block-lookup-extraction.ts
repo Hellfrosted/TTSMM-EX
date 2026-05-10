@@ -18,7 +18,7 @@ import {
 	type ExtractedTextBlock
 } from './block-lookup-nuterra-text';
 
-export interface BlockLookupSourceExtractionAdapter {
+interface BlockLookupSourceExtractionAdapter {
 	extractRecords(sources: readonly BlockLookupSourceRecord[]): Promise<Map<string, BlockLookupRecord[]>>;
 }
 
@@ -165,7 +165,7 @@ function createDefaultSourceExtractionAdapters(): Required<BlockLookupSourceExtr
 	};
 }
 
-export function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtractionAdapters = {}) {
+function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtractionAdapters = {}) {
 	const sourceAdapters = {
 		...createDefaultSourceExtractionAdapters(),
 		...adapters

@@ -39,7 +39,7 @@ function getToastClassName(tone: ReturnType<typeof getNotificationTone>, classNa
 	const toneClassName = getStatusSurfaceClassName(tone);
 
 	return [
-		'NotificationToast pointer-events-auto grid grid-cols-[minmax(0,1fr)_28px] gap-2.5 rounded-sm border p-3 text-text shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
+		'NotificationToast pointer-events-auto grid grid-cols-[minmax(0,1fr)_var(--app-control-height)] gap-2.5 rounded-sm border p-3 text-text shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
 		toneClassName,
 		className
 	]
@@ -209,8 +209,10 @@ export function NotificationViewport() {
 							<div
 								key={id}
 								className={getToastClassName(tone, notificationProps.className)}
+								data-interactive={notificationInteractive ? 'true' : 'false'}
 								data-placement={placement}
 								data-state={notification.renderState}
+								data-tone={tone}
 								style={{
 									...notificationProps.style,
 									top: notificationProps.top,
@@ -220,15 +222,17 @@ export function NotificationViewport() {
 								{...interactiveProps}
 							>
 								<div className="min-w-0">
-									<strong className="block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
+									<strong className="NotificationToastTitle block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
 									{notificationProps.description ? (
-										<div className="mt-1 block wrap-break-word leading-[1.35] text-text-muted">{notificationProps.description}</div>
+										<div className="NotificationToastDescription mt-1 block wrap-break-word leading-[1.35]">
+											{notificationProps.description}
+										</div>
 									) : null}
 									{notificationProps.btn ? <div className="mt-2.5">{notificationProps.btn}</div> : null}
 								</div>
 								<button
 									type="button"
-									className="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text focus-visible:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] focus-visible:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+									className="NotificationToastClose inline-flex size-control cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent focus-visible:outline-none"
 									aria-label="Close notification"
 									onClick={(event) => {
 										event.stopPropagation();

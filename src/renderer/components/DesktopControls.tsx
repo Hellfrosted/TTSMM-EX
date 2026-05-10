@@ -68,6 +68,7 @@ export function DesktopButton({
 		<button
 			{...props}
 			type={type}
+			aria-busy={loading ? true : props['aria-busy']}
 			disabled={disabled || loading}
 			className={joinClassNames(
 				desktopButtonBaseClassName,
@@ -161,7 +162,7 @@ export function DesktopSelect({ children, className, ...props }: SelectHTMLAttri
 		<select
 			{...props}
 			className={joinClassNames(
-				'DesktopSelect box-border min-h-control w-full min-w-0 cursor-pointer rounded-sm border border-border bg-surface-elevated py-0 pl-2.75 pr-8.5 font-inherit text-text',
+				'DesktopSelect box-border min-h-control w-full min-w-0 cursor-pointer rounded-sm border border-border bg-surface-elevated py-0 pl-2.75 pr-8.5 font-inherit text-body leading-[var(--app-leading-body)] text-text',
 				desktopControlFocusClassName,
 				desktopDisabledClassName,
 				className
@@ -285,7 +286,9 @@ export function DesktopDialog({
 					(state.element as HTMLElement & { inert: boolean }).inert = state.inert;
 				}
 			}
-			previousActiveElement?.focus();
+			if (previousActiveElement?.isConnected) {
+				previousActiveElement.focus();
+			}
 		};
 	}, [onCancel, open]);
 
@@ -293,10 +296,7 @@ export function DesktopDialog({
 		return null;
 	}
 
-	const portalTarget = document.querySelector<HTMLElement>('.AppRoot');
-	if (!portalTarget) {
-		throw new Error('DesktopDialog requires an .AppRoot portal host.');
-	}
+	const portalTarget = document.querySelector<HTMLElement>('.AppRoot') ?? document.body;
 
 	const dialog = (
 		// biome-ignore lint/a11y/noStaticElementInteractions: the backdrop listens for outside-click dismissal while the dialog content remains semantic.
@@ -326,7 +326,10 @@ export function DesktopDialog({
 				style={panelStyle}
 			>
 				<div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id={titleId} className={joinClassNames('m-0 text-lg leading-[1.3] text-text', titleClassName)}>
+					<h2
+						id={titleId}
+						className={joinClassNames('DesktopDialogTitle m-0 text-title leading-[var(--app-leading-tight)] text-text', titleClassName)}
+					>
 						{title}
 					</h2>
 					<DesktopButton aria-label={closeLabel} icon={<X size={16} aria-hidden="true" />} onClick={onCancel} />

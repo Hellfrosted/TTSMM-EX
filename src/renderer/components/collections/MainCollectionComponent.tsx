@@ -1,7 +1,6 @@
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, Key, ReactNode } from 'react';
-import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Clock3, Code2, HardDrive, LoaderCircle, PanelRightOpen, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
@@ -31,9 +30,9 @@ import {
 	getAllTags,
 	getCachedColumnMeasurements,
 	getColumnMeasurementCacheKey,
-	getColumnPixelWidth,
 	getColumnWidthVariableName,
 	getDefaultMainColumnWidth,
+	getMainCollectionAvailableTableWidth,
 	getMainCollectionTableScrollWidth,
 	getMeasurementRowSignature,
 	getRenderedColumnBodyCells,
@@ -803,11 +802,11 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 			dispatchMainTableMeasurement({ type: 'available-width-measured', width: nextWidth });
 		};
 
-		syncAvailableWidth(Math.round(tableRoot.clientWidth));
+		syncAvailableWidth(getMainCollectionAvailableTableWidth(tableRoot));
 
 		if (typeof ResizeObserver === 'undefined') {
 			const handleWindowResize = () => {
-				syncAvailableWidth(Math.round(tableRoot.clientWidth));
+				syncAvailableWidth(getMainCollectionAvailableTableWidth(tableRoot));
 			};
 			window.addEventListener('resize', handleWindowResize);
 			return () => {
@@ -816,7 +815,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		}
 
 		const resizeObserver = new ResizeObserver((entries) => {
-			const nextWidth = Math.round(entries[0]?.contentRect.width ?? tableRoot.clientWidth);
+			const nextWidth = getMainCollectionAvailableTableWidth(tableRoot, entries[0]?.contentRect.width);
 			syncAvailableWidth(nextWidth);
 		});
 		resizeObserver.observe(tableRoot);
@@ -980,53 +979,31 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		}
 	}, [columns, setSortState, sortState]);
 	const sortedRows = useMemo(() => sortMainCollectionRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
-	const tableColumnDefs = useMemo<ColumnDef<DisplayModData>[]>(
-		() => [
-			{
-				id: '__selection',
-				size: DEFAULT_SELECTION_COLUMN_WIDTH
-			},
-			...columns.map((column) => ({
-				id: column.title,
-				accessorKey: column.dataIndex,
-				size: getColumnPixelWidth(column)
-			}))
-		],
-		[columns]
-	);
-	const table = useReactTable({
-		data: sortedRows,
-		columns: tableColumnDefs,
-		getCoreRowModel: getCoreRowModel(),
-		getRowId: (row) => row.uid
-	});
-	const tableRows = table.getRowModel().rows;
 	const [highlightedRowUid, setHighlightedRowUid] = useState<string>();
 	const tableScrollX = useMemo(() => {
 		return Math.max(getMainCollectionTableScrollWidth(resolvedColumnWidths), availableTableWidth);
 	}, [availableTableWidth, resolvedColumnWidths]);
 	const scrollParentRef = useRef<HTMLDivElement | null>(null);
 	const rowVirtualizer = useVirtualizer({
-		count: tableRows.length,
+		count: sortedRows.length,
 		getScrollElement: () => scrollParentRef.current,
 		estimateSize: () => (small ? 34 : 48),
 		overscan: 12,
 		initialRect: {
 			height: typeof height === 'number' ? height : 640,
 			width: typeof width === 'number' ? width : 1024
-		},
-		measureElement: (element) => element.getBoundingClientRect().height
+		}
 	});
 	const estimatedRowHeight = small ? 34 : 48;
 	const virtualRows = rowVirtualizer.getVirtualItems();
 	const renderedVirtualRows =
 		virtualRows.length > 0
 			? virtualRows
-			: tableRows.slice(0, Math.min(tableRows.length, 50)).map((_, index) => ({
+			: sortedRows.slice(0, Math.min(sortedRows.length, 50)).map((_, index) => ({
 					index,
 					start: index * estimatedRowHeight
 				}));
-	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), tableRows.length * estimatedRowHeight);
+	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), sortedRows.length * estimatedRowHeight);
 	const selectionState = useMemo(() => getMainCollectionSelectionModel(collection.mods, sortedRows), [collection.mods, sortedRows]);
 	const setAllVisibleSelected = useCallback(
 		(selected: boolean) => {
@@ -1077,7 +1054,6 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		openRowDetails,
 		renderedVirtualRows,
 		resolvedColumnWidths,
-		rowVirtualizer,
 		scrollParentRef,
 		selectionState,
 		setAllVisibleSelected,
@@ -1087,7 +1063,6 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		sortState,
 		sortedRows,
 		tableRootRef,
-		tableRows,
 		tableScrollX,
 		virtualBodyHeight,
 		width
@@ -1106,7 +1081,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		openRowDetails,
 		renderedVirtualRows,
 		resolvedColumnWidths,
-		rowVirtualizer,
 		scrollParentRef,
 		selectionState,
 		setAllVisibleSelected,
@@ -1116,7 +1090,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		sortState,
 		sortedRows,
 		tableRootRef,
-		tableRows,
 		tableScrollX,
 		virtualBodyHeight,
 		width
@@ -1160,20 +1133,18 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						</thead>
 						<tbody className="MainCollectionVirtualTableBody" style={{ height: virtualBodyHeight, width: tableScrollX }}>
 							{renderedVirtualRows.map((virtualRow) => {
-								const row = tableRows[virtualRow.index];
-								if (!row) {
+								const record = sortedRows[virtualRow.index];
+								if (!record) {
 									return null;
 								}
 
-								const record = row.original;
 								const selected = selectionState.selectedMods.has(record.uid);
 								return (
 									<MainCollectionVirtualRow
-										key={row.id}
+										key={record.uid}
 										columns={columns}
 										detailsOpen={detailsOpen}
 										highlighted={highlightedRowUid === record.uid}
-										measureElement={rowVirtualizer.measureElement}
 										record={record}
 										rowIndex={virtualRow.index}
 										selected={selected}

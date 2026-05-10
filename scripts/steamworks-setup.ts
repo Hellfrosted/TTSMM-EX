@@ -6,6 +6,8 @@ import { releaseAppNodeModulesPath, releaseAppPath, repoRoot, srcNodeModulesPath
 const sdkPathFile = path.join(repoRoot, '.steamworks-sdk-path');
 const greenworksPath = path.join(releaseAppNodeModulesPath, 'greenworks');
 const greenworksSdkPath = path.join(greenworksPath, 'deps', 'steamworks_sdk');
+const greenworksPackageJsonPath = path.join(greenworksPath, 'package.json');
+const greenworksEntrypointPath = path.join(greenworksPath, 'greenworks.js');
 const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
 const smokeWorkerPath = path.join(repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts');
@@ -120,9 +122,12 @@ function pathExistsOrIsDanglingLink(targetPath: string) {
 }
 
 function ensureGreenworksPresent() {
-	if (!fs.existsSync(greenworksPath)) {
-		run('pnpm --dir release/app install --ignore-workspace --ignore-scripts');
+	if (fs.existsSync(greenworksPackageJsonPath) && fs.existsSync(greenworksEntrypointPath)) {
+		return;
 	}
+
+	removeIfExists(releaseAppNodeModulesPath);
+	run('pnpm --dir release/app install --force --ignore-workspace --ignore-scripts');
 }
 
 function stageSteamworksSdkCompat(steamworksSdkPath: string) {

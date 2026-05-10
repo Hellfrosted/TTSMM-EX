@@ -85,6 +85,7 @@ The pacman target needs `bsdtar`.
 - `pnpm run build:native:block-lookup`: build and stage the Rust Block Lookup extractor
 - `pnpm run lint`: Biome formatting and lint check
 - `pnpm run lint:fix`: Biome formatting and lint autofix
+- `pnpm run nano-staged`: run staged-file checks for the pre-commit hook
 - `pnpm run deadcode`: Knip unused files, exports, and dependencies check
 - `pnpm run typecheck`: TypeScript build check
 - `pnpm test`: Vitest

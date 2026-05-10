@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import chalk from 'chalk';
 import { repoRoot } from './lib/paths';
+import { terminalStyle } from './lib/terminal-style';
 
 interface NativeDepCheckOptions {
 	existsSync?: typeof fs.existsSync;
@@ -43,12 +43,12 @@ export function checkNativeDependencies({
 
 	const plural = nativeDeps.length > 1;
 	log(`
-${chalk.whiteBright.bgYellow.bold('Native dependencies must stay in "./release/app".')}
-${chalk.bold(nativeDeps.join(', '))} ${plural ? 'are native dependencies' : 'is a native dependency'} and should be installed inside of the "./release/app" folder.
+${terminalStyle.warningBanner('Native dependencies must stay in "./release/app".')}
+${terminalStyle.bold(nativeDeps.join(', '))} ${plural ? 'are native dependencies' : 'is a native dependency'} and should be installed inside of the "./release/app" folder.
  First, uninstall the packages from "./package.json":
-${chalk.whiteBright.bgGreen.bold('pnpm remove your-package')}
- ${chalk.bold('Then install the native dependency in "./release/app/package.json":')}
-${chalk.whiteBright.bgGreen.bold('pnpm --dir ./release/app add your-package')}
+${terminalStyle.successCommand('pnpm remove your-package')}
+ ${terminalStyle.bold('Then install the native dependency in "./release/app/package.json":')}
+${terminalStyle.successCommand('pnpm --dir ./release/app add your-package')}
 	`);
 	return 1;
 }

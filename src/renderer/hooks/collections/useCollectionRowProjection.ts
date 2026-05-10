@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import type { ModCollection, ModData, SessionMods } from 'model';
 import { filterCollectionRows, getCollectionRowsWithMissingSelections } from 'renderer/collection-mod-projection';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
@@ -8,28 +8,38 @@ interface UseCollectionRowProjectionOptions {
 	mods: SessionMods;
 }
 
-function measureCollectionRows(mods: SessionMods, collection: ModCollection | undefined, search: string, label: string) {
-	return measurePerf(label, () => filterCollectionRows(getCollectionRowsWithMissingSelections(mods, collection), search), {
+function deriveCollectionRows(mods: SessionMods, collection: ModCollection | undefined, recalculationTick: number) {
+	return measurePerf('collection.rows.derive', () => getCollectionRowsWithMissingSelections(mods, collection), {
+		recalculationTick,
+		totalMods: mods.modIdToModDataMap.size
+	});
+}
+
+function measureCollectionRows(rows: ModData[], mods: SessionMods, search: string, label: string) {
+	return measurePerf(label, () => filterCollectionRows(rows, search), {
 		queryLength: search.length,
+		rows: rows.length,
 		totalMods: mods.modIdToModDataMap.size
 	});
 }
 
 export function useCollectionRowProjection({ collection, mods }: UseCollectionRowProjectionOptions) {
 	const [searchString, setSearchString] = useState('');
-	const [filteredRows, setFilteredRows] = useState<ModData[]>();
-	const searchStringRef = useRef(searchString);
-
-	useEffect(() => {
-		searchStringRef.current = searchString;
-	}, [searchString]);
+	const [filterMeasurementLabel, setFilterMeasurementLabel] = useState('collection.filter.rowsChange');
+	const [recalculationTick, setRecalculationTick] = useState(0);
+	const deferredSearchString = useDeferredValue(searchString);
+	const rows = useMemo(() => deriveCollectionRows(mods, collection, recalculationTick), [collection, mods, recalculationTick]);
+	const filteredRows = useMemo(
+		() => (deferredSearchString.length > 0 ? measureCollectionRows(rows, mods, deferredSearchString, filterMeasurementLabel) : undefined),
+		[deferredSearchString, filterMeasurementLabel, mods, rows]
+	);
 
 	const recalculateModData = useCallback(() => {
 		startTransition(() => {
-			const search = searchStringRef.current;
-			setFilteredRows(search.length > 0 ? measureCollectionRows(mods, collection, search, 'collection.filter.recalculate') : undefined);
+			setFilterMeasurementLabel('collection.filter.recalculate');
+			setRecalculationTick((currentTick) => currentTick + 1);
 		});
-	}, [collection, mods]);
+	}, []);
 
 	const updateSearch = useCallback(
 		(search: string, interactionLabel: string, filterLabel: string) => {
@@ -37,13 +47,10 @@ export function useCollectionRowProjection({ collection, mods }: UseCollectionRo
 				queryLength: search.length,
 				totalMods: mods.modIdToModDataMap.size
 			});
+			setFilterMeasurementLabel(filterLabel);
 			setSearchString(search);
-			searchStringRef.current = search;
-			startTransition(() => {
-				setFilteredRows(search.length > 0 ? measureCollectionRows(mods, collection, search, filterLabel) : undefined);
-			});
 		},
-		[collection, mods]
+		[mods]
 	);
 
 	const onSearchChange = useCallback(
@@ -65,6 +72,7 @@ export function useCollectionRowProjection({ collection, mods }: UseCollectionRo
 		onSearch,
 		onSearchChange,
 		recalculateModData,
+		rows,
 		searchString
 	};
 }

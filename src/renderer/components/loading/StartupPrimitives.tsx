@@ -94,7 +94,7 @@ export function StartupHeroArtwork({ children, className, ...props }: HTMLAttrib
 }
 
 export function StartupEyebrow({ children, className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-	const eyebrowClassName = ['block font-[650] text-text-muted', className].filter(Boolean).join(' ');
+	const eyebrowClassName = ['StartupEyebrow block font-[650] text-text-muted', className].filter(Boolean).join(' ');
 	return (
 		<span {...props} className={eyebrowClassName}>
 			{children}
@@ -103,7 +103,9 @@ export function StartupEyebrow({ children, className, ...props }: HTMLAttributes
 }
 
 export function StartupTitle({ children, className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-	const titleClassName = ['mb-2 mt-2.5 text-[1.65rem] font-bold leading-[1.2] text-text', className].filter(Boolean).join(' ');
+	const titleClassName = ['StartupTitle mb-2 mt-2.5 text-display font-bold leading-[var(--app-leading-tight)] text-text', className]
+		.filter(Boolean)
+		.join(' ');
 	return (
 		<h2 {...props} className={titleClassName}>
 			{children}
@@ -112,7 +114,7 @@ export function StartupTitle({ children, className, ...props }: HTMLAttributes<H
 }
 
 export function StartupIntro({ children, className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
-	const introClassName = ['mb-5 mt-0 leading-[1.55] text-text-muted', className].filter(Boolean).join(' ');
+	const introClassName = ['StartupIntro mb-5 mt-0 leading-[var(--app-leading-prose)] text-text-muted', className].filter(Boolean).join(' ');
 	return (
 		<p {...props} className={introClassName}>
 			{children}

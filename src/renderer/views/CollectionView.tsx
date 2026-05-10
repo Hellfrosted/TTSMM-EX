@@ -20,11 +20,10 @@ import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, Ma
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
+import { logProfilerRender, markPerfInteraction } from '../perf';
 import {
 	filterCollectionRowsByTags,
 	getCollectionRowFilterTags,
-	getCollectionRowsWithMissingSelections,
 	getDisplayedCollectionRecord,
 	projectCollectionRowsWithErrors
 } from '../collection-mod-projection';
@@ -202,6 +201,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const {
 		searchString,
 		filteredRows,
+		rows: baseRows,
 		onSearchChange,
 		onSearch,
 		changeActiveCollection,
@@ -220,13 +220,6 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 
 	const currentView = CollectionViewType.MAIN;
 
-	const baseRows = useMemo(
-		() =>
-			measurePerf('collection.rows.derive', () => getCollectionRowsWithMissingSelections(mods, activeCollection), {
-				totalMods: mods.modIdToModDataMap.size
-			}),
-		[activeCollection, mods]
-	);
 	const rows = useMemo(() => projectCollectionRowsWithErrors(baseRows, currentCollectionErrors), [baseRows, currentCollectionErrors]);
 	const availableFilterTags = useMemo(() => {
 		const tags = new Set<string>();
@@ -986,7 +979,7 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 
 	return (
 		<div className="CollectionViewLayout flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
-			<header className="flex h-auto flex-none flex-col gap-2.5 border-b border-border bg-surface px-5 pb-3 pt-3.5 leading-[1.4] max-[760px]:px-3.5">
+			<header className="WorkspaceHeader CollectionWorkspaceHeader flex h-auto flex-none flex-col leading-[1.4]">
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}

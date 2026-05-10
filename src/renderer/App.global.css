@@ -1,7 +1,28 @@
+:root {
+	--app-font-body: "Aptos", "Segoe UI Variable Text", "Noto Sans", "Segoe UI", sans-serif;
+	--app-font-display: var(--app-font-body);
+	--app-font-mono: "Cascadia Mono", "Consolas", monospace;
+	--app-text-caption: 0.75rem;
+	--app-text-sm: 0.8125rem;
+	--app-text-ui: 0.875rem;
+	--app-text-body: 1rem;
+	--app-text-subheading: 1.0625rem;
+	--app-text-title: 1.1875rem;
+	--app-text-display: 1.375rem;
+	--app-text-loading-title: 1.5625rem;
+	--app-leading-tight: 1.2;
+	--app-leading-ui: 1.35;
+	--app-leading-body: 1.5;
+	--app-leading-prose: 1.6;
+	--app-weight-body: 400;
+	--app-weight-label: 650;
+	--app-weight-heading: 700;
+}
+
 html {
 	height: 100vh;
 	width: 100vw;
-	background: #131517;
+	background: oklch(18% 0.006 67);
 }
 
 #root {
@@ -23,16 +44,29 @@ html {
 
 body {
 	position: relative;
-	color: var(--app-color-text, rgba(242, 237, 230, 0.88));
+	color: var(--app-color-text, oklch(94% 0.012 67 / 0.88));
 	height: 100%;
 	width: 100%;
 	font-family: var(--app-font-body, "Aptos", "Segoe UI Variable Text", "Noto Sans", "Segoe UI", sans-serif);
+	font-size: var(--app-text-body);
+	font-weight: var(--app-weight-body);
 	font-kerning: normal;
+	font-optical-sizing: auto;
+	line-height: var(--app-leading-body);
+	letter-spacing: 0;
 	text-rendering: optimizeLegibility;
 	margin: 0;
 	overflow-y: hidden;
 	overflow-x: hidden;
-	background: var(--app-color-background, #131517);
+	background: var(--app-color-background, oklch(18% 0.006 67));
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	letter-spacing: 0;
 }
 
 #root,
@@ -167,6 +201,16 @@ body {
 	min-height: 0;
 }
 
+.WorkspaceHeader {
+	--workspace-toolbar-inset-x: 20px;
+	--workspace-toolbar-block-start: 14px;
+	--workspace-toolbar-block-end: 12px;
+	gap: 12px;
+	padding: var(--workspace-toolbar-block-start) var(--workspace-toolbar-inset-x) var(--workspace-toolbar-block-end);
+	background: var(--app-color-surface);
+	border-bottom: 1px solid var(--app-color-border);
+}
+
 .CollectionNameButton {
 	background-color: transparent;
 	min-height: 44px;
@@ -174,7 +218,10 @@ body {
 	border-radius: var(--app-radius-sm);
 	border: none;
 	appearance: none;
-	font-size: 1.3rem;
+	font-size: var(--app-text-title);
+	font-weight: var(--app-weight-heading);
+	line-height: var(--app-leading-tight);
+	letter-spacing: 0;
 	box-shadow: none;
 	transition:
 		background-color var(--app-motion-duration-instant) var(--app-motion-ease-out),
@@ -201,7 +248,9 @@ body {
 	padding: 2px 4px 2px 6px;
 	border-radius: 0;
 	background-color: transparent;
-	font-size: 14px;
+	font-size: var(--app-text-ui);
+	font-weight: var(--app-weight-body);
+	line-height: var(--app-leading-ui);
 	text-align: left;
 	word-wrap: break-word;
 }
@@ -274,8 +323,8 @@ body {
 	margin: 2px 4px 2px 0;
 	padding: 0 7px;
 	color: var(--app-color-text);
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
 	line-height: 20px;
 	border: 1px solid var(--app-color-border);
 	border-radius: var(--app-radius-sm);
@@ -400,13 +449,13 @@ body {
 	z-index: 1200;
 	min-width: 178px;
 	padding: 5px;
-	color: var(--app-color-text, #f2ede6);
-	background: var(--app-color-surface-elevated, #20252b);
-	border: 1px solid var(--app-color-border, #2b323a);
+	color: var(--app-color-text, oklch(94% 0.012 67));
+	background: var(--app-color-surface-elevated, oklch(27% 0.01 67));
+	border: 1px solid var(--app-color-border, oklch(34% 0.012 67));
 	border-radius: var(--app-radius-sm);
 	box-shadow:
-		0 0 0 1px color-mix(in srgb, var(--app-color-background, #131517) 74%, transparent),
-		0 8px 18px color-mix(in srgb, var(--app-color-background, #131517) 76%, transparent);
+		0 0 0 1px color-mix(in oklch, var(--app-color-background, oklch(18% 0.006 67)) 74%, transparent),
+		0 8px 18px color-mix(in oklch, var(--app-color-background, oklch(18% 0.006 67)) 76%, transparent);
 	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
 	transform-origin: top center;
 }
@@ -417,9 +466,10 @@ body {
 	width: 100%;
 	min-height: 30px;
 	padding: 0 10px;
-	color: var(--app-color-text, #f2ede6);
+	color: var(--app-color-text, oklch(94% 0.012 67));
 	font: inherit;
-	font-size: 13px;
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
 	text-align: left;
 	background: transparent;
 	border: 0;
@@ -434,18 +484,24 @@ body {
 .MainCollectionHeaderMenuItem:hover:not(:disabled),
 .MainCollectionHeaderMenuItem:focus-visible {
 	outline: none;
-	background: color-mix(in srgb, var(--app-color-text-base, #f2ede6) 4%, transparent);
+	background: color-mix(in oklch, var(--app-color-text-base, oklch(94% 0.012 67)) 4%, transparent);
+}
+
+.MainCollectionHeaderMenuItem:focus-visible {
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
 .MainCollectionHeaderMenuItem:disabled {
-	color: color-mix(in srgb, var(--app-color-text-base, #f2ede6) 26%, transparent);
+	color: color-mix(in oklch, var(--app-color-text-base, oklch(94% 0.012 67)) 26%, transparent);
 	cursor: not-allowed;
 }
 
 .MainCollectionHeaderMenuDivider {
 	height: 1px;
 	margin: 5px 4px;
-	background: var(--app-color-border, #2b323a);
+	background: var(--app-color-border, oklch(34% 0.012 67));
 }
 
 li {
@@ -569,8 +625,9 @@ a:hover {
 	overflow: visible;
 	text-overflow: clip;
 	font-family: var(--app-font-display);
-	font-size: 13px;
-	font-weight: 600;
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	letter-spacing: 0;
 	text-transform: uppercase;
 	white-space: nowrap;
@@ -601,8 +658,106 @@ a:hover {
 	width: 100%;
 	height: 100%;
 	min-width: 0;
-	min-height: 100%;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
 	background: var(--app-color-background);
+}
+
+.SettingsShell {
+	box-sizing: border-box;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.SettingsHeader {
+	flex: 0 0 auto;
+	padding: 20px 24px 0;
+}
+
+.SettingsTitle {
+	margin: 0;
+	color: var(--app-color-text);
+	font-family: var(--app-font-display);
+	font-size: var(--app-text-display);
+	font-weight: var(--app-weight-heading);
+	line-height: var(--app-leading-tight);
+	letter-spacing: 0;
+}
+
+.SettingsIntro {
+	max-width: 65ch;
+	margin: 8px 0 0;
+	color: var(--app-color-text-muted);
+	line-height: var(--app-leading-body);
+}
+
+.SettingsForm {
+	box-sizing: border-box;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 14px;
+	min-width: 0;
+	min-height: 0;
+	padding: 20px 24px;
+}
+
+.SettingsPanels {
+	display: grid;
+	flex: 1 1 auto;
+	grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+	gap: 20px 24px;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	padding-bottom: 2px;
+}
+
+.SettingsPanelWrap {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+}
+
+.SettingsPanel {
+	box-sizing: border-box;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	padding: 16px 18px;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: var(--app-radius-sm);
+}
+
+.SettingsActions {
+	display: flex;
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--app-color-border);
+}
+
+.SettingsDirtyState {
+	min-width: 0;
+	min-height: 20px;
+	margin-right: auto;
+	color: color-mix(in srgb, var(--app-color-primary) 76%, var(--app-color-text-base));
+	font-size: var(--app-text-ui);
+	font-weight: var(--app-weight-label);
+	overflow-wrap: anywhere;
 }
 
 .ModDetailFooterTitle {
@@ -632,6 +787,27 @@ a:hover {
 .DesktopButton:enabled:active,
 .DesktopIconButton:enabled:active {
 	transform: translateY(1px);
+}
+
+.DesktopButtonLabel,
+.ToolbarMenuButton,
+.MainCollectionHeaderMenuItem {
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
+}
+
+.DesktopInput,
+.DesktopSelect {
+	font-size: var(--app-text-body);
+	line-height: var(--app-leading-body);
+}
+
+.DesktopDialogTitle {
+	min-width: 0;
+	font-size: var(--app-text-title);
+	font-weight: var(--app-weight-heading);
+	line-height: var(--app-leading-tight);
+	overflow-wrap: anywhere;
 }
 
 .DesktopButtonIcon,
@@ -690,6 +866,11 @@ a:hover {
 	will-change: opacity, transform;
 }
 
+.DesktopDialogPanel > div,
+.DesktopDialogPanel > section {
+	min-width: 0;
+}
+
 .MainFooter {
 	flex: 0 0 auto;
 	display: flex;
@@ -739,6 +920,18 @@ a:hover {
 	--workspace-table-inset-x: 8px;
 }
 
+.BlockLookupIndexSource {
+	align-items: center;
+}
+
+.BlockLookupIndexLabel {
+	padding-inline-end: 2px;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
+	letter-spacing: 0;
+}
+
 .BlockLookupTablePane {
 	flex: 1 1 auto;
 	min-width: 0;
@@ -778,6 +971,8 @@ a:hover {
 	border-collapse: separate;
 	border-spacing: 0;
 	table-layout: fixed;
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -792,7 +987,9 @@ a:hover {
 	height: 42px;
 	padding: 0 8px;
 	color: var(--app-color-text);
-	font-weight: 650;
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	text-align: center;
 	background: var(--app-color-surface-elevated);
 	border-bottom: 1px solid var(--app-color-border);
@@ -857,7 +1054,7 @@ a:hover {
 	position: absolute;
 	right: 2px;
 	color: var(--app-color-text-muted);
-	font-size: 10px;
+	font-size: var(--app-text-caption);
 	line-height: 1;
 }
 
@@ -937,7 +1134,7 @@ a:hover {
 	margin-top: 1px;
 	margin-bottom: 1px;
 	padding-inline: 7px;
-	font-size: 12px;
+	font-size: var(--app-text-caption);
 	line-height: 16px;
 	min-height: 18px;
 }
@@ -951,7 +1148,9 @@ a:hover {
 	justify-content: center;
 	padding: 16px;
 	color: var(--app-color-text);
-	font-weight: 650;
+	font-size: var(--app-text-ui);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	text-align: center;
 	pointer-events: none;
 }
@@ -959,6 +1158,47 @@ a:hover {
 .BlockLookupVirtualLoading {
 	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
 	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.BlockLookupDetailsPane {
+	flex: 0 0 auto;
+	min-height: 112px;
+	max-height: 184px;
+	overflow: auto;
+	padding: 12px var(--workspace-table-inset-x) 14px;
+	background: var(--app-color-surface);
+	border-top: 1px solid var(--app-color-border);
+}
+
+.BlockLookupDetailsMeta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 8px;
+	min-width: 0;
+	margin-bottom: 8px;
+	color: var(--app-color-text-muted);
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
+}
+
+.BlockLookupDetailsMeta > span {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.BlockLookupDetailsGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+	align-items: start;
+	gap: 10px 16px;
+}
+
+.BlockLookupDetailsGrid > div {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
 }
 
 .BlockLookupTableHeaderCell {
@@ -983,8 +1223,9 @@ a:hover {
 }
 
 .BlockLookupCommand {
-	font-family: "Cascadia Mono", "Consolas", monospace;
-	font-size: 12.5px;
+	font-family: var(--app-font-mono);
+	font-size: var(--app-text-sm);
+	line-height: var(--app-leading-ui);
 }
 
 .BlockLookupMutedText {
@@ -1001,8 +1242,8 @@ a:hover {
 	background: var(--app-color-surface-elevated);
 	border: 1px solid var(--app-color-border);
 	border-radius: var(--app-radius-sm);
-	font-size: 12px;
-	font-weight: 650;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
 	line-height: 18px;
 }
 
@@ -1015,15 +1256,16 @@ a:hover {
 .ModDetailFooterTitle {
 	margin: 0;
 	color: var(--app-color-text);
-	font-size: 16px;
-	font-weight: 700;
+	font-size: var(--app-text-body);
+	font-weight: var(--app-weight-heading);
 	line-height: 1.25;
+	overflow-wrap: anywhere;
 }
 
 .ModDetailFooterIdentity {
 	margin-top: 3px;
 	color: var(--app-color-text-muted);
-	font-size: 12px;
+	font-size: var(--app-text-caption);
 	line-height: 1.25;
 	word-break: break-all;
 }
@@ -1182,14 +1424,16 @@ a:hover {
 	margin: 2px 4px 2px 0;
 	padding: 0 7px;
 	color: var(--app-color-text);
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
 	line-height: 20px;
 	border: 1px solid var(--app-color-border);
 	border-radius: var(--app-radius-sm);
 	background: var(--app-color-surface-elevated);
 	white-space: nowrap;
 	box-sizing: border-box;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .ModDetailIcon {
@@ -1260,6 +1504,7 @@ a:hover {
 .ModDetailFooterPreview img {
 	display: block;
 	width: 100%;
+	max-height: min(360px, 48vh);
 	height: auto;
 	border-radius: var(--app-radius-sm);
 	object-fit: contain;
@@ -1271,31 +1516,32 @@ a:hover {
 
 .WorkshopDescription {
 	color: var(--app-color-text);
-	font-size: 0.95rem;
-	line-height: 1.55;
+	font-size: var(--app-text-body);
+	line-height: var(--app-leading-prose);
 	word-break: break-word;
+	overflow-wrap: anywhere;
 
 	h1,
 	h2,
 	h3 {
 		color: color-mix(in oklch, var(--app-color-primary) 76%, var(--app-color-text-base));
 		font-family: var(--app-font-body);
-		font-weight: 650;
+		font-weight: var(--app-weight-heading);
 		line-height: 1.25;
 		margin-top: 18px;
 		margin-bottom: 8px;
 	}
 
 	h1 {
-		font-size: 1.28rem;
+		font-size: var(--app-text-title);
 	}
 
 	h2 {
-		font-size: 1.12rem;
+		font-size: var(--app-text-subheading);
 	}
 
 	h3 {
-		font-size: 1rem;
+		font-size: var(--app-text-body);
 	}
 
 	h1:first-child,
@@ -1309,17 +1555,20 @@ a:hover {
 	ol,
 	blockquote,
 	pre {
-		max-width: 88ch;
+		max-width: 72ch;
 	}
 
 	a {
 		color: color-mix(in oklch, var(--app-color-primary) 76%, var(--app-color-text-base));
 		text-decoration: underline;
 		margin: 0;
+		overflow-wrap: anywhere;
 	}
 
 	blockquote,
 	pre {
+		max-width: 100%;
+		overflow-x: auto;
 		margin: 12px 0;
 		padding: 12px 16px;
 		background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
@@ -1328,13 +1577,17 @@ a:hover {
 	}
 
 	code {
-		font-family: Consolas, "Courier New", monospace;
+		font-family: var(--app-font-mono);
+		font-size: var(--app-text-sm);
+		overflow-wrap: anywhere;
 	}
 
 	img {
 		max-width: 100%;
+		max-height: min(520px, 58vh);
 		height: auto;
 		display: block;
+		object-fit: contain;
 		margin: 12px 0;
 	}
 
@@ -1443,12 +1696,15 @@ a:hover {
 .ModDetailDescriptionsValue {
 	min-width: 0;
 	padding: 5px 8px;
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
 	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 .ModDetailDescriptionsLabel {
 	color: var(--app-color-text-muted);
-	font-weight: 650;
+	font-weight: var(--app-weight-label);
 	background: var(--app-color-surface-elevated);
 	border-right: 1px solid var(--app-color-border);
 }
@@ -1472,11 +1728,14 @@ a:hover {
 	padding: 4px 8px;
 	color: var(--app-color-text);
 	font: inherit;
-	font-weight: 650;
+	font-size: var(--app-text-ui);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	text-align: left;
 	background: var(--app-color-surface-elevated);
 	border: 0;
 	cursor: pointer;
+	overflow-wrap: anywhere;
 	transition:
 		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
 		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
@@ -1510,7 +1769,8 @@ a:hover {
 	gap: 8px;
 	width: 100%;
 	color: var(--app-color-text-muted);
-	font-size: 13px;
+	font-size: var(--app-text-sm);
+	line-height: var(--app-leading-ui);
 }
 
 .ModDetailDependencies .ModDetailCollapsePanel {
@@ -1520,6 +1780,7 @@ a:hover {
 .ModDetailTableWrap {
 	width: 100%;
 	overflow: auto;
+	overscroll-behavior: contain;
 }
 
 .ModDetailTable {
@@ -1527,20 +1788,23 @@ a:hover {
 	min-width: max-content;
 	border-collapse: collapse;
 	color: var(--app-color-text);
-	font-size: 13px;
+	font-size: var(--app-text-sm);
+	line-height: var(--app-leading-ui);
 }
 
 .ModDetailTable th,
 .ModDetailTable td {
+	max-width: min(34rem, 72vw);
 	padding: 6px 8px;
 	border-bottom: 1px solid var(--app-color-border);
 	text-align: left;
 	vertical-align: middle;
+	overflow-wrap: anywhere;
 }
 
 .ModDetailTable th {
 	color: var(--app-color-text-muted);
-	font-weight: 700;
+	font-weight: var(--app-weight-heading);
 	background: var(--app-color-surface-elevated);
 }
 
@@ -1591,8 +1855,9 @@ a:hover {
 .CollectionSettingsSubheading {
 	margin: 0;
 	color: var(--app-color-text);
-	font-size: 0.95rem;
-	font-weight: 700;
+	font-size: var(--app-text-body);
+	font-weight: var(--app-weight-heading);
+	line-height: var(--app-leading-ui);
 }
 
 .CollectionSettingsToggleCard {
@@ -1627,8 +1892,9 @@ a:hover {
 
 .CollectionSettingsColumnsHeader span {
 	color: var(--app-color-text-muted);
-	font-size: 12px;
-	font-weight: 650;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	text-transform: uppercase;
 	letter-spacing: 0;
 }
@@ -1700,6 +1966,8 @@ a:hover {
 	border-collapse: separate;
 	border-spacing: 0;
 	table-layout: fixed;
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -1714,7 +1982,9 @@ a:hover {
 	height: 42px;
 	padding: 0 8px;
 	color: var(--app-color-text);
-	font-weight: 650;
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	text-align: center;
 	background: var(--app-color-surface-elevated);
 	border-bottom: 1px solid var(--app-color-border);
@@ -1748,6 +2018,7 @@ a:hover {
 .MainCollectionVirtualHeaderCell[data-column-title="Tags"] .CollectionTableHeaderCell {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 6px;
 }
 
@@ -1767,8 +2038,8 @@ a:hover {
 	padding: 0 20px 0 8px;
 	color: var(--app-color-text);
 	font: inherit;
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--app-text-caption);
+	font-weight: var(--app-weight-label);
 	background: var(--app-color-surface);
 	border: 1px solid var(--app-color-border);
 	border-radius: var(--app-radius-sm);
@@ -1794,7 +2065,7 @@ a:hover {
 	position: absolute;
 	right: 2px;
 	color: var(--app-color-text-muted);
-	font-size: 10px;
+	font-size: var(--app-text-caption);
 	line-height: 1;
 }
 
@@ -1873,7 +2144,9 @@ a:hover {
 	justify-content: center;
 	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
 	color: var(--app-color-text);
-	font-weight: 650;
+	font-size: var(--app-text-ui);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
 	pointer-events: none;
 	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
@@ -1887,6 +2160,28 @@ a:hover {
 .StartupCard,
 .StartupStatusCard {
 	animation: appSurfaceIn var(--app-motion-duration-standard) var(--app-motion-ease-out);
+}
+
+.StartupEyebrow {
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
+}
+
+.StartupTitle {
+	font-size: var(--app-text-loading-title);
+	font-weight: var(--app-weight-heading);
+	line-height: var(--app-leading-tight);
+}
+
+.StartupIntro {
+	max-width: 65ch;
+	line-height: var(--app-leading-prose);
+}
+
+.StartupStatusCard {
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
 }
 
 .StartupProgressFill {
@@ -1903,12 +2198,138 @@ a:hover {
 	animation: appDisclosureIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
+.StatusCalloutTitle {
+	color: var(--app-color-text);
+}
+
+.StatusCalloutBody {
+	color: var(--app-color-text);
+}
+
+.StatusCallout[data-tone="error"] .StatusCalloutTitle {
+	color: var(--app-color-error-text);
+}
+
+.StatusCallout[data-tone="error"] .StatusCalloutBody {
+	color: color-mix(in oklch, var(--app-color-error-text) 82%, var(--app-color-text-base));
+}
+
+.StatusCallout[data-tone="warning"] .StatusCalloutTitle {
+	color: var(--app-color-warning-text);
+}
+
+.StatusCallout[data-tone="warning"] .StatusCalloutBody {
+	color: color-mix(in oklch, var(--app-color-warning-text) 82%, var(--app-color-text-base));
+}
+
 .NotificationToast {
 	--notification-enter-x: 10px;
 	--notification-enter-y: -4px;
+	max-height: min(60vh, 420px);
+	overflow: auto;
+	transition:
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out);
 	animation: notificationToastIn var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
 	transform-origin: top right;
 	will-change: opacity, transform;
+	overscroll-behavior: contain;
+}
+
+.NotificationToast[data-interactive="true"] {
+	cursor: pointer;
+}
+
+.NotificationToast[data-interactive="true"]:hover {
+	border-color: color-mix(in oklch, currentColor 38%, var(--app-color-border));
+}
+
+.NotificationToast:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%),
+		0 8px 18px color-mix(in srgb, var(--app-color-background) 76%, transparent);
+}
+
+.NotificationToastTitle {
+	color: var(--app-color-text);
+}
+
+.NotificationToastDescription {
+	color: var(--app-color-text-muted);
+}
+
+.NotificationToastClose {
+	color: var(--app-color-text-muted);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.NotificationToastClose:hover,
+.NotificationToastClose:focus-visible {
+	color: var(--app-color-text);
+	background: color-mix(in oklch, currentColor 10%, transparent);
+}
+
+.NotificationToastClose:focus-visible {
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.NotificationToast[data-tone="error"] {
+	color: var(--app-color-error-text);
+}
+
+.NotificationToast[data-tone="error"] .NotificationToastTitle,
+.NotificationToast[data-tone="error"] .NotificationToastClose {
+	color: var(--app-color-error-text);
+}
+
+.NotificationToast[data-tone="error"] .NotificationToastDescription {
+	color: color-mix(in oklch, var(--app-color-error-text) 82%, var(--app-color-text-base));
+}
+
+.NotificationToast[data-tone="warning"] {
+	color: var(--app-color-warning-text);
+}
+
+.NotificationToast[data-tone="warning"] .NotificationToastTitle,
+.NotificationToast[data-tone="warning"] .NotificationToastClose {
+	color: var(--app-color-warning-text);
+}
+
+.NotificationToast[data-tone="warning"] .NotificationToastDescription {
+	color: color-mix(in oklch, var(--app-color-warning-text) 82%, var(--app-color-text-base));
+}
+
+.NotificationToast[data-tone="success"] {
+	color: var(--app-color-success-text);
+}
+
+.NotificationToast[data-tone="success"] .NotificationToastTitle,
+.NotificationToast[data-tone="success"] .NotificationToastClose {
+	color: var(--app-color-success-text);
+}
+
+.NotificationToast[data-tone="success"] .NotificationToastDescription {
+	color: color-mix(in oklch, var(--app-color-success-text) 82%, var(--app-color-text-base));
+}
+
+.NotificationToast[data-tone="info"] {
+	color: var(--app-color-info-text);
+}
+
+.NotificationToast[data-tone="info"] .NotificationToastTitle,
+.NotificationToast[data-tone="info"] .NotificationToastClose {
+	color: var(--app-color-info-text);
+}
+
+.NotificationToast[data-tone="info"] .NotificationToastDescription {
+	color: color-mix(in oklch, var(--app-color-info-text) 82%, var(--app-color-text-base));
 }
 
 .NotificationToast[data-placement="topLeft"] {
@@ -1937,6 +2358,10 @@ a:hover {
 	justify-content: flex-end;
 }
 
+.ModDetailFooterHeader > div:first-child {
+	min-width: 0;
+}
+
 .MainCollectionVirtualRow > .MainCollectionVirtualCell.CollectionRowModName {
 	padding: 2px 4px 2px 2px;
 	align-items: stretch;
@@ -1953,7 +2378,7 @@ a:hover {
 }
 
 .MainCollectionVirtualRow.CompactModRow .CollectionNameButton {
-	font-size: 13.5px;
+	font-size: var(--app-text-sm);
 	line-height: 1.15;
 	min-height: 32px;
 	padding-top: 2px;
@@ -1966,7 +2391,7 @@ a:hover {
 	margin-top: 1px;
 	margin-bottom: 1px;
 	padding-inline: 7px;
-	font-size: 12px;
+	font-size: var(--app-text-caption);
 	line-height: 16px;
 	min-height: 18px;
 }
@@ -2217,6 +2642,10 @@ a:hover {
 }
 
 @media (max-width: 1100px) {
+	.SettingsPanels {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.CollectionSettingsTopBar {
 		grid-template-columns: minmax(0, 1fr);
 		justify-items: start;
@@ -2260,6 +2689,36 @@ a:hover {
 }
 
 @media (max-width: 720px) {
+	.WorkspaceHeader {
+		--workspace-toolbar-inset-x: 14px;
+	}
+
+	.SettingsHeader {
+		padding-inline: 20px;
+	}
+
+	.SettingsForm {
+		padding-inline: 20px;
+	}
+
+	.SettingsActions {
+		justify-content: flex-start;
+	}
+
+	.SettingsActions .DesktopButton {
+		flex: 1 1 100%;
+		width: 100%;
+	}
+
+	.SettingsDirtyState {
+		flex: 1 1 100%;
+		margin-right: 0;
+	}
+
+	.BlockLookupDetailsGrid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.CollectionSettingsTopBar {
 		grid-template-columns: minmax(0, 1fr);
 	}

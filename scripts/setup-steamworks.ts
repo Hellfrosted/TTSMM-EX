@@ -1,5 +1,5 @@
-import chalk from 'chalk';
 import { resolveSteamworksSdkPath, setupSteamworksNativeDeps } from './steamworks-setup';
+import { terminalStyle } from './lib/terminal-style';
 
 try {
 	const steamworksSdkPath = resolveSteamworksSdkPath();
@@ -9,14 +9,16 @@ try {
 		);
 	}
 
-	console.log(chalk.cyan('Installing and rebuilding native Steamworks dependencies.'));
-	console.log(chalk.cyan(`Using Steamworks SDK at: ${steamworksSdkPath}`));
+	console.log(terminalStyle.cyan('Installing and rebuilding native Steamworks dependencies.'));
+	console.log(terminalStyle.cyan(`Using Steamworks SDK at: ${steamworksSdkPath}`));
 	setupSteamworksNativeDeps(steamworksSdkPath);
-	console.log(chalk.green('Steamworks native dependencies are ready.'));
+	console.log(terminalStyle.success('Steamworks native dependencies are ready.'));
 } catch (error) {
-	console.error(chalk.red('Steamworks native dependency setup failed.'));
+	console.error(terminalStyle.error('Steamworks native dependency setup failed.'));
 	console.error(
-		chalk.red('Ensure the Steamworks SDK files required by the greenworks fork are available before running "pnpm run setup:steamworks".')
+		terminalStyle.error(
+			'Ensure the Steamworks SDK files required by the greenworks fork are available before running "pnpm run setup:steamworks".'
+		)
 	);
 	throw error;
 }

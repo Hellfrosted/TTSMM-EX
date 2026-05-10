@@ -1,8 +1,8 @@
-import { sync as rimrafSync } from 'rimraf';
+import fs from 'node:fs';
 import { releaseAppDistPath, releaseBuildPath } from './paths';
 
 export const cleanReleaseArtifacts = () => {
 	[releaseAppDistPath, releaseBuildPath].forEach((targetPath) => {
-		rimrafSync(targetPath);
+		fs.rmSync(targetPath, { force: true, recursive: true });
 	});
 };

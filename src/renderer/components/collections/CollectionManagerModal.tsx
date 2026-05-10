@@ -131,7 +131,7 @@ function CollectionDialog({ children, footer, onCancel, title, variant = 'defaul
 		<DesktopDialog
 			open
 			title={title}
-			titleClassName="text-[1.05rem] font-bold"
+			titleClassName="text-subheading font-bold"
 			closeLabel="Close modal"
 			onCancel={onCancel}
 			overlayClassName={wrapClassName}
@@ -260,7 +260,7 @@ function MainTableSettingsForm({
 		<form className="grid w-full max-w-full gap-3">
 			<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
 				<div className="flex min-w-0 items-center">
-					<h3 className="m-0 text-[0.95rem] font-bold text-text">Table layout</h3>
+					<h3 className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
 				</div>
 				<div className="inline-flex min-w-0 items-center gap-2.5">
 					<div className="min-w-0">
@@ -276,7 +276,7 @@ function MainTableSettingsForm({
 			<div className="grid w-full grid-cols-[repeat(2,minmax(260px,1fr))] gap-x-5 pb-0.5 max-[760px]:hidden" aria-hidden>
 				{[0, 1].map((columnGroupIndex) => (
 					<div
-						className="[&>span]:font-[650] grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 [&>span]:text-xs [&>span]:uppercase [&>span]:text-text-muted [&>span:nth-child(2)]:justify-self-start [&>span:nth-child(3)]:justify-self-start"
+						className="[&>span]:font-[650] grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 [&>span]:text-caption [&>span]:uppercase [&>span]:text-text-muted [&>span:nth-child(2)]:justify-self-start [&>span:nth-child(3)]:justify-self-start"
 						key={columnGroupIndex}
 					>
 						<span>Column</span>
@@ -302,7 +302,7 @@ function MainTableSettingsForm({
 						>
 							<div className="flex min-w-0 flex-col gap-0.5">
 								<strong>{id}</strong>
-								{cannotDisable ? <span className="text-xs leading-[1.35]">Name or ID must stay visible.</span> : null}
+								{cannotDisable ? <span className="text-caption leading-[var(--app-leading-ui)]">Name or ID must stay visible.</span> : null}
 							</div>
 							<div className="flex min-h-11 w-13 items-center justify-start">
 								<CollectionSwitch

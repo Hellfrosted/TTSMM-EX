@@ -33,7 +33,7 @@ interface VirtualTableRowProps {
 	children: ReactNode;
 	className: string;
 	dataIndex: number;
-	measureElement: (element: HTMLTableRowElement | null) => void;
+	measureElement?: (element: HTMLTableRowElement | null) => void;
 	keyboardShortcuts?: string;
 	onActivate?: (event: MouseEvent<HTMLTableRowElement> | KeyboardEvent<HTMLTableRowElement>) => void;
 	onContextMenu?: () => void;
