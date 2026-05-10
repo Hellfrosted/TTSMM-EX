@@ -1,6 +1,6 @@
 # Development Notes
 
-Last reviewed: 2026-05-03
+Last reviewed: 2026-05-05
 
 Use this page for details that are useful during source builds, validation, packaging, and maintenance but too bulky for the root README.
 
@@ -19,11 +19,11 @@ Linux notes:
 
 ## WSL Commands
 
-From WSL in the shared Windows checkout, run source setup through the helper:
+From WSL in the shared Windows checkout, run source setup with pnpm directly:
 
 ```bash
-./scripts/wsl-pnpm install
-./scripts/wsl-pnpm run setup:steamworks
+pnpm install
+pnpm run setup:steamworks
 ```
 
 ## Packaging Details

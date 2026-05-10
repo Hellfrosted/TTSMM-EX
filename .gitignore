@@ -34,6 +34,9 @@ output/
 .erb/.tmp
 
 .idea
+.serena/*
+!.serena/.gitignore
+!.serena/project.yml
 npm-debug.log.*
 *.css.d.ts
 *.sass.d.ts

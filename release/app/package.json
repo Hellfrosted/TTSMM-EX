@@ -1,6 +1,6 @@
 {
   "name": "terratech-steam-mod-manager-ex",
-  "packageManager": "pnpm@10.33.2",
+  "packageManager": "pnpm@11.0.5",
   "productName": "TTSMM-EX",
   "description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
   "version": "2.1.0",

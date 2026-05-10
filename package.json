@@ -4,14 +4,13 @@
 	"productName": "TTSMM-EX",
 	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
 	"version": "2.1.0",
-	"packageManager": "pnpm@10.33.2",
+	"packageManager": "pnpm@11.0.5",
 	"scripts": {
 		"help": "node --import=tsx ./scripts/help.ts",
 		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts node --import=tsx ./scripts/vite-dev.ts",
 		"start:desktop": "pnpm run build:native:block-lookup && pnpm run build && cross-env NODE_ENV=production node --import=tsx ./scripts/run-with-clean-electron-env.ts electron .",
 		"build": "node --import=tsx ./scripts/vite-build.ts",
 		"build:native:block-lookup": "node --import=tsx ./scripts/build-block-lookup-extractor.ts",
-		"preinstall": "node ./scripts/guard-wsl-install.cjs",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"prepare": "husky",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
@@ -180,7 +179,7 @@
 	},
 	"engines": {
 		"node": ">=20.19 <26",
-		"pnpm": ">=10 <11"
+		"pnpm": ">=11 <12"
 	},
 	"devEngines": {
 		"runtime": {
