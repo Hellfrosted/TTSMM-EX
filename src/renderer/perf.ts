@@ -9,7 +9,7 @@ function getNow() {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 }
 
-export function isPerfLoggingEnabled() {
+function isPerfLoggingEnabled() {
 	if (typeof window === 'undefined') {
 		return false;
 	}

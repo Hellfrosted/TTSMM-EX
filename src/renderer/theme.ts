@@ -1,8 +1,7 @@
 import type { CSSProperties } from 'react';
 
 export const APP_FONT_FAMILY = `'Aptos', 'Segoe UI Variable Text', 'Noto Sans', 'Segoe UI', sans-serif`;
-export const APP_DISPLAY_FONT_FAMILY = APP_FONT_FAMILY;
-export const APP_CONTROL_HEIGHT = 44;
+const APP_CONTROL_HEIGHT = 44;
 
 interface AppThemePalette {
 	primary: string;
@@ -108,7 +107,7 @@ function createAppThemeColors(palette: AppThemePalette) {
 
 export const APP_THEME_COLORS = createAppThemeColors(APP_THEME_PALETTE);
 
-export type AppTagTone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+type AppTagTone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
 function createTagStyle(baseColor: string): CSSProperties {
 	return {
@@ -134,7 +133,7 @@ export const APP_TAG_STYLES: Record<AppTagTone, CSSProperties> = {
 function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 	return {
 		'--app-font-body': APP_FONT_FAMILY,
-		'--app-font-display': APP_DISPLAY_FONT_FAMILY,
+		'--app-font-display': APP_FONT_FAMILY,
 		'--app-control-height': `${APP_CONTROL_HEIGHT}px`,
 		'--app-radius-sm': '6px',
 		'--app-radius-md': '8px',
@@ -145,9 +144,13 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-color-success': colors.success,
 		'--app-color-warning': colors.warning,
 		'--app-color-error': colors.error,
+		'--app-color-info': colors.info,
+		'--app-color-link': colors.link,
 		'--app-color-text': colors.text,
 		'--app-color-text-base': colors.textBase,
 		'--app-color-text-muted': colors.textMuted,
+		'--app-color-text-subtle': colors.textSubtle,
+		'--app-color-tab-text-muted': colors.tabTextMuted,
 		'--app-color-background': colors.background,
 		'--app-color-surface': colors.surface,
 		'--app-color-surface-alt': colors.surfaceAlt,
@@ -160,7 +163,12 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-color-table-header-text': colors.tableHeaderText,
 		'--app-color-table-row-hover': colors.tableRowHover,
 		'--app-color-table-row-selected': colors.tableRowSelected,
-		'--app-color-table-row-selected-hover': colors.tableRowSelectedHover
+		'--app-color-table-row-selected-hover': colors.tableRowSelectedHover,
+		'--app-color-menu-hover': colors.menuHover,
+		'--app-color-field-hover': colors.fieldHover,
+		'--app-color-collapse-body': colors.collapseBody,
+		'--app-color-tag-default-text': colors.tagDefaultText,
+		'--app-shadow-soft': colors.shadowSoft
 	} as CSSProperties;
 }
 

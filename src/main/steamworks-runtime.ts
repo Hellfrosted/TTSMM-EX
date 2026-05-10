@@ -2,12 +2,12 @@ import type log from 'electron-log';
 
 import Steamworks from './steamworks';
 
-export interface SteamStatus {
+interface SteamStatus {
 	inited: boolean;
 	error?: string;
 }
 
-export interface SteamworksRuntimeOptions {
+interface SteamworksRuntimeOptions {
 	env?: NodeJS.ProcessEnv;
 	steamworks?: Pick<typeof Steamworks, 'init'>;
 	logger?: Pick<typeof log, 'error' | 'warn'>;

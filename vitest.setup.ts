@@ -80,7 +80,7 @@ if (typeof window !== 'undefined') {
 
 	Object.defineProperty(window, 'getComputedStyle', {
 		value: ((element: Element, pseudoElt?: string | null) =>
-			originalGetComputedStyle(element, pseudoElt && pseudoElt.length > 0 ? null : pseudoElt ?? null)) as typeof window.getComputedStyle,
+			originalGetComputedStyle(element, pseudoElt && pseudoElt.length > 0 ? null : (pseudoElt ?? null))) as typeof window.getComputedStyle,
 		writable: true,
 		configurable: true
 	});

@@ -2,8 +2,10 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { SessionMods } from 'model';
-import type { AppConfig, AppState, AppStateUpdate, ModCollection } from 'model';
+import type { AppConfig } from 'model/AppConfig';
+import type { AppState, AppStateUpdate } from 'model/AppState';
+import type { ModCollection } from 'model/ModCollection';
+import { SessionMods } from 'model/SessionMods';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 
 type AppStateData = Omit<AppState, 'navigate' | 'updateState'>;
@@ -21,7 +23,7 @@ export type CollectionWorkspaceAppState = Pick<
 	| 'updateState'
 >;
 
-export type AppAction =
+type AppAction =
 	| {
 			type: 'merge';
 			payload: AppStateUpdate;
@@ -72,11 +74,6 @@ export const setCollectionsState = (
 
 export const setActiveCollection = (payload?: ModCollection): AppAction => ({
 	type: 'set-active-collection',
-	payload
-});
-
-export const setModsState = (payload: SessionMods): AppAction => ({
-	type: 'set-mods',
 	payload
 });
 

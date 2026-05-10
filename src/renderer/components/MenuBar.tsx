@@ -3,6 +3,7 @@ import { Grid3X3, Search, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppConfig, AppState } from 'model';
 import api from 'renderer/Api';
+import { writeConfig } from 'renderer/util/config-write';
 import { getStoredViewPath } from 'renderer/util/view-path';
 
 interface MenuProps {
@@ -64,11 +65,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 		const nextConfig = { ...configRef.current, currentPath: nextPath };
 		const persistPath = async () => {
 			try {
-				const updateSuccess = await api.updateConfig(nextConfig);
-				if (!updateSuccess) {
-					throw new Error('Config write was rejected');
-				}
-
+				await writeConfig(nextConfig);
 				persistedPathRef.current = nextPath;
 			} catch (error) {
 				api.logger.error(error);
@@ -128,11 +125,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 				{items.map((item) => {
 					const selected = item.key === selectedPath;
 					return (
-						<li
-							key={item.key}
-							data-menu-id={item.key}
-							className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}
-						>
+						<li key={item.key} data-menu-id={item.key} className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}>
 							<button
 								type="button"
 								className="MenuBarNavButton"

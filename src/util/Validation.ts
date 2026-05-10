@@ -1,7 +1,8 @@
-import { AppConfigKeys, PathType } from 'model';
+import { AppConfigKeys } from 'model/AppConfig';
 import api from 'renderer/Api';
 import { TT_APP_ID } from 'renderer/Constants';
 import type { ElectronPlatform } from 'shared/electron-api';
+import { PathType } from 'shared/ipc';
 
 function getPlatform(): ElectronPlatform {
 	return window.electron.platform;

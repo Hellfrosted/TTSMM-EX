@@ -7,6 +7,7 @@ import path from 'path';
 
 import { PathType, ValidChannel } from '../../model';
 import { expandUserPath, normalizePathValue, parseSteamLibraryFolders } from '../path-utils';
+import { assertValidIpcSender } from './ipc-sender-validation';
 
 interface ProcessDetails {
 	pid: number;
@@ -101,7 +102,7 @@ export function discoverGameExecutablePath({
 	return null;
 }
 
-export async function isGameRunning(): Promise<boolean> {
+async function isGameRunning(): Promise<boolean> {
 	try {
 		const { default: psList } = await import('ps-list');
 		const processes: ProcessDetails[] = await psList();
@@ -120,11 +121,7 @@ export async function isGameRunning(): Promise<boolean> {
 }
 
 function encodeSteamRunArgument(argument: string) {
-	return encodeURIComponent(argument)
-		.replace(/%2B/gi, '+')
-		.replace(/%5B/gi, '[')
-		.replace(/%5D/gi, ']')
-		.replace(/%3A/gi, ':');
+	return encodeURIComponent(argument).replace(/%2B/gi, '+').replace(/%5B/gi, '[').replace(/%5D/gi, ']').replace(/%3A/gi, ':');
 }
 
 export function launchGameProcess(
@@ -166,7 +163,7 @@ export function launchGameProcess(
 			platform === 'darwin' && resolvedGameExec.endsWith('.app') ? 'open' : resolvedGameExec,
 			platform === 'darwin' && resolvedGameExec.endsWith('.app') ? ['-a', resolvedGameExec, '--args', ...allArgs] : allArgs,
 			{
-			detached: true
+				detached: true
 			}
 		);
 		return new Promise((resolve) => {
@@ -201,7 +198,7 @@ export function launchGameProcess(
 	}
 }
 
-export async function selectPath(directory: boolean, title: string): Promise<string | null> {
+async function selectPath(directory: boolean, title: string): Promise<string | null> {
 	try {
 		const result = await dialog.showOpenDialog({
 			title,
@@ -239,23 +236,31 @@ export function pathExists(targetPath: string, expectedType?: PathType, homeDir:
 }
 
 export function registerGameHandlers(ipcMain: IpcMain) {
-	ipcMain.handle(ValidChannel.GAME_RUNNING, async () => {
+	ipcMain.handle(ValidChannel.GAME_RUNNING, async (event) => {
+		assertValidIpcSender(ValidChannel.GAME_RUNNING, event);
 		return isGameRunning();
 	});
 
-	ipcMain.handle(ValidChannel.LAUNCH_GAME, async (_event, gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => {
-		return launchGameProcess(gameExec, workshopID, closeOnLaunch, args);
-	});
+	ipcMain.handle(
+		ValidChannel.LAUNCH_GAME,
+		async (event, gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => {
+			assertValidIpcSender(ValidChannel.LAUNCH_GAME, event);
+			return launchGameProcess(gameExec, workshopID, closeOnLaunch, args);
+		}
+	);
 
-	ipcMain.handle(ValidChannel.PATH_EXISTS, async (_event, targetPath: string, expectedType?: PathType) => {
+	ipcMain.handle(ValidChannel.PATH_EXISTS, async (event, targetPath: string, expectedType?: PathType) => {
+		assertValidIpcSender(ValidChannel.PATH_EXISTS, event);
 		return pathExists(targetPath, expectedType);
 	});
 
-	ipcMain.handle(ValidChannel.DISCOVER_GAME_EXEC, async () => {
+	ipcMain.handle(ValidChannel.DISCOVER_GAME_EXEC, async (event) => {
+		assertValidIpcSender(ValidChannel.DISCOVER_GAME_EXEC, event);
 		return discoverGameExecutablePath();
 	});
 
-	ipcMain.handle(ValidChannel.SELECT_PATH, async (_event, directory: boolean, title: string) => {
+	ipcMain.handle(ValidChannel.SELECT_PATH, async (event, directory: boolean, title: string) => {
+		assertValidIpcSender(ValidChannel.SELECT_PATH, event);
 		return selectPath(directory, title);
 	});
 }

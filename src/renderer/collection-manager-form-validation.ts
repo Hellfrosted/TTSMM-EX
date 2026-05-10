@@ -72,7 +72,10 @@ export function setMainTableSettingsColumnWidth(
 	};
 }
 
-export function toMainCollectionConfig(values: MainCollectionTableSettingsFormValues, currentConfig?: MainCollectionConfig): MainCollectionConfig {
+export function toMainCollectionConfig(
+	values: MainCollectionTableSettingsFormValues,
+	currentConfig?: MainCollectionConfig
+): MainCollectionConfig {
 	return normalizeMainCollectionConfig({
 		...(currentConfig || {}),
 		smallRows: values.smallRows || undefined,

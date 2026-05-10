@@ -1,4 +1,4 @@
-import { ReactNode, memo, useEffect, useMemo, useState } from 'react';
+import { InputHTMLAttributes, ReactNode, memo, useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import { X } from 'lucide-react';
@@ -19,6 +19,7 @@ import {
 import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { writeConfig } from 'renderer/util/config-write';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,
@@ -80,6 +81,18 @@ interface CollectionNumberInputProps {
 	value?: number;
 }
 
+const collectionControlFocusClassName =
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const collectionInputClassName = [
+	'box-border min-h-control w-full rounded-md border border-border bg-surface px-3 text-text',
+	'disabled:cursor-not-allowed disabled:opacity-55',
+	collectionControlFocusClassName
+].join(' ');
+
+function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
+	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
+}
+
 function CollectionNativeModal({ children, className, footer, onCancel, title, width = 520, wrapClassName }: CollectionNativeModalProps) {
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,9 +107,31 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 		};
 	}, [onCancel]);
 
+	const isValidationModal = className?.includes('CollectionValidationModal');
+	const isSettingsModal = className?.includes('CollectionSettingsModal');
+	const overlayClassName = [
+		'fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6',
+		wrapClassName
+	]
+		.filter(Boolean)
+		.join(' ');
+	const modalClassName = [
+		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+	const bodyClassName = [
+		'overflow-auto p-4',
+		isValidationModal ? 'max-h-[calc(100vh-224px)]' : undefined,
+		isSettingsModal ? 'pb-3 pt-2.5' : undefined
+	]
+		.filter(Boolean)
+		.join(' ');
+
 	return (
 		<div
-			className={`CollectionNativeModalOverlay${wrapClassName ? ` ${wrapClassName}` : ''}`}
+			className={overlayClassName}
 			role="presentation"
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) {
@@ -107,34 +142,56 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 			<section
 				aria-labelledby="collection-native-modal-title"
 				aria-modal="true"
-				className={`CollectionNativeModal${className ? ` ${className}` : ''}`}
+				className={modalClassName}
 				role="dialog"
 				style={{ width: `min(${width}px, 100%)` }}
 			>
-				<header className="CollectionNativeModal__header">
-					<h2 id="collection-native-modal-title" className="CollectionNativeModal__title">
+				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
+					<h2 id="collection-native-modal-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
 						{title}
 					</h2>
-					<button className="CollectionNativeModal__close" type="button" aria-label="Close modal" onClick={onCancel}>
+					<button
+						className={[
+							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
+							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
+							collectionControlFocusClassName
+						].join(' ')}
+						type="button"
+						aria-label="Close modal"
+						onClick={onCancel}
+					>
 						<X size={18} aria-hidden="true" />
 					</button>
 				</header>
-				<div className="CollectionNativeModal__body">{children}</div>
-				{footer ? <footer className="CollectionNativeModal__footer">{footer}</footer> : null}
+				<div className={bodyClassName}>{children}</div>
+				{footer ? (
+					<footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</footer>
+				) : null}
 			</section>
 		</div>
 	);
 }
 
 function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
+	const buttonClassName = [
+		'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-3.5 font-[650] text-text',
+		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
+		'disabled:cursor-not-allowed disabled:opacity-55',
+		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
+		danger ? 'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]' : undefined,
+		collectionControlFocusClassName
+	]
+		.filter(Boolean)
+		.join(' ');
+
 	return (
-		<button
-			className={`CollectionNativeModalButton${variant === 'primary' ? ' CollectionNativeModalButton--primary' : ''}${danger ? ' CollectionNativeModalButton--danger' : ''}`}
-			disabled={disabled || loading}
-			onClick={onClick}
-			type="button"
-		>
-			{loading ? <span className="CollectionNativeModalButton__spinner" aria-hidden="true" /> : null}
+		<button className={buttonClassName} disabled={disabled || loading} onClick={onClick} type="button">
+			{loading ? (
+				<span
+					className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+					aria-hidden="true"
+				/>
+			) : null}
 			{children}
 		</button>
 	);
@@ -144,7 +201,13 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 	return (
 		<input
 			{...props}
-			className="CollectionNativeSwitch"
+			className={[
+				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface transition-colors duration-150 ease-in-out',
+				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
+				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
+				'disabled:cursor-not-allowed disabled:opacity-55',
+				collectionControlFocusClassName
+			].join(' ')}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -160,7 +223,7 @@ function CollectionNumberInput({ min, onChange, placeholder, step, value, ...pro
 	return (
 		<input
 			{...props}
-			className="CollectionNativeNumberInput"
+			className={collectionInputClassName}
 			min={min}
 			onChange={(event) => {
 				const nextValue = event.target.valueAsNumber;
@@ -260,17 +323,15 @@ function CollectionManagerModal({
 		}
 
 		return (
-			<section className="CollectionValidationIssueSection" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
-				<h3 id={VALIDATION_ISSUES_HEADING_ID} className="CollectionValidationIssueHeading">
-					Mods to review
-				</h3>
-				<div className="CollectionValidationIssueScroller">
-					<ul className="CollectionValidationIssueList">
+			<section className="mt-5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
+				<h3 id={VALIDATION_ISSUES_HEADING_ID}>Mods to review</h3>
+				<div className="pr-2">
+					<ul className="m-0 grid gap-3.5 p-0">
 						{validationIssueSummaries.map((summary) => (
-							<li key={summary.uid} className="CollectionValidationIssueItem">
-								<strong className="CollectionValidationIssueItem__title">{summary.label}</strong>
-								<span className="CollectionValidationIssueItem__uid">{summary.uid}</span>
-								<ul className="CollectionValidationIssueDetails">
+							<li key={summary.uid} className="grid gap-1">
+								<strong className="block">{summary.label}</strong>
+								<span className="block">{summary.uid}</span>
+								<ul className="m-0 grid gap-1 pl-5">
 									{summary.issues.map((issue) => (
 										<li key={`${summary.uid}-${issue}`}>{issue}</li>
 									))}
@@ -294,10 +355,7 @@ function CollectionManagerModal({
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
 		setSavingConfig(true);
 		try {
-			const updateSuccess = await api.updateConfig(nextConfig);
-			if (!updateSuccess) {
-				throw new Error('Config write was rejected');
-			}
+			await writeConfig(nextConfig);
 			appState.updateState({ config: nextConfig });
 			afterSave?.();
 		} catch (error) {
@@ -464,7 +522,7 @@ function CollectionManagerModal({
 				<CollectionNativeModal
 					key="settings-modal"
 					className="CollectionSettingsModal"
-					wrapClassName="CollectionSettingsModalWrap"
+					wrapClassName="px-3 pb-3 pt-[68px]"
 					title="Collection table settings"
 					width={760}
 					onCancel={closeModal}
@@ -473,24 +531,19 @@ function CollectionManagerModal({
 							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
 								Cancel
 							</CollectionModalButton>
-							<CollectionModalButton
-								loading={savingConfig}
-								disabled={savingConfig}
-								variant="primary"
-								onClick={submitTableSettings}
-							>
+							<CollectionModalButton loading={savingConfig} disabled={savingConfig} variant="primary" onClick={submitTableSettings}>
 								Save Table Settings
 							</CollectionModalButton>
 						</>
 					}
 				>
-					<form className="CollectionSettingsForm CollectionSettingsForm--dense">
-						<div className="CollectionSettingsTopBar">
-							<div className="CollectionSettingsTopCopy">
-								<h3 className="CollectionSettingsSubheading">Table layout</h3>
+					<form className="grid w-fit max-w-full gap-3">
+						<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
+							<div className="flex min-w-0 items-center">
+								<h3 className="m-0 text-[0.95rem] font-bold text-text">Table layout</h3>
 							</div>
-							<div className="CollectionSettingsToggleCard">
-								<div className="CollectionSettingsToggleCopy">
+							<div className="inline-flex min-w-0 items-center gap-2.5">
+								<div className="min-w-0">
 									<strong>Compact rows</strong>
 								</div>
 								<CollectionSwitch
@@ -502,16 +555,19 @@ function CollectionManagerModal({
 								/>
 							</div>
 						</div>
-						<div className="CollectionSettingsColumnsHeader" aria-hidden>
+						<div className="grid w-full grid-cols-[repeat(2,minmax(280px,1fr))] gap-x-5 pb-0.5 max-[760px]:hidden" aria-hidden>
 							{[0, 1].map((columnGroupIndex) => (
-								<div className="CollectionSettingsColumnsHeaderGroup" key={columnGroupIndex}>
+								<div
+									className="[&>span]:font-[650] grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 [&>span]:text-xs [&>span]:uppercase [&>span]:text-text-muted [&>span:nth-child(2)]:justify-self-start [&>span:nth-child(3)]:justify-self-start"
+									key={columnGroupIndex}
+								>
 									<span>Column</span>
 									<span>Show</span>
 									<span>Saved width</span>
 								</div>
 							))}
 						</div>
-						<div className="CollectionSettingsColumnsList">
+						<div className="grid w-full grid-cols-[repeat(2,minmax(280px,1fr))] gap-x-5 gap-y-2 max-[760px]:grid-cols-1">
 							{Object.values(MainColumnTitles).map((id: string) => {
 								const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
 								const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
@@ -522,12 +578,15 @@ function CollectionManagerModal({
 								const minimumWidth = getMainColumnMinWidth(id as MainColumnTitles);
 
 								return (
-									<div className="CollectionSettingsColumnRow" key={id}>
-										<div className="CollectionSettingsColumnLabel">
+									<div
+										className="grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 py-1 max-[520px]:grid-cols-[minmax(0,1fr)_auto] max-[520px]:gap-y-1"
+										key={id}
+									>
+										<div className="flex min-w-0 flex-col gap-0.5">
 											<strong>{id}</strong>
-											{cannotDisable ? <span className="CollectionSettingsColumnHint">Name or ID must stay visible.</span> : null}
+											{cannotDisable ? <span className="text-xs leading-[1.35]">Name or ID must stay visible.</span> : null}
 										</div>
-										<div className="CollectionSettingsColumnSwitch">
+										<div className="flex min-h-11 w-[52px] items-center justify-start">
 											<CollectionSwitch
 												aria-label={`Show ${id} column`}
 												checked={isChecked}
@@ -540,7 +599,7 @@ function CollectionManagerModal({
 												}}
 											/>
 										</div>
-										<div className="CollectionSettingsColumnWidth">
+										<div className="w-full max-[520px]:col-span-2">
 											<CollectionNumberInput
 												aria-label={`Saved width for ${id} column`}
 												min={minimumWidth}
@@ -598,36 +657,28 @@ function CollectionManagerModal({
 							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
 								Cancel
 							</CollectionModalButton>
-							<CollectionModalButton
-								loading={savingConfig}
-								disabled={savingConfig}
-								variant="primary"
-								onClick={submitOverrideSettings}
-							>
+							<CollectionModalButton loading={savingConfig} disabled={savingConfig} variant="primary" onClick={submitOverrideSettings}>
 								Save Settings
 							</CollectionModalButton>
 						</>
 					}
 				>
-					<form className="ModOverrideForm">
-						<p className="CollectionModalIntro">
+					<form className="mt-1">
+						<p className="mb-4">
 							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod
 							metadata.
 						</p>
-						<div className="ModOverrides">
-							<div className="ModOverridesPane">
-								<label className="CollectionNativeField">
-									<span className="CollectionNativeField__label">Override ID</span>
-									<input
-										className="CollectionNativeInput"
-										{...overrideForm.register('overrideId')}
-									/>
+						<div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-4 max-[620px]:grid-cols-1">
+							<div className="h-full rounded-md border border-border bg-surface-alt px-[18px] py-4">
+								<label className="flex flex-col gap-2" htmlFor="collection-override-id">
+									<span className="font-[650] text-text">Override ID</span>
+									<CollectionTextInput id="collection-override-id" {...overrideForm.register('overrideId')} />
 								</label>
 							</div>
-							<div className="ModOverridesPane">
-								<label className="CollectionNativeField">
-									<span className="CollectionNativeField__label">Current User Tags</span>
-									<input className="CollectionNativeInput" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
+							<div className="h-full rounded-md border border-border bg-surface-alt px-[18px] py-4">
+								<label className="flex flex-col gap-2" htmlFor="collection-current-user-tags">
+									<span className="font-[650] text-text">Current User Tags</span>
+									<CollectionTextInput id="collection-current-user-tags" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
 								</label>
 							</div>
 						</div>

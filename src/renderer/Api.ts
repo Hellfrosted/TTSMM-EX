@@ -1,6 +1,8 @@
-/* eslint-disable class-methods-use-this */
-
-import { AppConfig, LogLevel, ModCollection, ModData, NLogLevel, PathType, SessionMods } from 'model';
+import type { AppConfig, NLogLevel } from 'model/AppConfig';
+import type { ModData } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
+import { SessionMods } from 'model/SessionMods';
+import { LogLevel, PathType } from 'shared/ipc';
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,

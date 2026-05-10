@@ -29,7 +29,7 @@ export const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
 
 type ConfigCommit = (nextConfig: AppConfig) => void;
 
-export function cloneBlockLookupColumnConfig(columns: BlockLookupColumnConfig[]) {
+function cloneBlockLookupColumnConfig(columns: BlockLookupColumnConfig[]) {
 	return columns.map((column) => ({ ...column }));
 }
 
@@ -44,17 +44,21 @@ function compactRecord<T>(record: Record<string, T>, validKeys: Set<string>, isV
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
-function normalizedOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
+function collectConfiguredColumnOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
 	const defaultColumnSet = new Set<string>(defaultOrder);
 	const configuredColumnSet = new Set<T>();
-	const configuredColumns = (configuredOrder || []).filter((column): column is T => {
-			if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
-				return false;
-			}
-			configuredColumnSet.add(column as T);
-			return true;
-		}) as T[];
+	return (configuredOrder || []).filter((column): column is T => {
+		if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
+			return false;
+		}
+		configuredColumnSet.add(column as T);
+		return true;
+	}) as T[];
+}
 
+function normalizedOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
+	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
+	const configuredColumnSet = new Set(configuredColumns);
 	return [...configuredColumns, ...defaultOrder.filter((column) => !configuredColumnSet.has(column))];
 }
 
@@ -63,15 +67,7 @@ function compactOrder<T extends string>(configuredOrder: readonly string[] | und
 		return undefined;
 	}
 
-	const defaultColumnSet = new Set<string>(defaultOrder);
-	const configuredColumnSet = new Set<T>();
-	const configuredColumns = configuredOrder.filter((column): column is T => {
-		if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as T)) {
-			return false;
-		}
-		configuredColumnSet.add(column as T);
-		return true;
-	}) as T[];
+	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
 
 	return configuredColumns.length > 0 ? configuredColumns : undefined;
 }
@@ -93,7 +89,7 @@ export function normalizeMainCollectionConfig(config?: MainCollectionConfig): Ma
 			? Object.entries(columnWidthConfig).reduce<Record<string, number>>((nextWidths, [column, width]) => {
 					nextWidths[column] = Math.max(getMainColumnMinWidth(column as MainColumnTitles), Math.round(width));
 					return nextWidths;
-			  }, {})
+				}, {})
 			: undefined,
 		columnOrder: columnOrder && !defaultEquivalentOrder(columnOrder, mainColumnTitles) ? columnOrder : undefined
 	};
@@ -180,7 +176,10 @@ export function moveMainCollectionColumn(config: AppConfig, fromColumn: MainColu
 export function getConfiguredBlockLookupColumns(config?: BlockLookupViewConfig): BlockLookupColumnConfig[] {
 	const defaultColumns = cloneBlockLookupColumnConfig(DEFAULT_BLOCK_LOOKUP_COLUMNS);
 	const columnByTitle = new Map(defaultColumns.map((column) => [column.title, column]));
-	const orderedTitles = normalizedOrder(config?.columnOrder, defaultColumns.map((column) => column.title));
+	const orderedTitles = normalizedOrder(
+		config?.columnOrder,
+		defaultColumns.map((column) => column.title)
+	);
 
 	return orderedTitles.map((title) => {
 		const column = columnByTitle.get(title)!;
@@ -224,11 +223,7 @@ export function blockLookupColumnsToConfig(columns: BlockLookupColumnConfig[], s
 	};
 }
 
-export function moveBlockLookupColumnByKey(
-	columns: BlockLookupColumnConfig[],
-	fromKey: BlockLookupColumnKey,
-	toKey: BlockLookupColumnKey
-) {
+export function moveBlockLookupColumnByKey(columns: BlockLookupColumnConfig[], fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) {
 	const fromIndex = columns.findIndex((column) => column.key === fromKey);
 	const toIndex = columns.findIndex((column) => column.key === toKey);
 	if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
@@ -241,7 +236,12 @@ export function moveBlockLookupColumnByKey(
 	return nextColumns;
 }
 
-export function setBlockLookupColumnWidth(config: AppConfig, columns: BlockLookupColumnConfig[], columnKey: BlockLookupColumnKey, width: number) {
+export function setBlockLookupColumnWidth(
+	config: AppConfig,
+	columns: BlockLookupColumnConfig[],
+	columnKey: BlockLookupColumnKey,
+	width: number
+) {
 	const nextColumns = columns.map((column) =>
 		column.key === columnKey ? { ...column, width: Math.max(column.minWidth, Math.round(width)) } : column
 	);
@@ -257,7 +257,12 @@ export function setBlockLookupColumns(config: AppConfig, columns: BlockLookupCol
 	return nextConfig;
 }
 
-export function moveBlockLookupColumn(config: AppConfig, columns: BlockLookupColumnConfig[], fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) {
+export function moveBlockLookupColumn(
+	config: AppConfig,
+	columns: BlockLookupColumnConfig[],
+	fromKey: BlockLookupColumnKey,
+	toKey: BlockLookupColumnKey
+) {
 	const nextColumns = moveBlockLookupColumnByKey(columns, fromKey, toKey);
 	if (nextColumns === columns) {
 		return undefined;

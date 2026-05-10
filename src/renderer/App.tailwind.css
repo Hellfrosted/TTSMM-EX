@@ -1,25 +1,55 @@
 @import "tailwindcss";
 
 @theme inline {
+	--font-sans: var(--app-font-body);
+	--font-display: var(--app-font-display);
+	--spacing-control: var(--app-control-height);
 	--color-background: var(--app-color-background);
 	--color-foreground: var(--app-color-text-base);
 	--color-muted: var(--app-color-surface-alt);
 	--color-muted-foreground: var(--app-color-text-muted);
+	--color-text: var(--app-color-text);
+	--color-text-base: var(--app-color-text-base);
+	--color-text-muted: var(--app-color-text-muted);
+	--color-text-subtle: var(--app-color-text-subtle);
 	--color-border: var(--app-color-border);
 	--color-input: var(--app-color-border);
 	--color-ring: var(--app-color-primary);
 	--color-primary: var(--app-color-primary);
 	--color-primary-foreground: var(--app-color-text-base);
+	--color-primary-hover: var(--app-color-primary-hover);
+	--color-primary-active: var(--app-color-primary-active);
 	--color-secondary: var(--app-color-surface);
 	--color-secondary-foreground: var(--app-color-text);
 	--color-accent: var(--app-color-surface-elevated);
 	--color-accent-foreground: var(--app-color-text);
 	--color-destructive: var(--app-color-error);
 	--color-destructive-foreground: var(--app-color-text-base);
-	--radius-sm: 4px;
-	--radius-md: 6px;
-	--radius-lg: 8px;
-	--radius-xl: 10px;
+	--color-success: var(--app-color-success);
+	--color-warning: var(--app-color-warning);
+	--color-error: var(--app-color-error);
+	--color-info: var(--app-color-info);
+	--color-link: var(--app-color-link);
+	--color-surface: var(--app-color-surface);
+	--color-surface-alt: var(--app-color-surface-alt);
+	--color-surface-elevated: var(--app-color-surface-elevated);
+	--color-sider: var(--app-color-sider);
+	--color-footer: var(--app-color-footer);
+	--color-split: var(--app-color-split);
+	--color-menu-hover: var(--app-color-menu-hover);
+	--color-field-hover: var(--app-color-field-hover);
+	--color-collapse-body: var(--app-color-collapse-body);
+	--color-table-header: var(--app-color-table-header);
+	--color-table-header-text: var(--app-color-table-header-text);
+	--color-table-row-hover: var(--app-color-table-row-hover);
+	--color-table-row-selected: var(--app-color-table-row-selected);
+	--color-table-row-selected-hover: var(--app-color-table-row-selected-hover);
+	--color-tag-default-text: var(--app-color-tag-default-text);
+	--shadow-soft: 0 16px 40px var(--app-shadow-soft);
+	--radius-sm: var(--app-radius-sm);
+	--radius-md: var(--app-radius-md);
+	--radius-lg: var(--app-radius-lg);
+	--radius-xl: var(--app-radius-lg);
 }
 
 @layer base {

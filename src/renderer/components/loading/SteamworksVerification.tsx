@@ -2,7 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppStateSelector } from 'renderer/state/app-state';
-import { StartupButton, StartupStatusIcon } from './StartupPrimitives';
+import StatusCallout from '../StatusCallout';
+import {
+	StartupActions,
+	StartupButton,
+	StartupCard,
+	StartupEyebrow,
+	StartupHeroArtwork,
+	StartupHeroCopy,
+	StartupHeroRow,
+	StartupIntro,
+	StartupScreen,
+	StartupStatusCard,
+	StartupStatusContent,
+	StartupStatusDetail,
+	StartupStatusIcon,
+	StartupStatusTitle,
+	StartupTitle
+} from './StartupPrimitives';
 
 interface VerificationMessage {
 	inited: boolean;
@@ -163,49 +180,44 @@ export default function SteamworksVerification() {
 	const statusIcon = verifying ? 'loading' : error ? 'error' : 'success';
 
 	return (
-		<div className="StartupShell">
-			<main className="StartupContent">
-				<section aria-labelledby="steamworks-title" className="StartupCard StartupCard--wide">
-					<div className="StartupHeroRow">
-						<div className="StartupHeroCopy">
-							<span className="StartupEyebrow">Startup</span>
-							<h2 id="steamworks-title" className="StartupTitle">
-								Verifying Steamworks access
-							</h2>
-							<p className="StartupIntro">
-								The manager checks Steamworks before loading your configuration so workshop subscriptions and launch actions stay reliable.
-							</p>
-						</div>
-						<div className="StartupHeroArtwork">
-							<img src={logo_steamworks} width={240} alt="Steamworks logo" key="steamworks" />
-						</div>
-					</div>
-					<div aria-live="polite" role="status" className={`StartupStatusCard${error ? ' is-error' : ''}`}>
-						<div className="StartupStatusCard__content StartupStatusCard__content--large">
-							<StartupStatusIcon status={statusIcon} size={64} />
-							<span>
-								<strong className="StartupStatusTitle">{statusLabel}</strong>
-								<span className="StartupStatusDetail">{statusDetail}</span>
-							</span>
-						</div>
-					</div>
-					{error ? (
-						<div key="error" className="StartupActions">
-							<div className="StatusCallout StatusCallout--error">
-								<strong className="StatusCallout__title">{describedError?.title || 'Resolve this before retrying'}</strong>
-								<span className="StatusCallout__body">{describedError?.detail || error}</span>
-							</div>
-						</div>
-					) : null}
-					{error ? (
-						<div key="retry" className="StartupActions">
-							<StartupButton variant="primary" onClick={verify} loading={verifying}>
-								Try Steamworks Again
-							</StartupButton>
-						</div>
-					) : null}
-				</section>
-			</main>
-		</div>
+		<StartupScreen>
+			<StartupCard aria-labelledby="steamworks-title" wide>
+				<StartupHeroRow>
+					<StartupHeroCopy>
+						<StartupEyebrow>Startup</StartupEyebrow>
+						<StartupTitle id="steamworks-title">Verifying Steamworks access</StartupTitle>
+						<StartupIntro>
+							The manager checks Steamworks before loading your configuration so workshop subscriptions and launch actions stay reliable.
+						</StartupIntro>
+					</StartupHeroCopy>
+					<StartupHeroArtwork>
+						<img src={logo_steamworks} width={240} alt="Steamworks logo" key="steamworks" />
+					</StartupHeroArtwork>
+				</StartupHeroRow>
+				<StartupStatusCard aria-live="polite" role="status" error={!!error}>
+					<StartupStatusContent large>
+						<StartupStatusIcon status={statusIcon} size={64} />
+						<span>
+							<StartupStatusTitle>{statusLabel}</StartupStatusTitle>
+							<StartupStatusDetail>{statusDetail}</StartupStatusDetail>
+						</span>
+					</StartupStatusContent>
+				</StartupStatusCard>
+				{error ? (
+					<StartupActions key="error">
+						<StatusCallout tone="error" heading={describedError?.title || 'Resolve this before retrying'}>
+							{describedError?.detail || error}
+						</StatusCallout>
+					</StartupActions>
+				) : null}
+				{error ? (
+					<StartupActions key="retry">
+						<StartupButton variant="primary" onClick={verify} loading={verifying}>
+							Try Steamworks Again
+						</StartupButton>
+					</StartupActions>
+				) : null}
+			</StartupCard>
+		</StartupScreen>
 	);
 }

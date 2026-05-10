@@ -5,10 +5,10 @@ import type { Path, PathValue } from 'react-hook-form';
 import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
-import { writeConfig } from 'renderer/util/config-write';
+import { useWriteConfigMutation } from 'renderer/async-cache';
 import { settingsFormSchema } from 'renderer/settings-validation';
 
-export interface LogConfig {
+interface LogConfig {
 	level: NLogLevel;
 	loggerID: string;
 }
@@ -26,7 +26,7 @@ function cloneEditingConfig(config: EditingConfig): EditingConfig {
 	};
 }
 
-export type SaveSettingsResult =
+type SaveSettingsResult =
 	| {
 			ok: true;
 			reloadRequired: boolean;
@@ -36,7 +36,7 @@ export type SaveSettingsResult =
 			message: string;
 	  };
 
-export function createEditingConfig(config: AppConfig): EditingConfig {
+function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
 		loggerID,
 		level
@@ -61,6 +61,7 @@ function createLogParams(editingLogConfig: LogConfig[]) {
 
 export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState'>) {
 	const { config, updateState } = appState;
+	const writeConfigMutation = useWriteConfigMutation();
 	const form = useForm<EditingConfig>({
 		defaultValues: createEditingConfig(config),
 		mode: 'onSubmit',
@@ -200,7 +201,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 		updateState({ savingConfig: true });
 		try {
-			await writeConfig(configToSave);
+			await writeConfigMutation.mutateAsync(configToSave);
 			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
 				api.updateLogLevel(nextLogLevel);
 			}
@@ -233,7 +234,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		} finally {
 			updateState({ savingConfig: false });
 		}
-	}, [config.localDir, config.logLevel, config.workshopID, form, updateState]);
+	}, [config.localDir, config.logLevel, config.workshopID, form, updateState, writeConfigMutation]);
 
 	const cancelChanges = useCallback(() => {
 		form.reset(createEditingConfig(config));
@@ -243,14 +244,17 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		updateState({ madeConfigEdits: false });
 	}, [config, form, updateState]);
 
-	const closeModal = useCallback((options?: { restoreSnapshot?: boolean }) => {
-		if (options?.restoreSnapshot && modalSnapshot) {
-			form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
-		}
-		setModalType(SettingsViewModalType.NONE);
-		setEditingContextIndex(undefined);
-		setModalSnapshot(undefined);
-	}, [form, modalSnapshot]);
+	const closeModal = useCallback(
+		(options?: { restoreSnapshot?: boolean }) => {
+			if (options?.restoreSnapshot && modalSnapshot) {
+				form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
+			}
+			setModalType(SettingsViewModalType.NONE);
+			setEditingContextIndex(undefined);
+			setModalSnapshot(undefined);
+		},
+		[form, modalSnapshot]
+	);
 
 	return {
 		form,

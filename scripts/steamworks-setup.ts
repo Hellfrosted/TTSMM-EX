@@ -50,18 +50,11 @@ function validateSteamworksSdkPath(steamworksSdkPath: string) {
 		);
 	}
 
-	const requiredPathGroups = [
-		['public'],
-		['redistributable_bin'],
-		[path.join('public', 'steam', 'steam_api.h')]
-	];
+	const requiredPathGroups = [['public'], ['redistributable_bin'], [path.join('public', 'steam', 'steam_api.h')]];
 
 	if (process.platform === 'win32' && process.arch === 'x64') {
 		requiredPathGroups.push(
-			[
-				path.join('public', 'steam', 'lib', 'win64', 'steam_api64.lib'),
-				path.join('redistributable_bin', 'win64', 'steam_api64.lib')
-			],
+			[path.join('public', 'steam', 'lib', 'win64', 'steam_api64.lib'), path.join('redistributable_bin', 'win64', 'steam_api64.lib')],
 			[path.join('public', 'steam', 'lib', 'win64', 'sdkencryptedappticket64.lib')],
 			[path.join('public', 'steam', 'lib', 'win64', 'sdkencryptedappticket64.dll')],
 			[path.join('redistributable_bin', 'win64', 'steam_api64.dll')]
@@ -159,10 +152,7 @@ function patchGreenworksWorkshopWorkerSource() {
 	const source = fs.readFileSync(greenworksWorkshopWorkersPath, 'utf8');
 	const patchedSource = source
 		.replace('const const char *PreviewTypeToString(EItemPreviewType type) {', 'const char *PreviewTypeToString(EItemPreviewType type) {')
-		.replace(
-			/(^|\n)char \*PreviewTypeToString\(EItemPreviewType type\) \{/,
-			'$1const char *PreviewTypeToString(EItemPreviewType type) {'
-		);
+		.replace(/(^|\n)char \*PreviewTypeToString\(EItemPreviewType type\) \{/, '$1const char *PreviewTypeToString(EItemPreviewType type) {');
 
 	if (patchedSource !== source) {
 		fs.writeFileSync(greenworksWorkshopWorkersPath, patchedSource);
@@ -184,7 +174,9 @@ function patchGreenworksPythonCommand() {
 
 function terminateSteamworksSmokeProcesses() {
 	if (process.platform !== 'win32') {
-		const smokePathFragments = [legacySmokeEntryPath, legacySmokeWorkerPath, smokeWorkerPath].map((targetPath) => targetPath.replace(/\\/g, '/'));
+		const smokePathFragments = [legacySmokeEntryPath, legacySmokeWorkerPath, smokeWorkerPath].map((targetPath) =>
+			targetPath.replace(/\\/g, '/')
+		);
 		const processList = execSync('ps -ax -o pid= -o command=', {
 			cwd: repoRoot,
 			encoding: 'utf8'
@@ -195,7 +187,10 @@ function terminateSteamworksSmokeProcesses() {
 			.filter((match): match is RegExpMatchArray => Boolean(match))
 			.filter(([, , commandLine]) => {
 				const normalizedCommandLine = commandLine.toLowerCase().replace(/\\/g, '/');
-				return normalizedCommandLine.includes('electron') && smokePathFragments.some((fragment) => normalizedCommandLine.includes(fragment.toLowerCase()));
+				return (
+					normalizedCommandLine.includes('electron') &&
+					smokePathFragments.some((fragment) => normalizedCommandLine.includes(fragment.toLowerCase()))
+				);
 			})
 			.map(([, pid]) => Number.parseInt(pid, 10))
 			.filter((pid) => Number.isInteger(pid) && pid > 0);
@@ -220,7 +215,7 @@ function terminateSteamworksSmokeProcesses() {
 	run(`powershell -NoProfile -Command "${processFilter} | ${stopProcesses}"`);
 }
 
-export function stageSteamworksSdk(steamworksSdkPath: string) {
+function stageSteamworksSdk(steamworksSdkPath: string) {
 	ensureGreenworksPresent();
 	removeIfExists(greenworksSdkPath);
 	fs.mkdirSync(path.dirname(greenworksSdkPath), { recursive: true });

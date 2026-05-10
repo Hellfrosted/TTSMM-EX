@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const setupModulePath = '../../../scripts/steamworks-setup';
 const pathsModulePath = '../../../scripts/lib/paths';
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
@@ -49,10 +48,7 @@ function createLinuxSdk(sdkPath: string) {
 function createGreenworksSkeleton(greenworksPath: string, previewTypeSignature: string) {
 	fs.mkdirSync(path.join(greenworksPath, 'src'), { recursive: true });
 	fs.writeFileSync(path.join(greenworksPath, 'binding.gyp'), "'python',\n");
-	fs.writeFileSync(
-		path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'),
-		`${previewTypeSignature}\n\treturn nullptr;\n}\n`
-	);
+	fs.writeFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), `${previewTypeSignature}\n\treturn nullptr;\n}\n`);
 }
 
 function createDirectoryLink(targetPath: string, linkPath: string) {
@@ -86,7 +82,7 @@ async function importSteamworksSetup(paths: MockedPaths, execSync: ReturnType<ty
 	vi.doMock(pathsModulePath, () => paths);
 	vi.doMock('node:child_process', () => ({ execSync }));
 
-	return import(setupModulePath);
+	return import('../../../scripts/steamworks-setup');
 }
 
 afterEach(() => {
@@ -183,7 +179,9 @@ describe('steamworks setup scripts', () => {
 
 		linkModules();
 
-		expect(path.normalize(fs.realpathSync.native(paths.srcNodeModulesPath))).toBe(path.normalize(fs.realpathSync.native(paths.releaseAppNodeModulesPath)));
+		expect(path.normalize(fs.realpathSync.native(paths.srcNodeModulesPath))).toBe(
+			path.normalize(fs.realpathSync.native(paths.releaseAppNodeModulesPath))
+		);
 		expect(execSync).not.toHaveBeenCalled();
 	});
 });

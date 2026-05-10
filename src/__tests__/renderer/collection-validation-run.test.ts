@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CollectionManagerModalType, ModErrorType, ModType, SessionMods } from '../../model';
 import type { AppConfig, CollectionErrors, ModCollection } from '../../model';
-import {
-	getCollectionValidationKey,
-	renderValidationErrors,
-	summarizeValidationIssues
-} from '../../renderer/collection-validation-run';
+import { getCollectionValidationKey, renderValidationErrors, summarizeValidationIssues } from '../../renderer/collection-validation-run';
 
 function config(overrides?: Partial<AppConfig>): AppConfig {
 	return {
@@ -31,7 +27,9 @@ describe('collection-validation-run', () => {
 			userOverrides: new Map([['a', { id: 'override' }]])
 		});
 
-		expect(getCollectionValidationKey(collection, firstConfig)).toBe(getCollectionValidationKey({ ...collection, mods: ['a', 'b'] }, firstConfig));
+		expect(getCollectionValidationKey(collection, firstConfig)).toBe(
+			getCollectionValidationKey({ ...collection, mods: ['a', 'b'] }, firstConfig)
+		);
 		expect(getCollectionValidationKey(collection, firstConfig)).not.toBe(getCollectionValidationKey(collection, secondConfig));
 	});
 

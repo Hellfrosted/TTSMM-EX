@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import log from 'electron-log';
 
-export function getCollectionsDirectory(userDataPath: string): string {
+function getCollectionsDirectory(userDataPath: string): string {
 	return path.join(userDataPath, 'collections');
 }
 

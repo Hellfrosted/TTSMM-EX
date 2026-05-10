@@ -156,7 +156,7 @@ function createEmptyIndex(): PersistedBlockLookupIndex {
 	};
 }
 
-export function readBlockLookupIndex(userDataPath: string): PersistedBlockLookupIndex {
+function readBlockLookupIndex(userDataPath: string): PersistedBlockLookupIndex {
 	const index = readJsonFile<PersistedBlockLookupIndex>(getBlockLookupIndexPath(userDataPath));
 	if (!index || index.version !== BLOCK_LOOKUP_INDEX_VERSION || !Array.isArray(index.sources) || !Array.isArray(index.records)) {
 		return createEmptyIndex();
@@ -171,16 +171,14 @@ function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookup
 
 function observedNormalize(value: string): string {
 	const placeholder = '<<DASHSEP>>';
-	return value
-		.replace(/ - /g, placeholder)
-		.replace(/-/g, '_')
-		.trim()
-		.replace(/\s+/g, '_')
-		.replace(new RegExp(placeholder, 'g'), '_-_');
+	return value.replace(/ - /g, placeholder).replace(/-/g, '_').trim().replace(/\s+/g, '_').replace(new RegExp(placeholder, 'g'), '_-_');
 }
 
 function strictNormalize(value: string): string {
-	return value.trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+	return value
+		.trim()
+		.replace(/[^A-Za-z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '');
 }
 
 function normalizedLookupKey(value: string): string {
@@ -274,7 +272,10 @@ function isExtractedTextBlock(value: unknown): value is ExtractedTextBlock {
 	return typeof record.blockName === 'string' && typeof record.blockId === 'string' && typeof record.internalName === 'string';
 }
 
-function extractBundleBlocksWithPython(sourcePaths: string[], execFile: typeof childProcess.execFile = childProcess.execFile): Promise<Map<string, ExtractedTextBlock[]> | null> {
+function extractBundleBlocksWithPython(
+	sourcePaths: string[],
+	execFile: typeof childProcess.execFile = childProcess.execFile
+): Promise<Map<string, ExtractedTextBlock[]> | null> {
 	if (sourcePaths.length === 0) {
 		return Promise.resolve(new Map());
 	}
@@ -394,7 +395,7 @@ function findSteamLibraryPaths(platform: NodeJS.Platform = process.platform): st
 	return [...libraries];
 }
 
-export function normalizeWorkshopRoot(value: string | null | undefined): string | null {
+function normalizeWorkshopRoot(value: string | null | undefined): string | null {
 	const normalized = expandUserPath(value);
 	if (!normalized) {
 		return null;
@@ -410,7 +411,7 @@ export function normalizeWorkshopRoot(value: string | null | undefined): string 
 	return path.normalize(existingCandidate || normalized);
 }
 
-export function looksLikeWorkshopRoot(value: string | null | undefined): boolean {
+function looksLikeWorkshopRoot(value: string | null | undefined): boolean {
 	const normalized = normalizeWorkshopRoot(value);
 	if (!normalized || !fs.existsSync(normalized)) {
 		return false;
@@ -434,7 +435,9 @@ function deriveWorkshopRootFromPath(value: string | null | undefined): string | 
 		return null;
 	}
 
-	const match = normalized.match(new RegExp(`^(.*?[\\\\/]steamapps[\\\\/]workshop[\\\\/]content[\\\\/]${TERRATECH_STEAM_APP_ID})(?:[\\\\/].*)?$`, 'i'));
+	const match = normalized.match(
+		new RegExp(`^(.*?[\\\\/]steamapps[\\\\/]workshop[\\\\/]content[\\\\/]${TERRATECH_STEAM_APP_ID})(?:[\\\\/].*)?$`, 'i')
+	);
 	return match?.[1] ? path.normalize(match[1]) : null;
 }
 
@@ -452,7 +455,9 @@ function findGameRootFromGameExec(gameExec: string | null | undefined): string |
 	}
 	candidates.push(normalized);
 
-	return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll'))) || null;
+	return (
+		candidates.find((candidate) => fs.existsSync(path.join(candidate, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll'))) || null
+	);
 }
 
 function deriveWorkshopRootFromGameExec(gameExec: string | null | undefined): string | null {
@@ -470,7 +475,9 @@ function deriveWorkshopRootFromGameExec(gameExec: string | null | undefined): st
 	return fs.existsSync(workshopRoot) ? path.normalize(workshopRoot) : null;
 }
 
-export function autoDetectBlockLookupWorkshopRoot(request: Pick<BlockLookupBuildRequest, 'gameExec' | 'modSources' | 'workshopRoot'> = {}): string | null {
+export function autoDetectBlockLookupWorkshopRoot(
+	request: Pick<BlockLookupBuildRequest, 'gameExec' | 'modSources' | 'workshopRoot'> = {}
+): string | null {
 	const configuredRoot = normalizeWorkshopRoot(request.workshopRoot);
 	if (looksLikeWorkshopRoot(configuredRoot)) {
 		return configuredRoot;
@@ -550,7 +557,10 @@ function addModDirectorySources(sourceMap: Map<string, SourceRecord>, modDir: st
 	}
 
 	const entries = fs.readdirSync(modDir, { withFileTypes: true });
-	const bundles = entries.filter((entry) => entry.isFile()).map((entry) => path.join(modDir, entry.name)).filter(isBundleCandidate);
+	const bundles = entries
+		.filter((entry) => entry.isFile())
+		.map((entry) => path.join(modDir, entry.name))
+		.filter(isBundleCandidate);
 	const workshopId = modSource?.workshopID || (/^\d+$/.test(path.basename(modDir)) ? path.basename(modDir) : modSource?.uid || 'local');
 	const modTitle = deriveModTitle(modDir, bundles, modSource);
 
@@ -671,7 +681,13 @@ async function extractRecordsFromSource(source: SourceRecord, extractedBundleBlo
 	}
 }
 
-function createIndexStats(index: PersistedBlockLookupIndex, scanned = 0, skipped = 0, removed = 0, updatedBlocks = 0): BlockLookupIndexStats {
+function createIndexStats(
+	index: PersistedBlockLookupIndex,
+	scanned = 0,
+	skipped = 0,
+	removed = 0,
+	updatedBlocks = 0
+): BlockLookupIndexStats {
 	return {
 		sources: index.sources.length,
 		scanned,
@@ -715,10 +731,7 @@ function collectSources(request: BlockLookupBuildRequest): { sources: SourceReco
 
 	const vanillaAssemblyPath = findVanillaAssemblyPath(request.gameExec);
 	if (vanillaAssemblyPath) {
-		sourceMap.set(
-			path.normalize(vanillaAssemblyPath),
-			createSourceRecord(vanillaAssemblyPath, 'vanilla', 'vanilla', 'Vanilla TerraTech')
-		);
+		sourceMap.set(path.normalize(vanillaAssemblyPath), createSourceRecord(vanillaAssemblyPath, 'vanilla', 'vanilla', 'Vanilla TerraTech'));
 	}
 
 	return {
@@ -743,7 +756,10 @@ function buildSearchBlob(record: BlockLookupRecord) {
 		.toLowerCase();
 }
 
-export async function buildBlockLookupIndex(userDataPath: string, request: BlockLookupBuildRequest): Promise<{ stats: BlockLookupIndexStats; settings: BlockLookupSettings }> {
+export async function buildBlockLookupIndex(
+	userDataPath: string,
+	request: BlockLookupBuildRequest
+): Promise<{ stats: BlockLookupIndexStats; settings: BlockLookupSettings }> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
 	const existingSourceMap = new Map(existingIndex.sources.map((source) => [source.sourcePath, source]));
 	const existingRecordsBySource = new Map<string, BlockLookupRecord[]>();

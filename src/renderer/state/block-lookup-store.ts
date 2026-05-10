@@ -19,7 +19,9 @@ interface BlockLookupState {
 	setStats: (stats: BlockLookupIndexStats | null) => void;
 	setSelectedRowKey: (nextKey: string | undefined | ((currentKey?: string) => string | undefined)) => void;
 	setSortKey: (sortKey: BlockLookupSortKey) => void;
-	setSortDirection: (nextDirection: BlockLookupSortDirection | ((currentDirection: BlockLookupSortDirection) => BlockLookupSortDirection)) => void;
+	setSortDirection: (
+		nextDirection: BlockLookupSortDirection | ((currentDirection: BlockLookupSortDirection) => BlockLookupSortDirection)
+	) => void;
 	setLoadingResults: (loadingResults: boolean) => void;
 	setBuildingIndex: (buildingIndex: boolean) => void;
 }

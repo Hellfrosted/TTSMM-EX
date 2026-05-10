@@ -1,7 +1,7 @@
 import { getRows, type AppState } from 'model';
 import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupModSource } from 'shared/block-lookup';
 
-export type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
+type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
 
 export function formatBlockLookupIndexStatus(stats: BlockLookupIndexStats | null, resultCount: number, query: string) {
 	if (!stats) {
@@ -38,11 +38,7 @@ export function createBlockLookupBuildRequest(
 	};
 }
 
-export function retainSelectedBlockLookupRow<T>(
-	rows: readonly T[],
-	currentKey: string | undefined,
-	getRecordKey: (record: T) => string
-) {
+export function retainSelectedBlockLookupRow<T>(rows: readonly T[], currentKey: string | undefined, getRecordKey: (record: T) => string) {
 	if (currentKey && rows.some((record) => getRecordKey(record) === currentKey)) {
 		return currentKey;
 	}

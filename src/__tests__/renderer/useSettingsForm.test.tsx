@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppConfigKeys, LogLevel, SettingsViewModalType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
-import { createAppState } from './test-utils';
+import { createAppState, createQueryWrapper } from './test-utils';
 
 describe('useSettingsForm', () => {
 	it('selects a settings path through the promise-based preload API', async () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockResolvedValueOnce('C:\\Games\\TerraTech\\LocalMods');
 
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		await act(async () => {
 			await result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory');
@@ -30,7 +30,7 @@ describe('useSettingsForm', () => {
 				userOverrides: new Map()
 			}
 		});
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Temp\\LocalMods');
@@ -61,7 +61,7 @@ describe('useSettingsForm', () => {
 				gameExec: 'old error'
 			}
 		});
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.GAME_EXEC, 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
@@ -96,7 +96,7 @@ describe('useSettingsForm', () => {
 			}
 		});
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Other\\LocalMods');
@@ -129,7 +129,7 @@ describe('useSettingsForm', () => {
 		const updateLogLevel = vi.fn();
 		window.electron.updateLogLevel = updateLogLevel;
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
 			result.current.setField('logLevel', LogLevel.DEBUG);
@@ -156,12 +156,12 @@ describe('useSettingsForm', () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockRejectedValueOnce('exploded');
 
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		await act(async () => {
-			await expect(
-				result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')
-			).rejects.toThrow('Failed to browse for a path');
+			await expect(result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')).rejects.toThrow(
+				'Failed to browse for a path'
+			);
 		});
 
 		expect(result.current.selectingDirectory).toBe(false);
@@ -169,7 +169,7 @@ describe('useSettingsForm', () => {
 
 	it('restores modal-scoped settings edits when a modal is cancelled', () => {
 		const appState = createAppState();
-		const { result } = renderHook(() => useSettingsForm(appState));
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
 			result.current.openWorkshopIdModal();

@@ -1,4 +1,3 @@
- 
 export interface CancellablePromise<Type> {
 	promise: Promise<Type>;
 	cancel: () => void;
@@ -9,11 +8,9 @@ export function cancellablePromise<Type>(promise: Promise<Type>): CancellablePro
 	const wrappedPromise: Promise<Type> = new Promise((resolve, reject) => {
 		promise
 			.then((d) => {
-				 
 				return isCancelled.value ? reject({ cancelled: true }) : resolve(d);
 			})
 			.catch((e) => {
-				 
 				reject({
 					cancelled: isCancelled.value,
 					error: e
@@ -27,31 +24,6 @@ export function cancellablePromise<Type>(promise: Promise<Type>): CancellablePro
 			isCancelled.value = true;
 		}
 	};
-}
-
-export class CancellablePromiseManager {
-	isCancelled = { value: false };
-
-	execute<Type>(promise: Promise<Type>): Promise<Type> {
-		const wrappedPromise: Promise<Type> = new Promise((resolve, reject) => {
-			promise
-				.then((d) => {
-					return this.isCancelled.value ? reject(this.isCancelled) : resolve(d);
-				})
-				.catch((e) => {
-					 
-					reject({
-						cancelled: this.isCancelled.value,
-						error: e
-					});
-				});
-		});
-		return wrappedPromise;
-	}
-
-	cancelAllPromises() {
-		this.isCancelled.value = true;
-	}
 }
 
 export function isSuccessful<T>(response: PromiseSettledResult<T>): response is PromiseFulfilledResult<T> {

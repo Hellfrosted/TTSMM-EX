@@ -1,19 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
-import {
-	CheckSquare,
-	CircleHelp,
-	Clock3,
-	Edit3,
-	FolderOpen,
-	HardDrive,
-	LoaderCircle,
-	Maximize2,
-	Minimize2,
-	PanelBottom,
-	PanelRight,
-	TriangleAlert,
-	X
-} from 'lucide-react';
+import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
 import {
 	DisplayModData,
@@ -39,35 +25,13 @@ import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { APP_TAG_STYLES } from 'renderer/theme';
+import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
+import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './mod-details-presentation';
 
-import missing from '../../../../assets/missing.png';
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
 
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
-
-type DetailCellRenderer = {
-	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;
-}['render'];
-
-interface DetailColumn {
-	title: ReactNode;
-	dataIndex?: string;
-	defaultSortOrder?: 'ascend';
-	sorter?: (a: DisplayModData, b: DisplayModData) => number;
-	render?: DetailCellRenderer;
-	width?: number;
-	align?: 'center';
-}
-
-interface DetailRowSelection {
-	selectedRowKeys: Key[];
-	checkStrictly?: boolean;
-	onChange: (selectedRowKeys: Key[]) => void;
-	onSelect?: (record: DisplayModData, selected: boolean) => void;
-	onSelectAll?: () => void;
-	onSelectNone?: () => void;
-}
 
 interface DetailDescriptionItem {
 	label: ReactNode;
@@ -103,66 +67,6 @@ function DetailIcon({ children, label, className = '' }: { children: ReactNode; 
 	);
 }
 
-function DetailIconButton({
-	'aria-label': ariaLabel,
-	'aria-pressed': ariaPressed,
-	children,
-	onClick,
-	title
-}: {
-	'aria-label': string;
-	'aria-pressed'?: boolean;
-	children: ReactNode;
-	onClick: () => void;
-	title?: string;
-}) {
-	return (
-		<button
-			type="button"
-			className="ModDetailIconButton"
-			aria-label={ariaLabel}
-			aria-pressed={ariaPressed}
-			title={title}
-			onClick={onClick}
-		>
-			{children}
-		</button>
-	);
-}
-
-function DetailButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
-	return (
-		<button type="button" className="ModDetailButton" onClick={onClick}>
-			{children}
-		</button>
-	);
-}
-
-function DetailCheckbox({
-	'aria-label': ariaLabel,
-	checked,
-	disabled,
-	onChange
-}: {
-	'aria-label': string;
-	checked: boolean;
-	disabled?: boolean;
-	onChange: (checked: boolean) => void;
-}) {
-	return (
-		<input
-			type="checkbox"
-			className="ModDetailCheckbox"
-			aria-label={ariaLabel}
-			checked={checked}
-			disabled={disabled}
-			onChange={(event) => {
-				onChange(event.target.checked);
-			}}
-		/>
-	);
-}
-
 function DetailDescriptions({ column = 1, items }: { column?: number; items: DetailDescriptionItem[] }) {
 	return (
 		<div className={`ModDetailDescriptions ModDetailDescriptions--columns-${column}`}>
@@ -180,7 +84,15 @@ function DetailDescriptions({ column = 1, items }: { column?: number; items: Det
 	);
 }
 
-function DetailCollapse({ className = '', defaultActiveKey, items }: { className?: string; defaultActiveKey?: string[]; items: DetailCollapseItem[] }) {
+function DetailCollapse({
+	className = '',
+	defaultActiveKey,
+	items
+}: {
+	className?: string;
+	defaultActiveKey?: string[];
+	items: DetailCollapseItem[];
+}) {
 	const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(defaultActiveKey || []));
 
 	return (
@@ -242,139 +154,6 @@ function DetailTabs({ activeKey, items, onChange }: { activeKey: string; items: 
 	);
 }
 
-function getRecordValue(record: DisplayModData, dataIndex?: string) {
-	return dataIndex ? record[dataIndex as keyof DisplayModData] : undefined;
-}
-
-function flattenDetailRows(rows: DisplayModData[]) {
-	return rows.flatMap((record) => [
-		{ record, depth: 0 },
-		...(record.children || []).map((childRecord) => ({ record: childRecord, depth: 1 }))
-	]);
-}
-
-function DetailTable({
-	columns,
-	dataSource,
-	loading,
-	rowSelection
-}: {
-	columns: DetailColumn[];
-	dataSource: DisplayModData[];
-	loading?: boolean;
-	rowSelection?: DetailRowSelection;
-}) {
-	const visibleRows = flattenDetailRows(dataSource);
-	const selectedKeys = new Set((rowSelection?.selectedRowKeys || []).map((key) => key.toString()));
-	const selectableKeys = visibleRows.map(({ record }) => record.uid);
-	const allSelected = selectableKeys.length > 0 && selectableKeys.every((uid) => selectedKeys.has(uid));
-	const someSelected = selectableKeys.some((uid) => selectedKeys.has(uid)) && !allSelected;
-
-	const updateSelection = (record: DisplayModData, selected: boolean) => {
-		if (!rowSelection) {
-			return;
-		}
-
-		const nextKeys = new Set(selectedKeys);
-		const affectedRecords = record.children && !rowSelection.checkStrictly ? record.children : [record];
-		affectedRecords.forEach((affectedRecord) => {
-			if (selected) {
-				nextKeys.add(affectedRecord.uid);
-			} else {
-				nextKeys.delete(affectedRecord.uid);
-			}
-		});
-		rowSelection.onSelect?.(record, selected);
-		rowSelection.onChange([...nextKeys]);
-	};
-
-	return (
-		<div className="ModDetailTableWrap">
-			<table className="ModDetailTable">
-				<thead>
-					<tr>
-						{rowSelection ? (
-							<th className="ModDetailTableSelectionCell">
-								<DetailCheckbox
-									aria-label="Select all dependency rows"
-									checked={allSelected}
-									onChange={(checked) => {
-										if (checked) {
-											rowSelection.onSelectAll?.();
-											rowSelection.onChange(selectableKeys);
-										} else {
-											rowSelection.onSelectNone?.();
-											rowSelection.onChange([]);
-										}
-									}}
-								/>
-								<span className="sr-only">{someSelected ? 'Some dependency rows selected' : ''}</span>
-							</th>
-						) : null}
-						{columns.map((column, index) => (
-							<th
-								key={`${String(column.title)}-${index}`}
-								style={{ width: column.width, textAlign: column.align }}
-							>
-								{column.title}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{loading ? (
-						<tr>
-							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								Loading...
-							</td>
-						</tr>
-					) : null}
-					{!loading && visibleRows.length === 0 ? (
-						<tr>
-							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								No data
-							</td>
-						</tr>
-					) : null}
-					{!loading
-						? visibleRows.map(({ record, depth }, rowIndex) => (
-								<tr key={record.uid}>
-									{rowSelection ? (
-										<td className="ModDetailTableSelectionCell">
-											<DetailCheckbox
-												aria-label={`Select dependency row for ${getModDataDisplayName(record) || record.name || record.uid}`}
-												checked={selectedKeys.has(record.uid)}
-												onChange={(checked) => {
-													updateSelection(record, checked);
-												}}
-											/>
-										</td>
-									) : null}
-									{columns.map((column, columnIndex) => {
-										const value = getRecordValue(record, column.dataIndex);
-										const rendered = column.render ? column.render(value, record, rowIndex) : (value as ReactNode);
-										return (
-											<td
-												key={`${record.uid}:${columnIndex}`}
-												style={{
-													width: column.width,
-													textAlign: column.align,
-													paddingLeft: columnIndex === 0 ? 8 + depth * 18 : undefined
-												}}
-											>
-												{rendered}
-											</td>
-										);
-									})}
-								</tr>
-							))
-						: null}
-				</tbody>
-			</table>
-		</div>
-	);
-}
-
 function getModTypeLabel(type: ModType) {
 	switch (type) {
 		case ModType.LOCAL:
@@ -404,20 +183,6 @@ function getImageSrcFromType(type: ModType, size = 15) {
 		default:
 			return null;
 	}
-}
-
-function getImagePreview(path?: string, altText = 'Mod preview image') {
-	return (
-		<div className="ModDetailFooterPreview">
-			<img
-				src={path || missing}
-				alt={altText}
-				onError={(event) => {
-					event.currentTarget.src = missing;
-				}}
-			/>
-		</div>
-	);
 }
 
 enum DependenciesTableType {
@@ -635,8 +400,7 @@ function ModDetailsFooter({
 
 	useEffect(() => {
 		const shouldRefreshWorkshopDependencies =
-			currentRecordSteamDependencies === undefined ||
-			isWorkshopDependencyLookupStale(currentRecordSteamDependenciesFetchedAt);
+			currentRecordSteamDependencies === undefined || isWorkshopDependencyLookupStale(currentRecordSteamDependenciesFetchedAt);
 
 		if (
 			activeTabKey !== 'dependencies' ||
@@ -655,7 +419,8 @@ function ModDetailsFooter({
 				return;
 			}
 
-			const message = 'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
+			const message =
+				'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
 			requestedDependencyLookupUidRef.current = currentRecordUid;
 			setLoadingDependencies(true);
 			try {
@@ -703,254 +468,275 @@ function ModDetailsFooter({
 		dependencyLookupError
 	]);
 
-	const getIgnoredRenderer = useCallback((type: DependenciesTableType) => {
-		const { uid: currentRecordUid } = currentRecord;
-		const ignoreBadValidation = appConfig.ignoredValidationErrors;
+	const getIgnoredRenderer = useCallback(
+		(type: DependenciesTableType) => {
+			const { uid: currentRecordUid } = currentRecord;
+			const ignoreBadValidation = appConfig.ignoredValidationErrors;
 
-		let errorType: ModErrorType | undefined;
-		switch (type) {
-			case DependenciesTableType.REQUIRED:
-				errorType = ModErrorType.MISSING_DEPENDENCIES;
-				break;
-			case DependenciesTableType.CONFLICT:
-				errorType = ModErrorType.INCOMPATIBLE_MODS;
-				break;
-		}
+			let errorType: ModErrorType | undefined;
+			switch (type) {
+				case DependenciesTableType.REQUIRED:
+					errorType = ModErrorType.MISSING_DEPENDENCIES;
+					break;
+				case DependenciesTableType.CONFLICT:
+					errorType = ModErrorType.INCOMPATIBLE_MODS;
+					break;
+			}
 
-		if (!errorType) {
-			return undefined;
-		}
+			if (!errorType) {
+				return undefined;
+			}
 
-		return (_: unknown, record: DisplayModData) => {
-			const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
-			const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
-			const dependencyKey = getRequiredDependencyKey(record);
-			const { name: recordName, type: recordType, uid: recordUid } = record;
-			const isSelected =
-				(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
-				(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
+			return (_: unknown, record: DisplayModData) => {
+				const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
+				const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
+				const dependencyKey = getRequiredDependencyKey(record);
+				const { name: recordName, type: recordType, uid: recordUid } = record;
+				const isSelected =
+					(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
+					(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
 
-			return (
-				<DetailCheckbox
-					aria-label={`Ignore validation error for ${recordName || recordUid}`}
-					checked={isSelected}
-					disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
-					onChange={(checked) => {
-						const nextConfig = cloneAppConfig(appConfig);
-						let nextIgnoredErrors = nextConfig.ignoredValidationErrors.get(errorType as ModErrorType);
-						if (!nextIgnoredErrors) {
-							nextIgnoredErrors = {};
-							nextConfig.ignoredValidationErrors.set(errorType as ModErrorType, nextIgnoredErrors);
-						}
-
-						const existingValues = nextIgnoredErrors[currentRecordUid] || [];
-						const targetValue = type === DependenciesTableType.REQUIRED ? dependencyKey : recordUid;
-						if (!targetValue) {
-							return;
-						}
-
-						nextIgnoredErrors[currentRecordUid] = checked
-							? [...new Set([...existingValues, targetValue])]
-							: existingValues.filter((ignoredID) => ignoredID !== targetValue);
-
-						void (async () => {
-							try {
-								await writeConfig(nextConfig);
-								updateAppState({ config: nextConfig });
-								validateCollection({ config: nextConfig });
-							} catch (error) {
-								api.logger.error(error);
-								openNotification(
-									{
-										message: 'Failed to update config',
-										placement: 'bottomLeft',
-										duration: null
-									},
-									'error'
-								);
+				return (
+					<DetailCheckbox
+						aria-label={`Ignore validation error for ${recordName || recordUid}`}
+						checked={isSelected}
+						disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
+						onChange={(checked) => {
+							const nextConfig = cloneAppConfig(appConfig);
+							let nextIgnoredErrors = nextConfig.ignoredValidationErrors.get(errorType as ModErrorType);
+							if (!nextIgnoredErrors) {
+								nextIgnoredErrors = {};
+								nextConfig.ignoredValidationErrors.set(errorType as ModErrorType, nextIgnoredErrors);
 							}
-						})();
-					}}
-				/>
-			);
-		};
-	}, [appConfig, currentRecord, openNotification, updateAppState, validateCollection]);
 
-	const getDependenciesSchema = useCallback((tableType: DependenciesTableType) => {
-		const STATE_SCHEMA: DetailColumn = {
-			title: 'State',
-			dataIndex: 'errors',
-			render: (errors: ModErrors | undefined, record: DisplayModData) => {
-				const collection = activeCollection as ModCollection;
-				const selectedMods = collection.mods;
+							const existingValues = nextIgnoredErrors[currentRecordUid] || [];
+							const targetValue = type === DependenciesTableType.REQUIRED ? dependencyKey : recordUid;
+							if (!targetValue) {
+								return;
+							}
 
-				if (record.type === ModType.DESCRIPTOR) {
-					const children = record.children?.map((data) => data.uid) || [];
-					const selectedChildren = children.filter((uid) => selectedMods.includes(uid));
-					if (selectedChildren.length > 1) {
-						return <DetailTag style={APP_TAG_STYLES.danger}>Conflicts</DetailTag>;
+							nextIgnoredErrors[currentRecordUid] = checked
+								? [...new Set([...existingValues, targetValue])]
+								: existingValues.filter((ignoredID) => ignoredID !== targetValue);
+
+							void (async () => {
+								try {
+									await writeConfig(nextConfig);
+									updateAppState({ config: nextConfig });
+									validateCollection({ config: nextConfig });
+								} catch (error) {
+									api.logger.error(error);
+									openNotification(
+										{
+											message: 'Failed to update config',
+											placement: 'bottomLeft',
+											duration: null
+										},
+										'error'
+									);
+								}
+							})();
+						}}
+					/>
+				);
+			};
+		},
+		[appConfig, currentRecord, openNotification, updateAppState, validateCollection]
+	);
+
+	const getDependenciesSchema = useCallback(
+		(tableType: DependenciesTableType) => {
+			const STATE_SCHEMA: DetailColumn = {
+				title: 'State',
+				dataIndex: 'errors',
+				render: (errors: ModErrors | undefined, record: DisplayModData) => {
+					const collection = activeCollection as ModCollection;
+					const selectedMods = collection.mods;
+
+					if (record.type === ModType.DESCRIPTOR) {
+						const children = record.children?.map((data) => data.uid) || [];
+						const selectedChildren = children.filter((uid) => selectedMods.includes(uid));
+						if (selectedChildren.length > 1) {
+							return <DetailTag style={APP_TAG_STYLES.danger}>Conflicts</DetailTag>;
+						}
 					}
+
+					if (!selectedMods.includes(record.uid)) {
+						if (!record.subscribed && record.workshopID && record.workshopID > 0) {
+							return (
+								<DetailTag key="notSubscribed" style={APP_TAG_STYLES.warning}>
+									Not subscribed
+								</DetailTag>
+							);
+						}
+						if (record.subscribed && !record.installed) {
+							return (
+								<DetailTag key="notInstalled" style={APP_TAG_STYLES.warning}>
+									Not installed
+								</DetailTag>
+							);
+						}
+						return null;
+					}
+
+					const errorTags: { text: string; tone: keyof typeof APP_TAG_STYLES }[] = [];
+					if (errors) {
+						if (errors.incompatibleMods?.length) {
+							errorTags.push({ text: 'Conflicts', tone: 'danger' });
+						}
+						if (errors.invalidId) {
+							errorTags.push({ text: 'Invalid ID', tone: 'danger' });
+						}
+						if (errors.missingDependencies?.length) {
+							errorTags.push({ text: 'Missing dependencies', tone: 'warning' });
+						}
+						if (errors.notSubscribed) {
+							errorTags.push({ text: 'Not subscribed', tone: 'warning' });
+						} else if (errors.notInstalled) {
+							errorTags.push({ text: 'Not installed', tone: 'warning' });
+						} else if (errors.needsUpdate) {
+							errorTags.push({ text: 'Needs update', tone: 'warning' });
+						}
+					}
+
+					if (errorTags.length > 0) {
+						return errorTags.map((tagConfig) => (
+							<DetailTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone]}>
+								{tagConfig.text}
+							</DetailTag>
+						));
+					}
+
+					if (lastValidationStatus !== undefined) {
+						return (
+							<DetailTag key="OK" style={APP_TAG_STYLES.success}>
+								OK
+							</DetailTag>
+						);
+					}
+
+					return (
+						<DetailTag key="Pending" style={APP_TAG_STYLES.neutral}>
+							Pending
+						</DetailTag>
+					);
 				}
+			};
 
-				if (!selectedMods.includes(record.uid)) {
-					if (!record.subscribed && record.workshopID && record.workshopID > 0) {
-						return <DetailTag key="notSubscribed" style={APP_TAG_STYLES.warning}>Not subscribed</DetailTag>;
-					}
-					if (record.subscribed && !record.installed) {
-						return <DetailTag key="notInstalled" style={APP_TAG_STYLES.warning}>Not installed</DetailTag>;
+			const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: DetailColumn = {
+				title: (
+					<DetailIcon label="Author-specified dependency column">
+						<CircleHelp size={15} aria-hidden="true" />
+					</DetailIcon>
+				),
+				dataIndex: 'workshopID',
+				render: (workshopID: bigint | undefined) => {
+					if (!!workshopID && currentRecord.steamDependencies?.includes(workshopID)) {
+						return (
+							<DetailIcon label="Author-specified dependency">
+								<CheckSquare size={15} aria-hidden="true" />
+							</DetailIcon>
+						);
 					}
 					return null;
-				}
+				},
+				width: 30,
+				align: 'center'
+			};
 
-				const errorTags: { text: string; tone: keyof typeof APP_TAG_STYLES }[] = [];
-				if (errors) {
-					if (errors.incompatibleMods?.length) {
-						errorTags.push({ text: 'Conflicts', tone: 'danger' });
-					}
-					if (errors.invalidId) {
-						errorTags.push({ text: 'Invalid ID', tone: 'danger' });
-					}
-					if (errors.missingDependencies?.length) {
-						errorTags.push({ text: 'Missing dependencies', tone: 'warning' });
-					}
-					if (errors.notSubscribed) {
-						errorTags.push({ text: 'Not subscribed', tone: 'warning' });
-					} else if (errors.notInstalled) {
-						errorTags.push({ text: 'Not installed', tone: 'warning' });
-					} else if (errors.needsUpdate) {
-						errorTags.push({ text: 'Needs update', tone: 'warning' });
-					}
-				}
-
-				if (errorTags.length > 0) {
-					return errorTags.map((tagConfig) => (
-						<DetailTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone]}>
-							{tagConfig.text}
-						</DetailTag>
-					));
-				}
-
-				if (lastValidationStatus !== undefined) {
-					return (
-						<DetailTag key="OK" style={APP_TAG_STYLES.success}>
-							OK
-						</DetailTag>
-					);
-				}
-
-				return <DetailTag key="Pending" style={APP_TAG_STYLES.neutral}>Pending</DetailTag>;
+			const descriptorColumnSchema: DetailColumn[] = [NAME_SCHEMA];
+			if (tableType === DependenciesTableType.REQUIRED) {
+				descriptorColumnSchema.push(AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA);
 			}
-		};
+			[TYPE_SCHEMA, AUTHORS_SCHEMA, STATE_SCHEMA, ID_SCHEMA].forEach((schema) => descriptorColumnSchema.push(schema));
 
-		const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: DetailColumn = {
-			title: (
-				<DetailIcon label="Author-specified dependency column">
-					<CircleHelp size={15} aria-hidden="true" />
-				</DetailIcon>
-			),
-			dataIndex: 'workshopID',
-			render: (workshopID: bigint | undefined) => {
-				if (!!workshopID && currentRecord.steamDependencies?.includes(workshopID)) {
-					return (
-						<DetailIcon label="Author-specified dependency">
-							<CheckSquare size={15} aria-hidden="true" />
-						</DetailIcon>
-					);
-				}
-				return null;
-			},
-			width: 30,
-			align: 'center'
-		};
+			const ignoredRenderer = getIgnoredRenderer(tableType);
+			if (ignoredRenderer) {
+				descriptorColumnSchema.push({
+					title: 'Ignored',
+					render: ignoredRenderer
+				});
+			}
 
-		const descriptorColumnSchema: DetailColumn[] = [NAME_SCHEMA];
-		if (tableType === DependenciesTableType.REQUIRED) {
-			descriptorColumnSchema.push(AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA);
-		}
-		[TYPE_SCHEMA, AUTHORS_SCHEMA, STATE_SCHEMA, ID_SCHEMA].forEach((schema) => descriptorColumnSchema.push(schema));
+			return descriptorColumnSchema;
+		},
+		[activeCollection, currentRecord, getIgnoredRenderer, lastValidationStatus]
+	);
 
-		const ignoredRenderer = getIgnoredRenderer(tableType);
-		if (ignoredRenderer) {
-			descriptorColumnSchema.push({
-				title: 'Ignored',
-				render: ignoredRenderer
-			});
-		}
+	const getDependenciesRowSelection = useCallback(
+		(_type: DependenciesTableType, data: DisplayModData[]) => {
+			const { mods } = activeCollection!;
+			const availableKeys = new Set(getDependencySelectionKeys(data));
 
-		return descriptorColumnSchema;
-	}, [activeCollection, currentRecord, getIgnoredRenderer, lastValidationStatus]);
-
-	const getDependenciesRowSelection = useCallback((_type: DependenciesTableType, data: DisplayModData[]) => {
-		const { mods } = activeCollection!;
-		const availableKeys = new Set(getDependencySelectionKeys(data));
-
-		const rowSelection: DetailRowSelection = {
-			selectedRowKeys: mods.filter((uid) => availableKeys.has(uid)),
-			checkStrictly: false,
-			onChange: (selectedRowKeys: Key[]) => {
-				const changes: { [uid: string]: boolean } = {};
-				data.forEach((record) => {
-					if (record.type === ModType.DESCRIPTOR) {
-						if (record.children) {
-							record.children.forEach((childData) => {
-								changes[childData.uid] = selectedRowKeys.includes(childData.uid);
-							});
+			const rowSelection: DetailRowSelection = {
+				selectedRowKeys: mods.filter((uid) => availableKeys.has(uid)),
+				checkStrictly: false,
+				onChange: (selectedRowKeys: Key[]) => {
+					const changes: { [uid: string]: boolean } = {};
+					data.forEach((record) => {
+						if (record.type === ModType.DESCRIPTOR) {
+							if (record.children) {
+								record.children.forEach((childData) => {
+									changes[childData.uid] = selectedRowKeys.includes(childData.uid);
+								});
+							} else {
+								changes[record.uid] = selectedRowKeys.includes(record.uid);
+							}
 						} else {
 							changes[record.uid] = selectedRowKeys.includes(record.uid);
 						}
-					} else {
-						changes[record.uid] = selectedRowKeys.includes(record.uid);
+					});
+					setModSubsetCallback(changes);
+				},
+				onSelect: (record: DisplayModData, selected: boolean) => {
+					if (record.type !== ModType.DESCRIPTOR) {
+						if (selected) {
+							enableModCallback(record.uid);
+						} else {
+							disableModCallback(record.uid);
+						}
 					}
-				});
-				setModSubsetCallback(changes);
-			},
-			onSelect: (record: DisplayModData, selected: boolean) => {
-				if (record.type !== ModType.DESCRIPTOR) {
-					if (selected) {
-						enableModCallback(record.uid);
-					} else {
-						disableModCallback(record.uid);
-					}
-				}
-			},
-			onSelectAll: () => {
-				const changes: { [uid: string]: boolean } = {};
-				data.forEach((record) => {
-					if (record.type === ModType.DESCRIPTOR) {
-						if (record.children) {
-							record.children.forEach((childData) => {
-								changes[childData.uid] = true;
-							});
+				},
+				onSelectAll: () => {
+					const changes: { [uid: string]: boolean } = {};
+					data.forEach((record) => {
+						if (record.type === ModType.DESCRIPTOR) {
+							if (record.children) {
+								record.children.forEach((childData) => {
+									changes[childData.uid] = true;
+								});
+							} else {
+								changes[record.uid] = true;
+							}
 						} else {
 							changes[record.uid] = true;
 						}
-					} else {
-						changes[record.uid] = true;
-					}
-				});
-				setModSubsetCallback(changes);
-			},
-			onSelectNone: () => {
-				const changes: { [uid: string]: boolean } = {};
-				data.forEach((record) => {
-					if (record.type === ModType.DESCRIPTOR) {
-						if (record.children) {
-							record.children.forEach((childData) => {
-								changes[childData.uid] = false;
-							});
+					});
+					setModSubsetCallback(changes);
+				},
+				onSelectNone: () => {
+					const changes: { [uid: string]: boolean } = {};
+					data.forEach((record) => {
+						if (record.type === ModType.DESCRIPTOR) {
+							if (record.children) {
+								record.children.forEach((childData) => {
+									changes[childData.uid] = false;
+								});
+							} else {
+								changes[record.uid] = false;
+							}
 						} else {
 							changes[record.uid] = false;
 						}
-					} else {
-						changes[record.uid] = false;
-					}
-				});
-				setModSubsetCallback(changes);
-			}
-		};
+					});
+					setModSubsetCallback(changes);
+				}
+			};
 
-		return rowSelection;
-	}, [activeCollection, disableModCallback, enableModCallback, setModSubsetCallback]);
+			return rowSelection;
+		},
+		[activeCollection, disableModCallback, enableModCallback, setModSubsetCallback]
+	);
 
 	const renderInfoTab = () => {
 		const descriptionColumns = bigDetails && halfLayoutMode === 'bottom' ? 2 : 1;
@@ -1036,15 +822,13 @@ function ModDetailsFooter({
 														</>
 													)
 												}
-										  ]
+											]
 										: []),
 									{ label: 'UID', children: currentRecord.uid },
 									{ label: 'Name', children: currentRecord.name },
 									{ label: 'Author', children: currentRecord.authors },
 									{ label: 'Tags', children: currentRecord.tags ? currentRecord.tags.join(', ') : null },
-									...(currentRecord?.overrides?.tags
-										? [{ label: 'User Tags', children: currentRecord.overrides.tags.join(', ') }]
-										: []),
+									...(currentRecord?.overrides?.tags ? [{ label: 'User Tags', children: currentRecord.overrides.tags.join(', ') }] : []),
 									{ label: 'Description', children: currentRecord.description }
 								]}
 							/>
@@ -1114,67 +898,28 @@ function ModDetailsFooter({
 		);
 	};
 
-	const renderDependenciesTab = (requiredModData: DisplayModData[], dependentModData: DisplayModData[], conflictingModData: DisplayModData[]) => {
+	const renderDependenciesTab = (
+		requiredModData: DisplayModData[],
+		dependentModData: DisplayModData[],
+		conflictingModData: DisplayModData[]
+	) => {
 		return (
-			<div className="ModDetailDependenciesPane">
-				{dependencyLookupError ? (
-					<div className="ModDetailDependencyError">
-						<div className="StatusCallout StatusCallout--warning">
-							<strong className="StatusCallout__title">
-								Workshop dependency refresh failed
-							</strong>
-							<span className="StatusCallout__body">{dependencyLookupError}</span>
-						</div>
-						<DetailButton
-							onClick={() => {
-								setDependencyLookupError(undefined);
-							}}
-						>
-							Retry Workshop Dependency Lookup
-						</DetailButton>
-					</div>
-				) : null}
-				<DetailCollapse
-					className="ModDetailDependencies"
-					defaultActiveKey={['required']}
-					items={[
-						{
-							key: 'required',
-							label: 'Required mods:',
-							children: (
-								<DetailTable
-									loading={loadingDependencies}
-									dataSource={requiredModData}
-									rowSelection={requiredDependencyRowSelection}
-									columns={requiredDependencyColumns}
-								/>
-							)
-						},
-						{
-							key: 'dependent',
-							label: 'Dependent mods:',
-							children: (
-								<DetailTable
-									dataSource={dependentModData}
-									rowSelection={dependentDependencyRowSelection}
-									columns={dependentDependencyColumns}
-								/>
-							)
-						},
-						{
-							key: 'conflict',
-							label: 'Conflicting mods:',
-							children: (
-								<DetailTable
-									dataSource={conflictingModData}
-									rowSelection={conflictingDependencyRowSelection}
-									columns={conflictingDependencyColumns}
-								/>
-							)
-						}
-					]}
-				/>
-			</div>
+			<ModDetailsDependenciesPane
+				conflictingDependencyColumns={conflictingDependencyColumns}
+				conflictingDependencyRowSelection={conflictingDependencyRowSelection}
+				conflictingModData={conflictingModData}
+				dependencyLookupError={dependencyLookupError}
+				dependentDependencyColumns={dependentDependencyColumns}
+				dependentDependencyRowSelection={dependentDependencyRowSelection}
+				dependentModData={dependentModData}
+				loadingDependencies={loadingDependencies}
+				onRetryDependencyLookup={() => {
+					setDependencyLookupError(undefined);
+				}}
+				requiredDependencyColumns={requiredDependencyColumns}
+				requiredDependencyRowSelection={requiredDependencyRowSelection}
+				requiredModData={requiredModData}
+			/>
 		);
 	};
 
@@ -1245,18 +990,9 @@ function ModDetailsFooter({
 			.filter((uid) => uid !== currentRecord.uid)
 			.map((uid) => mods.modIdToModDataMap.get(uid) || { uid, id: 'INVALID', type: ModType.INVALID });
 	}, [currentRecord.uid, modDescriptor?.UIDs, mods.modIdToModDataMap]);
-	const requiredDependencyColumns = useMemo(
-		() => getDependenciesSchema(DependenciesTableType.REQUIRED),
-		[getDependenciesSchema]
-	);
-	const dependentDependencyColumns = useMemo(
-		() => getDependenciesSchema(DependenciesTableType.DEPENDENT),
-		[getDependenciesSchema]
-	);
-	const conflictingDependencyColumns = useMemo(
-		() => getDependenciesSchema(DependenciesTableType.CONFLICT),
-		[getDependenciesSchema]
-	);
+	const requiredDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.REQUIRED), [getDependenciesSchema]);
+	const dependentDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.DEPENDENT), [getDependenciesSchema]);
+	const conflictingDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.CONFLICT), [getDependenciesSchema]);
 	const requiredDependencyRowSelection = useMemo(
 		() => getDependenciesRowSelection(DependenciesTableType.REQUIRED, requiredModData),
 		[getDependenciesRowSelection, requiredModData]
@@ -1291,51 +1027,18 @@ function ModDetailsFooter({
 
 	return (
 		<section className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
-			<div
-				className="ModDetailFooterHeader"
-				style={{
-					width: '100%',
-					minHeight: 48,
-					padding: '8px 16px',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'space-between',
-					gap: 16
-				}}
-			>
-				<div>
-					<h2 className="ModDetailFooterTitle">
-						{currentRecord.name}
-					</h2>
-					<div className="ModDetailFooterIdentity">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</div>
-				</div>
-				<div className="ModDetailFooterHeaderActions">
-					<DetailIconButton
-						aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
-						aria-pressed={halfLayoutMode === 'side'}
-						title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}
-						onClick={toggleHalfLayoutCallback}
-					>
-						{halfLayoutMode === 'side' ? <PanelBottom size={18} aria-hidden="true" /> : <PanelRight size={18} aria-hidden="true" />}
-					</DetailIconButton>
-					<DetailIconButton
-						aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
-						aria-pressed={bigDetails}
-						title={bigDetails ? 'Return to split details' : 'Expand details to full view'}
-						onClick={() => {
-							expandFooterCallback(!bigDetails);
-						}}
-					>
-						{bigDetails ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
-					</DetailIconButton>
-					<DetailIconButton aria-label="Close details" title="Close details" onClick={closeFooterCallback}>
-						<X size={18} aria-hidden="true" />
-					</DetailIconButton>
-				</div>
-			</div>
+			<ModDetailsFooterHeader
+				bigDetails={bigDetails}
+				halfLayoutMode={halfLayoutMode}
+				identity={currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}
+				name={currentRecord.name}
+				onClose={closeFooterCallback}
+				onExpandChange={expandFooterCallback}
+				onToggleHalfLayout={toggleHalfLayoutCallback}
+			/>
 			<div key="mod-details" className="ModDetailFooterBody">
 				<div className="ModDetailFooterPreviewCol">
-					{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}
+					<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
 				</div>
 				<div className="ModDetailFooterContentCol">
 					<DetailTabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />

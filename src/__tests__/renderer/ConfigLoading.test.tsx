@@ -1,10 +1,12 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
+import { createTestQueryClient } from './test-utils';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
@@ -26,11 +28,14 @@ function ConfigLoadingHarness() {
 
 function ConfigLoadingAppHarness() {
 	const navigate = useNavigate();
+	const [queryClient] = React.useState(() => createTestQueryClient());
 
 	return (
-		<AppStateProvider navigate={navigate}>
-			<ConfigLoadingHarness />
-		</AppStateProvider>
+		<QueryClientProvider client={queryClient}>
+			<AppStateProvider navigate={navigate}>
+				<ConfigLoadingHarness />
+			</AppStateProvider>
+		</QueryClientProvider>
 	);
 }
 
@@ -96,9 +101,7 @@ describe('ConfigLoading', () => {
 		vi.mocked(window.electron.discoverGameExecutable).mockResolvedValueOnce(discoveredExecutable);
 		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
 		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
-		vi.mocked(window.electron.updateConfig)
-			.mockResolvedValueOnce(false)
-			.mockResolvedValueOnce(true);
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -203,7 +206,12 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
+	it.each([
+		'collections/main',
+		'/collections',
+		'/settings',
+		'/block-lookup'
+	])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
 			...DEFAULT_CONFIG,
@@ -394,7 +402,9 @@ describe('ConfigLoading', () => {
 
 	it('halts boot and surfaces a config load error instead of treating it as first launch', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"'));
+		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(
+			new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')
+		);
 		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
 
 		render(

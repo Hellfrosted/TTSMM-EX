@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { MemoryRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 
 import App from './App';
+import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import LoadingView from './views/LoadingView';
 
 const loadConfigLoading = () => import('./components/loading/ConfigLoading');
@@ -18,19 +19,7 @@ const SteamworksVerificationLazy = lazy(async () => {
 });
 
 function RouteChunkFallback({ label }: { label: string }) {
-	return (
-		<div
-			aria-live="polite"
-			role="status"
-			style={{
-				padding: '24px 28px',
-				fontSize: 14,
-				color: 'var(--app-color-text-base, rgba(255, 255, 255, 0.88))'
-			}}
-		>
-			{label}
-		</div>
-	);
+	return <ViewStageLoadingFallback compact title={label} detail="Preparing startup flow." />;
 }
 
 function StageRoutePlaceholder() {

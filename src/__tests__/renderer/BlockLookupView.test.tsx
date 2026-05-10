@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
 import { AppQueryProvider, queryClient } from '../../renderer/query-client';
-import { BlockLookupView, getResponsiveBlockLookupColumns } from '../../renderer/views/BlockLookupView';
+import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
+import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState } from './test-utils';
 
@@ -115,12 +116,16 @@ describe('BlockLookupView', () => {
 		);
 
 		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind']);
-		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(640);
+		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(
+			640
+		);
 	});
 
 	it('searches indexed block aliases and copies the selected command', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -141,7 +146,9 @@ describe('BlockLookupView', () => {
 
 	it('resizes block lookup columns from the header edge', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -184,7 +191,9 @@ describe('BlockLookupView', () => {
 
 	it('builds the index from the configured workshop root and loaded mods', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
@@ -219,7 +228,9 @@ describe('BlockLookupView', () => {
 	it('shows block lookup results without paginating the virtual table', async () => {
 		stubResizeObserver();
 		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -246,14 +257,16 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', blockId: '' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 
-		const { appState, container } = renderBlockLookupView();
+		const { appState } = renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
-		const table = container.querySelector('.BlockLookupTable');
+		const table = screen.getByRole('table');
 		const initialTableText = table?.textContent ?? '';
 		expect(initialTableText.indexOf('Beta Shield')).toBeLessThan(initialTableText.indexOf('Alpha Cannon'));
 
@@ -281,12 +294,9 @@ describe('BlockLookupView', () => {
 		});
 		expect(screen.getByText('Not declared')).toBeInTheDocument();
 
-		const spawnHeader = Array.from(container.querySelectorAll('.BlockLookupTable thead th')).find((header) =>
-			header.textContent?.includes('SpawnBlock Command')
-		);
-		expect(spawnHeader).toBeDefined();
+		const spawnHeader = screen.getByRole('columnheader', { name: /SpawnBlock Command/ });
 		const tableHeaderDrag = createDataTransfer();
-		fireEvent.dragStart(spawnHeader as Element, { dataTransfer: tableHeaderDrag });
+		fireEvent.dragStart(spawnHeader, { dataTransfer: tableHeaderDrag });
 		fireEvent.dragOver(blockHeader as Element, { dataTransfer: tableHeaderDrag });
 		fireEvent.drop(blockHeader as Element, { dataTransfer: tableHeaderDrag });
 
@@ -318,7 +328,9 @@ describe('BlockLookupView', () => {
 
 	it('reorders table option rows by drag and drop', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({ workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' });
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 

@@ -80,9 +80,7 @@ for (let index = 0; index < cliArgs.length; index += 1) {
 
 if (requiredPlatform && process.platform !== requiredPlatform) {
 	console.error(
-		chalk.red(
-			`This command requires ${requiredPlatform}. Current platform: ${process.platform}. Run it from a matching environment.`
-		)
+		chalk.red(`This command requires ${requiredPlatform}. Current platform: ${process.platform}. Run it from a matching environment.`)
 	);
 	process.exit(1);
 }

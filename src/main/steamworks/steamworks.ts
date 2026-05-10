@@ -1,18 +1,12 @@
- 
- 
- 
-/* eslint-disable class-methods-use-this */
 // A wrapper interface around Greenworks written in ts
 import log from 'electron-log';
 import {
 	// Steam API
 	EResult,
-
 	// Steamworks
 	ValidGreenworksChannels,
 	SteamErrorCallback,
 	ProgressCallback,
-
 	// ISteamUGC
 	GetItemsProps,
 	GetUserItemsProps,
@@ -22,7 +16,6 @@ import {
 	ExtendedSteamUGCDetails,
 	ItemInstallInfo,
 	UGCItemState,
-
 	// IFriends
 	SteamID,
 	SteamUGCDetails,
@@ -41,7 +34,6 @@ const getGreenworksModule = () => {
 		return undefined;
 	}
 	try {
-		 
 		greenworksModule = require('greenworks');
 		return greenworksModule;
 	} catch (error) {
@@ -247,19 +239,16 @@ function normalizeWorkshopItem<T extends RawWorkshopItem>(result: T): Normalized
 	} as NormalizedWorkshopItem<T>;
 }
 
-const greenworks = new Proxy(
-	{} as GreenworksNative,
-	{
-		get: (_target, property) => {
-			const loaded = getGreenworksModule();
-			if (!loaded) {
-				throw new Error(getGreenworksUnavailableMessage());
-			}
-			const value = Reflect.get(loaded as object, property);
-			return typeof value === 'function' ? value.bind(loaded) : value;
+const greenworks = new Proxy({} as GreenworksNative, {
+	get: (_target, property) => {
+		const loaded = getGreenworksModule();
+		if (!loaded) {
+			throw new Error(getGreenworksUnavailableMessage());
 		}
+		const value = Reflect.get(loaded as object, property);
+		return typeof value === 'function' ? value.bind(loaded) : value;
 	}
-) as GreenworksNative;
+}) as GreenworksNative;
 
 function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResults) => void) {
 	return (apiResults: Partial<SteamPageResults> | RawWorkshopItem[]) => {
@@ -429,7 +418,7 @@ class SteamworksAPI {
 			.map((workshopID) => {
 				try {
 					return BigInt(String(workshopID));
-				} catch (e) {
+				} catch {
 					return 0n;
 				}
 			})
@@ -449,12 +438,13 @@ class SteamworksAPI {
 
 	ugcGetItems(props: GetItemsProps) {
 		const { options, ugc_matching_type, ugc_query_type, success_callback, error_callback } = props;
-		const actualOptions: GreenworksItemQueryOptions = options && Object.keys(options).length > 0
-			? options
-			: {
-				app_id: greenworks.getAppId(),
-				page_num: 1
-			};
+		const actualOptions: GreenworksItemQueryOptions =
+			options && Object.keys(options).length > 0
+				? options
+				: {
+						app_id: greenworks.getAppId(),
+						page_num: 1
+					};
 		if (!actualOptions.required_tag) {
 			actualOptions.required_tag = '';
 		}
@@ -469,12 +459,13 @@ class SteamworksAPI {
 
 	ugcGetUserItems(props: GetUserItemsProps) {
 		const { options, ugc_matching_type, ugc_list_sort_order, ugc_list, success_callback, error_callback } = props;
-		const actualOptions: GreenworksUserItemQueryOptions = options && Object.keys(options).length > 0
-			? options
-			: {
-				app_id: greenworks.getAppId(),
-				page_num: 1
-			};
+		const actualOptions: GreenworksUserItemQueryOptions =
+			options && Object.keys(options).length > 0
+				? options
+				: {
+						app_id: greenworks.getAppId(),
+						page_num: 1
+					};
 		if (!actualOptions.required_tag) {
 			actualOptions.required_tag = '';
 		}
@@ -490,12 +481,13 @@ class SteamworksAPI {
 
 	ugcSynchronizeItems(props: SynchronizeItemsProps) {
 		const { options, sync_dir, success_callback, error_callback } = props;
-		const actualOptions: GreenworksSynchronizeOptions = options && Object.keys(options).length > 0
-			? options
-			: {
-				app_id: greenworks.getAppId(),
-				page_num: 1
-			};
+		const actualOptions: GreenworksSynchronizeOptions =
+			options && Object.keys(options).length > 0
+				? options
+				: {
+						app_id: greenworks.getAppId(),
+						page_num: 1
+					};
 		greenworks._ugcSynchronizeItems(
 			actualOptions,
 			sync_dir,
@@ -512,23 +504,25 @@ class SteamworksAPI {
 
 	publishWorkshopFile(props: PublishWorkshopFileProps) {
 		const { options, file_path, image_path, title, description, success_callback, error_callback } = props;
-		const actualOptions: GreenworksWorkshopFileOptions = options && Object.keys(options).length > 0
-			? options
-			: {
-				tags: [], // No tags are set,
-				app_id: greenworks.getAppId()
-			};
+		const actualOptions: GreenworksWorkshopFileOptions =
+			options && Object.keys(options).length > 0
+				? options
+				: {
+						tags: [], // No tags are set,
+						app_id: greenworks.getAppId()
+					};
 		greenworks._publishWorkshopFile(actualOptions, file_path, image_path, title, description, success_callback, error_callback);
 	}
 
 	updatePublishedWorkshopFile(props: UpdatePublishedWorkshopFileProps) {
 		const { options, published_file_handle, file_path, image_path, title, description, success_callback, error_callback } = props;
-		const actualOptions: GreenworksWorkshopFileOptions = options && Object.keys(options).length > 0
-			? options
-			: {
-				app_id: greenworks.getAppId(),
-				tags: [] // No tags are set
-			};
+		const actualOptions: GreenworksWorkshopFileOptions =
+			options && Object.keys(options).length > 0
+				? options
+				: {
+						app_id: greenworks.getAppId(),
+						tags: [] // No tags are set
+					};
 		actualOptions.app_id = greenworks.getAppId();
 		greenworks._updatePublishedWorkshopFile(
 			actualOptions,

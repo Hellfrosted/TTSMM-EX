@@ -4,7 +4,8 @@ import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
 	createCollectionStageAppState,
-	createSettingsStageAppState
+	createSettingsStageAppState,
+	getAppRouteKind
 } from '../../renderer/app-view-model';
 
 function appState(): AppState {
@@ -39,6 +40,13 @@ function appState(): AppState {
 }
 
 describe('app-view-model', () => {
+	it('classifies only app route prefixes as staged routes', () => {
+		expect(getAppRouteKind('/loading/steamworks')).toBe('loading');
+		expect(getAppRouteKind('/settings')).toBe('settings');
+		expect(getAppRouteKind('/block-lookup')).toBe('block-lookup');
+		expect(getAppRouteKind('/collections/loading-history')).toBe('collections');
+	});
+
 	it('derives app shell route state and navigation disabled state', () => {
 		expect(
 			createAppShellViewModel({

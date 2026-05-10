@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { readConfigFile, registerConfigHandlers, writeConfigFile } from '../../main/ipc/config-handlers';
 import type { AppConfig } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir } from './test-utils';
+import { createTempDir, createValidIpcEvent } from './test-utils';
 
 function createConfigHandlerHarness(userDataPath: string) {
 	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -19,15 +19,23 @@ function createConfigHandlerHarness(userDataPath: string) {
 		getUserDataPath: () => userDataPath
 	});
 
-	const invoke = <T,>(channel: ValidChannel, ...args: unknown[]) => {
+	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
 		const handler = handlers.get(channel);
 		if (!handler) {
 			throw new Error(`Missing handler for ${channel}`);
 		}
-		return handler({}, ...args) as Promise<T>;
+		return handler(createValidIpcEvent(), ...args) as Promise<T>;
 	};
 
-	return { invoke };
+	const invokeWithEvent = <T>(channel: ValidChannel, event: unknown, ...args: unknown[]) => {
+		const handler = handlers.get(channel);
+		if (!handler) {
+			throw new Error(`Missing handler for ${channel}`);
+		}
+		return handler(event, ...args) as Promise<T>;
+	};
+
+	return { invoke, invokeWithEvent };
 }
 
 function createValidConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -51,6 +59,29 @@ describe('config handlers', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 
 		expect(readConfigFile(path.join(tempDir, 'config.json'), true)).toBeNull();
+	});
+
+	it('rejects read calls from unexpected IPC senders', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const { invokeWithEvent } = createConfigHandlerHarness(tempDir);
+
+		await expect(
+			invokeWithEvent(ValidChannel.READ_CONFIG, {
+				senderFrame: {
+					url: 'https://example.com/index.html'
+				}
+			})
+		).rejects.toThrow('Rejected IPC sender for read-config');
+	});
+
+	it('rejects write calls before parsing payloads or writing config files', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const { invokeWithEvent } = createConfigHandlerHarness(tempDir);
+
+		await expect(invokeWithEvent(ValidChannel.UPDATE_CONFIG, { senderFrame: null }, { gameExec: 42 })).rejects.toThrow(
+			'Rejected IPC sender for update-config'
+		);
+		expect(fs.existsSync(path.join(tempDir, 'config.json'))).toBe(false);
 	});
 
 	it('throws when the config file exists but contains malformed json', () => {
@@ -90,7 +121,11 @@ describe('config handlers', () => {
 	it('keeps the original config when replacing an existing config fails', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');
-		fs.writeFileSync(configPath, JSON.stringify({ gameExec: 'old.exe', workshopID: '1', ignoredValidationErrors: {}, userOverrides: {}, viewConfigs: {} }), 'utf8');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({ gameExec: 'old.exe', workshopID: '1', ignoredValidationErrors: {}, userOverrides: {}, viewConfigs: {} }),
+			'utf8'
+		);
 
 		const originalRenameSync = fs.renameSync;
 		const renameSyncSpy = vi.spyOn(fs, 'renameSync').mockImplementation(((oldPath, newPath) => {

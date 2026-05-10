@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAIN_WINDOW_DEFAULT_BOUNDS, ensureSteamAppIdFile, forwardRendererConsoleMessage, resolveSteamAppIdFilePath } from '../../main/window';
+import {
+	MAIN_WINDOW_DEFAULT_BOUNDS,
+	ensureSteamAppIdFile,
+	forwardRendererConsoleMessage,
+	resolveSteamAppIdFilePath
+} from '../../main/window';
 import { createTempDir } from './test-utils';
 
 describe('window helpers', () => {

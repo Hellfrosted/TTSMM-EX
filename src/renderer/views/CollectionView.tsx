@@ -1,16 +1,20 @@
-import { Profiler, ReactNode, Suspense, lazy, memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	Profiler,
+	ReactNode,
+	Suspense,
+	lazy,
+	memo,
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties
+} from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
-import {
-	CollectionManagerModalType,
-	CollectionViewProps,
-	CollectionViewType,
-	MainColumnTitles,
-	ModCollection,
-	ModData,
-	getByUID,
-	getRows
-} from 'model';
+import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection, ModData } from 'model';
 import api from 'renderer/Api';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
@@ -21,6 +25,7 @@ import { useCollections } from '../hooks/collections/useCollections';
 import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
 import { useModMetadata } from '../hooks/collections/useModMetadata';
 import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
+import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
 	moveMainCollectionColumn,
@@ -107,22 +112,39 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 	}, [onSizeChange]);
 
 	return (
-		<div
-			ref={containerRef}
-			style={{
-				flex: 1,
-				display: 'flex',
-				minWidth: 0,
-				minHeight: 0,
-				width: '100%',
-				height: '100%',
-				overflow: 'hidden'
-			}}
-		>
+		<div ref={containerRef} className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
 			{children(size)}
 		</div>
 	);
 }
+
+function collectionSplitSizeStyle(size: number): CSSProperties {
+	return {
+		'--collection-split-size': `${size}px`
+	} as CSSProperties;
+}
+
+const collectionFooterFocusClassName =
+	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const collectionFooterButtonClassName = [
+	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 font-[650] text-text',
+	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
+	'disabled:cursor-not-allowed disabled:opacity-55',
+	collectionFooterFocusClassName
+].join(' ');
+const collectionFooterPrimaryButtonClassName = [
+	collectionFooterButtonClassName,
+	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
+].join(' ');
+const collectionFooterDangerButtonClassName = [
+	collectionFooterButtonClassName,
+	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
+].join(' ');
+const collectionContentStageBaseClassName =
+	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
+const collectionContentStageActiveClassName = 'opacity-100 visible pointer-events-auto [content-visibility:visible]';
+const collectionSplitLayoutBaseClassName = 'flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden';
+const collectionSplitPaneBaseClassName = 'min-h-0 min-w-0 overflow-hidden';
 
 type HalfDetailsLayout = 'bottom' | 'side';
 const MIN_SIDE_BY_SIDE_WIDTH = 1120;
@@ -266,7 +288,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		}
 
 		if (currentValidationStatus && !madeEdits && activeCollection) {
-			const modDataList = activeCollection.mods.map((modUID) => getByUID(mods, modUID)).filter((modData): modData is ModData => !!modData);
+			const modDataList = getCollectionModDataList(mods, activeCollection);
 			await closeLaunchModal(modDataList);
 			return;
 		}
@@ -274,19 +296,29 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		updateState({ launchingGame: true });
 		setCollectionErrors(undefined);
 		await validateActiveCollection(true);
-	}, [activeCollection, closeLaunchModal, currentValidationStatus, loadingMods, madeEdits, mods, setCollectionErrors, updateState, validateActiveCollection]);
+	}, [
+		activeCollection,
+		closeLaunchModal,
+		currentValidationStatus,
+		loadingMods,
+		madeEdits,
+		mods,
+		setCollectionErrors,
+		updateState,
+		validateActiveCollection
+	]);
 
 	const currentView = CollectionViewType.MAIN;
 
 	const rows = useMemo(
 		() =>
-			measurePerf('collection.rows.derive', () => getRows(mods), {
+			measurePerf('collection.rows.derive', () => getCollectionRows(mods), {
 				totalMods: mods.modIdToModDataMap.size
 			}),
 		[mods]
 	);
 	const visibleRows = filteredRows || rows;
-	const displayedCurrentRecord = currentRecord ? getByUID(mods, currentRecord.uid) || currentRecord : undefined;
+	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord);
 	const currentViewConfig = config.viewConfigs?.[currentView];
 	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
 	const automaticHalfDetailsLayout: HalfDetailsLayout =
@@ -344,7 +376,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
 			try {
-				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -363,7 +397,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnVisibility = useCallback(
 		async (column: MainColumnTitles, visible: boolean) => {
 			try {
-				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -382,7 +418,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const handleSetMainColumnOrder = useCallback(
 		async (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => {
 			try {
-				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) => updateState({ config: nextConfig }));
+				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) =>
+					updateState({ config: nextConfig })
+				);
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
@@ -400,9 +438,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	);
 	const handleLaunchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
-		const modList = (activeCollection ? activeCollection.mods.map((mod) => getByUID(mods, mod)) : []).filter(
-			(modData): modData is ModData => !!modData
-		);
+		const modList = getCollectionModDataList(mods, activeCollection);
 		void closeLaunchModal(modList);
 	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
 	const handleCloseModal = useCallback(() => {
@@ -525,7 +561,6 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
 			? Math.min(Math.max(220, Math.round(contentSize.height * 0.36)), Math.max(180, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT))
 			: 0;
-	const footerBorderColor = '1px solid color-mix(in srgb, var(--app-color-text-base) 8%, transparent)';
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
@@ -537,11 +572,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		) : currentValidationStatus === false ? (
 			<XCircle size={16} aria-hidden="true" />
 		) : (
-			<RefreshCw
-				className={validatingMods ? 'CollectionFooterButtonIcon CollectionFooterButtonIcon--spinning' : 'CollectionFooterButtonIcon'}
-				size={16}
-				aria-hidden="true"
-			/>
+			<RefreshCw className={validatingMods ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
 		);
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
@@ -618,8 +649,8 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			: undefined;
 
 	return (
-		<div className="CollectionViewLayout">
-			<header className="CollectionHeader">
+		<div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
+			<header className="flex-none border-b border-border bg-surface px-5 py-3 max-[720px]:px-4">
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
@@ -655,9 +686,13 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					/>
 				</Suspense>
 			) : null}
-			<div style={{ flex: '1 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-				<div className="CollectionContentStageHost">
-					<div className={`CollectionContentStage${showExpandedDetailsSurface ? '' : ' is-active'}`}>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+				<div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">
+					<div
+						className={[collectionContentStageBaseClassName, showExpandedDetailsSurface ? undefined : collectionContentStageActiveClassName]
+							.filter(Boolean)
+							.join(' ')}
+					>
 						<MeasuredArea onSizeChange={setContentSize}>
 							{() => {
 								let actualContent = null;
@@ -667,40 +702,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 									if (displayedCurrentRecord && currentView === CollectionViewType.MAIN && !bigDetails) {
 										if (showSideBySideDetails) {
 											actualContent = (
-												<div
-													style={{
-														display: 'flex',
-														flex: 1,
-														minWidth: 0,
-														minHeight: 0,
-														width: '100%',
-														height: '100%',
-														overflow: 'hidden'
-													}}
-												>
-													<div
-														key="collection"
-														style={{
-															flex: '1 1 0',
-															minWidth: 0,
-															minHeight: 0,
-															height: '100%',
-															padding: '0px',
-															overflow: 'hidden'
-														}}
-													>
+												<div className={collectionSplitLayoutBaseClassName}>
+													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 														{outlet}
 													</div>
 													<div
-														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--side"
-														style={{
-															flex: `0 0 ${sideDetailsWidth}px`,
-															width: sideDetailsWidth,
-															minWidth: sideDetailsWidth,
-															minHeight: 0,
-															overflow: 'hidden',
-															borderLeft: footerBorderColor
-														}}
+														className={[
+															collectionSplitPaneBaseClassName,
+															'flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-l border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
+														].join(' ')}
+														style={collectionSplitSizeStyle(sideDetailsWidth)}
 													>
 														{halfDetailsFooter}
 													</div>
@@ -708,39 +719,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 											);
 										} else {
 											actualContent = (
-												<div
-													style={{
-														display: 'flex',
-														flexDirection: 'column',
-														flex: 1,
-														minWidth: 0,
-														minHeight: 0,
-														height: '100%',
-														overflow: 'hidden'
-													}}
-												>
-													<div
-														key="collection"
-														style={{
-															flex: '1 1 0',
-															minWidth: 0,
-															minHeight: 0,
-															height: '100%',
-															padding: '0px',
-															overflow: 'hidden'
-														}}
-													>
+												<div className={[collectionSplitLayoutBaseClassName, 'flex-col'].join(' ')}>
+													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 														{outlet}
 													</div>
 													<div
-														className="CollectionSplitDetailsPane CollectionSplitDetailsPane--bottom"
-														style={{
-															flex: `0 0 ${bottomDetailsHeight}px`,
-															minHeight: bottomDetailsHeight,
-															maxHeight: bottomDetailsHeight,
-															overflow: 'hidden',
-															borderTop: footerBorderColor
-														}}
+														className={[
+															collectionSplitPaneBaseClassName,
+															'max-h-[var(--collection-split-size)] min-h-[var(--collection-split-size)] flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-t border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
+														].join(' ')}
+														style={collectionSplitSizeStyle(bottomDetailsHeight)}
 													>
 														{halfDetailsFooter}
 													</div>
@@ -749,17 +737,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 										}
 									} else {
 										actualContent = (
-											<div
-												key="collection"
-												style={{
-													flex: 1,
-													minWidth: 0,
-													minHeight: 0,
-													height: '100%',
-													padding: '0px',
-													overflow: 'hidden'
-												}}
-											>
+											<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
 												{outlet}
 											</div>
 										);
@@ -771,7 +749,14 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						</MeasuredArea>
 					</div>
 					{shouldRenderExpandedDetailsSurface ? (
-						<div className={`CollectionContentStage CollectionContentStage--details${showExpandedDetailsSurface ? ' is-active' : ''}`}>
+						<div
+							className={[
+								collectionContentStageBaseClassName,
+								showExpandedDetailsSurface ? collectionContentStageActiveClassName : undefined
+							]
+								.filter(Boolean)
+								.join(' ')}
+						>
 							{fullDetailsFooter}
 						</div>
 					) : null}
@@ -779,10 +764,10 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			</div>
 			{showExpandedDetails ? null : (
 				<footer className="MainFooter">
-					<div className="CollectionFooterActions">
+					<div className="flex w-full items-center justify-end gap-3">
 						<button
 							aria-label="Validate Collection"
-							className={`CollectionFooterButton${currentValidationStatus === false ? ' CollectionFooterButton--danger' : ''}`}
+							className={currentValidationStatus === false ? collectionFooterDangerButtonClassName : collectionFooterButtonClassName}
 							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
 							onClick={() => {
 								handleValidateCollection();
@@ -794,14 +779,19 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						</button>
 						<span title={launchDisabledReason}>
 							<button
-								className="CollectionFooterButton CollectionFooterButton--primary"
+								className={collectionFooterPrimaryButtonClassName}
 								disabled={launchDisabled}
 								onClick={() => {
 									void launchGame();
 								}}
 								type="button"
 							>
-								{appState.launchingGame ? <span className="CollectionFooterButtonSpinner" aria-hidden="true" /> : null}
+								{appState.launchingGame ? (
+									<span
+										className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+										aria-hidden="true"
+									/>
+								) : null}
 								Launch Game
 							</button>
 						</span>

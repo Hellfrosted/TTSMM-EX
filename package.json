@@ -11,30 +11,31 @@
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
-		"lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
-		"lint:fix": "npm run lint -- --fix",
+		"lint": "npm run lint:biome && npm run lint:eslint",
+		"lint:eslint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
+		"lint:eslint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
+		"lint:biome": "biome check .",
+		"lint:biome:fix": "biome check . --write --unsafe",
+		"check:biome": "biome check .",
+		"lint:fix": "npm run lint:eslint:fix && npm run lint:biome:fix",
+		"deadcode": "knip",
 		"package": "node --import=tsx ./scripts/package.ts",
 		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
 		"test": "vitest run",
 		"typecheck": "tsc -b",
-		"validate": "npm run lint && npm run typecheck && npm test && npm run build",
+		"validate": "npm run lint && npm run deadcode && npm run typecheck && npm test && npm run build",
 		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
 		"bump": "node --import=tsx ./scripts/version.ts"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
+			"biome check --write --unsafe --no-errors-on-unmatched",
 			"cross-env NODE_ENV=development eslint --cache --fix"
 		],
-		"{*.json,.babelrc,.eslintrc,.prettierrc}": [
-			"prettier --ignore-path .prettierignore --parser json --write"
-		],
-		"*.{css,scss}": [
-			"prettier --ignore-path .prettierignore --single-quote --write"
-		],
-		"*.{html,md,yml}": [
-			"prettier --ignore-path .prettierignore --single-quote --write"
+		"*.{json,jsonc}": [
+			"biome check --write --no-errors-on-unmatched"
 		]
 	},
 	"build": {
@@ -127,59 +128,59 @@
 	],
 	"homepage": "https://github.com/Hellfrosted/terratech-steam-mod-loader#readme",
 	"devDependencies": {
-		"@electron/rebuild": "^4.0.3",
+		"@biomejs/biome": "^2.4.13",
+		"@electron/rebuild": "^4.0.4",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/dateformat": "^5.0.3",
 		"@types/node": "^24.12.2",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
-		"@typescript-eslint/eslint-plugin": "^8.58.1",
-		"@typescript-eslint/parser": "^8.58.1",
-		"@vitejs/plugin-react": "^5.0.4",
+		"@typescript-eslint/eslint-plugin": "^8.59.0",
+		"@typescript-eslint/parser": "^8.59.0",
+		"@vitejs/plugin-react": "^5.2.0",
 		"chalk": "^5.6.2",
 		"cross-env": "^10.1.0",
 		"detect-port": "^2.1.0",
-		"electron": "^41.2.0",
+		"electron": "^41.3.0",
 		"electron-builder": "^26.8.1",
 		"electron-devtools-installer": "^4.0.0",
-		"electron-vite": "^4.0.0",
+		"electron-vite": "^4.0.1",
 		"eslint": "^9.39.4",
-		"eslint-import-resolver-typescript": "^4.4.4",
-		"eslint-plugin-import": "^2.32.0",
 		"eslint-plugin-jsx-a11y": "^6.10.2",
 		"eslint-plugin-promise": "^7.2.1",
-		"eslint-plugin-react": "^7.37.5",
-		"eslint-plugin-react-hooks": "^7.0.1",
+		"eslint-plugin-react-hooks": "^7.1.1",
+		"globals": "^14.0.0",
 		"husky": "^9.1.7",
 		"jsdom": "^29.0.2",
+		"knip": "^6.7.0",
 		"lint-staged": "^16.4.0",
-		"prettier": "^3.8.1",
 		"rimraf": "^6.1.3",
 		"tsx": "^4.21.0",
-		"typescript": "^6.0.2",
-		"vite": "^7.1.12",
-		"vitest": "^4.1.3"
+		"typescript": "^6.0.3",
+		"vite": "^7.3.2",
+		"vitest": "^4.1.5"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",
 		"@tailwindcss/vite": "^4.2.4",
-		"@tanstack/react-query": "^5.100.1",
+		"@tanstack/react-query": "^5.100.5",
 		"@tanstack/react-table": "^8.21.3",
 		"@tanstack/react-virtual": "^3.13.24",
 		"async-mutex": "^0.5.0",
-		"axios": "^1.14.0",
+		"axios": "^1.15.2",
 		"dateformat": "^5.0.3",
 		"electron-debug": "^4.1.0",
 		"electron-log": "^5.4.3",
 		"electron-updater": "^6.8.3",
-		"lucide-react": "^1.9.0",
+		"lucide-react": "^1.11.0",
 		"node-html-parser": "^7.1.0",
 		"ps-list": "^9.0.0",
-		"react": "^19.2.4",
-		"react-dom": "^19.2.4",
-		"react-hook-form": "^7.73.1",
-		"react-router-dom": "^7.14.0",
+		"react": "^19.2.5",
+		"react-dom": "^19.2.5",
+		"react-hook-form": "^7.74.0",
+		"react-router-dom": "^7.14.2",
+		"source-map-support": "^0.5.21",
 		"tailwindcss": "^4.2.4",
 		"zod": "^4.3.6",
 		"zustand": "^5.0.12"
@@ -201,27 +202,6 @@
 		}
 	},
 	"browserslist": [],
-	"prettier": {
-		"overrides": [
-			{
-				"files": [
-					".prettierrc",
-					".eslintrc"
-				],
-				"options": {
-					"parser": "json",
-					"trailingComma": "none",
-					"useTabs": true
-				}
-			}
-		],
-		"singleQuote": true,
-		"trailingComma": "none",
-		"tabWidth": 2,
-		"useTabs": true,
-		"printWidth": 140,
-		"bracketSameLine": false
-	},
 	"husky": {
 		"hooks": {
 			"pre-commit": "lint-staged"

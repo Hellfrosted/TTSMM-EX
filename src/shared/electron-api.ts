@@ -1,4 +1,7 @@
-import type { AppConfig, ModCollection, ModData, SessionMods } from 'model';
+import type { AppConfig } from 'model/AppConfig';
+import type { ModData } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
+import type { SessionMods } from 'model/SessionMods';
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
@@ -18,7 +21,18 @@ export type ElectronLogFunctions = {
 	verbose: (message: unknown) => void;
 };
 
-export type ElectronPlatform = 'aix' | 'android' | 'darwin' | 'freebsd' | 'haiku' | 'linux' | 'openbsd' | 'sunos' | 'win32' | 'cygwin' | 'netbsd';
+export type ElectronPlatform =
+	| 'aix'
+	| 'android'
+	| 'darwin'
+	| 'freebsd'
+	| 'haiku'
+	| 'linux'
+	| 'openbsd'
+	| 'sunos'
+	| 'win32'
+	| 'cygwin'
+	| 'netbsd';
 
 export type Unsubscribe = () => void;
 export type ProgressChangeCallback = (

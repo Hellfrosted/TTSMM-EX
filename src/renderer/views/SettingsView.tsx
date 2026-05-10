@@ -6,7 +6,8 @@ import {
 	useState,
 	type ButtonHTMLAttributes,
 	type InputHTMLAttributes,
-	type ReactNode
+	type ReactNode,
+	type SelectHTMLAttributes
 } from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
@@ -25,11 +26,16 @@ interface SettingsViewProps {
 
 type SettingsConfigErrors = Record<string, string>;
 
-const SETTINGS_LOGGER_ROW_STYLE = { display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' } as const;
-const SETTINGS_LOGGER_ID_INPUT_STYLE = { flex: '1 1 auto', minWidth: 0 } as const;
-
 const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
-const NLOG_LEVEL_OPTIONS = [NLogLevel.OFF, NLogLevel.FATAL, NLogLevel.ERROR, NLogLevel.WARN, NLogLevel.INFO, NLogLevel.DEBUG, NLogLevel.TRACE] as const;
+const NLOG_LEVEL_OPTIONS = [
+	NLogLevel.OFF,
+	NLogLevel.FATAL,
+	NLogLevel.ERROR,
+	NLogLevel.WARN,
+	NLogLevel.INFO,
+	NLogLevel.DEBUG,
+	NLogLevel.TRACE
+] as const;
 
 interface SettingsFieldProps {
 	id: string;
@@ -59,23 +65,78 @@ function SettingsButton({
 	variant = 'default',
 	...props
 }: SettingsButtonProps) {
+	const buttonToneClassName = danger
+		? 'border-error bg-error'
+		: variant === 'primary'
+			? 'border-primary bg-primary'
+			: 'border-border bg-surface-elevated enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]';
+	const buttonClassName = [
+		'SettingsButton box-border inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border px-3.5 font-[650] text-text',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		'disabled:cursor-not-allowed disabled:opacity-[0.55]',
+		buttonToneClassName,
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
 	return (
-		<button
-			{...props}
-			type={type}
-			disabled={disabled || loading}
-			className={`SettingsButton${variant === 'primary' ? ' SettingsButton--primary' : ''}${danger ? ' SettingsButton--danger' : ''}${
-				className ? ` ${className}` : ''
-			}`}
-		>
-			{loading ? <span className="SettingsButtonSpinner" aria-hidden="true" /> : icon ? <span className="SettingsButtonIcon">{icon}</span> : null}
-			{children ? <span className="SettingsButtonText">{children}</span> : null}
+		<button {...props} type={type} disabled={disabled || loading} className={buttonClassName}>
+			{loading ? (
+				<span
+					className="size-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+					aria-hidden="true"
+				/>
+			) : icon ? (
+				<span className="inline-flex items-center">{icon}</span>
+			) : null}
+			{children ? <span className="inline-flex items-center">{children}</span> : null}
 		</button>
 	);
 }
 
 function SettingsInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	return <input {...props} className={`SettingsInput${className ? ` ${className}` : ''}`} />;
+	const inputClassName = [
+		'SettingsInput box-border min-h-control w-full min-w-0 rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none',
+		'focus:border-primary focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus:ring-offset-2 focus:ring-offset-background',
+		'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <input {...props} className={inputClassName} />;
+}
+
+function SettingsSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+	const selectClassName = [
+		'box-border min-h-control w-full min-w-0 cursor-pointer rounded-md border border-border bg-surface-elevated py-0 pl-[11px] pr-[34px] font-inherit text-text',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <select {...props} className={selectClassName} />;
+}
+
+function SettingsSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
+	const switchClassName = [
+		'SettingsSwitch relative mt-[9px] h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-[140ms] ease-in-out',
+		'after:absolute after:left-[3px] after:top-[3px] after:size-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-[140ms] after:ease-in-out after:content-[""]',
+		'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
+		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		className
+	]
+		.filter(Boolean)
+		.join(' ');
+
+	return <input {...props} type={type} className={switchClassName} />;
+}
+
+function SettingsInlineControls({ children, className }: { children: ReactNode; className?: string }) {
+	const controlsClassName = ['flex w-full min-w-0 items-stretch', className].filter(Boolean).join(' ');
+	return <div className={controlsClassName}>{children}</div>;
 }
 
 function SettingsDialog({
@@ -115,7 +176,7 @@ function SettingsDialog({
 
 	return (
 		<div
-			className="SettingsDialogOverlay"
+			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6"
 			role="presentation"
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) {
@@ -123,15 +184,20 @@ function SettingsDialog({
 				}
 			}}
 		>
-			<section role="dialog" aria-modal="true" aria-labelledby={titleId} className="SettingsDialog">
-				<div className="SettingsDialogHeader">
-					<h2 id={titleId} className="SettingsDialogTitle">
+			<section
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={titleId}
+				className="flex max-h-[min(680px,calc(100vh_-_48px))] w-[min(560px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
+			>
+				<div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
+					<h2 id={titleId} className="m-0 text-lg leading-[1.3] text-text">
 						{title}
 					</h2>
 					<SettingsButton aria-label="Close dialog" icon={<X size={16} />} onClick={onCancel} />
 				</div>
-				<div className="SettingsDialogBody">{children}</div>
-				{footer ? <div className="SettingsDialogFooter">{footer}</div> : null}
+				<div className="overflow-auto p-4">{children}</div>
+				{footer ? <div className="flex items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</div> : null}
 			</section>
 		</div>
 	);
@@ -161,19 +227,20 @@ function SettingsField({ id, label, required, error, extra, tooltip, children }:
 	const helpId = `${id}-help`;
 	const errorId = `${id}-error`;
 	return (
-		<div className={`SettingsField${error ? ' has-error' : ''}`}>
-			<label className={`SettingsFieldLabel${required ? ' is-required' : ''}`} htmlFor={id} title={tooltip}>
+		<div className="mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
+			<label className="min-h-control whitespace-normal pt-2 text-base leading-[1.35] text-text" htmlFor={id} title={tooltip}>
+				{required ? <span className="mr-1 text-error">*</span> : null}
 				{label}
 			</label>
-			<div className="SettingsFieldBody">
+			<div className="flex min-w-0 flex-col gap-1.5">
 				{children}
 				{extra ? (
-					<div className="SettingsFieldExtra" id={helpId}>
+					<div className="text-xs leading-[1.35] text-text-muted" id={helpId}>
 						{extra}
 					</div>
 				) : null}
 				{error ? (
-					<div className="SettingsFieldError" id={errorId} role="alert">
+					<div className="text-xs font-[650] leading-[1.35] text-error" id={errorId} role="alert">
 						{error}
 					</div>
 				) : null}
@@ -359,29 +426,29 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					onCancel={() => {
 						closeModal({ restoreSnapshot: true });
 					}}
-									footer={
-										<>
-											<SettingsButton
-												key="cancel-settings"
-												onClick={() => {
-													closeModal({ restoreSnapshot: true });
-												}}
-											>
-												Cancel
-											</SettingsButton>
-											<SettingsButton
-												key="save-settings"
-												variant="primary"
-												onClick={() => {
-													closeModal();
-												}}
-											>
-												Done
-											</SettingsButton>
-										</>
-									}
-								>
-					<div className="LoggerNameForm SettingsNativeForm">
+					footer={
+						<>
+							<SettingsButton
+								key="cancel-settings"
+								onClick={() => {
+									closeModal({ restoreSnapshot: true });
+								}}
+							>
+								Cancel
+							</SettingsButton>
+							<SettingsButton
+								key="save-settings"
+								variant="primary"
+								onClick={() => {
+									closeModal();
+								}}
+							>
+								Done
+							</SettingsButton>
+						</>
+					}
+				>
+					<div className="LoggerNameForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="logger-id" label="Logger ID" error={configErrors?.[`editingLogConfig.${editingContextIndex}.loggerID`]}>
 							<SettingsInput
 								id="logger-id"
@@ -406,39 +473,39 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					onCancel={() => {
 						closeModal({ restoreSnapshot: true });
 					}}
-									footer={
-										<>
-											<SettingsButton
-												variant="primary"
-												key="no-changes"
-												onClick={() => {
-													setField(AppConfigKeys.MANAGER_ID, config.workshopID);
-													closeModal();
-												}}
-											>
-												Keep Current Manager
-											</SettingsButton>
-											<SettingsButton
-												key="cancel-edit"
-												onClick={() => {
-													closeModal({ restoreSnapshot: true });
-												}}
-											>
-												Cancel
-											</SettingsButton>
-											<SettingsButton
-												key="save-settings"
-												variant="primary"
-												onClick={() => {
-													closeModal();
-												}}
-											>
-												Save Manager ID
-											</SettingsButton>
-										</>
-									}
-								>
-					<div className="WorkshopIDForm SettingsNativeForm">
+					footer={
+						<>
+							<SettingsButton
+								variant="primary"
+								key="no-changes"
+								onClick={() => {
+									setField(AppConfigKeys.MANAGER_ID, config.workshopID);
+									closeModal();
+								}}
+							>
+								Keep Current Manager
+							</SettingsButton>
+							<SettingsButton
+								key="cancel-edit"
+								onClick={() => {
+									closeModal({ restoreSnapshot: true });
+								}}
+							>
+								Cancel
+							</SettingsButton>
+							<SettingsButton
+								key="save-settings"
+								variant="primary"
+								onClick={() => {
+									closeModal();
+								}}
+							>
+								Save Manager ID
+							</SettingsButton>
+						</>
+					}
+				>
+					<div className="WorkshopIDForm flex min-w-0 flex-col gap-3">
 						<SettingsField id="workshop-id" label="Workshop item ID" required>
 							<SettingsInput
 								id="workshop-id"
@@ -453,14 +520,10 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					</div>
 				</SettingsDialog>
 			) : null}
-			<main className="Settings">
-				<div className="SettingsHeader">
-					<h1 className="SettingsTitle">
-						Settings
-					</h1>
-					<p className="SettingsIntro">
-						Manage game paths, launch behavior, and logging for this TerraTech install.
-					</p>
+			<main className="box-border min-h-full w-full bg-background text-text">
+				<div className="px-6 pt-5">
+					<h1 className="m-0 font-display text-[28px] leading-tight text-text">Settings</h1>
+					<p className="mb-0 mt-2 max-w-[70ch]">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
 				</div>
 				<form
 					onSubmit={form.handleSubmit(
@@ -472,18 +535,18 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 						}
 					)}
 					autoComplete="off"
-					className="SettingsForm"
+					className="mb-6 ml-6 mr-6 mt-5 max-[1100px]:mx-5"
 				>
-					<div className="CollectionSettings SettingsPaneGrid">
-						<div key="misc-app-settings" className="SettingsPaneColumn MiscAppSettings">
-							<div className="SettingsPane">
+					<div className="CollectionSettings mb-2.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-x-6 gap-y-5 max-[991px]:grid-cols-1">
+						<div key="misc-app-settings" className="flex max-[991px]:mb-5">
+							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-[18px] py-4">
 								<SettingsField
 									id="localDir"
 									label="Local Mods Folder"
 									error={configErrors?.localDir}
 									tooltip="Optional. Use this only when you develop or test local mods."
 								>
-									<div className="SettingsPathControl">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="localDir"
 											disabled={selectingDirectory}
@@ -505,7 +568,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												void handleSelectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory');
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 								<SettingsField
 									id="gameExec"
@@ -517,7 +580,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									{isLinux ? (
 										<SettingsInput id="gameExec" disabled value="Launched through Steam on Linux" />
 									) : (
-										<div className="SettingsPathControl">
+										<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 											<SettingsInput
 												id="gameExec"
 												disabled={selectingDirectory}
@@ -539,7 +602,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
 												}}
 											/>
-										</div>
+										</SettingsInlineControls>
 									)}
 								</SettingsField>
 								<SettingsField
@@ -548,7 +611,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									error={configErrors?.logsDir}
 									tooltip="Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder."
 								>
-									<div className="SettingsPathControl">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="logsDir"
 											disabled={selectingDirectory}
@@ -570,13 +633,11 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												void handleSelectPath(AppConfigKeys.LOGS_DIR, true, 'Select directory for logs');
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 								<SettingsField id="closeOnLaunch" label="Close on Game Launch">
-									<input
+									<SettingsSwitch
 										id="closeOnLaunch"
-										type="checkbox"
-										className="SettingsSwitch"
 										aria-label="Close the app after launching TerraTech"
 										checked={editingConfig.closeOnLaunch}
 										onChange={(event) => {
@@ -589,10 +650,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									label="Pure Vanilla"
 									tooltip="Launch TerraTech without the integrated mod loader when no other mods are enabled."
 								>
-									<input
+									<SettingsSwitch
 										id="pureVanilla"
-										type="checkbox"
-										className="SettingsSwitch"
 										aria-label="Launch TerraTech without the integrated mod loader when no other mods are enabled"
 										checked={!!editingConfig.pureVanilla}
 										onChange={(event) => {
@@ -600,14 +659,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 										}}
 									/>
 								</SettingsField>
-								<SettingsField
-									id="logLevel"
-									label="App Log Level"
-									tooltip="Controls how much this desktop app logs."
-								>
-									<select
+								<SettingsField id="logLevel" label="App Log Level" tooltip="Controls how much this desktop app logs.">
+									<SettingsSelect
 										id="logLevel"
-										className="SettingsSelect"
 										aria-label="App logging level"
 										value={editingConfig.logLevel || LogLevel.INFO}
 										onChange={(event) => {
@@ -619,7 +673,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												{formatLogLevelLabel(level)}
 											</option>
 										))}
-									</select>
+									</SettingsSelect>
 								</SettingsField>
 								<SettingsField
 									id="workshopID"
@@ -627,7 +681,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									required
 									tooltip="The Steam Workshop item ID for the mod manager package this app should launch with."
 								>
-									<div className="SettingsInlineControls">
+									<SettingsInlineControls className="[&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:rounded-r-none">
 										<SettingsInput
 											id="workshopID"
 											aria-label="Current mod manager workshop item ID"
@@ -642,12 +696,12 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												openWorkshopIdModal();
 											}}
 										/>
-									</div>
+									</SettingsInlineControls>
 								</SettingsField>
 							</div>
 						</div>
-						<div key="additional-commands" className="SettingsPaneColumn">
-							<div className="SettingsPane">
+						<div key="additional-commands" className="flex">
+							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-[18px] py-4">
 								<SettingsField id="extraParams" label="Launch Arguments">
 									<SettingsInput
 										id="extraParams"
@@ -658,14 +712,16 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									/>
 								</SettingsField>
 								<details
-									className="SettingsDisclosure"
+									className="mt-0.5 border-t border-border pt-1"
 									open={loggingOverridesOpen}
 									onToggle={(event) => {
 										setLoggingOverridesOpen(event.currentTarget.open);
 									}}
 								>
-									<summary className="SettingsDisclosureSummary">Logging Overrides</summary>
-									<div className="SettingsDisclosureBody">
+									<summary className="min-h-[38px] cursor-pointer select-none py-[9px] font-[650] leading-tight text-text marker:text-text-muted focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+										Logging Overrides
+									</summary>
+									<div className="pt-3">
 										{editingConfig.editingLogConfig.map((config, index) => {
 											const id = `editingLogConfig.${index}.loggerID`;
 
@@ -676,10 +732,10 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 													label={`Override ${index + 1}`}
 													error={configErrors?.[id]}
 												>
-													<div style={SETTINGS_LOGGER_ROW_STYLE}>
-														<select
+													<div className="flex w-full flex-wrap gap-2">
+														<SettingsSelect
 															id={`${id}.level`}
-															className="SettingsSelect SettingsLoggerLevelSelect"
+															className="flex-[1_1_12rem]"
 															aria-label={`Logging level for override ${index + 1}`}
 															value={config.level}
 															onChange={(event) => {
@@ -691,9 +747,9 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																	{formatLogLevelLabel(level)}
 																</option>
 															))}
-														</select>
-														<div className="SettingsInlineControls SettingsLoggerIdControl">
-															<SettingsInput id={id} style={SETTINGS_LOGGER_ID_INPUT_STYLE} value={config.loggerID} disabled />
+														</SettingsSelect>
+														<SettingsInlineControls className="flex-[2_1_16rem] [&_.SettingsButton]:shrink-0 [&_.SettingsButton]:rounded-l-none [&_.SettingsInput]:min-w-0 [&_.SettingsInput]:flex-auto [&_.SettingsInput]:rounded-r-none">
+															<SettingsInput id={id} value={config.loggerID} disabled />
 															<SettingsButton
 																aria-label={`Edit logger override ${index + 1}`}
 																icon={<Edit3 size={16} />}
@@ -702,7 +758,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 																	openLogEditModal(index);
 																}}
 															/>
-														</div>
+														</SettingsInlineControls>
 														<SettingsButton
 															aria-label={`Remove logger override ${index + 1}`}
 															icon={<X size={16} />}
@@ -716,7 +772,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												</SettingsField>
 											);
 										})}
-										<div className="SettingsDisclosureActions">
+										<div className="flex justify-start">
 											<SettingsButton
 												icon={<Plus size={16} />}
 												onClick={() => {
@@ -732,16 +788,11 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</div>
 						</div>
 					</div>
-					<div className="SettingsActions">
+					<div className="flex w-full flex-wrap items-center justify-center gap-3 pt-2.5 max-[1199px]:justify-start max-[1199px]:[&_.SettingsButton]:w-full max-[1199px]:[&_.SettingsButton]:flex-[1_1_100%]">
 						<SettingsButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
 							Reset Changes
 						</SettingsButton>
-						<SettingsButton
-							loading={savingConfig}
-							disabled={!madeConfigEdits}
-							variant="primary"
-							type="submit"
-						>
+						<SettingsButton loading={savingConfig} disabled={!madeConfigEdits} variant="primary" type="submit">
 							Save Changes
 						</SettingsButton>
 					</div>

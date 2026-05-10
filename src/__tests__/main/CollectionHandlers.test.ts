@@ -10,7 +10,7 @@ import {
 	updateCollectionFile
 } from '../../main/ipc/collection-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir } from './test-utils';
+import { createTempDir, createValidIpcEvent } from './test-utils';
 
 function createCollectionHandlerHarness(userDataPath: string) {
 	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -24,12 +24,12 @@ function createCollectionHandlerHarness(userDataPath: string) {
 		getUserDataPath: () => userDataPath
 	});
 
-	const invoke = <T,>(channel: ValidChannel, ...args: unknown[]) => {
+	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
 		const handler = handlers.get(channel);
 		if (!handler) {
 			throw new Error(`Missing handler for ${channel}`);
 		}
-		return handler({}, ...args) as Promise<T>;
+		return handler(createValidIpcEvent(), ...args) as Promise<T>;
 	};
 
 	return { invoke };
@@ -160,9 +160,9 @@ describe('collection handlers', () => {
 			return String(targetPath);
 		}) as typeof fs.realpathSync.native);
 
-		expect(refersToSameCollectionPath(path.join(tempDir, 'collections', 'default.json'), path.join(tempDir, 'collections', 'Default.json'))).toBe(
-			true
-		);
+		expect(
+			refersToSameCollectionPath(path.join(tempDir, 'collections', 'default.json'), path.join(tempDir, 'collections', 'Default.json'))
+		).toBe(true);
 
 		realpathNativeSpy.mockRestore();
 		existsSyncSpy.mockRestore();

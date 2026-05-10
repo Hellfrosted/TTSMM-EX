@@ -1,11 +1,11 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../model';
 import MainCollectionComponent from '../../renderer/components/collections/MainCollectionComponent';
 import CollectionRoute from '../../renderer/views/CollectionView';
-import { createAppState } from './test-utils';
+import { createAppState, renderWithQueryClient } from './test-utils';
 
 afterEach(() => {
 	cleanup();
@@ -40,7 +40,7 @@ describe('CollectionRoute', () => {
 		});
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
-		render(
+		renderWithQueryClient(
 			<MemoryRouter initialEntries={['/collections']}>
 				<Routes>
 					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
@@ -79,7 +79,7 @@ describe('CollectionRoute', () => {
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
 
-		render(
+		renderWithQueryClient(
 			<MemoryRouter initialEntries={['/collections/main']}>
 				<Routes>
 					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>

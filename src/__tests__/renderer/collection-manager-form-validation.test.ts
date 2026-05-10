@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MainColumnTitles } from '../../model';
-import {
-	createMainTableSettingsFormValues,
-	toMainCollectionConfig
-} from '../../renderer/collection-manager-form-validation';
+import { createMainTableSettingsFormValues, toMainCollectionConfig } from '../../renderer/collection-manager-form-validation';
 
 describe('collection-manager-form-validation', () => {
 	it('drops stale unknown column settings before rendering the table settings form', () => {

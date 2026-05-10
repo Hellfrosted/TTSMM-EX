@@ -1,10 +1,10 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, LogLevel } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { SettingsView } from '../../renderer/views/SettingsView';
-import { createAppState } from './test-utils';
+import { createAppState, renderWithQueryClient } from './test-utils';
 
 function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}) {
 	const appState = createAppState({
@@ -20,7 +20,7 @@ function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}
 
 	return {
 		appState,
-		...render(<SettingsView appState={appState} />)
+		...renderWithQueryClient(<SettingsView appState={appState} />)
 	};
 }
 

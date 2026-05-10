@@ -2,19 +2,21 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
-import { createAppState } from './test-utils';
+import { createAppState, createQueryWrapper } from './test-utils';
 
 function renderCollectionsHook(appState: ReturnType<typeof createAppState>, overrides: Partial<Parameters<typeof useCollections>[0]> = {}) {
-	return renderHook(() =>
-		useCollections({
-			appState,
-			openNotification: vi.fn(),
-			cancelValidation: vi.fn(),
-			resetValidationState: vi.fn(),
-			validateActiveCollection: vi.fn(async () => undefined),
-			setModalType: vi.fn(),
-			...overrides
-		})
+	return renderHook(
+		() =>
+			useCollections({
+				appState,
+				openNotification: vi.fn(),
+				cancelValidation: vi.fn(),
+				resetValidationState: vi.fn(),
+				validateActiveCollection: vi.fn(async () => undefined),
+				setModalType: vi.fn(),
+				...overrides
+			}),
+		{ wrapper: createQueryWrapper() }
 	);
 }
 
@@ -232,6 +234,41 @@ describe('useCollections', () => {
 		expect(appState.config.activeCollection).toBe('default');
 	});
 
+	it('notifies when creating a collection fails to write the new collection', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openNotification = vi.fn();
+		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState, { openNotification });
+
+		await act(async () => {
+			await result.current.createNewCollection('fresh');
+		});
+
+		expect(openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Failed to create new collection fresh',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(appState.allCollections.has('fresh')).toBe(false);
+	});
+
 	it('rolls back a rename when the active collection config update fails', async () => {
 		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
 		const appState = createAppState({
@@ -259,6 +296,42 @@ describe('useCollections', () => {
 		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(2, { name: 'renamed', mods: ['local:dirty'] }, 'default');
 		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.config.activeCollection).toBe('default');
+		expect(appState.allCollections.has('renamed')).toBe(false);
+	});
+
+	it('notifies when renaming a collection is rejected', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openNotification = vi.fn();
+		vi.mocked(window.electron.renameCollection).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState, { openNotification });
+
+		await act(async () => {
+			await result.current.renameCollection('renamed');
+		});
+
+		expect(openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Failed to rename collection default to renamed',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.allCollections.has('renamed')).toBe(false);
 	});
 
@@ -293,6 +366,46 @@ describe('useCollections', () => {
 		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'archived', mods: ['local:dirty'] });
 		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.config.activeCollection).toBe('archived');
+		expect(appState.allCollections.has('archived')).toBe(true);
+	});
+
+	it('notifies when deleting a collection is rejected', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'archived',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['archived', archivedCollection]
+			]),
+			allCollectionNames: new Set(['default', 'archived']),
+			activeCollection: archivedCollection
+		});
+		const openNotification = vi.fn();
+		vi.mocked(window.electron.deleteCollection).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState, { openNotification });
+
+		await act(async () => {
+			await result.current.deleteCollection();
+		});
+
+		expect(openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Failed to delete collection',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.allCollections.has('archived')).toBe(true);
 	});
 

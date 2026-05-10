@@ -10,7 +10,7 @@ import {
 } from '../../main/block-lookup';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir } from './test-utils';
+import { createTempDir, createValidIpcEvent } from './test-utils';
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -29,12 +29,12 @@ function createBlockLookupHandlerHarness() {
 		getUserDataPath: () => userDataPath
 	});
 
-	const invoke = <T,>(channel: ValidChannel, ...args: unknown[]) => {
+	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
 		const handler = handlers.get(channel);
 		if (!handler) {
 			throw new Error(`Missing handler for ${channel}`);
 		}
-		return handler({}, ...args) as Promise<T>;
+		return handler(createValidIpcEvent(), ...args) as Promise<T>;
 	};
 
 	return {
@@ -202,9 +202,7 @@ describe('block lookup ipc handlers', () => {
 	it('rejects malformed search payloads before reading the index', async () => {
 		const { invoke } = createBlockLookupHandlerHarness();
 
-		await expect(invoke(ValidChannel.BLOCK_LOOKUP_SEARCH, { limit: 10 })).rejects.toThrow(
-			'Invalid IPC payload for block-lookup-search'
-		);
+		await expect(invoke(ValidChannel.BLOCK_LOOKUP_SEARCH, { limit: 10 })).rejects.toThrow('Invalid IPC payload for block-lookup-search');
 		await expect(invoke(ValidChannel.BLOCK_LOOKUP_SEARCH, { query: '', limit: 1001 })).rejects.toThrow(
 			'Invalid IPC payload for block-lookup-search'
 		);

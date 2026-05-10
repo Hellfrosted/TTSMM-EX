@@ -159,17 +159,30 @@ The pacman target needs `bsdtar`.
 - if Steamworks does not return dependency children for a Workshop item, the app falls back to the public Workshop page `Required items` section
 - `Treat NuterraSteam and NuterraSteam (Beta) as equivalent` affects both explicit mod-ID dependencies and unresolved Workshop dependency names
 
+## Renderer Styling
+
+Tailwind is the default tool for new renderer UI layout, spacing, typography, state styling, and simple controls. Keep the app dense, desktop-first, and utilitarian: prefer compact tool surfaces, predictable alignment, and scan-friendly controls over marketing-style sections.
+
+Use the existing app theme variables from `src/renderer/theme.ts` and `src/renderer/App.tailwind.css` for color, radius, and typography. Custom CSS remains appropriate for measured virtualized tables, resize handles, split-pane sizing, Electron shell surfaces, and durable design tokens that Tailwind utilities cannot express cleanly.
+
 ## Scripts
 
 - `npm run help`: list root and `release/app` npm scripts
 - `npm run dev`: development app
 - `npm run start:desktop`: build and launch the production desktop entrypoint
-- `npm run lint`: ESLint
-- `npm run lint:fix`: ESLint with autofix
+- `npm run lint`: Biome check followed by supplemental ESLint rules
+- `npm run lint:eslint`: supplemental ESLint checks for React hooks, accessibility, promises, restricted imports, and explicit `any`
+- `npm run lint:eslint:fix`: supplemental ESLint checks with autofix
+- `npm run lint:biome`: Biome formatting and primary lint check
+- `npm run lint:biome:fix`: Biome formatting and primary lint autofix
+- `npm run lint:fix`: supplemental ESLint autofix followed by Biome autofix
+- `npm run deadcode`: Knip unused files, exports, and dependencies check
 - `npm run typecheck`: TypeScript build check
 - `npm test`: Vitest
 - `npm run build`: build main, preload, and renderer
-- `npm run validate`: lint, typecheck, tests, and build
+- `npm run validate`: lint, Knip dead-code check, typecheck, tests, and build
+- `npm audit --audit-level=moderate`: dependency security audit
+- `npm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `npm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`

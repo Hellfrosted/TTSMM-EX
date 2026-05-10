@@ -1,7 +1,7 @@
-import type { AppState } from 'model';
+import type { AppState } from 'model/AppState';
 import type { CollectionWorkspaceAppState } from './state/app-state';
 
-export interface AppShellInputs {
+interface AppShellInputs {
 	activeCollection?: AppState['activeCollection'];
 	configErrorCount: number;
 	launchingGame: boolean;
@@ -9,6 +9,24 @@ export interface AppShellInputs {
 	madeConfigEdits: boolean;
 	pathname: string;
 	savingConfig: boolean;
+}
+
+type AppRouteKind = 'block-lookup' | 'collections' | 'loading' | 'settings';
+
+export function getAppRouteKind(pathname: string): AppRouteKind {
+	if (pathname === '/loading' || pathname.startsWith('/loading/')) {
+		return 'loading';
+	}
+
+	if (pathname === '/settings' || pathname.startsWith('/settings/')) {
+		return 'settings';
+	}
+
+	if (pathname === '/block-lookup' || pathname.startsWith('/block-lookup/')) {
+		return 'block-lookup';
+	}
+
+	return 'collections';
 }
 
 export function createCollectionStageAppState(
@@ -59,20 +77,17 @@ export function createBlockLookupStageAppState(state: Pick<AppState, 'config' | 
 }
 
 export function createAppShellViewModel(inputs: AppShellInputs) {
-	const isLoadingRoute = inputs.pathname.includes('/loading');
-	const isSettingsRoute = inputs.pathname.startsWith('/settings');
-	const isBlockLookupRoute = inputs.pathname.startsWith('/block-lookup');
+	const routeKind = getAppRouteKind(inputs.pathname);
+	const isLoadingRoute = routeKind === 'loading';
+	const isSettingsRoute = routeKind === 'settings';
+	const isBlockLookupRoute = routeKind === 'block-lookup';
 	const showCollections = !isLoadingRoute && !isSettingsRoute && !isBlockLookupRoute;
 	const showSettings = !isLoadingRoute && isSettingsRoute;
 	const showBlockLookup = !isLoadingRoute && isBlockLookupRoute;
 
 	return {
 		disableNavigation:
-			inputs.launchingGame ||
-			isLoadingRoute ||
-			inputs.savingConfig ||
-			inputs.madeConfigEdits ||
-			inputs.configErrorCount > 0,
+			inputs.launchingGame || isLoadingRoute || inputs.savingConfig || inputs.madeConfigEdits || inputs.configErrorCount > 0,
 		hasCollectionWorkspace: !!inputs.activeCollection || !!inputs.loadingMods,
 		isBlockLookupRoute,
 		isLoadingRoute,

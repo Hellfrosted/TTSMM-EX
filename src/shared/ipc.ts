@@ -1,5 +1,3 @@
-import type { ModData } from 'model/Mod';
-
 export enum ValidChannel {
 	STEAMWORKS_INITED = 'steamworks-inited',
 	RELOAD_STEAMWORKS = 'reload-steamworks',
@@ -63,9 +61,4 @@ export interface ProgressUpdatePayload {
 	type: ProgressTypes;
 	progress: number;
 	progressMessage: string;
-}
-
-export interface ModMetadataUpdatePayload {
-	uid: string;
-	update: Partial<ModData>;
 }

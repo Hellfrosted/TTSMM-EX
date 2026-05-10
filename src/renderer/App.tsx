@@ -7,7 +7,8 @@ import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
 	createCollectionStageAppState,
-	createSettingsStageAppState
+	createSettingsStageAppState,
+	getAppRouteKind
 } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
@@ -85,17 +86,7 @@ function CollectionsStageView() {
 				mods,
 				updateState
 			}),
-		[
-			activeCollection,
-			allCollectionNames,
-			allCollections,
-			config,
-			forceReloadMods,
-			launchingGame,
-			loadingMods,
-			mods,
-			updateState
-		]
+		[activeCollection, allCollectionNames, allCollections, config, forceReloadMods, launchingGame, loadingMods, mods, updateState]
 	);
 	return <CollectionViewLazy appState={appState} />;
 }
@@ -107,13 +98,14 @@ function SettingsStageView() {
 	const savingConfig = useAppStateSelector((state) => state.savingConfig);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo(
-		() => createSettingsStageAppState({
-			config,
-			configErrors,
-			madeConfigEdits,
-			savingConfig,
-			updateState
-		}),
+		() =>
+			createSettingsStageAppState({
+				config,
+				configErrors,
+				madeConfigEdits,
+				savingConfig,
+				updateState
+			}),
 		[config, configErrors, madeConfigEdits, savingConfig, updateState]
 	);
 	return <SettingsViewLazy appState={appState} />;
@@ -124,11 +116,12 @@ function BlockLookupStageView() {
 	const mods = useAppStateSelector((state) => state.mods);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo(
-		() => createBlockLookupStageAppState({
-			config,
-			mods,
-			updateState
-		}),
+		() =>
+			createBlockLookupStageAppState({
+				config,
+				mods,
+				updateState
+			}),
 		[config, mods, updateState]
 	);
 	return <BlockLookupViewLazy appState={appState} />;
@@ -138,11 +131,7 @@ function LoadingStageOutlet() {
 	return <Outlet />;
 }
 
-function MenuBarStageView({
-	disableNavigation
-}: {
-	disableNavigation: boolean;
-}) {
+function MenuBarStageView({ disableNavigation }: { disableNavigation: boolean }) {
 	const config = useAppStateSelector((state) => state.config);
 	const firstModLoad = useAppStateSelector((state) => Boolean(state.firstModLoad));
 	const updateState = useAppStateSelector((state) => state.updateState);
@@ -160,11 +149,10 @@ function AppShell() {
 	const configErrorCount = useAppStateSelector((state) => Object.keys(state.configErrors || {}).length);
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
-	const [mountedSettings, setMountedSettings] = useState(location.pathname.startsWith('/settings'));
-	const [mountedBlockLookup, setMountedBlockLookup] = useState(location.pathname.startsWith('/block-lookup'));
-	const [mountedCollections, setMountedCollections] = useState(
-		!location.pathname.includes('/loading') && !location.pathname.startsWith('/settings') && !location.pathname.startsWith('/block-lookup')
-	);
+	const initialRouteKind = getAppRouteKind(location.pathname);
+	const [mountedSettings, setMountedSettings] = useState(initialRouteKind === 'settings');
+	const [mountedBlockLookup, setMountedBlockLookup] = useState(initialRouteKind === 'block-lookup');
+	const [mountedCollections, setMountedCollections] = useState(initialRouteKind === 'collections');
 	const appShell = createAppShellViewModel({
 		activeCollection,
 		configErrorCount,
@@ -247,10 +235,7 @@ function AppShell() {
 					<AppViewStage active={appShell.showCollections} name="collections">
 						<Suspense
 							fallback={
-								<ViewStageLoadingFallback
-									title="Loading mod workspace"
-									detail="Preparing collections, filters, and validation controls."
-								/>
+								<ViewStageLoadingFallback title="Loading mod workspace" detail="Preparing collections, filters, and validation controls." />
 							}
 						>
 							<CollectionsStageView />
@@ -261,10 +246,7 @@ function AppShell() {
 					<AppViewStage active={appShell.showSettings} name="settings" overflow="auto">
 						<Suspense
 							fallback={
-								<ViewStageLoadingFallback
-									title="Loading settings"
-									detail="Preparing paths, launch options, and logging controls."
-								/>
+								<ViewStageLoadingFallback title="Loading settings" detail="Preparing paths, launch options, and logging controls." />
 							}
 						>
 							<SettingsStageView />
@@ -275,10 +257,7 @@ function AppShell() {
 					<AppViewStage active={appShell.showBlockLookup} name="block-lookup">
 						<Suspense
 							fallback={
-								<ViewStageLoadingFallback
-									title="Loading block lookup"
-									detail="Preparing the block alias index and search controls."
-								/>
+								<ViewStageLoadingFallback title="Loading block lookup" detail="Preparing the block alias index and search controls." />
 							}
 						>
 							<BlockLookupStageView />

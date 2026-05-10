@@ -8,7 +8,7 @@ interface CollectionNameValidationOptions {
 	modalType: CollectionNamingModalType;
 }
 
-export const collectionNameFormSchema = z.object({
+const collectionNameFormSchema = z.object({
 	name: z.string()
 });
 

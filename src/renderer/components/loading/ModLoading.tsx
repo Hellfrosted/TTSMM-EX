@@ -1,8 +1,29 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { AppConfig, ModType, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AppConfig } from 'model/AppConfig';
+import { ModType } from 'model/Mod';
+import type { ModCollection } from 'model/ModCollection';
+import { setupDescriptors, type SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
+import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { StartupButton, StartupProgressBar, StartupStatusIcon } from './StartupPrimitives';
+import { ProgressTypes } from 'shared/ipc';
+import {
+	StartupActions,
+	StartupButton,
+	StartupCard,
+	StartupErrorText,
+	StartupEyebrow,
+	StartupIntro,
+	StartupProgressBar,
+	StartupScreen,
+	StartupStatusCard,
+	StartupStatusContent,
+	StartupStatusDetail,
+	StartupStatusIcon,
+	StartupStatusTitle,
+	StartupTitle
+} from './StartupPrimitives';
 
 interface ModLoadingProps {
 	appState: CollectionWorkspaceAppState;
@@ -10,6 +31,7 @@ interface ModLoadingProps {
 }
 
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
+	const queryClient = useQueryClient();
 	const { allCollections, config: rawConfig, forceReloadMods, updateState: updateAppState } = appState;
 	const config = rawConfig as AppConfig;
 	const [progress, setProgress] = useState(0);
@@ -40,8 +62,15 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
 		allKnownMods.add(`${ModType.WORKSHOP}:${config.workshopID}`);
 
-		void api
-			.readModMetadata(config.localDir, allKnownMods)
+		void queryClient
+			.fetchQuery(
+				modMetadataQueryOptions({
+					localDir: config.localDir,
+					knownMods: allKnownMods,
+					forceReload: !!forceReloadMods,
+					attempt: retryCount
+				})
+			)
 			.then((mods) => {
 				if (loadRequestIdRef.current !== requestId) {
 					return mods;
@@ -70,7 +99,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				loadRequestIdRef.current += 1;
 			}
 		};
-	}, [allCollections, config.localDir, config.userOverrides, config.workshopID, forceReloadMods, retryCount, updateAppState]);
+	}, [allCollections, config.localDir, config.userOverrides, config.workshopID, forceReloadMods, queryClient, retryCount, updateAppState]);
 
 	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';
@@ -78,42 +107,38 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	const statusIcon = loadError ? 'error' : progressPercent >= 100 ? 'success' : 'loading';
 
 	return (
-		<div className="StartupShell">
-			<main className="StartupContent">
-				<section aria-labelledby="mod-loading-title" className="StartupCard">
-					<span className="StartupEyebrow">Startup</span>
-					<h2 id="mod-loading-title" className="StartupTitle">
-						Scanning your mods
-					</h2>
-					<p className="StartupIntro">Refreshing local and workshop metadata before the collection workspace opens.</p>
-					<div aria-live="polite" role="status" className={`StartupStatusCard${loadError ? ' is-error' : ''}`}>
-						<div className="StartupStatusCard__content">
-							<StartupStatusIcon status={statusIcon} />
-							<span>
-								<strong className="StartupStatusTitle">{statusLabel}</strong>
-								<span className="StartupStatusDetail">{statusDetail}</span>
-							</span>
-						</div>
-					</div>
-					<StartupProgressBar percent={progressPercent} status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'} />
-					{loadError ? (
-						<div className="StartupActions">
-							<code className="StartupErrorText">{loadError}</code>
-							<StartupButton
-								variant="primary"
-								onClick={() => {
-									setLoadError(undefined);
-									setProgress(0);
-									setProgressMessage('Counting mods');
-									setRetryCount((current) => current + 1);
-								}}
-							>
-								Retry Mod Scan
-							</StartupButton>
-						</div>
-					) : null}
-				</section>
-			</main>
-		</div>
+		<StartupScreen>
+			<StartupCard aria-labelledby="mod-loading-title">
+				<StartupEyebrow>Startup</StartupEyebrow>
+				<StartupTitle id="mod-loading-title">Scanning your mods</StartupTitle>
+				<StartupIntro>Refreshing local and workshop metadata before the collection workspace opens.</StartupIntro>
+				<StartupStatusCard aria-live="polite" role="status" error={!!loadError}>
+					<StartupStatusContent>
+						<StartupStatusIcon status={statusIcon} />
+						<span>
+							<StartupStatusTitle>{statusLabel}</StartupStatusTitle>
+							<StartupStatusDetail>{statusDetail}</StartupStatusDetail>
+						</span>
+					</StartupStatusContent>
+				</StartupStatusCard>
+				<StartupProgressBar percent={progressPercent} status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'} />
+				{loadError ? (
+					<StartupActions>
+						<StartupErrorText>{loadError}</StartupErrorText>
+						<StartupButton
+							variant="primary"
+							onClick={() => {
+								setLoadError(undefined);
+								setProgress(0);
+								setProgressMessage('Counting mods');
+								setRetryCount((current) => current + 1);
+							}}
+						>
+							Retry Mod Scan
+						</StartupButton>
+					</StartupActions>
+				) : null}
+			</StartupCard>
+		</StartupScreen>
 	);
 }

@@ -5,6 +5,27 @@ import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionNamingModalType } from './CollectionNamingModal';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
+const collectionToolbarFocusClassName =
+	'focus-visible:relative focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
+const collectionToolbarControlClassName = [
+	'box-border min-h-control rounded-md border border-border bg-surface text-text',
+	'disabled:cursor-not-allowed disabled:opacity-55',
+	collectionToolbarFocusClassName
+].join(' ');
+const collectionToolbarButtonBaseClassName = [
+	collectionToolbarControlClassName,
+	'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[1100px]:w-control max-[1100px]:min-w-control max-[1100px]:px-0',
+	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]'
+].join(' ');
+const collectionToolbarPrimaryButtonClassName = [
+	collectionToolbarButtonBaseClassName,
+	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
+].join(' ');
+const collectionToolbarDangerButtonClassName = [
+	collectionToolbarButtonBaseClassName,
+	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
+].join(' ');
+const collectionToolbarLabelClassName = 'inline-flex min-w-0 items-center overflow-hidden text-ellipsis max-[1100px]:hidden';
 
 interface CollectionManagementToolbarProps {
 	madeEdits: boolean;
@@ -112,7 +133,7 @@ function CollectionManagementToolbarComponent({
 		}
 	};
 	return (
-		<div id="mod-collection-toolbar" className="CollectionToolbar">
+		<div id="mod-collection-toolbar" className="flex flex-col gap-3 max-[720px]:gap-2">
 			{!modalType ? null : (
 				<Suspense fallback={null}>
 					<CollectionNamingModalLazy
@@ -131,12 +152,12 @@ function CollectionManagementToolbarComponent({
 					/>
 				</Suspense>
 			)}
-			<div className="CollectionToolbarRow">
-				<div className="CollectionToolbarColumn">
-					<div className="CollectionToolbarPrimaryBar">
-						<div className="CollectionToolbarCollectionSelector">
+			<div>
+				<div className="min-w-0">
+					<div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 max-[1100px]:gap-x-2.5 max-[720px]:gap-2">
+						<div className="min-w-[220px] max-w-[360px] flex-[0_1_280px] max-[1100px]:max-w-none max-[1100px]:basis-full max-[720px]:min-w-0">
 							<select
-								className="CollectionToolbarSelect"
+								className={[collectionToolbarControlClassName, 'w-full px-3'].join(' ')}
 								value={activeCollection?.name || ''}
 								aria-label="Select the active collection"
 								onChange={(event) => {
@@ -154,15 +175,11 @@ function CollectionManagementToolbarComponent({
 								})}
 							</select>
 						</div>
-						<div
-							className="CollectionToolbarActionGroup CollectionToolbarActionGroup--collection"
-							role="group"
-							aria-label="Collection actions"
-						>
-							<div className="CollectionToolbarActions CollectionToolbarActions--primary">
+						<div className="flex min-w-0 items-center" role="group" aria-label="Collection actions">
+							<div className="inline-flex min-h-[38px] flex-1 flex-wrap items-center gap-2.5 max-[1100px]:gap-2">
 								<button
 									key="rename"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="Rename"
 									title="Rename collection"
 									onClick={() => {
@@ -172,11 +189,11 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<Edit3 size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Rename</span>
+									<span className={collectionToolbarLabelClassName}>Rename</span>
 								</button>
 								<button
 									key="new"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="New"
 									title="Create collection"
 									disabled={disabledFeatures}
@@ -186,11 +203,11 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<Plus size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">New</span>
+									<span className={collectionToolbarLabelClassName}>New</span>
 								</button>
 								<button
 									key="save"
-									className="CollectionToolbarButton CollectionToolbarButton--primary"
+									className={collectionToolbarPrimaryButtonClassName}
 									aria-label="Save Collection"
 									title="Save collection"
 									onClick={saveCollectionCallback}
@@ -198,15 +215,18 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									{savingCollection ? (
-										<span className="CollectionToolbarButtonSpinner" aria-hidden="true" />
+										<span
+											className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
+											aria-hidden="true"
+										/>
 									) : (
 										<Save size={16} aria-hidden="true" />
 									)}
-									<span className="CollectionToolbarButtonLabel">Save Collection</span>
+									<span className={collectionToolbarLabelClassName}>Save Collection</span>
 								</button>
 								<button
 									key="duplicate"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="Duplicate"
 									title="Duplicate collection"
 									onClick={() => {
@@ -216,11 +236,11 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<Copy size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Duplicate</span>
+									<span className={collectionToolbarLabelClassName}>Duplicate</span>
 								</button>
 								<button
 									key="copy-export"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="Copy JSON"
 									title="Copy JSON export"
 									onClick={() => {
@@ -230,11 +250,11 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<FileJson size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Copy JSON</span>
+									<span className={collectionToolbarLabelClassName}>Copy JSON</span>
 								</button>
 								<button
 									key="delete"
-									className="CollectionToolbarButton CollectionToolbarButton--danger"
+									className={collectionToolbarDangerButtonClassName}
 									aria-label="Delete"
 									title="Delete collection"
 									onClick={() => {
@@ -244,15 +264,19 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<Trash2 size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Delete</span>
+									<span className={collectionToolbarLabelClassName}>Delete</span>
 								</button>
 							</div>
 						</div>
-						<div className="CollectionToolbarActionGroup CollectionToolbarActionGroup--utility" role="group" aria-label="Table utilities">
-							<div className="CollectionToolbarActions CollectionToolbarActions--utility">
+						<div
+							className="ml-auto flex min-w-0 items-center border-l border-border pl-4 max-[1100px]:pl-3 max-[720px]:pl-2.5"
+							role="group"
+							aria-label="Table utilities"
+						>
+							<div className="inline-flex min-h-[38px] flex-wrap items-center justify-end gap-2.5 max-[1100px]:gap-2">
 								<button
 									key="reload"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="Reload"
 									title="Reload mods"
 									onClick={onReloadModListCallback}
@@ -260,11 +284,11 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<RefreshCw size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Reload</span>
+									<span className={collectionToolbarLabelClassName}>Reload</span>
 								</button>
 								<button
 									key="view-options"
-									className="CollectionToolbarButton"
+									className={collectionToolbarButtonBaseClassName}
 									aria-label="Table Options"
 									title="Table options"
 									onClick={openViewSettingsCallback}
@@ -272,21 +296,21 @@ function CollectionManagementToolbarComponent({
 									type="button"
 								>
 									<Settings2 size={16} aria-hidden="true" />
-									<span className="CollectionToolbarButtonLabel">Table Options</span>
+									<span className={collectionToolbarLabelClassName}>Table Options</span>
 								</button>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-			<div className="CollectionToolbarRow CollectionToolbarRow--search">
-				<div className="CollectionToolbarColumn">
-					<div className="CollectionToolbarSecondaryBar">
-						<div className="CollectionToolbarSearchColumn">
-							<div className="CollectionToolbarSearch">
-								<div className="CollectionToolbarSearchBox">
+			<div>
+				<div className="min-w-0">
+					<div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-3 max-[1199px]:grid-cols-1">
+						<div className="min-w-0">
+							<div className="flex min-h-control w-full items-center">
+								<div className="flex w-full min-w-0">
 									<input
-										className="CollectionToolbarSearchInput"
+										className={[collectionToolbarControlClassName, 'min-w-0 flex-auto rounded-r-none px-3'].join(' ')}
 										aria-label="Search mods by name, ID, author, or tag"
 										placeholder="Search mods by name, ID, author, or tag"
 										onChange={(event) => {
@@ -303,7 +327,10 @@ function CollectionManagementToolbarComponent({
 									{searchString ? (
 										<button
 											aria-label="Clear search"
-											className="CollectionToolbarSearchClear"
+											className={[
+												collectionToolbarControlClassName,
+												'inline-flex w-control cursor-pointer items-center justify-center rounded-none border-l-0 font-[650] enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]'
+											].join(' ')}
 											type="button"
 											disabled={disabledFeatures}
 											onClick={() => {
@@ -316,7 +343,10 @@ function CollectionManagementToolbarComponent({
 									) : null}
 									<button
 										aria-label="Search"
-										className="CollectionToolbarSearchSubmit"
+										className={[
+											collectionToolbarControlClassName,
+											'inline-flex w-control cursor-pointer items-center justify-center rounded-l-none border-l-0 border-primary bg-primary font-[650] enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
+										].join(' ')}
 										type="button"
 										disabled={disabledFeatures}
 										onClick={() => {
@@ -328,9 +358,9 @@ function CollectionManagementToolbarComponent({
 								</div>
 							</div>
 						</div>
-						<div className="CollectionToolbarMetaColumn">
-							<div className="CollectionToolbarMeta">
-								<div className="CollectionToolbarActions CollectionToolbarActions--secondary">
+						<div className="min-w-0">
+							<div className="flex min-h-control w-full items-center justify-end text-text-muted max-[1199px]:justify-start">
+								<div className="inline-flex min-h-[38px] flex-wrap items-center justify-end gap-2.5 max-[1199px]:justify-start">
 									{numResults !== undefined ? <span>{`${numResults} mod${numResults === 1 ? '' : 's'} shown`}</span> : null}
 								</div>
 							</div>
