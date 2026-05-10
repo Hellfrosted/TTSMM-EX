@@ -1,8 +1,11 @@
-import { ElectronLog } from 'electron-log';
+import type Logger from 'electron-log';
+import type { AppConfig } from './AppConfig';
 import { ModData, ModDescriptor, ModType, getModDataId, ModDataOverride } from './Mod';
 import { ModCollection } from './ModCollection';
 import { CollectionErrors, ModErrors } from './CollectionValidation';
 import { getCorpType } from './Corp';
+
+type ElectronLogger = typeof Logger;
 
 export class SessionMods {
 	localPath?: string;
@@ -24,6 +27,35 @@ export class SessionMods {
 	}
 }
 
+function cloneModOverride(override: ModDataOverride | undefined): ModDataOverride | undefined {
+	if (!override) {
+		return undefined;
+	}
+
+	return {
+		...override,
+		tags: override.tags ? [...override.tags] : undefined
+	};
+}
+
+export function cloneModData(mod: ModData): ModData {
+	return {
+		...mod,
+		authors: mod.authors ? [...mod.authors] : undefined,
+		tags: mod.tags ? [...mod.tags] : undefined,
+		steamDependencies: mod.steamDependencies ? [...mod.steamDependencies] : undefined,
+		steamDependencyNames: mod.steamDependencyNames ? { ...mod.steamDependencyNames } : undefined,
+		explicitIDDependencies: mod.explicitIDDependencies ? [...mod.explicitIDDependencies] : undefined,
+		dependsOn: mod.dependsOn ? [...mod.dependsOn] : undefined,
+		isDependencyFor: mod.isDependencyFor ? [...mod.isDependencyFor] : undefined,
+		overrides: cloneModOverride(mod.overrides)
+	};
+}
+
+export function cloneSessionMods(session: SessionMods): SessionMods {
+	return new SessionMods(session.localPath, session.foundMods.map((mod) => cloneModData(mod)));
+}
+
 export function getDescriptor(session: SessionMods, mod: ModData): ModDescriptor | undefined {
 	let myDescriptor: ModDescriptor | undefined;
 	const id = getModDataId(mod);
@@ -36,12 +68,123 @@ export function getDescriptor(session: SessionMods, mod: ModData): ModDescriptor
 	return myDescriptor;
 }
 
+function getEquivalentModIds(
+	modID: string | undefined | null,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+): string[] {
+	if (!modID) {
+		return [];
+	}
+
+	const equivalentIds = new Set<string>([modID]);
+	const treatNuterraSteamBetaAsEquivalent = config?.treatNuterraSteamBetaAsEquivalent !== false;
+	if (treatNuterraSteamBetaAsEquivalent) {
+		const normalizedModId = modID.replace(/[^a-z0-9]/gi, '').toLowerCase();
+		if (normalizedModId === 'nuterrasteam' || normalizedModId === 'nuterrasteambeta') {
+			equivalentIds.add('NuterraSteam');
+			equivalentIds.add('NuterraSteam(beta)');
+			equivalentIds.add('NuterraSteam (Beta)');
+		}
+	}
+
+	return [...equivalentIds];
+}
+
+function getEquivalentNameIds(
+	name: string | undefined | null,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+): string[] {
+	const equivalentIds = getEquivalentModIds(name, config);
+	if (!name || equivalentIds.length <= 1) {
+		return [];
+	}
+	return equivalentIds;
+}
+
+function createDescriptor(): ModDescriptor {
+	return {
+		UIDs: new Set()
+	};
+}
+
+function ensureDescriptorForModId(
+	modID: string | undefined | null,
+	modIdToModDescriptor: Map<string, ModDescriptor>,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+) {
+	const descriptorIds = getEquivalentModIds(modID, config);
+	let descriptor = descriptorIds.map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
+	if (!descriptor && modID) {
+		descriptor = createDescriptor();
+		descriptor.modID = modID;
+	}
+	if (descriptor) {
+		if (modID && !descriptor.modID) {
+			descriptor.modID = modID;
+		}
+		descriptorIds.forEach((descriptorId) => modIdToModDescriptor.set(descriptorId, descriptor!));
+	}
+	return descriptor;
+}
+
+function ensureDescriptorForEquivalentName(
+	name: string | undefined | null,
+	modIdToModDescriptor: Map<string, ModDescriptor>,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+) {
+	const descriptorIds = getEquivalentNameIds(name, config);
+	if (descriptorIds.length === 0) {
+		return undefined;
+	}
+
+	let descriptor = descriptorIds.map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
+	if (!descriptor) {
+		descriptor = createDescriptor();
+		descriptor.modID = name || descriptorIds[0];
+	}
+	if (!descriptor.modID) {
+		descriptor.modID = name || descriptorIds[0];
+	}
+	descriptorIds.forEach((descriptorId) => modIdToModDescriptor.set(descriptorId, descriptor!));
+	return descriptor;
+}
+
+function findExistingDescriptorForModId(
+	modID: string | undefined | null,
+	modIdToModDescriptor: Map<string, ModDescriptor>,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+) {
+	return getEquivalentModIds(modID, config).map((descriptorId) => modIdToModDescriptor.get(descriptorId)).find((value) => !!value);
+}
+
+function ensureDescriptorForWorkshopId(workshopID: bigint, workshopIdToModDescriptor: Map<bigint, ModDescriptor>) {
+	let descriptor = workshopIdToModDescriptor.get(workshopID);
+	if (!descriptor) {
+		descriptor = createDescriptor();
+		descriptor.workshopID = workshopID;
+		workshopIdToModDescriptor.set(workshopID, descriptor);
+	}
+	if (descriptor.workshopID === undefined) {
+		descriptor.workshopID = workshopID;
+	}
+	return descriptor;
+}
+
 // This exists because IPC communication means objects must be deserialized from main to renderer
 // This means that object refs are not carried over, and so relying on it as a unique ID will fail
-export function setupDescriptors(session: SessionMods, overrides: Map<string, ModDataOverride>) {
+export function setupDescriptors(
+	session: SessionMods,
+	overrides: Map<string, ModDataOverride>,
+	config?: Pick<AppConfig, 'treatNuterraSteamBetaAsEquivalent'>
+) {
 	const { foundMods, modIdToModDataMap, modIdToModDescriptor, workshopIdToModDescriptor } = session;
+	modIdToModDataMap.clear();
 	modIdToModDescriptor.clear();
 	workshopIdToModDescriptor.clear();
+	foundMods.forEach((mod: ModData) => {
+		mod.dependsOn = undefined;
+		mod.isDependencyFor = undefined;
+	});
 	// Setup ModDescriptors and other maps
 	foundMods.forEach((mod: ModData) => {
 		const modOverrides = overrides.get(mod.uid);
@@ -53,29 +196,19 @@ export function setupDescriptors(session: SessionMods, overrides: Map<string, Mo
 		// Create mod descriptors using workshop mods as first pass
 		if (mod.type === ModType.WORKSHOP && mod.workshopID) {
 			const { workshopID } = mod;
-			let descriptor: ModDescriptor | undefined;
 			const id = getModDataId(mod);
-			if (id) {
-				descriptor = modIdToModDescriptor.get(id);
-			}
-			if (!descriptor) {
-				descriptor = {
-					UIDs: new Set()
-				};
-				if (id) {
-					descriptor.modID = id;
-				}
-			}
+			const descriptor =
+				ensureDescriptorForModId(id, modIdToModDescriptor, config) ||
+				ensureDescriptorForEquivalentName(mod.name, modIdToModDescriptor, config) ||
+				ensureDescriptorForWorkshopId(workshopID, workshopIdToModDescriptor);
+			descriptor.workshopID = workshopID;
+			workshopIdToModDescriptor.set(workshopID, descriptor);
 
 			if (!descriptor.name && mod.name) {
 				descriptor.name = mod.name;
 			}
 
 			descriptor.UIDs.add(mod.uid);
-			workshopIdToModDescriptor.set(workshopID, descriptor);
-			if (id) {
-				modIdToModDescriptor.set(id, descriptor);
-			}
 		}
 	});
 	// Fill in mod descriptors for local mods
@@ -83,23 +216,10 @@ export function setupDescriptors(session: SessionMods, overrides: Map<string, Mo
 		if (mod.type !== ModType.WORKSHOP) {
 			const id = getModDataId(mod);
 			if (id) {
-				if (!modIdToModDataMap.get(mod.uid)) {
-					// Don't expect this to ever happen
-					const descriptor: ModDescriptor = {
-						modID: id,
-						UIDs: new Set(),
-						name: mod.name
-					};
-					descriptor.UIDs.add(mod.uid);
-					modIdToModDescriptor.set(id, descriptor);
-				} else {
-					let descriptor: ModDescriptor | undefined = modIdToModDescriptor.get(id);
-					if (!descriptor) {
-						descriptor = {
-							UIDs: new Set()
-						};
-						descriptor.modID = id;
-						modIdToModDescriptor.set(id, descriptor);
+				const descriptor = ensureDescriptorForModId(id, modIdToModDescriptor, config);
+				if (descriptor) {
+					if (!descriptor.name && mod.name) {
+						descriptor.name = mod.name;
 					}
 					descriptor.UIDs.add(mod.uid);
 				}
@@ -114,14 +234,23 @@ export function setupDescriptors(session: SessionMods, overrides: Map<string, Mo
 		if (myDescriptor) {
 			const dependencies: Set<ModDescriptor> = new Set();
 			mod.steamDependencies?.forEach((workshopID) => {
-				const descriptor = workshopIdToModDescriptor.get(workshopID);
-				if (descriptor) {
-					dependencies.add(descriptor);
+				const dependencyName = mod.steamDependencyNames?.[workshopID.toString()];
+				const descriptor =
+					workshopIdToModDescriptor.get(workshopID) ||
+					findExistingDescriptorForModId(dependencyName, modIdToModDescriptor, config) ||
+					ensureDescriptorForWorkshopId(workshopID, workshopIdToModDescriptor);
+				workshopIdToModDescriptor.set(workshopID, descriptor);
+				if (dependencyName && !descriptor.name) {
+					descriptor.name = dependencyName;
 				}
+				dependencies.add(descriptor);
 			});
 			mod.explicitIDDependencies?.forEach((modID) => {
-				const descriptor = modIdToModDescriptor.get(modID);
+				const descriptor = ensureDescriptorForModId(modID, modIdToModDescriptor, config);
 				if (descriptor) {
+					if (!descriptor.name) {
+						descriptor.name = modID;
+					}
 					dependencies.add(descriptor);
 				}
 			});
@@ -130,10 +259,10 @@ export function setupDescriptors(session: SessionMods, overrides: Map<string, Mo
 				dependencies.forEach((dependency: ModDescriptor) => {
 					let reliers = dependenciesMap.get(dependency);
 					if (reliers) {
-						reliers.add(myDescriptor);
+						reliers.add(myDescriptor!);
 					} else {
 						reliers = new Set();
-						reliers.add(myDescriptor);
+						reliers.add(myDescriptor!);
 						dependenciesMap.set(dependency, reliers);
 					}
 				});
@@ -202,7 +331,7 @@ export function filterRows(session: SessionMods, searchString: string | undefine
 	return getRows(session);
 }
 
-export function validateMod(session: SessionMods, modData: ModData, logger?: ElectronLog): ModErrors {
+export function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronLogger): ModErrors {
 	logger?.debug(`validating ${modData.name}`);
 	const thisModErrors: ModErrors = {};
 
@@ -226,7 +355,7 @@ export function validateMod(session: SessionMods, modData: ModData, logger?: Ele
 	return thisModErrors;
 }
 
-export function validateCollection(session: SessionMods, collection: ModCollection, logger?: ElectronLog): Promise<CollectionErrors> {
+export function validateCollection(session: SessionMods, collection: ModCollection, logger?: ElectronLogger): Promise<CollectionErrors> {
 	return new Promise<CollectionErrors>((resolve, reject) => {
 		try {
 			const errors: CollectionErrors = {};

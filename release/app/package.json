@@ -1,21 +1,21 @@
 {
-	"name": "terratech-steam-mod-loader",
-	"productName": "TerraTech Steam Mod Manager",
-	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
-	"version": "1.7.10",
-	"main": "./dist/main/main.js",
-	"author": {
-		"name": "FLSoz",
-		"url": "https://github.com/FLSoz/terratech-steam-mod-loader"
-	},
-	"scripts": {
-		"electron-rebuild": "node -r ts-node/register ../../.erb/scripts/electron-rebuild.js",
-		"link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts",
-		"postinstall": "npm run electron-rebuild && npm run link-modules"
-	},
-	"license": "MIT",
-	"dependencies": {
-		"greenworks": "github:greenheartgames/greenworks",
-		"ps-list": "^7.2.0"
-	}
+  "name": "terratech-steam-mod-manager-ex",
+  "productName": "TerraTech Steam Mod Manager EX",
+  "description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
+  "version": "2.0.0",
+  "main": "./dist/main/main.js",
+  "author": {
+    "name": "Hellfrosted",
+    "url": "https://github.com/Hellfrosted/terratech-steam-mod-loader"
+  },
+  "scripts": {
+    "electron-rebuild": "node --import=tsx ../../scripts/electron-rebuild.ts",
+    "link-modules": "node --import=tsx ../../scripts/link-modules.ts",
+    "postinstall": "npm run electron-rebuild && npm run link-modules"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "greenworks": "github:FLSoz/greenworks",
+    "ps-list": "^9.0.0"
+  }
 }

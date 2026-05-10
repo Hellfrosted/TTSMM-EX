@@ -1,63 +1,107 @@
-import React, { Component } from 'react';
-import { AppState } from 'model';
+import { startTransition, useEffect, useRef } from 'react';
 import { Menu } from 'antd';
+import type { MenuProps as AntdMenuProps } from 'antd';
 import { AppstoreOutlined, SettingOutlined } from '@ant-design/icons';
-import { useNavigate, NavigateFunction } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import type { AppState } from 'model';
 import api from 'renderer/Api';
 
 interface MenuProps {
 	disableNavigation?: boolean;
 	appState: AppState;
-	navigate: NavigateFunction;
 }
 
-class MenuBar extends Component<MenuProps, never> {
-	render() {
-		const { disableNavigation, appState } = this.props;
-		const { config, navigate, updateState } = appState;
-		const loadModsOnNavigate = !appState.firstModLoad;
-		const MenuIconStyle = { fontSize: 28, lineHeight: 0, marginLeft: -4 };
-		const MenuItemStyle = { display: 'flex', alignItems: 'center' };
+export default function MenuBar({ disableNavigation, appState }: MenuProps) {
+	const navigate = useNavigate();
+	const location = useLocation();
+	const { config, updateState } = appState;
+	const loadModsOnNavigate = !appState.firstModLoad;
+	const configRef = useRef(config);
+	const persistPathHandleRef = useRef<number | null>(null);
+	const menuIconStyle = { fontSize: 18, lineHeight: 1 };
+	const menuItemStyle = { display: 'flex', alignItems: 'center' };
+	const selectedPath = location.pathname.startsWith('/settings') ? '/settings' : '/collections/main';
 
-		return (
-			<Menu
-				id="MenuBar"
-				theme="dark"
-				className="MenuBar"
-				selectedKeys={[config.currentPath]}
-				mode="inline"
-				disabled={disableNavigation}
-				onClick={(e) => {
-					if (e.key !== config.currentPath) {
-						config.currentPath = e.key;
-						updateState({ savingConfig: true });
-						api
-							.updateConfig(config)
-							.catch((error) => {
-								api.logger.error(error);
-								updateState({ config });
-							})
-							.finally(() => {
-								updateState({ savingConfig: false });
-							});
-						if (loadModsOnNavigate) {
-							updateState({ loadingMods: true });
-						}
+	useEffect(() => {
+		configRef.current = config;
+	}, [config]);
+
+	const cancelPendingPersist = () => {
+		if (persistPathHandleRef.current === null) {
+			return;
+		}
+
+		if (typeof window.cancelIdleCallback === 'function') {
+			window.cancelIdleCallback(persistPathHandleRef.current);
+		} else {
+			window.clearTimeout(persistPathHandleRef.current);
+		}
+		persistPathHandleRef.current = null;
+	};
+
+	const persistCurrentPath = (nextPath: string) => {
+		cancelPendingPersist();
+		const persistConfig = () => {
+			const nextConfig = { ...configRef.current, currentPath: nextPath };
+			void api.updateConfig(nextConfig).then((updateSuccess) => {
+				if (!updateSuccess) {
+					throw new Error('Config write was rejected');
+				}
+				return updateSuccess;
+			}).catch((error) => {
+				api.logger.error(error);
+			}).finally(() => {
+				persistPathHandleRef.current = null;
+			});
+		};
+
+		if (typeof window.requestIdleCallback === 'function') {
+			persistPathHandleRef.current = window.requestIdleCallback(persistConfig, { timeout: 750 });
+			return;
+		}
+
+		persistPathHandleRef.current = window.setTimeout(persistConfig, 250);
+	};
+
+	const items: AntdMenuProps['items'] = [
+		{
+			key: '/collections/main',
+			style: menuItemStyle,
+			icon: <AppstoreOutlined style={menuIconStyle} />,
+			label: 'Mod Collections'
+		},
+		{
+			key: '/settings',
+			style: menuItemStyle,
+			icon: <SettingOutlined style={menuIconStyle} />,
+			label: 'Settings'
+		}
+	];
+
+	useEffect(() => {
+		return () => {
+			cancelPendingPersist();
+		};
+	}, []);
+
+	return (
+		<Menu
+			id="MenuBar"
+			theme="dark"
+			className="MenuBar"
+			selectedKeys={[selectedPath]}
+			mode="inline"
+			disabled={disableNavigation}
+			items={items}
+			onClick={(e) => {
+				if (e.key !== selectedPath) {
+					startTransition(() => {
+						updateState(loadModsOnNavigate ? { loadingMods: true } : {});
 						navigate(e.key);
-					}
-				}}
-			>
-				<Menu.Item key="/collections/main" style={MenuItemStyle} icon={<AppstoreOutlined style={MenuIconStyle} />}>
-					Mod Collections
-				</Menu.Item>
-				<Menu.Item key="/settings" style={MenuItemStyle} icon={<SettingOutlined style={MenuIconStyle} />}>
-					Settings
-				</Menu.Item>
-			</Menu>
-		);
-	}
-}
-
-export default function (props: { disableNavigation: boolean; appState: AppState }) {
-	return <MenuBar {...props} navigate={useNavigate()} />;
+					});
+					persistCurrentPath(e.key);
+				}
+			}}
+		/>
+	);
 }

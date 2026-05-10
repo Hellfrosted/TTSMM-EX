@@ -1,18 +1,16 @@
-/* eslint import/prefer-default-export: off, import/no-mutable-exports: off */
-import { URL } from 'url';
-import path from 'path';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-export let resolveHtmlPath: (htmlFileName: string) => string;
+export function resolveHtmlPath(htmlFileName: string) {
+	if (process.env.ELECTRON_RENDERER_URL) {
+		const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL);
+		rendererUrl.pathname = htmlFileName;
+		return rendererUrl.toString();
+	}
 
-if (process.env.NODE_ENV === 'development') {
-	const port = process.env.PORT || 1212;
-	resolveHtmlPath = (htmlFileName: string) => {
-		const url = new URL(`http://localhost:${port}`);
-		url.pathname = htmlFileName;
-		return url.href;
-	};
-} else {
-	resolveHtmlPath = (htmlFileName: string) => {
-		return `file://${path.resolve(__dirname, '../renderer/', htmlFileName)}`;
-	};
+	return pathToFileURL(path.resolve(__dirname, '../renderer/', htmlFileName)).toString();
+}
+
+export function resolvePreloadPath() {
+	return path.resolve(__dirname, '../preload/preload.js');
 }

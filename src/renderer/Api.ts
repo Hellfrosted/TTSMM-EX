@@ -1,38 +1,16 @@
 /* eslint-disable class-methods-use-this */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { AppConfig, ModCollection, ModData, ValidChannel, PathParams, PathType, NLogLevel } from 'model';
+import { AppConfig, LogLevel, ModCollection, ModData, NLogLevel, PathType, SessionMods } from 'model';
+import type { ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
+import type { SteamworksStatus } from 'shared/ipc';
 
-interface ElectronInterface {
-	platform: string;
-	log: {
-		info: (message: any) => void;
-		debug: (message: any) => void;
-		warn: (message: any) => void;
-		error: (message: any) => void;
-		silly: (message: any) => void;
-		verbose: (message: any) => void;
-	};
-	ipcRenderer: {
-		close: () => void;
-		exit: (code: number) => void;
-		on: (channel: ValidChannel, func: Function) => void;
-		once: (channel: ValidChannel, func: Function) => void;
-		removeListener: (channel: ValidChannel, listener: Function) => void;
-		removeAllListeners: (channel: ValidChannel) => void;
-		send: (channel: ValidChannel, ...args: any[]) => void;
-		sendSync: (channel: ValidChannel, ...args: any[]) => any;
-		invoke: (channel: ValidChannel, ...args: any[]) => Promise<any>;
-	};
+const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
+
+export function parseExtraLaunchParams(extraParams: string): string[] {
+	const matches = extraParams.matchAll(EXTRA_PARAM_PATTERN);
+	return [...matches].map((match) => match[1] ?? match[2] ?? match[0]).filter((arg) => arg.length > 0);
 }
-
-declare global {
-	interface Window {
-		electron: ElectronInterface;
-	}
-}
-
-const { ipcRenderer } = window.electron;
 
 class API {
 	platform: string;
@@ -74,20 +52,16 @@ class API {
 
 	async getUserDataPath() {
 		if (this.userDataPath === undefined) {
-			return ipcRenderer.invoke(ValidChannel.USER_DATA_PATH).then((path: string) => {
-				this.userDataPath = path;
-				return path;
+			return window.electron.getUserDataPath().then((resolvedPath: string) => {
+				this.userDataPath = resolvedPath;
+				return resolvedPath;
 			});
 		}
 		return this.userDataPath;
 	}
 
-	close() {
-		return ipcRenderer.close();
-	}
-
-	exit(code: number) {
-		return ipcRenderer.exit(code);
+	updateLogLevel(level: LogLevel) {
+		window.electron.updateLogLevel(level);
 	}
 
 	launchGame(
@@ -98,7 +72,7 @@ class API {
 		pureVanilla?: boolean,
 		logParams?: { [loggerID: string]: NLogLevel },
 		extraParams?: string
-	): Promise<any> {
+	): Promise<boolean> {
 		const actualMods = modList
 			.filter((modData) => modData && modData.workshopID !== BigInt(workshopID))
 			.map((mod: ModData) => {
@@ -108,7 +82,6 @@ class API {
 		let passedWorkshopID: string | null = workshopID;
 
 		let addMods = true;
-		// Don't block pure vanilla if only Mod Manager & Harmony are selected
 		if (actualMods.length === 0 || (actualMods.length === 1 && actualMods[0] === '[workshop:2571814511]')) {
 			if (pureVanilla) {
 				passedWorkshopID = null;
@@ -127,129 +100,106 @@ class API {
 			}
 		}
 		if (extraParams) {
-			const splitParams: string[] = extraParams.split(' ');
-			args = args.concat(splitParams);
+			args = args.concat(parseExtraLaunchParams(extraParams));
 		}
-		return ipcRenderer.invoke(ValidChannel.LAUNCH_GAME, gameExec, passedWorkshopID, closeOnLaunch, args);
+		return window.electron.launchGame(gameExec, passedWorkshopID, closeOnLaunch, args);
 	}
 
 	gameRunning(): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.GAME_RUNNING);
+		return window.electron.isGameRunning();
 	}
 
-	// IPCRenderer API
-	on(channel: ValidChannel, func: Function): void {
-		ipcRenderer.on(channel, func);
+	onProgressChange(callback: ProgressChangeCallback): Unsubscribe {
+		return window.electron.onProgressChange(callback);
 	}
 
-	once(channel: ValidChannel, func: Function): void {
-		ipcRenderer.once(channel, func);
+	onModMetadataUpdate(callback: (uid: string, update: any) => void): Unsubscribe {
+		return window.electron.onModMetadataUpdate(callback);
 	}
 
-	removeListener(channel: ValidChannel, listener: Function): void {
-		ipcRenderer.removeListener(channel, listener);
+	onModRefreshRequested(callback: () => void): Unsubscribe {
+		return window.electron.onModRefreshRequested(callback);
 	}
 
-	removeAllListeners(channel: ValidChannel): void {
-		ipcRenderer.removeAllListeners(channel);
+	onReloadSteamworks(callback: () => void): Unsubscribe {
+		return window.electron.onReloadSteamworks(callback);
 	}
 
-	send(channel: ValidChannel, ...args: any[]): void {
-		ipcRenderer.send(channel, ...args);
+	pathExists(targetPath: string, type?: PathType): Promise<boolean> {
+		return window.electron.pathExists(targetPath, type);
 	}
 
-	sendSync(channel: ValidChannel, ...args: any[]): any {
-		return ipcRenderer.sendSync(channel, ...args);
+	discoverGameExecutable(): Promise<string | null> {
+		return window.electron.discoverGameExecutable();
 	}
 
-	invoke(channel: ValidChannel, ...args: any[]): Promise<any> {
-		return ipcRenderer.invoke(channel, ...args);
-	}
-
-	// file API
-	convertToPathParam(path: PathParams | string, type?: PathType): PathParams {
-		let pathParams: PathParams;
-		if (typeof path === 'string') {
-			pathParams = { prefixes: [], path, type };
-		} else {
-			pathParams = path;
-			if (type !== undefined) {
-				pathParams.type = type;
-			}
-		}
-		return pathParams;
-	}
-
-	readFile(path: PathParams | string): Promise<any> {
-		return ipcRenderer.invoke(ValidChannel.READ_FILE, this.convertToPathParam(path));
-	}
-
-	writeFile(path: PathParams | string, data: string): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.WRITE_FILE, this.convertToPathParam(path), data);
-	}
-
-	updateFile(path: PathParams | string, data: object): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.UPDATE_FILE, this.convertToPathParam(path), data);
-	}
-
-	deleteFile(path: PathParams | string): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.DELETE_FILE, this.convertToPathParam(path));
-	}
-
-	listDir(path: PathParams | string): Promise<any> {
-		return ipcRenderer.invoke(ValidChannel.LIST_DIR, this.convertToPathParam(path));
-	}
-
-	listSubdirs(path: PathParams | string): Promise<any> {
-		return ipcRenderer.invoke(ValidChannel.LIST_SUBDIRS, this.convertToPathParam(path));
-	}
-
-	mkdir(path: PathParams | string): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.MKDIR, this.convertToPathParam(path));
-	}
-
-	pathExists(path: PathParams | string, type?: PathType): Promise<any> {
-		return ipcRenderer.invoke(ValidChannel.PATH_EXISTS, this.convertToPathParam(path, type));
-	}
-
-	access(path: PathParams | string): Promise<any> {
-		return ipcRenderer.invoke(ValidChannel.PATH_ACCESS, this.convertToPathParam(path));
-	}
-
-	readConfig(): Promise<AppConfig> {
-		return ipcRenderer.invoke(ValidChannel.READ_CONFIG);
+	readConfig(): Promise<AppConfig | null> {
+		return window.electron.readConfig();
 	}
 
 	updateConfig(config: AppConfig): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.UPDATE_CONFIG, config);
+		return window.electron.updateConfig(config);
 	}
 
-	readCollection(collection: string): void {
-		ipcRenderer.send(ValidChannel.READ_COLLECTION, collection);
+	readCollection(collection: string): Promise<ModCollection | null> {
+		return window.electron.readCollection(collection);
 	}
 
 	readCollectionsList(): Promise<string[]> {
-		return ipcRenderer.invoke(ValidChannel.READ_COLLECTIONS);
+		return window.electron.readCollectionsList();
 	}
 
 	updateCollection(collection: ModCollection): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.UPDATE_COLLECTION, collection);
+		return window.electron.updateCollection(collection);
 	}
 
 	deleteCollection(collection: string): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.DELETE_COLLECTION, collection);
+		return window.electron.deleteCollection(collection);
 	}
 
 	renameCollection(collection: ModCollection, newName: string): Promise<boolean> {
-		return ipcRenderer.invoke(ValidChannel.RENAME_COLLECTION, collection, newName);
+		return window.electron.renameCollection(collection, newName);
+	}
+
+	selectPath(directory: boolean, title: string): Promise<string | null> {
+		return window.electron.selectPath(directory, title);
+	}
+
+	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods | null> {
+		return window.electron.readModMetadata(localDir, [...allKnownMods]);
+	}
+
+	fetchWorkshopDependencies(workshopID: bigint): Promise<boolean> {
+		return window.electron.fetchWorkshopDependencies(workshopID);
+	}
+
+	steamworksInited(): Promise<SteamworksStatus> {
+		return window.electron.steamworksInited();
 	}
 
 	openModBrowser(workshopID: bigint) {
-		ipcRenderer.send(ValidChannel.OPEN_MOD_BROWSER, workshopID);
+		window.electron.openModBrowser(workshopID);
 	}
 
 	openModSteam(workshopID: bigint) {
-		ipcRenderer.send(ValidChannel.OPEN_MOD_STEAM, workshopID);
+		window.electron.openModSteam(workshopID);
+	}
+
+	openModContextMenu(record: ModData) {
+		window.electron.openModContextMenu(record);
+	}
+
+	downloadMod(workshopID: bigint): Promise<boolean> {
+		return window.electron.downloadMod(workshopID);
+	}
+
+	subscribeMod(workshopID: bigint): Promise<boolean> {
+		return window.electron.subscribeMod(workshopID);
+	}
+
+	unsubscribeMod(workshopID: bigint): Promise<boolean> {
+		return window.electron.unsubscribeMod(workshopID);
 	}
 }
+
 export default new API(window);

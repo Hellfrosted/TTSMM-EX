@@ -2,7 +2,7 @@ import { AppConfigKeys, PathType } from 'model';
 import api from 'renderer/Api';
 import { IsMac, platform, TT_APP_ID } from 'renderer/Constants';
 
-// eslint-disable-next-line import/prefer-default-export
+ 
 export async function validateSettingsPath(field: string, value: string): Promise<string | undefined> {
 	const result: string | undefined = await api
 		.pathExists(value, field === AppConfigKeys.GAME_EXEC && !IsMac() ? PathType.FILE : PathType.DIRECTORY)
