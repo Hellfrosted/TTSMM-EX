@@ -13,6 +13,10 @@ export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
 }
 
 export function readConfigFile(filepath: string, isDevelopment: boolean): AppConfig | null {
+	if (!fs.existsSync(filepath)) {
+		return null;
+	}
+
 	try {
 		const appConfig = JSON.parse(fs.readFileSync(filepath, 'utf8').toString());
 		if (appConfig.logLevel) {

@@ -4,25 +4,67 @@ Fork of TTSMM for managing TerraTech local mods and Steam Workshop collections.
 
 The EX fork uses its own app identity and user-data directory, so it can be installed alongside the upstream `FLSoz` build.
 
+## Install
+
+If you only want to run the app, download a release artifact for your distro and install it directly.
+
+Windows:
+
+- Run `TerraTech Steam Mod Manager EX Setup <version>.exe`
+- Launch `TerraTech Steam Mod Manager EX` from the Start menu or the desktop shortcut after install
+
+Debian or Ubuntu:
+
+```bash
+sudo apt install ./terratech-steam-mod-manager-ex_<version>_amd64.deb
+terratech-steam-mod-manager-ex
+```
+
+Arch:
+
+```bash
+sudo pacman -U ./terratech-steam-mod-manager-ex-<version>.pacman
+terratech-steam-mod-manager-ex
+```
+
+Steam must already be installed and running on that same Linux install before you launch the app.
+
 ## Setup
 
 Requirements:
 
 - Node `>=20 <26`
 - npm `>=10 <12`
-- Steam desktop client
+- Steam desktop client installed in the same Linux or Windows install you are running the app from
 - Steamworks SDK
+
+Linux runtime packages:
+
+- Debian or Ubuntu: `libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0`
+- Arch: `gtk3 libnotify nss libxss libxtst xdg-utils at-spi2-core libsecret alsa-lib libappindicator`
 
 Set the Steamworks SDK path before installing dependencies. Use either:
 
 - `STEAMWORKS_SDK_PATH`
 - a repo-local `.steamworks-sdk-path` file that points at the extracted `sdk` directory
 
-Then:
+Install dependencies and rebuild Steamworks:
 
 ```bash
 npm install
 npm run setup:steamworks
+```
+
+Run from source:
+
+```bash
+steam &
+npm run start:desktop
+```
+
+For frontend development with the Vite dev server:
+
+```bash
 npm run dev
 ```
 
@@ -35,6 +77,13 @@ npm run smoke:steamworks
 ```
 
 This repo assumes Steamworks is available. Source builds without it are not a supported setup.
+
+Linux notes:
+
+- Steam must be running and signed in before launching the app
+- TerraTech should be installed in that same Steam library if you want the app to find the game install and scan workshop content
+- Linux launches TerraTech through Steam; the `TerraTech Executable` setting is unused there
+- Linux builds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough
 
 ## Data
 
@@ -67,13 +116,12 @@ The Windows target is `nsis`. Installer resources come from `assets/icon.ico`.
 
 ### Linux
 
-Build on Linux, or in WSL with a Linux dependency install:
+Build Linux artifacts on Linux:
 
 ```bash
 npm run package
 npm run package:linux:deb
 npm run package:linux:pacman
-npm run package:linux
 ```
 
 Linux outputs:
@@ -82,11 +130,27 @@ Linux outputs:
 - `npm run package:linux:deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
 - `npm run package:linux:pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
 
-Notes:
+Install and run:
 
-- rerun `npm run setup:steamworks` after reinstalling dependencies or switching operating systems
-- Linux rebuilds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough
-- the pacman target needs `bsdtar`
+```bash
+# Debian or Ubuntu
+sudo apt install ./release/build/terratech-steam-mod-manager-ex_<version>_amd64.deb
+
+# Arch
+sudo pacman -U ./release/build/terratech-steam-mod-manager-ex-<version>.pacman
+
+# Run the packaged app
+terratech-steam-mod-manager-ex
+```
+
+If you use the default AppImage target:
+
+```bash
+chmod +x ./release/build/*.AppImage
+./release/build/*.AppImage
+```
+
+The pacman target needs `bsdtar`.
 
 ## Notes
 

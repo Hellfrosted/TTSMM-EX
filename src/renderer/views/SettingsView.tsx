@@ -18,6 +18,7 @@ interface SettingsViewProps {
 function SettingsViewComponent({ appState }: SettingsViewProps) {
 	const [form] = Form.useForm();
 	const { madeConfigEdits, savingConfig, configErrors } = appState;
+	const isLinux = window.electron.platform === 'linux';
 	const {
 		editingConfig,
 		selectingDirectory,
@@ -243,37 +244,56 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								/>
 							</Form.Item>
 							<Form.Item
-								name="gameExec"
 								label="TerraTech Executable"
 								tooltip={{
 									styles: { container: { minWidth: 300 } },
 									title: (
 										<div>
-											<p>Path to TT executable</p>
-											<p>Generally, it should be under: Steam/steamapps/common/TerraTech. It varies by platform</p>
+											{isLinux ? (
+												<>
+													<p>Unused on Linux.</p>
+													<p>The Linux build launches TerraTech through Steam, so there is no executable path to discover or browse here.</p>
+												</>
+											) : (
+												<>
+													<p>Path to TT executable</p>
+													<p>Generally, it should be under: Steam/steamapps/common/TerraTech. It varies by platform</p>
+												</>
+											)}
 										</div>
 									)
 								}}
-								rules={[
-									{
-										required: true,
-										validator: async (_, value) => validateFile(AppConfigKeys.GAME_EXEC, value)
-									}
-								]}
+								{...(isLinux
+									? {
+											extra: 'Unused on Linux. TerraTech is launched through Steam.'
+										}
+									: {
+											name: 'gameExec',
+											rules: [
+												{
+													required: true,
+													validator: async (_: unknown, value: string) => validateFile(AppConfigKeys.GAME_EXEC, value)
+												}
+											]
+										})}
 								help={configErrors?.gameExec}
 								validateStatus={configErrors?.gameExec ? 'error' : undefined}
 							>
-								<Search
-									disabled={selectingDirectory}
-									value={editingConfig.gameExec}
-									enterButton={<FolderOutlined />}
-									onSearch={() => {
-										void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
-									}}
-									onChange={(event) => {
-										setField(AppConfigKeys.GAME_EXEC, event.target.value);
-									}}
-								/>
+								{isLinux ? (
+									<Input disabled value="Launched through Steam on Linux" />
+								) : (
+									<Search
+										disabled={selectingDirectory}
+										value={editingConfig.gameExec}
+										enterButton={<FolderOutlined />}
+										onSearch={() => {
+											void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
+										}}
+										onChange={(event) => {
+											setField(AppConfigKeys.GAME_EXEC, event.target.value);
+										}}
+									/>
+								)}
 							</Form.Item>
 							<Form.Item name="logsDir" label="Logs Directory">
 								<Search

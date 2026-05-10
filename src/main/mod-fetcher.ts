@@ -45,6 +45,27 @@ function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[
 }
 
 const MAX_MODS_PER_PAGE = 50;
+const TERRATECH_APP_ID = 285920;
+
+function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
+	if (platform !== 'linux') {
+		return false;
+	}
+
+	try {
+		const installDir = Steamworks.getAppInstallDir(TERRATECH_APP_ID);
+		if (Steamworks.isAppInstalled(TERRATECH_APP_ID) && installDir && existsSync(installDir)) {
+			return false;
+		}
+
+		log.warn(`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`);
+		return true;
+	} catch (error) {
+		log.error('Failed to verify the Linux TerraTech installation before scanning workshop items.');
+		log.error(error);
+		return true;
+	}
+}
 
 async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
 	return new Promise((resolve, reject) => {
@@ -153,6 +174,8 @@ export default class ModFetcher {
 
 	progressSender: ProgressSender;
 
+	platform: NodeJS.Platform;
+
 	localMods: number;
 
 	workshopMods: number;
@@ -161,10 +184,11 @@ export default class ModFetcher {
 
 	modCountMutex: Mutex;
 
-	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[]) {
+	constructor(progressSender: ProgressSender, localPath: string | undefined, knownWorkshopMods: bigint[], platform: NodeJS.Platform = process.platform) {
 		this.localPath = localPath;
 		this.knownWorkshopMods = new Set();
 		this.progressSender = progressSender;
+		this.platform = platform;
 
 		this.localMods = 0;
 		this.workshopMods = 0;
@@ -348,6 +372,14 @@ export default class ModFetcher {
 	}
 
 	async fetchWorkshopMods(): Promise<ModData[]> {
+		if (shouldSkipWorkshopFetch(this.platform)) {
+			return [];
+		}
+
+		if (this.platform === 'linux') {
+			return this.fetchWorkshopModsFromSubscriptions();
+		}
+
 		let numProcessedWorkshop = 0;
 		let pageNum = 1;
 		let lastProcessed = 1;
@@ -416,6 +448,69 @@ export default class ModFetcher {
 		}
 
 		return [...workshopMap.values()];
+	}
+
+	private async fetchWorkshopModsFromSubscriptions(): Promise<ModData[]> {
+		const allSubscribedItems = Steamworks.getSubscribedItems();
+		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...this.knownWorkshopMods]);
+
+		log.debug(`All subscribed items: [${allSubscribedItems}]`);
+		this.workshopMods = workshopIDs.size;
+
+		const modResponses = await Promise.allSettled<ModData>(
+			[...workshopIDs].map((workshopID) => {
+				const potentialMod: ModData = {
+					uid: `${ModType.WORKSHOP}:${workshopID}`,
+					id: null,
+					type: ModType.WORKSHOP,
+					workshopID,
+					hasCode: false,
+					path: '',
+					name: `Workshop item ${workshopID.toString()}`
+				};
+
+				return Promise.resolve()
+					.then(async () => {
+						try {
+							const state = Steamworks.ugcGetItemState(workshopID);
+							if (state) {
+								potentialMod.subscribed = !!(state & UGCItemState.Subscribed);
+								potentialMod.installed = !!(state & UGCItemState.Installed);
+								potentialMod.downloadPending = !!(state & UGCItemState.DownloadPending);
+								potentialMod.downloading = !!(state & UGCItemState.Downloading);
+								potentialMod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
+							}
+						} catch (error) {
+							log.warn(`Failed to read workshop item state for ${workshopID}`);
+							log.warn(error);
+						}
+
+						try {
+							const installInfo = Steamworks.ugcGetItemInstallInfo(workshopID);
+							if (!installInfo) {
+								return potentialMod;
+							}
+
+							log.silly(`Workshop mod is installed at path: ${installInfo.folder}`);
+							potentialMod.lastUpdate = new Date(installInfo.timestamp * 1000);
+							potentialMod.size = parseInt(installInfo.sizeOnDisk, 10);
+							potentialMod.path = installInfo.folder;
+
+							const resolvedMod = await getModDetailsFromPath(potentialMod, installInfo.folder, ModType.WORKSHOP);
+							return resolvedMod || potentialMod;
+						} catch (error) {
+							log.error(`Error parsing Linux workshop info for workshop:${workshopID}`);
+							log.error(error);
+							return potentialMod;
+						}
+					})
+					.finally(() => {
+						this.updateModLoadingProgress(1);
+					});
+			})
+		);
+
+		return filterOutNullValues(modResponses);
 	}
 
 	async fetchMods(): Promise<ModData[]> {
