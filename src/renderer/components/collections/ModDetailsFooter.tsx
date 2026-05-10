@@ -6,7 +6,6 @@ import {
 	DisplayModData,
 	getDescriptor,
 	getModDataDisplayName,
-	ModCollection,
 	ModErrors,
 	ModErrorType,
 	ModType,
@@ -579,13 +578,14 @@ function useModDetailsFooterContent({
 				const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
 				const dependencyKey = getModDataDependencyIgnoreKey(record);
 				const { name: recordName, type: recordType, uid: recordUid } = record;
+				const recordDisplayName = recordName || getModDataDisplayName(record) || recordUid;
 				const isSelected =
 					(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
 					(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
 
 				return (
 					<DetailCheckbox
-						aria-label={`Ignore validation error for ${recordName || recordUid}`}
+						aria-label={`Ignore validation error for ${recordDisplayName}`}
 						checked={isSelected}
 						disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
 						onChange={(checked) => {
@@ -638,14 +638,13 @@ function useModDetailsFooterContent({
 				title: 'State',
 				dataIndex: 'errors',
 				render: (errors: ModErrors | undefined, record: DisplayModData) => {
-					const collection = activeCollection as ModCollection;
 					const statusTags = getCollectionStatusTags({
 						lastValidationStatus,
 						record: {
 							...record,
 							errors
 						},
-						selectedMods: collection.mods
+						selectedMods: activeCollection?.mods ?? []
 					});
 
 					if (statusTags.length > 0) {
@@ -701,11 +700,11 @@ function useModDetailsFooterContent({
 
 	const getDependenciesRowSelection = useCallback(
 		(_type: DependenciesTableType, data: DisplayModData[]) => {
-			const { mods } = activeCollection!;
+			const selectedMods = activeCollection?.mods ?? [];
 			const availableKeys = new Set(getDependencySelectionKeys(data));
 
 			const rowSelection: DetailRowSelection = {
-				selectedRowKeys: mods.filter((uid) => availableKeys.has(uid)),
+				selectedRowKeys: selectedMods.filter((uid) => availableKeys.has(uid)),
 				checkStrictly: false,
 				onChange: (selectedRowKeys: Key[]) => {
 					const changes: { [uid: string]: boolean } = {};
@@ -774,6 +773,7 @@ function useModDetailsFooterContent({
 		[activeCollection, disableModCallback, enableModCallback, setModSubsetCallback]
 	);
 
+	const currentRecordDisplayName = currentRecord.name || getModDataDisplayName(currentRecord) || currentRecord.uid;
 	const renderInfoTab = () => {
 		const descriptionColumns = bigDetails && halfLayoutMode === 'bottom' ? 2 : 1;
 		const steamTags = currentRecord.tags?.map((tag) => <DetailTag key={tag}>{tag}</DetailTag>) || [];
@@ -794,7 +794,7 @@ function useModDetailsFooterContent({
 									label: 'Preview',
 									children: (
 										<div className="ModDetailInlinePreview">
-											<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
+											<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecordDisplayName} preview image`} />
 										</div>
 									)
 								}
@@ -1029,7 +1029,7 @@ function useModDetailsFooterContent({
 				bigDetails={bigDetails}
 				halfLayoutMode={halfLayoutMode}
 				identity={currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}
-				name={currentRecord.name}
+				name={currentRecordDisplayName}
 				onClose={closeFooterCallback}
 				onExpandChange={expandFooterCallback}
 				onToggleHalfLayout={toggleHalfLayoutCallback}
@@ -1037,7 +1037,7 @@ function useModDetailsFooterContent({
 			<div key="mod-details" className={`ModDetailFooterBody${bigDetails ? '' : ' ModDetailFooterBody--contentOnly'}`}>
 				{bigDetails ? (
 					<div className="ModDetailFooterPreviewCol">
-						<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
+						<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecordDisplayName} preview image`} />
 					</div>
 				) : null}
 				<div className="ModDetailFooterContentCol">

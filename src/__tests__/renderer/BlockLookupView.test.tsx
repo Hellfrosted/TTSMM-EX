@@ -183,6 +183,89 @@ describe('BlockLookupView', () => {
 		});
 	});
 
+	it('moves block lookup selection with arrows and extends ranges with Shift+Arrow', async () => {
+		stubResizeObserver();
+		const records = [
+			TEST_RECORD,
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findAllByText('Gamma Wheel');
+		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
+		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
+		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		const scrollPane = document.querySelector('.BlockLookupVirtualScroll') as HTMLDivElement;
+		expect(alphaRow).not.toBeNull();
+		expect(betaRow).not.toBeNull();
+		expect(gammaRow).not.toBeNull();
+
+		alphaRow!.focus();
+		fireEvent.keyDown(alphaRow!, { key: 'ArrowDown' });
+
+		expect(scrollPane).toHaveFocus();
+		expect(alphaRow).toHaveAttribute('aria-selected', 'false');
+		expect(betaRow).toHaveAttribute('aria-selected', 'true');
+		expect(gammaRow).toHaveAttribute('aria-selected', 'false');
+
+		fireEvent.keyDown(scrollPane, { key: 'ArrowDown', shiftKey: true });
+		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('SpawnBlock Beta_Shield(Test_Blocks)\nSpawnBlock Gamma_Wheel(Test_Blocks)');
+		});
+		expect(betaRow).toHaveAttribute('aria-selected', 'true');
+		expect(gammaRow).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('keeps block lookup keyboard focus stable across Home and End navigation', async () => {
+		stubResizeObserver();
+		const records = [
+			TEST_RECORD,
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+
+		renderBlockLookupView();
+
+		await screen.findAllByText('Gamma Wheel');
+		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
+		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
+		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		const scrollPane = document.querySelector('.BlockLookupVirtualScroll') as HTMLDivElement;
+		expect(alphaRow).not.toBeNull();
+		expect(betaRow).not.toBeNull();
+		expect(gammaRow).not.toBeNull();
+
+		betaRow!.focus();
+		fireEvent.keyDown(betaRow!, { key: 'End' });
+
+		expect(scrollPane).toHaveFocus();
+		expect(gammaRow).toHaveAttribute('aria-selected', 'true');
+
+		fireEvent.keyDown(scrollPane, { key: 'Home' });
+
+		expect(scrollPane).toHaveFocus();
+		expect(alphaRow).toHaveAttribute('aria-selected', 'true');
+	});
+
 	it('copies selected block lookup rows with Ctrl+C in visible table order', async () => {
 		stubResizeObserver();
 		const records = [
@@ -412,6 +495,47 @@ describe('BlockLookupView', () => {
 				})
 			);
 		});
+	});
+
+	it('keeps the full rebuild result visible after the blocking state closes', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
+		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
+			settings: { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' },
+			stats: { ...TEST_STATS, blocks: 12, sources: 3 }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findByRole('button', { name: /Full Rebuild/ });
+		fireEvent.click(screen.getByRole('button', { name: /Full Rebuild/ }));
+
+		expect(await screen.findByText('Full rebuild complete')).toBeInTheDocument();
+		expect(screen.getByText('12 blocks indexed from 3 sources.')).toBeInTheDocument();
+		expect(screen.queryByText('Updating block index')).not.toBeInTheDocument();
+	});
+
+	it('keeps the full rebuild failure visible after the blocking state closes', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
+		vi.mocked(window.electron.buildBlockLookupIndex).mockRejectedValue(new Error('Workshop root is unavailable'));
+
+		renderBlockLookupView();
+
+		await screen.findByRole('button', { name: /Full Rebuild/ });
+		fireEvent.click(screen.getByRole('button', { name: /Full Rebuild/ }));
+
+		expect(await screen.findByText('Full rebuild failed')).toBeInTheDocument();
+		expect(screen.getByText('Workshop root is unavailable')).toBeInTheDocument();
+		expect(screen.queryByText('Updating block index')).not.toBeInTheDocument();
 	});
 
 	it('shows block lookup results without paginating the virtual table', async () => {

@@ -8,11 +8,11 @@ import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { ProgressTypes } from 'shared/ipc';
+import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,
 	StartupButton,
 	StartupCard,
-	StartupErrorText,
 	StartupEyebrow,
 	StartupIntro,
 	StartupProgressBar,
@@ -157,7 +157,12 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				<StartupEyebrow>Startup</StartupEyebrow>
 				<StartupTitle id="mod-loading-title">Scanning your mods</StartupTitle>
 				<StartupIntro>Refreshing local and workshop metadata before the collection workspace opens.</StartupIntro>
-				<StartupStatusCard aria-live="polite" role="status" error={!!loadError}>
+				<StartupStatusCard
+					aria-live="polite"
+					role="status"
+					error={!!loadError}
+					tone={!loadError && progressPercent >= 100 ? 'success' : 'default'}
+				>
 					<StartupStatusContent>
 						<StartupStatusIcon status={statusIcon} />
 						<span>
@@ -166,10 +171,16 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 						</span>
 					</StartupStatusContent>
 				</StartupStatusCard>
-				<StartupProgressBar percent={progressPercent} status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'} />
+				<StartupProgressBar
+					label="Mod metadata scan progress"
+					percent={progressPercent}
+					status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'}
+				/>
 				{loadError ? (
 					<StartupActions>
-						<StartupErrorText>{loadError}</StartupErrorText>
+						<StatusCallout className="[overflow-wrap:anywhere]" tone="error" heading="Metadata scan failed">
+							{loadError}
+						</StatusCallout>
 						<StartupButton
 							variant="primary"
 							onClick={() => {

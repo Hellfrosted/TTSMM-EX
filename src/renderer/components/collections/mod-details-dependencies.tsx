@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Key, ReactNode } from 'react';
 import StatusCallout from '../StatusCallout';
 import { DisplayModData, getModDataDisplayName } from 'model';
@@ -53,18 +53,30 @@ export function DetailCheckbox({
 	'aria-label': ariaLabel,
 	checked,
 	disabled,
+	indeterminate,
 	onChange
 }: {
 	'aria-label': string;
 	checked: boolean;
 	disabled?: boolean;
+	indeterminate?: boolean;
 	onChange: (checked: boolean) => void;
 }) {
+	const checkboxRef = useRef<HTMLInputElement | null>(null);
+
+	useEffect(() => {
+		if (checkboxRef.current) {
+			checkboxRef.current.indeterminate = !!indeterminate;
+		}
+	}, [indeterminate]);
+
 	return (
 		<input
+			ref={checkboxRef}
 			type="checkbox"
 			className="ModDetailCheckbox"
 			aria-label={ariaLabel}
+			aria-checked={indeterminate ? 'mixed' : checked}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -91,6 +103,14 @@ function flattenDetailRows(rows: DisplayModData[]) {
 		{ record, depth: 0 },
 		...(record.children || []).map((childRecord) => ({ record: childRecord, depth: 1 }))
 	]);
+}
+
+function getRecordSelectionKeys(record: DisplayModData, rowSelection?: DetailRowSelection) {
+	if (record.children && !rowSelection?.checkStrictly) {
+		return record.children.map((childRecord) => childRecord.uid);
+	}
+
+	return [record.uid];
 }
 
 function DependencyCollapse({
@@ -152,7 +172,7 @@ function DetailTable({
 }) {
 	const visibleRows = flattenDetailRows(dataSource);
 	const selectedKeys = new Set((rowSelection?.selectedRowKeys || []).map((key) => key.toString()));
-	const selectableKeys = visibleRows.map(({ record }) => record.uid);
+	const selectableKeys = [...new Set(visibleRows.flatMap(({ record }) => getRecordSelectionKeys(record, rowSelection)))];
 	const allSelected = selectableKeys.length > 0 && selectableKeys.every((uid) => selectedKeys.has(uid));
 	const someSelected = selectableKeys.some((uid) => selectedKeys.has(uid)) && !allSelected;
 
@@ -162,12 +182,12 @@ function DetailTable({
 		}
 
 		const nextKeys = new Set(selectedKeys);
-		const affectedRecords = record.children && !rowSelection.checkStrictly ? record.children : [record];
-		affectedRecords.forEach((affectedRecord) => {
+		const affectedKeys = getRecordSelectionKeys(record, rowSelection);
+		affectedKeys.forEach((affectedKey) => {
 			if (selected) {
-				nextKeys.add(affectedRecord.uid);
+				nextKeys.add(affectedKey);
 			} else {
-				nextKeys.delete(affectedRecord.uid);
+				nextKeys.delete(affectedKey);
 			}
 		});
 		rowSelection.onSelect?.(record, selected);
@@ -176,14 +196,16 @@ function DetailTable({
 
 	return (
 		<div className="ModDetailTableWrap">
-			<table className="ModDetailTable">
+			<table className="ModDetailTable" aria-busy={loading ? 'true' : undefined}>
 				<thead>
 					<tr>
 						{rowSelection ? (
 							<th className="ModDetailTableSelectionCell">
 								<DetailCheckbox
-									aria-label="Select all dependency rows"
+									aria-label={`Select all ${selectableKeys.length} dependency row${selectableKeys.length === 1 ? '' : 's'}`}
 									checked={allSelected}
+									disabled={selectableKeys.length === 0}
+									indeterminate={someSelected}
 									onChange={(checked) => {
 										if (checked) {
 											rowSelection.onSelectAll?.();
@@ -208,7 +230,7 @@ function DetailTable({
 					{loading ? (
 						<tr>
 							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								Loading...
+								Refreshing dependency data...
 							</td>
 						</tr>
 					) : null}
@@ -224,13 +246,22 @@ function DetailTable({
 								<tr key={record.uid}>
 									{rowSelection ? (
 										<td className="ModDetailTableSelectionCell">
-											<DetailCheckbox
-												aria-label={`Select dependency row for ${getModDataDisplayName(record) || record.name || record.uid}`}
-												checked={selectedKeys.has(record.uid)}
-												onChange={(checked) => {
-													updateSelection(record, checked);
-												}}
-											/>
+											{(() => {
+												const recordSelectionKeys = getRecordSelectionKeys(record, rowSelection);
+												const recordSelected = recordSelectionKeys.length > 0 && recordSelectionKeys.every((uid) => selectedKeys.has(uid));
+												const recordIndeterminate = recordSelectionKeys.some((uid) => selectedKeys.has(uid)) && !recordSelected;
+
+												return (
+													<DetailCheckbox
+														aria-label={`Select dependency row for ${getModDataDisplayName(record) || record.name || record.uid}`}
+														checked={recordSelected}
+														indeterminate={recordIndeterminate}
+														onChange={(checked) => {
+															updateSelection(record, checked);
+														}}
+													/>
+												);
+											})()}
 										</td>
 									) : null}
 									{columns.map((column, columnIndex) => {
@@ -295,6 +326,7 @@ export function ModDetailsDependenciesPane({
 			) : null}
 			{showNeutralDependencyCheck ? (
 				<div className="ModDetailDependencyNotice">
+					<span>Workshop dependency data can be rechecked if the author changed it recently.</span>
 					<DependencyActionButton onClick={onRetryDependencyLookup}>Check again</DependencyActionButton>
 				</div>
 			) : null}

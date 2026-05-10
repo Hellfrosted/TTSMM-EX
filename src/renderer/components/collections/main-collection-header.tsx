@@ -268,7 +268,10 @@ export function ResizableHeaderCell({
 			event.stopPropagation();
 			window.dispatchEvent(new CustomEvent(HEADER_MENU_OPEN_EVENT, { detail: menuInstanceIdRef.current }));
 			menuOpenerRef.current = event.currentTarget;
-			setMenuPosition({ x: event.clientX, y: event.clientY });
+			setMenuPosition({
+				x: Math.min(event.clientX, Math.max(8, window.innerWidth - 196)),
+				y: Math.min(event.clientY, Math.max(8, window.innerHeight - 48))
+			});
 		},
 		[headerMenu]
 	);
@@ -354,6 +357,8 @@ export function ResizableHeaderCell({
 									onClick={() => {
 										headerMenu.onClick({ key: item.key as Key });
 										setMenuPosition(null);
+										menuOpenerRef.current?.focus();
+										menuOpenerRef.current = null;
 									}}
 								>
 									{item.label}

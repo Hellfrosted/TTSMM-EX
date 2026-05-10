@@ -127,7 +127,13 @@ describe('block-lookup-workspace', () => {
 		});
 		const buildState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
+			forceRebuild: false,
 			result: { settings: { workshopRoot: '/built' }, stats: { ...stats, blocks: 4 } }
+		});
+		const failedBuildState = reduceBlockLookupWorkspaceSession(buildState, {
+			type: 'build-index-failed',
+			forceRebuild: true,
+			message: 'Workshop root is unavailable'
 		});
 
 		expect(searchingState.loadingResults).toBe(true);
@@ -151,9 +157,22 @@ describe('block-lookup-workspace', () => {
 			expect.objectContaining({
 				settings: { workshopRoot: '/built' },
 				stats: { ...stats, blocks: 4 },
+				indexRunStatus: {
+					actionLabel: 'Index update',
+					detail: '4 blocks indexed from 1 source.',
+					phase: 'success',
+					title: 'Index update complete'
+				},
 				workshopRoot: '/built'
 			})
 		);
+		expect(failedBuildState.indexRunStatus).toEqual({
+			actionLabel: 'Full rebuild',
+			detail: 'Workshop root is unavailable',
+			phase: 'error',
+			title: 'Full rebuild failed'
+		});
+		expect(reduceBlockLookupWorkspaceSession(failedBuildState, { type: 'build-index-status-cleared' }).indexRunStatus).toBeUndefined();
 	});
 
 	it('projects bootstrap cache data from workspace session state', () => {
@@ -170,6 +189,7 @@ describe('block-lookup-workspace', () => {
 		});
 		const builtState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
+			forceRebuild: false,
 			result: { settings: { workshopRoot: '/built' }, stats: { ...stats, blocks: 4 } }
 		});
 

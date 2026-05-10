@@ -42,7 +42,9 @@ export const mainCollectionTableSettingsSchema = z
 	});
 
 export const modOverrideFormSchema = z.object({
-	overrideId: z.string()
+	overrideId: z.string().refine((overrideId) => overrideId === overrideId.trim(), {
+		message: 'Remove spaces from the start or end of the override ID'
+	})
 });
 
 export function createMainTableSettingsFormValues(config?: MainCollectionConfig): MainCollectionTableSettingsFormValues {

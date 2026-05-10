@@ -128,6 +128,9 @@ function createAppThemeColors(palette: AppThemePalette) {
 		tableRowSelectedHover: palette.tableRowSelectedHover,
 		menuHover: palette.menuHover,
 		fieldHover: palette.fieldHover,
+		controlHover: `color-mix(in oklch, ${palette.textBase} 4%, transparent)`,
+		focusRing: `color-mix(in oklch, ${palette.textBase} 78%, ${palette.primary} 22%)`,
+		focusBorder: `color-mix(in oklch, ${palette.primary} 72%, ${palette.border})`,
 		collapseBody: palette.collapseBody,
 		tagDefaultText: palette.tagDefaultText,
 		shadowSoft: rgbaString(palette.shadowRgb, 0.16)
@@ -190,6 +193,7 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-motion-ease-out': 'cubic-bezier(0.25, 1, 0.5, 1)',
 		'--app-motion-ease-emphasized': 'cubic-bezier(0.16, 1, 0.3, 1)',
 		'--app-motion-ease-standard': 'cubic-bezier(0.22, 1, 0.36, 1)',
+		'--app-compact-icon-button-size': '36px',
 		'--app-color-primary': colors.primary,
 		'--app-color-primary-text': colors.primaryText,
 		'--app-color-primary-hover': colors.primaryHover,
@@ -233,6 +237,9 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-color-table-row-selected-hover': colors.tableRowSelectedHover,
 		'--app-color-menu-hover': colors.menuHover,
 		'--app-color-field-hover': colors.fieldHover,
+		'--app-color-control-hover': colors.controlHover,
+		'--app-color-focus-ring': colors.focusRing,
+		'--app-color-focus-border': colors.focusBorder,
 		'--app-color-collapse-body': colors.collapseBody,
 		'--app-color-tag-default-text': colors.tagDefaultText,
 		'--app-shadow-soft': colors.shadowSoft

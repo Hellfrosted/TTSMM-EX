@@ -1,5 +1,4 @@
 import {
-	Profiler,
 	memo,
 	useCallback,
 	useEffect,
@@ -15,10 +14,27 @@ import {
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useOutletContext } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Copy, Database, Folder, RefreshCw, Search, Settings2, X } from 'lucide-react';
+import {
+	AlertTriangle,
+	CheckCircle2,
+	ChevronLeft,
+	ChevronRight,
+	Copy,
+	Database,
+	Folder,
+	RefreshCw,
+	Search,
+	Settings2,
+	X
+} from 'lucide-react';
 import type { AppState } from 'model';
 import type { BlockLookupIndexStats, BlockLookupRecord } from 'shared/block-lookup';
-import { formatBlockLookupIndexStatus, getBlockLookupRecordKey, sortBlockLookupRecords } from 'renderer/block-lookup-workspace';
+import {
+	formatBlockLookupIndexStatus,
+	getBlockLookupRecordKey,
+	sortBlockLookupRecords,
+	type BlockLookupIndexRunStatus
+} from 'renderer/block-lookup-workspace';
 import {
 	DesktopButton as BlockLookupButton,
 	DesktopDialog,
@@ -27,7 +43,7 @@ import {
 	DesktopSwitch
 } from 'renderer/components/DesktopControls';
 import { VirtualTableBody, VirtualTableRow } from 'renderer/components/virtual-table-primitives';
-import { logProfilerRender, markPerfInteraction, measurePerf } from 'renderer/perf';
+import { PerfProfiler, markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import {
@@ -71,7 +87,32 @@ const blockLookupIndexActionGroupClassName =
 	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[960px]:col-span-2 max-[960px]:w-full max-[960px]:[&>button]:flex-1 max-[760px]:col-span-1';
 const blockLookupColumnMoveButtonClassName = 'h-(--app-compact-icon-button-size) w-(--app-compact-icon-button-size) shrink-0';
 const blockLookupIndexSourceClassName =
-	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto] items-center gap-x-2.5 gap-y-2 border-t border-border pt-3 max-[960px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
+	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto] items-center gap-x-2.5 gap-y-2 max-[960px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
+const BLOCK_LOOKUP_VIRTUAL_OVERSCAN = 24;
+const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
+
+function clampTableNavigationIndex(value: number, rowCount: number) {
+	return Math.min(Math.max(value, 0), rowCount - 1);
+}
+
+function getBlockLookupKeyboardNavigationIndex(key: string, currentIndex: number | undefined, rowCount: number) {
+	if (rowCount <= 0) {
+		return undefined;
+	}
+	if (key === 'ArrowUp') {
+		return currentIndex === undefined || currentIndex < 0 ? 0 : clampTableNavigationIndex(currentIndex - 1, rowCount);
+	}
+	if (key === 'ArrowDown') {
+		return currentIndex === undefined || currentIndex < 0 ? 0 : clampTableNavigationIndex(currentIndex + 1, rowCount);
+	}
+	if (key === 'Home') {
+		return 0;
+	}
+	if (key === 'End') {
+		return rowCount - 1;
+	}
+	return undefined;
+}
 
 interface BlockLookupViewLocalState {
 	availableTableWidth: number;
@@ -168,6 +209,16 @@ interface BlockLookupTableOptionsModalProps {
 	children: ReactNode;
 	footer: ReactNode;
 	onCancel: () => void;
+}
+
+interface BlockLookupEmptyState {
+	description: string;
+	title: string;
+}
+
+interface BlockLookupBusyState {
+	description: string;
+	title: string;
 }
 
 function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLookupSwitchProps) {
@@ -293,16 +344,69 @@ function renderBlockLookupCell(columnKey: BlockLookupColumnKey, record: BlockLoo
 	}
 }
 
-function getBlockLookupEmptyText(stats: BlockLookupIndexStats | null, query: string) {
+function getBlockLookupEmptyState(stats: BlockLookupIndexStats | null, query: string, selectedFilterMods: string[]): BlockLookupEmptyState {
 	if (!stats) {
-		return 'Build the block lookup index to show commands.';
+		return {
+			title: 'Index not built',
+			description: 'Set the workshop content folder, then update the index to list SpawnBlock commands.'
+		};
 	}
 
-	if (query.trim()) {
-		return 'No blocks match this search.';
+	const hasQuery = query.trim().length > 0;
+	const hasModFilter = selectedFilterMods.length > 0;
+
+	if (hasQuery && hasModFilter) {
+		return {
+			title: 'No matching blocks',
+			description: 'Clear the search or Mod filter to widen the Block Lookup results.'
+		};
 	}
 
-	return 'No indexed blocks found.';
+	if (hasModFilter) {
+		return {
+			title: 'No blocks in selected mods',
+			description: 'Clear the Mod filter or update the index after changing workshop content.'
+		};
+	}
+
+	if (hasQuery) {
+		return {
+			title: 'No matching blocks',
+			description: 'Try a block name, internal name, mod title, ID, or SpawnBlock alias.'
+		};
+	}
+
+	return {
+		title: 'No indexed blocks',
+		description: 'Update the index after adding TerraTech mods or changing the workshop folder.'
+	};
+}
+
+function getBlockLookupBusyState(buildingIndex: boolean): BlockLookupBusyState {
+	if (buildingIndex) {
+		return {
+			title: 'Updating block index',
+			description: 'Scanning workshop and loaded mod sources for SpawnBlock commands.'
+		};
+	}
+
+	return {
+		title: 'Loading block results',
+		description: 'Keeping the table stable while the lookup finishes.'
+	};
+}
+
+function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndexRunStatus }) {
+	const Icon = status.phase === 'success' ? CheckCircle2 : status.phase === 'error' ? AlertTriangle : RefreshCw;
+	return (
+		<div className={`BlockLookupIndexRunStatus BlockLookupIndexRunStatus--${status.phase}`} role="status" aria-live="polite">
+			<Icon className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
+			<div className="BlockLookupIndexRunStatusText">
+				<strong>{status.title}</strong>
+				<span>{status.detail}</span>
+			</div>
+		</div>
+	);
 }
 
 function useCoarsePointer() {
@@ -330,37 +434,47 @@ function useCoarsePointer() {
 function BlockLookupDetailField({
 	className = '',
 	copyLabel,
+	copySuccessMessage,
+	emptyText,
 	label,
 	monospace,
 	onCopy,
-	value
+	value,
+	wrap
 }: {
 	className?: string;
 	copyLabel?: string;
+	copySuccessMessage?: string;
+	emptyText?: string;
 	label: string;
 	monospace?: boolean;
-	onCopy?: (value: string) => void;
+	onCopy?: (value: string, successMessage?: string) => void;
 	value: string;
+	wrap?: boolean;
 }) {
 	const displayValue = value.trim();
 	const hasValue = displayValue.length > 0;
-	const valueClassName = `min-w-0 overflow-hidden text-ellipsis whitespace-nowrap ${
-		hasValue ? 'text-text' : 'BlockLookupMutedText'
-	}${monospace ? ' BlockLookupCommand' : ''}`;
+	const missingText = emptyText ?? 'Not declared';
+	const rootClassName = className ? `min-w-0 ${className}` : 'min-w-0';
+	const valueOverflowClassName = wrap ? 'break-all whitespace-normal' : 'overflow-hidden text-ellipsis whitespace-nowrap';
+	const valueClassName = `min-w-0 ${valueOverflowClassName} ${hasValue ? 'text-text' : 'BlockLookupMutedText'}${
+		monospace ? ' BlockLookupCommand' : ''
+	}`;
 
 	return (
-		<div className={className}>
+		<div className={rootClassName}>
 			<span className="BlockLookupMutedText">{label}</span>
 			<span className="flex min-w-0 items-center gap-1.5">
-				<span className={valueClassName} title={hasValue ? value : undefined}>
-					{hasValue ? value : 'Not declared'}
+				<span className={valueClassName} title={hasValue ? value : missingText}>
+					{hasValue ? displayValue : missingText}
 				</span>
 				{copyLabel && hasValue ? (
 					<DesktopIconButton
 						aria-label={copyLabel}
 						className="h-(--app-compact-icon-button-size) w-(--app-compact-icon-button-size) shrink-0"
+						title={copyLabel}
 						onClick={() => {
-							onCopy?.(value);
+							onCopy?.(value, copySuccessMessage);
 						}}
 					>
 						<Copy size={14} aria-hidden="true" />
@@ -379,6 +493,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		handleBrowseWorkshopRoot,
 		handleBuildIndex,
 		handleSaveSettings,
+		indexRunStatus,
 		loadingResults,
 		modSources,
 		openNotification,
@@ -390,6 +505,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		selectSingleBlockLookupRow,
 		selectedFilterMods,
 		selectedRecord,
+		selectedRowKey,
 		selectedRowKeys,
 		selectedRowKeysInCopyOrder,
 		setQuery,
@@ -617,24 +733,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		[requestBlockLookupRowSelection, sortedRowKeys]
 	);
 
-	const handleBlockLookupRowKeyDown = useCallback(
-		(event: KeyboardEvent<HTMLTableRowElement>) => {
-			if (!event.ctrlKey && !event.metaKey) {
-				return;
-			}
-
-			const key = event.key.toLowerCase();
-			if (key === 'c') {
-				event.preventDefault();
-				void handleCopySelected();
-			} else if (key === 'a') {
-				event.preventDefault();
-				handleSelectAllVisibleRows();
-			}
-		},
-		[handleCopySelected, handleSelectAllVisibleRows]
-	);
-
 	const openTableOptions = useCallback(() => {
 		const draft = createBlockLookupTableOptionsDraft(blockLookupConfig);
 		dispatchLocalState({ type: 'table-options-opened', draft });
@@ -679,9 +777,13 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	);
 	const persistedVisibleColumnCount = useMemo(() => columnConfig.filter((column) => column.visible).length, [columnConfig]);
 	const hiddenColumns = useMemo(() => columnConfig.filter((column) => !column.visible), [columnConfig]);
-	const emptyStateText = getBlockLookupEmptyText(stats, query);
-	const lookupBusyText = buildingIndex ? 'Building block lookup index...' : 'Loading block lookup...';
+	const emptyState = getBlockLookupEmptyState(stats, query, selectedFilterMods);
+	const lookupBusyState = getBlockLookupBusyState(buildingIndex);
 	const indexStatusText = formatBlockLookupIndexStatus(stats, rows.length, query);
+	const selectedCount = selectedRowKeys.length;
+	const toolbarStatusText = `${sortedRows.length} result${sortedRows.length === 1 ? '' : 's'}${
+		selectedCount > 0 ? `, ${selectedCount} selected` : ''
+	}`;
 
 	useEffect(() => {
 		visibleColumns.forEach((column) => {
@@ -698,7 +800,9 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		count: sortedRows.length,
 		getScrollElement: () => tableScrollRef.current,
 		estimateSize: () => estimatedRowHeight,
-		overscan: 16,
+		overscan: BLOCK_LOOKUP_VIRTUAL_OVERSCAN,
+		isScrollingResetDelay: VIRTUAL_SCROLLING_RESET_DELAY_MS,
+		useFlushSync: false,
 		initialRect: {
 			height: 640,
 			width: availableTableWidth || 1024
@@ -713,14 +817,76 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 					start: index * estimatedRowHeight
 				}));
 	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), sortedRows.length * estimatedRowHeight);
+	const handleBlockLookupRowKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLElement>) => {
+			if (event.target !== event.currentTarget) {
+				return;
+			}
+
+			const key = event.key.toLowerCase();
+			if (event.ctrlKey || event.metaKey) {
+				if (key === 'c') {
+					event.preventDefault();
+					void handleCopySelected();
+				} else if (key === 'a') {
+					event.preventDefault();
+					handleSelectAllVisibleRows();
+				}
+				return;
+			}
+
+			if (event.altKey) {
+				return;
+			}
+
+			const currentIndex = selectedRowKey ? sortedRowKeys.indexOf(selectedRowKey) : undefined;
+			const nextIndex = getBlockLookupKeyboardNavigationIndex(event.key, currentIndex, sortedRowKeys.length);
+			if (nextIndex === undefined) {
+				return;
+			}
+
+			const nextRowKey = sortedRowKeys[nextIndex];
+			if (!nextRowKey) {
+				return;
+			}
+
+			event.preventDefault();
+			markPerfInteraction('blockLookup.rowKeyboardNavigate', {
+				key: event.key,
+				row: nextRowKey
+			});
+			rowVirtualizer.scrollToIndex(nextIndex, { align: 'auto' });
+			tableScrollRef.current?.focus({ preventScroll: true });
+			requestBlockLookupRowSelection(nextRowKey, { range: event.shiftKey, toggle: false }, sortedRowKeys);
+		},
+		[handleCopySelected, handleSelectAllVisibleRows, requestBlockLookupRowSelection, rowVirtualizer, selectedRowKey, sortedRowKeys]
+	);
+	useEffect(() => {
+		const tableScroll = tableScrollRef.current;
+		if (!tableScroll) {
+			return;
+		}
+
+		const handleTableScrollKeyDown = (event: globalThis.KeyboardEvent) => {
+			if (event.target !== tableScroll) {
+				return;
+			}
+			handleBlockLookupRowKeyDown(event as unknown as KeyboardEvent<HTMLElement>);
+		};
+
+		tableScroll.addEventListener('keydown', handleTableScrollKeyDown);
+		return () => {
+			tableScroll.removeEventListener('keydown', handleTableScrollKeyDown);
+		};
+	}, [handleBlockLookupRowKeyDown]);
 	const copyDetailValue = useCallback(
-		(value: string) => {
+		(value: string, successMessage = 'Copied block value') => {
 			void (async () => {
 				try {
 					await copyToClipboard(value);
 					openNotification(
 						{
-							message: 'Copied block command',
+							message: successMessage,
 							placement: 'topRight',
 							duration: 1
 						},
@@ -743,7 +909,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	);
 
 	return (
-		<Profiler id="BlockLookup.View" onRender={logProfilerRender}>
+		<PerfProfiler id="BlockLookup.View">
 			<div className="BlockLookupViewLayout flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-background">
 				<header className="WorkspaceHeader BlockLookupWorkspaceHeader flex h-auto flex-col leading-[1.4]">
 					<div className={blockLookupToolbarRowClassName}>
@@ -766,6 +932,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								<DesktopIconButton
 									aria-label="Clear block lookup search"
 									className="absolute right-1"
+									title="Clear search"
 									onClick={() => {
 										setQuery('');
 									}}
@@ -775,19 +942,37 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							) : null}
 						</div>
 						<div className={`ml-auto ${blockLookupActionGroupClassName} max-[760px]:ml-0`}>
+							<span className="inline-flex min-h-11 min-w-0 shrink-0 items-center text-caption font-[650] text-text-muted max-[760px]:w-full">
+								{toolbarStatusText}
+							</span>
 							<BlockLookupButton
 								icon={<RefreshCw size={16} aria-hidden="true" />}
 								onClick={() => {
 									void refreshResults(query);
 								}}
+								disabled={buildingIndex}
 								loading={loadingResults}
 							>
 								Refresh
 							</BlockLookupButton>
-							<BlockLookupButton icon={<Copy size={16} aria-hidden="true" />} onClick={handleCopySelected}>
+							<BlockLookupButton
+								icon={<Copy size={16} aria-hidden="true" />}
+								disabled={selectedRecordsInCopyOrder.length === 0 || loadingResults || buildingIndex}
+								title={
+									selectedRecordsInCopyOrder.length === 0
+										? 'Select one or more block rows to copy'
+										: `Copy ${selectedRecordsInCopyOrder.length} selected command${selectedRecordsInCopyOrder.length === 1 ? '' : 's'}`
+								}
+								onClick={handleCopySelected}
+							>
 								Copy Selected
 							</BlockLookupButton>
-							<BlockLookupButton icon={<Copy size={16} aria-hidden="true" />} onClick={handleCopyAll}>
+							<BlockLookupButton
+								icon={<Copy size={16} aria-hidden="true" />}
+								disabled={sortedRows.length === 0 || loadingResults || buildingIndex}
+								title={sortedRows.length === 0 ? 'No visible commands to copy' : `Copy ${sortedRows.length} visible commands`}
+								onClick={handleCopyAll}
+							>
 								Copy All
 							</BlockLookupButton>
 							<BlockLookupButton icon={<Settings2 size={16} aria-hidden="true" />} onClick={openTableOptions}>
@@ -837,6 +1022,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								Full Rebuild
 							</BlockLookupButton>
 						</div>
+						{indexRunStatus ? <BlockLookupIndexRunStatusMessage status={indexRunStatus} /> : null}
 					</section>
 				</header>
 				<main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -845,8 +1031,17 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							className={`BlockLookupVirtualShell${loadingResults || buildingIndex ? ' is-loading' : ''}`}
 							aria-busy={loadingResults || buildingIndex}
 						>
-							<div ref={tableScrollRef} className={`BlockLookupVirtualScroll${needsHorizontalScroll ? ' has-horizontal-scroll' : ''}`}>
+							<div
+								ref={tableScrollRef}
+								className={`BlockLookupVirtualScroll${needsHorizontalScroll ? ' has-horizontal-scroll' : ''}`}
+								role="region"
+								aria-label="Block lookup results table"
+								tabIndex={-1}
+							>
 								<table className="BlockLookupTable BlockLookupVirtualTable" style={{ width: tableScrollX }}>
+									<caption className="sr-only">
+										Block Lookup results. Use column headers to sort, resize, move, hide, or show table columns.
+									</caption>
 									<colgroup>
 										{visibleColumns.map((column) => (
 											<col
@@ -863,6 +1058,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 												const resolvedWidth = resolveBlockLookupColumnWidth(blockColumn);
 												const widthStyle = getBlockLookupColumnWidthStyle(blockColumnKey, resolvedWidth);
 												const sorted = sortKey === blockColumnKey;
+												const nextSortDirection = getNextBlockLookupSortDirection(sortKey, sortDirection, blockColumnKey);
 												const canHideColumn = persistedVisibleColumnCount > 1;
 												const modHeaderFilter =
 													blockColumnKey === 'modTitle' ? (
@@ -890,7 +1086,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 													{ type: 'divider' as const },
 													{
 														key: 'view-options',
-														label: 'View Options'
+														label: 'Table Settings'
 													}
 												];
 												const restorePersistedColumnWidth = () => {
@@ -980,6 +1176,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 																type="button"
 																className="BlockLookupVirtualHeaderButton"
 																draggable={false}
+																title={`Sort ${nextSortDirection === 'ascend' ? 'ascending' : 'descending'}`}
 																onClick={() => {
 																	markPerfInteraction('blockLookup.sort', {
 																		column: blockColumnKey,
@@ -1025,7 +1222,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 													width={tableScrollX}
 													aria-label={`Block lookup row for ${record.spawnCommand}. Press Enter or Space to select the row.`}
 													aria-selected={rowSelected}
-													keyboardShortcuts="Enter Space Control+C Control+A"
+													keyboardShortcuts="Enter Space ArrowUp ArrowDown Home End Shift+ArrowUp Shift+ArrowDown Control+C Control+A"
 													onKeyDown={handleBlockLookupRowKeyDown}
 													onActivate={(event) => {
 														markPerfInteraction('blockLookup.rowSelect', {
@@ -1076,17 +1273,29 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 									</VirtualTableBody>
 								</table>
 								{!loadingResults && !buildingIndex && sortedRows.length === 0 ? (
-									<div className="BlockLookupVirtualEmpty">
-										<span className="BlockLookupMutedText">{emptyStateText}</span>
+									<div className="BlockLookupVirtualEmpty" role="status" aria-live="polite">
+										<div className="flex max-w-[min(34rem,calc(100%-32px))] flex-col items-center gap-1.5 text-center">
+											<strong className="text-body font-bold leading-[var(--app-leading-ui)] text-text">{emptyState.title}</strong>
+											<span className="BlockLookupMutedText text-sm leading-[var(--app-leading-relaxed)]">{emptyState.description}</span>
+										</div>
 									</div>
 								) : null}
 							</div>
-							{loadingResults || buildingIndex ? <div className="BlockLookupVirtualLoading">{lookupBusyText}</div> : null}
+							{loadingResults || buildingIndex ? (
+								<div className="BlockLookupVirtualLoading" role="status" aria-live="polite">
+									<div className="flex max-w-[min(34rem,calc(100%-32px))] flex-col items-center gap-1.5 text-center">
+										<strong className="text-body font-bold leading-[var(--app-leading-ui)] text-text">{lookupBusyState.title}</strong>
+										<span className="BlockLookupMutedText text-sm leading-[var(--app-leading-relaxed)]">{lookupBusyState.description}</span>
+									</div>
+								</div>
+							) : null}
 						</div>
 					</div>
 					<div className="BlockLookupDetailsPane">
 						<div className="BlockLookupDetailsMeta" aria-live="polite">
 							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{indexStatusText}</span>
+							<span aria-hidden="true">/</span>
+							<span>{selectedCount > 0 ? `${selectedCount} selected` : 'No selection'}</span>
 							<span aria-hidden="true">/</span>
 							<span>
 								{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
@@ -1099,6 +1308,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 									value={selectedRecord.spawnCommand}
 									monospace
 									copyLabel="Copy command"
+									copySuccessMessage="Copied SpawnBlock command"
 									onCopy={copyDetailValue}
 								/>
 								<BlockLookupDetailField
@@ -1106,16 +1316,24 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 									value={selectedRecord.fallbackSpawnCommand}
 									monospace
 									copyLabel="Copy fallback command"
+									copySuccessMessage="Copied fallback command"
+									emptyText="No fallback command"
 									onCopy={copyDetailValue}
 								/>
 								<BlockLookupDetailField label="Block" value={selectedRecord.blockName} />
 								<BlockLookupDetailField label="Internal" value={selectedRecord.internalName} />
 								<BlockLookupDetailField label="Mod" value={selectedRecord.modTitle} />
-								<BlockLookupDetailField label="Workshop ID" value={selectedRecord.workshopId} />
-								<BlockLookupDetailField className="col-span-full" label="Source" value={selectedRecord.sourcePath} />
+								<BlockLookupDetailField label="Workshop ID" value={selectedRecord.workshopId} emptyText="Local source" />
+								<BlockLookupDetailField
+									className="col-span-full"
+									label="Source"
+									value={selectedRecord.sourcePath}
+									emptyText="Source path unavailable"
+									wrap
+								/>
 							</div>
 						) : (
-							<span className="BlockLookupMutedText">No block selected</span>
+							<span className="BlockLookupMutedText">Select a block row to inspect command, fallback, mod, and source path.</span>
 						)}
 					</div>
 				</main>
@@ -1269,7 +1487,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 					</BlockLookupTableOptionsModal>
 				) : null}
 			</div>
-		</Profiler>
+		</PerfProfiler>
 	);
 }
 

@@ -199,17 +199,18 @@ export default function SteamworksVerification() {
 	}
 
 	const describedReadiness = status ? describeSteamworksReadiness(status.readiness.kind) : undefined;
+	const hasVerificationProblem = !verifying && (Boolean(error) || (status ? !status.inited : false));
 	const statusLabel = verifying
 		? 'Checking Steamworks integration'
-		: error
+		: hasVerificationProblem
 			? describedReadiness?.title || 'Steamworks initialization failed'
 			: describedReadiness?.title || 'Steamworks is ready';
 	const statusDetail = verifying
 		? 'Confirming the manager can talk to Steam before restoring your saved workspace.'
-		: error
+		: hasVerificationProblem
 			? describedReadiness?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
 			: describedReadiness?.detail || 'Continuing to mod collections.';
-	const statusIcon = verifying ? 'loading' : error ? 'error' : 'success';
+	const statusIcon = verifying ? 'loading' : hasVerificationProblem ? 'error' : 'success';
 
 	return (
 		<StartupScreen>
@@ -223,10 +224,15 @@ export default function SteamworksVerification() {
 						</StartupIntro>
 					</StartupHeroCopy>
 					<StartupHeroArtwork>
-						<img src={logo_steamworks} width={240} alt="Steamworks logo" key="steamworks" />
+						<img className="block max-w-full opacity-90" src={logo_steamworks} width={240} alt="Steamworks logo" key="steamworks" />
 					</StartupHeroArtwork>
 				</StartupHeroRow>
-				<StartupStatusCard aria-live="polite" role="status" error={!!error}>
+				<StartupStatusCard
+					aria-live="polite"
+					role="status"
+					error={hasVerificationProblem}
+					tone={!hasVerificationProblem && !verifying ? 'success' : 'default'}
+				>
 					<StartupStatusContent large>
 						<StartupStatusIcon status={statusIcon} size={64} />
 						<span>
@@ -235,14 +241,14 @@ export default function SteamworksVerification() {
 						</span>
 					</StartupStatusContent>
 				</StartupStatusCard>
-				{error ? (
+				{hasVerificationProblem ? (
 					<StartupActions key="error">
 						<StatusCallout tone="error" heading={describedReadiness?.title || 'Resolve this before retrying'}>
 							{describedReadiness?.detail || error}
 						</StatusCallout>
 					</StartupActions>
 				) : null}
-				{error ? (
+				{hasVerificationProblem ? (
 					<StartupActions key="retry">
 						<StartupButton variant="primary" onClick={verify} loading={verifying}>
 							Try Steamworks Again

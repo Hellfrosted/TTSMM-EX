@@ -27,6 +27,8 @@ type SaveSettingsResult =
 			message: string;
 	  };
 
+type SettingsPathTarget = AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC;
+
 function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
 		loggerID,
@@ -70,6 +72,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		[config, watchedEditingConfig]
 	);
 	const [selectingDirectory, setSelectingDirectory] = useState(false);
+	const [selectingPathTarget, setSelectingPathTarget] = useState<SettingsPathTarget>();
 	const [modalType, setModalType] = useState(SettingsViewModalType.NONE);
 	const [editingContextIndex, setEditingContextIndex] = useState<number>();
 	const [modalSnapshot, setModalSnapshot] = useState<EditingConfig>();
@@ -77,6 +80,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 	useEffect(() => {
 		form.reset(createEditingConfig(config));
 		setSelectingDirectory(false);
+		setSelectingPathTarget(undefined);
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		setModalSnapshot(undefined);
@@ -140,12 +144,13 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 	);
 
 	const selectPath = useCallback(
-		async (target: AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC, directory: boolean, title: string) => {
+		async (target: SettingsPathTarget, directory: boolean, title: string) => {
 			if (selectingDirectory) {
 				return null;
 			}
 
 			setSelectingDirectory(true);
+			setSelectingPathTarget(target);
 			try {
 				const selectedPath = await api.selectPath(directory, title);
 				if (selectedPath) {
@@ -157,6 +162,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				throw error instanceof Error ? error : new Error('Failed to browse for a path');
 			} finally {
 				setSelectingDirectory(false);
+				setSelectingPathTarget(undefined);
 			}
 		},
 		[form, selectingDirectory]
@@ -239,7 +245,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
 		setModalSnapshot(undefined);
-		updateState({ madeConfigEdits: false });
+		updateState({ madeConfigEdits: false, configErrors: {} });
 	}, [config, form, updateState]);
 
 	const closeModal = useCallback(
@@ -258,6 +264,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		form,
 		editingConfig,
 		selectingDirectory,
+		selectingPathTarget,
 		modalType,
 		editingContextIndex,
 		editingContext: editingContextIndex !== undefined ? editingConfig.editingLogConfig[editingContextIndex] : undefined,

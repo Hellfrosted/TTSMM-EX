@@ -26,7 +26,9 @@ export function getCollectionNameError(name: string, options: CollectionNameVali
 		return 'Collection name is unchanged';
 	}
 
-	if (options.allCollectionNames.has(trimmedName)) {
+	const normalizedName = trimmedName.toLowerCase();
+	const collectionNameExists = [...options.allCollectionNames].some((collectionName) => collectionName.toLowerCase() === normalizedName);
+	if (collectionNameExists) {
 		return 'A collection with that name already exists';
 	}
 

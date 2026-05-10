@@ -1,3 +1,4 @@
+import { Fragment, Profiler, createElement, type ReactNode } from 'react';
 import type { ProfilerOnRenderCallback } from 'react';
 
 const PERF_STORAGE_KEY = 'ttsmm.perf';
@@ -9,7 +10,7 @@ function getNow() {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 }
 
-function isPerfLoggingEnabled() {
+export function isPerfLoggingEnabled() {
 	if (typeof window === 'undefined') {
 		return false;
 	}
@@ -76,3 +77,11 @@ export const logProfilerRender: ProfilerOnRenderCallback = (id, phase, actualDur
 		commitTime: Number(commitTime.toFixed(2))
 	});
 };
+
+export function PerfProfiler({ children, id }: { children: ReactNode; id: string }) {
+	if (!isPerfLoggingEnabled()) {
+		return createElement(Fragment, null, children);
+	}
+
+	return createElement(Profiler, { id, onRender: logProfilerRender }, children);
+}

@@ -69,7 +69,18 @@ export type CollectionValidationRunOutcome =
 			type: 'validation-run-failed';
 	  };
 
-export function useCollectionValidation({ appState, persistCollection }: UseCollectionValidationOptions) {
+function notifyValidationFailure(openNotification: UseCollectionValidationOptions['openNotification'], message: string) {
+	openNotification?.(
+		{
+			message,
+			placement: 'bottomLeft',
+			duration: null
+		},
+		'error'
+	);
+}
+
+export function useCollectionValidation({ appState, openNotification, persistCollection }: UseCollectionValidationOptions) {
 	const [validatingMods, setValidatingMods] = useState(false);
 	const [validationResult, setValidationResult] = useState<CollectionWorkspaceValidationResult>();
 	const validationPromiseRef = useRef<CancellablePromise<CollectionErrors> | undefined>(undefined);
@@ -206,6 +217,7 @@ export function useCollectionValidation({ appState, persistCollection }: UseColl
 			const persisted = await persistCollection(request.collection);
 			if (!persisted) {
 				setValidationResult(undefined);
+				notifyValidationFailure(openNotification, 'Collection validated, but the saved collection could not be updated. Try saving again.');
 				return {
 					type: 'persistence-failed',
 					validationResult
@@ -245,7 +257,7 @@ export function useCollectionValidation({ appState, persistCollection }: UseColl
 				validationResult
 			};
 		},
-		[appState, logValidationIssues, persistCollection, renderCollectionErrors]
+		[appState, logValidationIssues, openNotification, persistCollection, renderCollectionErrors]
 	);
 
 	const validateActiveCollection = useCallback(
@@ -277,6 +289,7 @@ export function useCollectionValidation({ appState, persistCollection }: UseColl
 					api.logger.error(wrappedError.error);
 					setValidationResult(undefined);
 					setValidatingMods(false);
+					notifyValidationFailure(openNotification, 'Collection validation did not complete. Check the mod list and try again.');
 					return {
 						type: 'validation-run-failed'
 					} satisfies CollectionValidationRunOutcome;
@@ -287,7 +300,7 @@ export function useCollectionValidation({ appState, persistCollection }: UseColl
 				} satisfies CollectionValidationRunOutcome;
 			}
 		},
-		[activeCollection, appState.config, appState.mods, cancelValidation, processValidationResult]
+		[activeCollection, appState.config, appState.mods, cancelValidation, openNotification, processValidationResult]
 	);
 
 	return {

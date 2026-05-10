@@ -105,6 +105,12 @@ export default function CollectionNamingModal({
 		[activeCollectionName, allCollectionNames, modalType, watchedName]
 	);
 
+	const closeWhenIdle = () => {
+		if (!savingCollection) {
+			closeModal();
+		}
+	};
+
 	const submitModal = form.handleSubmit((values) => {
 		if (savingCollection) {
 			return;
@@ -118,14 +124,14 @@ export default function CollectionNamingModal({
 		<DesktopDialog
 			open
 			title={currentModal.title}
-			titleClassName="text-body font-bold"
+			titleClassName="text-title font-bold"
 			closeLabel="Close collection naming modal"
-			onCancel={closeModal}
+			onCancel={closeWhenIdle}
 			panelClassName="w-[min(520px,100%)]"
 			bodyClassName="p-0"
 			footer={
 				<>
-					<DesktopButton type="button" onClick={closeModal}>
+					<DesktopButton type="button" disabled={savingCollection} onClick={closeWhenIdle}>
 						Cancel
 					</DesktopButton>
 					<DesktopButton
@@ -140,28 +146,30 @@ export default function CollectionNamingModal({
 				</>
 			}
 		>
-			<form id="collection-naming-form" className="flex flex-col gap-2 p-4" onSubmit={submitModal}>
-				<label id={collectionNameLabelId} className="font-[650] text-text" htmlFor={collectionNameInputId}>
-					{currentModal.fieldLabel}
+			<form id="collection-naming-form" className="flex flex-col gap-2 p-4" onSubmit={submitModal} noValidate aria-busy={savingCollection}>
+				<label className="flex flex-col gap-2" htmlFor={collectionNameInputId}>
+					<span id={collectionNameLabelId} className="font-[650] text-text">
+						{currentModal.fieldLabel}
+					</span>
+					<DesktopInput
+						id={collectionNameInputId}
+						className="aria-invalid:border-error"
+						{...nameField}
+						ref={(element) => {
+							nameField.ref(element);
+							collectionNameInputRef.current = element;
+						}}
+						placeholder={currentModal.placeholder}
+						aria-labelledby={collectionNameLabelId}
+						aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
+						aria-invalid={currentModalError ? 'true' : 'false'}
+					/>
 				</label>
-				<DesktopInput
-					id={collectionNameInputId}
-					className="aria-invalid:border-error"
-					{...nameField}
-					ref={(element) => {
-						nameField.ref(element);
-						collectionNameInputRef.current = element;
-					}}
-					placeholder={currentModal.placeholder}
-					aria-labelledby={collectionNameLabelId}
-					aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
-					aria-invalid={currentModalError ? 'true' : 'false'}
-				/>
 				<span id={collectionNameHelpId} className="text-ui leading-[var(--app-leading-ui)] text-text-muted">
 					{currentModal.fieldHelp}
 				</span>
 				{currentModalError ? (
-					<span id={collectionNameErrorId} className="text-ui leading-[var(--app-leading-ui)] text-error">
+					<span id={collectionNameErrorId} className="text-ui leading-[var(--app-leading-ui)] text-error" role="alert">
 						{currentModalError}
 					</span>
 				) : null}

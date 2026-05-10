@@ -3,52 +3,63 @@ export interface VirtualTableColumnWidthLike {
 	width?: number | string;
 }
 
-export function getVirtualTableColumnWidthVariableName(prefix: string, columnKey: string) {
-	return `--${prefix}-column-width-${columnKey
+function normalizeVirtualTablePixelWidth(width: number, fallbackWidth = 0) {
+	const resolvedWidth = Number.isFinite(width) ? width : fallbackWidth;
+	return Math.max(0, Math.round(resolvedWidth));
+}
+
+function getVirtualTableColumnToken(columnKey: string) {
+	const token = columnKey
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')}`;
+		.replace(/^-+|-+$/g, '');
+	return token || 'column';
+}
+
+export function getVirtualTableColumnWidthVariableName(prefix: string, columnKey: string) {
+	return `--${prefix}-column-width-${getVirtualTableColumnToken(columnKey)}`;
 }
 
 export function getVirtualTableColumnWidthStyle(prefix: string, columnKey: string, width: number) {
-	return `var(${getVirtualTableColumnWidthVariableName(prefix, columnKey)}, ${width}px)`;
+	return `var(${getVirtualTableColumnWidthVariableName(prefix, columnKey)}, ${normalizeVirtualTablePixelWidth(width)}px)`;
 }
 
 export function setVirtualTableColumnWidthVariable(container: HTMLElement | null, prefix: string, columnKey: string, width: number) {
-	container?.style.setProperty(getVirtualTableColumnWidthVariableName(prefix, columnKey), `${width}px`);
+	container?.style.setProperty(getVirtualTableColumnWidthVariableName(prefix, columnKey), `${normalizeVirtualTablePixelWidth(width)}px`);
 }
 
 export function getVirtualTableFixedColumnStyle(width: number | string) {
-	const flexBasis = typeof width === 'number' ? `${width}px` : width;
+	const resolvedWidth = typeof width === 'number' ? normalizeVirtualTablePixelWidth(width) : width;
+	const flexBasis = typeof resolvedWidth === 'number' ? `${resolvedWidth}px` : resolvedWidth;
 	return {
-		width,
+		width: resolvedWidth,
 		flex: `0 0 ${flexBasis}`
 	};
 }
 
 export function getVirtualTableColumnPixelWidth(column: VirtualTableColumnWidthLike, fallbackWidth = 120) {
-	if (typeof column.resizeWidth === 'number') {
-		return column.resizeWidth;
+	if (typeof column.resizeWidth === 'number' && Number.isFinite(column.resizeWidth)) {
+		return normalizeVirtualTablePixelWidth(column.resizeWidth, fallbackWidth);
 	}
 
-	if (typeof column.width === 'number') {
-		return column.width;
+	if (typeof column.width === 'number' && Number.isFinite(column.width)) {
+		return normalizeVirtualTablePixelWidth(column.width, fallbackWidth);
 	}
 
 	if (typeof column.width === 'string') {
 		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
 		if (match) {
-			return Number.parseFloat(match[1]);
+			return normalizeVirtualTablePixelWidth(Number.parseFloat(match[1]), fallbackWidth);
 		}
 	}
 
-	return fallbackWidth;
+	return normalizeVirtualTablePixelWidth(fallbackWidth);
 }
 
 export function getVirtualTableScrollWidth(columnWidths: Iterable<number>, fixedWidth = 0) {
-	let scrollWidth = fixedWidth;
+	let scrollWidth = normalizeVirtualTablePixelWidth(fixedWidth);
 	for (const columnWidth of columnWidths) {
-		scrollWidth += columnWidth;
+		scrollWidth += normalizeVirtualTablePixelWidth(columnWidth);
 	}
 	return scrollWidth;
 }

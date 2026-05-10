@@ -1,6 +1,6 @@
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { CSSProperties, Key, ReactNode } from 'react';
+import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Clock3, Code2, HardDrive, LoaderCircle, PanelRightOpen, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
@@ -82,6 +82,8 @@ import Icon_Corps from '../../../../assets/faction-flag.svg';
 
 const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
 const SIZE_METER_MIN_BYTES = 10 * 1024;
+const MAIN_COLLECTION_VIRTUAL_OVERSCAN = 28;
+const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
 
 interface MainTableMeasurementState {
 	autoColumnWidths: Record<string, number>;
@@ -105,6 +107,48 @@ function mainTableMeasurementReducer(state: MainTableMeasurementState, action: M
 
 function clampNumber(value: number, min: number, max: number) {
 	return Math.min(Math.max(value, min), max);
+}
+
+function getTableNavigationIndex(key: string, currentIndex: number | undefined, rowCount: number) {
+	if (rowCount <= 0) {
+		return undefined;
+	}
+	if (key === 'ArrowUp') {
+		return currentIndex === undefined || currentIndex < 0 ? 0 : clampNumber(currentIndex - 1, 0, rowCount - 1);
+	}
+	if (key === 'ArrowDown') {
+		return currentIndex === undefined || currentIndex < 0 ? 0 : clampNumber(currentIndex + 1, 0, rowCount - 1);
+	}
+	if (key === 'Home') {
+		return 0;
+	}
+	if (key === 'End') {
+		return rowCount - 1;
+	}
+	return undefined;
+}
+
+function isMainCollectionKeyboardNavigationTarget(target: EventTarget | null) {
+	if (!(target instanceof Element)) {
+		return true;
+	}
+
+	return !target.closest('input,select,textarea,[role="slider"],[contenteditable="true"]');
+}
+
+function isMainCollectionRowFocusTarget(target: Element, scrollParent: HTMLElement) {
+	const row = target.closest('.MainCollectionVirtualRow');
+	return !!row && scrollParent.contains(row) && isMainCollectionKeyboardNavigationTarget(target);
+}
+
+function getMainCollectionEventRowIndex(currentTarget: EventTarget | null) {
+	if (!(currentTarget instanceof HTMLElement)) {
+		return undefined;
+	}
+
+	const row = currentTarget.closest('.MainCollectionVirtualRow');
+	const rowIndex = Number(row?.getAttribute('data-index'));
+	return Number.isInteger(rowIndex) && rowIndex >= 0 ? rowIndex : undefined;
 }
 
 function getSizeMeterStyle(size: number): CSSProperties {
@@ -427,6 +471,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 						title={displayName}
 						onClick={(event) => {
 							event.stopPropagation();
+							if (context.highlighted && context.detailsOpen) {
+								return;
+							}
 							if (context.highlighted || context.detailsOpen) {
 								context.openDetails();
 								return;
@@ -713,6 +760,26 @@ function createNoopTableCommands(): MainCollectionTableCommands {
 	};
 }
 
+function getMainCollectionEmptyState(rows: DisplayModData[], visibleRows: DisplayModData[], selectedTags: string[] | undefined) {
+	if (visibleRows.length > 0) {
+		return undefined;
+	}
+
+	if (rows.length === 0) {
+		return {
+			title: 'No mods loaded',
+			detail: 'Reload mods after adding local files or Workshop subscriptions.'
+		};
+	}
+
+	const tagDetail =
+		selectedTags && selectedTags.length > 0 ? ` ${selectedTags.length} tag filter${selectedTags.length === 1 ? '' : 's'} active.` : '';
+	return {
+		title: 'No mods match this view',
+		detail: `Adjust search or tag filters to bring mods back into the table.${tagDetail}`
+	};
+}
+
 function useMainCollectionTableController(props: CollectionViewProps) {
 	const {
 		collection,
@@ -979,16 +1046,26 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		}
 	}, [columns, setSortState, sortState]);
 	const sortedRows = useMemo(() => sortMainCollectionRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
+	const emptyState = useMemo(
+		() => getMainCollectionEmptyState(rows, sortedRows, props.selectedTags),
+		[props.selectedTags, rows, sortedRows]
+	);
 	const [highlightedRowUid, setHighlightedRowUid] = useState<string>();
+	const tableContentWidth = useMemo(() => getMainCollectionTableScrollWidth(resolvedColumnWidths), [resolvedColumnWidths]);
 	const tableScrollX = useMemo(() => {
-		return Math.max(getMainCollectionTableScrollWidth(resolvedColumnWidths), availableTableWidth);
-	}, [availableTableWidth, resolvedColumnWidths]);
+		return Math.max(tableContentWidth, availableTableWidth);
+	}, [availableTableWidth, tableContentWidth]);
+	const needsHorizontalScroll = useMemo(() => {
+		return availableTableWidth > 0 && tableContentWidth > availableTableWidth + 1;
+	}, [availableTableWidth, tableContentWidth]);
 	const scrollParentRef = useRef<HTMLDivElement | null>(null);
 	const rowVirtualizer = useVirtualizer({
 		count: sortedRows.length,
 		getScrollElement: () => scrollParentRef.current,
 		estimateSize: () => (small ? 34 : 48),
-		overscan: 12,
+		overscan: MAIN_COLLECTION_VIRTUAL_OVERSCAN,
+		isScrollingResetDelay: VIRTUAL_SCROLLING_RESET_DELAY_MS,
+		useFlushSync: false,
 		initialRect: {
 			height: typeof height === 'number' ? height : 640,
 			width: typeof width === 'number' ? width : 1024
@@ -1042,6 +1119,119 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		},
 		[commands]
 	);
+	const openHighlightedRowDetails = useCallback(() => {
+		if (!highlightedRowUid) {
+			return false;
+		}
+
+		const highlightedRecord = sortedRows.find((row) => row.uid === highlightedRowUid);
+		if (!highlightedRecord) {
+			return false;
+		}
+
+		if (!detailsOpen) {
+			openRowDetails(highlightedRecord);
+		}
+		return true;
+	}, [detailsOpen, highlightedRowUid, openRowDetails, sortedRows]);
+	const navigateRowsByKeyboard = useCallback(
+		(event: KeyboardEvent<HTMLElement>) => {
+			if (event.defaultPrevented) {
+				return;
+			}
+
+			if (
+				(event.key === 'Enter' || event.key === ' ') &&
+				event.target === event.currentTarget &&
+				event.currentTarget === scrollParentRef.current
+			) {
+				if (openHighlightedRowDetails()) {
+					event.preventDefault();
+				}
+				return;
+			}
+
+			if (!isMainCollectionKeyboardNavigationTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+				return;
+			}
+
+			const highlightedIndex = highlightedRowUid ? sortedRows.findIndex((row) => row.uid === highlightedRowUid) : undefined;
+			const focusedRowIndex = getMainCollectionEventRowIndex(event.currentTarget);
+			const currentIndex = highlightedIndex !== undefined && highlightedIndex >= 0 ? highlightedIndex : focusedRowIndex;
+			const nextIndex = getTableNavigationIndex(event.key, currentIndex, sortedRows.length);
+			if (nextIndex === undefined) {
+				return;
+			}
+
+			const nextRecord = sortedRows[nextIndex];
+			if (!nextRecord) {
+				return;
+			}
+
+			event.preventDefault();
+			if (currentIndex === nextIndex) {
+				scrollParentRef.current?.focus({ preventScroll: true });
+				if (!detailsOpen) {
+					highlightRow(nextRecord);
+				}
+				return;
+			}
+			markPerfInteraction('collection.rowKeyboardNavigate', {
+				key: event.key,
+				row: nextRecord.uid
+			});
+			rowVirtualizer.scrollToIndex(nextIndex, { align: 'auto' });
+			scrollParentRef.current?.focus({ preventScroll: true });
+			if (detailsOpen) {
+				openRowDetails(nextRecord);
+				return;
+			}
+			highlightRow(nextRecord);
+		},
+		[detailsOpen, highlightRow, highlightedRowUid, openHighlightedRowDetails, openRowDetails, rowVirtualizer, sortedRows]
+	);
+	const focusScrollPaneAfterRowScroll = useCallback(() => {
+		const scrollParent = scrollParentRef.current;
+		const activeElement = document.activeElement;
+		if (!scrollParent || !(activeElement instanceof HTMLElement) || !scrollParent.contains(activeElement)) {
+			return;
+		}
+
+		if (!isMainCollectionRowFocusTarget(activeElement, scrollParent)) {
+			return;
+		}
+
+		scrollParent.focus({ preventScroll: true });
+	}, []);
+	useEffect(() => {
+		const scrollParent = scrollParentRef.current;
+		if (!scrollParent) {
+			return;
+		}
+
+		scrollParent.addEventListener('scroll', focusScrollPaneAfterRowScroll, { passive: true });
+		return () => {
+			scrollParent.removeEventListener('scroll', focusScrollPaneAfterRowScroll);
+		};
+	}, [focusScrollPaneAfterRowScroll]);
+	useEffect(() => {
+		const scrollParent = scrollParentRef.current;
+		if (!scrollParent) {
+			return;
+		}
+
+		const handleScrollPaneKeyDown = (event: globalThis.KeyboardEvent) => {
+			if (event.target !== scrollParent) {
+				return;
+			}
+			navigateRowsByKeyboard(event as unknown as KeyboardEvent<HTMLElement>);
+		};
+
+		scrollParent.addEventListener('keydown', handleScrollPaneKeyDown);
+		return () => {
+			scrollParent.removeEventListener('keydown', handleScrollPaneKeyDown);
+		};
+	}, [navigateRowsByKeyboard]);
 
 	return {
 		columns,
@@ -1059,6 +1249,9 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		setAllVisibleSelected,
 		setRowSelected,
 		setSortState,
+		emptyState,
+		needsHorizontalScroll,
+		navigateRowsByKeyboard,
 		small,
 		sortState,
 		sortedRows,
@@ -1086,6 +1279,9 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setAllVisibleSelected,
 		setRowSelected,
 		setSortState,
+		emptyState,
+		needsHorizontalScroll,
+		navigateRowsByKeyboard,
 		small,
 		sortState,
 		sortedRows,
@@ -1102,7 +1298,13 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 			style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}
 		>
 			<div className={`MainCollectionVirtualShell${launchingGame ? ' is-loading' : ''}`}>
-				<div ref={scrollParentRef} className="MainCollectionVirtualScroll">
+				<div
+					ref={scrollParentRef}
+					className={`MainCollectionVirtualScroll${needsHorizontalScroll ? ' has-horizontal-scroll' : ''}`}
+					role="region"
+					aria-label="Mod collection table"
+					tabIndex={-1}
+				>
 					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX }}>
 						<colgroup>
 							<col style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }} />
@@ -1154,6 +1356,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 										onContextMenu={() => {
 											openRowContextMenu(record);
 										}}
+										onKeyDown={navigateRowsByKeyboard}
 										onOpenDetails={openRowDetails}
 										onRowHighlight={highlightRow}
 										onSelectedChange={setRowSelected}
@@ -1163,6 +1366,16 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						</tbody>
 					</table>
 				</div>
+				{emptyState ? (
+					<div
+						className="absolute left-4 right-4 top-14 z-[2] rounded-sm border border-border bg-surface-alt px-4 py-3 text-ui leading-[var(--app-leading-ui)] text-text shadow-none"
+						role="status"
+						aria-live="polite"
+					>
+						<div className="font-[650]">{emptyState.title}</div>
+						<div className="mt-1 text-text-muted">{emptyState.detail}</div>
+					</div>
+				) : null}
 				{launchingGame ? <div className="MainCollectionVirtualLoading">Launching game...</div> : null}
 			</div>
 		</div>

@@ -37,17 +37,24 @@
 	--color-error-action: var(--app-color-error-action);
 	--color-error-action-hover: var(--app-color-error-action-hover);
 	--color-success: var(--app-color-success);
+	--color-success-border: var(--app-color-success-border);
 	--color-success-text: var(--app-color-success-text);
 	--color-success-surface: var(--app-color-success-surface);
 	--color-warning: var(--app-color-warning);
+	--color-warning-border: var(--app-color-warning-border);
 	--color-warning-text: var(--app-color-warning-text);
 	--color-warning-surface: var(--app-color-warning-surface);
 	--color-error: var(--app-color-error-text);
+	--color-error-border: var(--app-color-error-border);
 	--color-error-surface: var(--app-color-error-surface);
 	--color-info: var(--app-color-info);
+	--color-info-border: var(--app-color-info-border);
 	--color-info-text: var(--app-color-info-text);
 	--color-info-surface: var(--app-color-info-surface);
 	--color-link: var(--app-color-link);
+	--color-focus-ring: var(--app-color-focus-ring);
+	--color-focus-border: var(--app-color-focus-border);
+	--color-control-hover: var(--app-color-control-hover);
 	--color-surface: var(--app-color-surface);
 	--color-surface-alt: var(--app-color-surface-alt);
 	--color-surface-elevated: var(--app-color-surface-elevated);
@@ -64,6 +71,8 @@
 	--color-table-row-selected-hover: var(--app-color-table-row-selected-hover);
 	--color-tag-default-text: var(--app-color-tag-default-text);
 	--shadow-soft: 0 10px 24px var(--app-shadow-soft);
+	--duration-140: var(--app-motion-duration-fast);
+	--ease-app-out: var(--app-motion-ease-out);
 	--radius-sm: var(--app-radius-sm);
 	--radius-md: var(--app-radius-md);
 	--radius-lg: var(--app-radius-lg);
@@ -73,5 +82,16 @@
 @layer base {
 	* {
 		border-color: var(--app-color-border);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		::before,
+		::after {
+			animation-duration: 1ms !important;
+			animation-iteration-count: 1 !important;
+			scroll-behavior: auto !important;
+			transition-duration: 1ms !important;
+		}
 	}
 }

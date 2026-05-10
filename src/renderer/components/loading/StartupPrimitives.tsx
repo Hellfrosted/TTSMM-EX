@@ -10,6 +10,7 @@ interface StartupCardProps extends HTMLAttributes<HTMLElement> {
 
 interface StartupStatusCardProps extends HTMLAttributes<HTMLDivElement> {
 	error?: boolean;
+	tone?: 'default' | 'error' | 'info' | 'success' | 'warning';
 }
 
 interface StartupStatusContentProps extends HTMLAttributes<HTMLDivElement> {
@@ -17,6 +18,7 @@ interface StartupStatusContentProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 interface StartupProgressBarProps {
+	label?: string;
 	percent: number;
 	showInfo?: boolean;
 	status?: 'active' | 'exception' | 'success';
@@ -67,7 +69,7 @@ export function StartupCard({ children, className, wide = false, ...props }: Sta
 }
 
 export function StartupHeroRow({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
-	const rowClassName = ['mb-6 flex items-center justify-between gap-6', className].filter(Boolean).join(' ');
+	const rowClassName = ['mb-6 flex min-w-0 items-center justify-between gap-6', className].filter(Boolean).join(' ');
 	return (
 		<div {...props} className={rowClassName}>
 			{children}
@@ -123,22 +125,21 @@ export function StartupIntro({ children, className, ...props }: HTMLAttributes<H
 }
 
 export function StartupStatusCard({ children, className, error = false, ...props }: StartupStatusCardProps) {
-	const statusClassName = [
-		'StartupStatusCard rounded-sm border bg-surface-alt px-4 py-3.5',
-		error ? 'border-error' : 'border-border',
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
+	const { tone = 'default', ...statusProps } = props;
+	const resolvedTone = error ? 'error' : tone;
+	const toneClassName = getStatusSurfaceClassName(resolvedTone, 'border-border bg-surface-alt');
+	const statusClassName = ['StartupStatusCard rounded-sm border px-4 py-3.5', toneClassName, className].filter(Boolean).join(' ');
 	return (
-		<div {...props} className={statusClassName}>
+		<div {...statusProps} className={statusClassName}>
 			{children}
 		</div>
 	);
 }
 
 export function StartupStatusContent({ children, className, large = false, ...props }: StartupStatusContentProps) {
-	const contentClassName = ['flex gap-3.5', large ? 'items-center' : 'items-start', className].filter(Boolean).join(' ');
+	const contentClassName = ['flex min-w-0 gap-3.5 [&>span]:min-w-0', large ? 'items-center' : 'items-start', className]
+		.filter(Boolean)
+		.join(' ');
 	return (
 		<div {...props} className={contentClassName}>
 			{children}
@@ -164,21 +165,22 @@ export function StartupStatusDetail({ children, className, ...props }: HTMLAttri
 	);
 }
 
-export function StartupProgressBar({ percent, showInfo = true, status = 'active' }: StartupProgressBarProps) {
+export function StartupProgressBar({ label = 'Startup progress', percent, showInfo = true, status = 'active' }: StartupProgressBarProps) {
 	const clampedPercent = Math.min(100, Math.max(0, Math.round(percent)));
 	const valueToneClassName = status === 'exception' ? 'bg-destructive' : status === 'success' ? 'bg-success' : 'bg-primary';
 
 	return (
-		<div className="mt-4 flex w-full items-center gap-3">
+		<div className="mt-4 flex w-full min-w-0 items-center gap-3">
 			<div
 				className="relative h-2.5 flex-auto overflow-hidden rounded-[3px] bg-border"
 				role="progressbar"
+				aria-label={label}
 				aria-valuemin={0}
 				aria-valuemax={100}
 				aria-valuenow={clampedPercent}
 			>
 				<div
-					className={`StartupProgressFill absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out ${valueToneClassName}`}
+					className={`StartupProgressFill absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out motion-reduce:transition-none ${valueToneClassName}`}
 					style={{ width: `${clampedPercent}%` }}
 				/>
 			</div>

@@ -47,6 +47,8 @@ function createLinuxSdk(sdkPath: string) {
 
 function createGreenworksSkeleton(greenworksPath: string, previewTypeSignature: string) {
 	fs.mkdirSync(path.join(greenworksPath, 'src'), { recursive: true });
+	fs.writeFileSync(path.join(greenworksPath, 'package.json'), '{"name":"greenworks"}');
+	fs.writeFileSync(path.join(greenworksPath, 'greenworks.js'), 'module.exports = {};\n');
 	fs.writeFileSync(path.join(greenworksPath, 'binding.gyp'), "'python',\n");
 	fs.writeFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), `${previewTypeSignature}\n\treturn nullptr;\n}\n`);
 }
@@ -100,7 +102,7 @@ describe('steamworks setup scripts', () => {
 
 		const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 		const execSync = vi.fn((command: string, options?: { cwd?: string; env?: NodeJS.ProcessEnv; encoding?: string }) => {
-			if (command === 'pnpm --dir release/app install --ignore-workspace --ignore-scripts') {
+			if (command === 'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts') {
 				createGreenworksSkeleton(greenworksPath, 'char *PreviewTypeToString(EItemPreviewType type) {');
 				return Buffer.from('');
 			}
@@ -121,7 +123,9 @@ describe('steamworks setup scripts', () => {
 		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
 		setupSteamworksNativeDeps(sdkPath);
 
-		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm --dir release/app install --ignore-workspace --ignore-scripts');
+		expect(execSync.mock.calls.map(([command]) => command)).toContain(
+			'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts'
+		);
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('ps -ax -o pid= -o command=');
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm run electron-rebuild');
 		expect(execSync.mock.calls.some(([command]) => command.includes('powershell'))).toBe(false);

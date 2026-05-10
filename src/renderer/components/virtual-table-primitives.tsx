@@ -57,7 +57,7 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 	onKeyDown,
 	rowHeight,
 	start,
-	tabIndex = 0,
+	tabIndex,
 	width,
 	...props
 }: VirtualTableRowProps) {
@@ -66,12 +66,17 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 			return;
 		}
 
+		event.currentTarget.focus();
 		onActivate?.(event);
 	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
 		onKeyDown?.(event);
 		if (event.defaultPrevented) {
+			return;
+		}
+
+		if (isInteractiveRowTarget(event.target, event.currentTarget)) {
 			return;
 		}
 
@@ -82,6 +87,7 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 		event.preventDefault();
 		onActivate?.(event);
 	};
+	const resolvedTabIndex = tabIndex ?? (onActivate ? 0 : undefined);
 
 	return (
 		<tr
@@ -92,7 +98,7 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 			style={{ height: rowHeight, transform: `translateY(${start}px)`, width }}
 			aria-keyshortcuts={keyboardShortcuts ?? (onActivate ? 'Enter Space' : undefined)}
 			aria-roledescription={onActivate ? 'selectable row' : undefined}
-			tabIndex={tabIndex}
+			tabIndex={resolvedTabIndex}
 			onClick={activateFromClick}
 			onContextMenu={onContextMenu}
 			onDoubleClick={onDoubleClick}

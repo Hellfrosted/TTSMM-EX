@@ -19,6 +19,15 @@ interface BlockLookupSettingsState {
 	workshopRoot: string;
 }
 
+export type BlockLookupIndexRunPhase = 'running' | 'success' | 'error';
+
+export interface BlockLookupIndexRunStatus {
+	actionLabel: string;
+	detail: string;
+	phase: BlockLookupIndexRunPhase;
+	title: string;
+}
+
 interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsState {
 	activeSearchRequestId: number;
 	availableModFilters: string[];
@@ -34,13 +43,16 @@ interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsState {
 	selectedRowKeys: string[];
 	selectedRowKeysInCopyOrder: string[];
 	selectionAnchorRowKey?: string;
+	indexRunStatus?: BlockLookupIndexRunStatus;
 }
 
 type BlockLookupWorkspaceSessionEvent =
 	| { type: 'bootstrap-loaded'; settings: BlockLookupSettings; stats: BlockLookupIndexStats | null }
-	| { type: 'build-index-completed'; result: BlockLookupBuildResult }
+	| { type: 'build-index-completed'; forceRebuild: boolean; result: BlockLookupBuildResult }
+	| { type: 'build-index-failed'; forceRebuild: boolean; message: string }
 	| { type: 'build-index-finished' }
-	| { type: 'build-index-started' }
+	| { type: 'build-index-status-cleared' }
+	| { type: 'build-index-started'; forceRebuild: boolean }
 	| { type: 'query-changed'; query: string }
 	| { type: 'search-completed'; requestId: number; result: BlockLookupSearchResult }
 	| { type: 'search-finished'; requestId: number }
@@ -69,6 +81,7 @@ export function createBlockLookupWorkspaceSessionState(): BlockLookupWorkspaceSe
 		selectedRowKeys: [],
 		selectedRowKeysInCopyOrder: [],
 		selectionAnchorRowKey: undefined,
+		indexRunStatus: undefined,
 		settings: { workshopRoot: '' },
 		stats: null,
 		workshopRoot: ''
@@ -88,17 +101,29 @@ export function reduceBlockLookupWorkspaceSession(
 		case 'build-index-completed':
 			return {
 				...state,
-				...createBlockLookupBuildIndexState(event.result)
+				...createBlockLookupBuildIndexState(event.result),
+				indexRunStatus: createBlockLookupIndexRunSuccessStatus(event.result, event.forceRebuild)
+			};
+		case 'build-index-failed':
+			return {
+				...state,
+				indexRunStatus: createBlockLookupIndexRunFailureStatus(event.message, event.forceRebuild)
 			};
 		case 'build-index-finished':
 			return {
 				...state,
 				buildingIndex: false
 			};
+		case 'build-index-status-cleared':
+			return {
+				...state,
+				indexRunStatus: undefined
+			};
 		case 'build-index-started':
 			return {
 				...state,
-				buildingIndex: true
+				buildingIndex: true,
+				indexRunStatus: createBlockLookupIndexRunProgressStatus(event.forceRebuild)
 			};
 		case 'query-changed':
 			return {
@@ -269,6 +294,42 @@ export function getBlockLookupRowRange(orderedRowKeys: string[], anchorRowKey: s
 	const startIndex = Math.min(anchorIndex, targetIndex);
 	const endIndex = Math.max(anchorIndex, targetIndex);
 	return orderedRowKeys.slice(startIndex, endIndex + 1);
+}
+
+function getBlockLookupBuildActionLabel(forceRebuild: boolean) {
+	return forceRebuild ? 'Full rebuild' : 'Index update';
+}
+
+export function createBlockLookupIndexRunProgressStatus(forceRebuild: boolean): BlockLookupIndexRunStatus {
+	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
+	return {
+		actionLabel,
+		detail: 'Scanning workshop and loaded mod sources for SpawnBlock commands.',
+		phase: 'running',
+		title: `${actionLabel} running`
+	};
+}
+
+export function createBlockLookupIndexRunSuccessStatus(result: BlockLookupBuildResult, forceRebuild: boolean): BlockLookupIndexRunStatus {
+	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
+	return {
+		actionLabel,
+		detail: `${result.stats.blocks} block${result.stats.blocks === 1 ? '' : 's'} indexed from ${result.stats.sources} source${
+			result.stats.sources === 1 ? '' : 's'
+		}.`,
+		phase: 'success',
+		title: `${actionLabel} complete`
+	};
+}
+
+export function createBlockLookupIndexRunFailureStatus(message: string, forceRebuild: boolean): BlockLookupIndexRunStatus {
+	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
+	return {
+		actionLabel,
+		detail: message,
+		phase: 'error',
+		title: `${actionLabel} failed`
+	};
 }
 
 export function createBlockLookupBootstrapState(

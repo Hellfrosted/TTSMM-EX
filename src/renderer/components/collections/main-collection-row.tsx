@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { DisplayModData, getModDataDisplayName } from 'model';
 import { formatDateStr } from 'util/Date';
 import { VirtualTableRow } from 'renderer/components/virtual-table-primitives';
@@ -118,6 +118,7 @@ interface MainCollectionVirtualRowProps {
 	start: number;
 	tableWidth: number;
 	onContextMenu: () => void;
+	onKeyDown?: (event: KeyboardEvent<HTMLTableRowElement>) => void;
 	onOpenDetails: (record: DisplayModData) => void;
 	onRowHighlight: (record: DisplayModData) => void;
 	onSelectedChange: (record: DisplayModData, selected: boolean) => void;
@@ -135,12 +136,19 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 	start,
 	tableWidth,
 	onContextMenu,
+	onKeyDown,
 	onOpenDetails,
 	onRowHighlight,
 	onSelectedChange
 }: MainCollectionVirtualRowProps) {
 	const activateRow = () => {
 		if (detailsOpen) {
+			if (!highlighted) {
+				onOpenDetails(record);
+			}
+			return;
+		}
+		if (highlighted) {
 			onOpenDetails(record);
 			return;
 		}
@@ -161,8 +169,10 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 			width={tableWidth}
 			aria-label={`Mod row for ${rowLabel}. Press Enter or Space to select the row.`}
 			aria-selected={highlighted}
+			keyboardShortcuts="Enter Space ArrowUp ArrowDown Home End"
 			onContextMenu={onContextMenu}
 			onDoubleClick={openDetails}
+			onKeyDown={onKeyDown}
 			onActivate={activateRow}
 		>
 			<td
@@ -195,6 +205,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 						<MainCollectionCellValue
 							activateRow={activateRow}
 							column={column}
+							detailsOpen={detailsOpen}
 							highlighted={highlighted}
 							openDetails={openDetails}
 							record={record}

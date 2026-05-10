@@ -33,6 +33,10 @@ html {
 .AppRoot {
 	height: 100%;
 	width: 100%;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background: var(--app-color-background, oklch(18% 0.006 67));
 	--app-motion-duration-instant: 120ms;
 	--app-motion-duration-fast: 160ms;
 	--app-motion-duration-standard: 220ms;
@@ -92,6 +96,7 @@ textarea {
 	flex-direction: column;
 	background: var(--app-color-sider);
 	border-right: 1px solid var(--app-color-border);
+	box-sizing: border-box;
 }
 
 .AppSidebar.is-collapsed {
@@ -105,6 +110,7 @@ textarea {
 	left: 0;
 	right: 0;
 	bottom: 0;
+	z-index: 2;
 	height: 44px;
 	display: inline-flex;
 	align-items: center;
@@ -115,6 +121,7 @@ textarea {
 	border: 0;
 	border-top: 1px solid var(--app-color-border);
 	cursor: pointer;
+	box-sizing: border-box;
 	transition:
 		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
 		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
@@ -138,11 +145,15 @@ textarea {
 	height: 18px;
 }
 
-.MenuCollapseButton:hover,
-.MenuCollapseButton:focus-visible {
+.MenuCollapseButton:hover {
 	color: var(--app-color-text);
 	background: var(--app-color-surface-elevated);
+}
+
+.MenuCollapseButton:focus-visible {
 	outline: none;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
 	box-shadow:
 		inset 0 0 0 2px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%),
 		inset 0 0 0 4px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider));
@@ -161,6 +172,7 @@ textarea {
 	min-height: 0;
 	overflow: hidden;
 	isolation: isolate;
+	background: var(--app-color-background);
 }
 
 .AppViewStage {
@@ -530,13 +542,12 @@ a:hover {
 	text-decoration: none;
 }
 
-.MenuBar {
-	background: var(--app-color-sider);
-	border-right: 1px solid var(--app-color-border);
-}
-
 #MenuBar {
-	padding-top: 10px;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding: 10px 0 52px;
 	border-inline-end: none;
 }
 
@@ -559,6 +570,7 @@ a:hover {
 	align-items: center;
 	gap: 10px;
 	width: 100%;
+	min-width: 0;
 	min-height: calc(var(--app-control-height) + 8px);
 	padding: 0 12px;
 	color: var(--app-color-text-muted);
@@ -567,6 +579,8 @@ a:hover {
 	border-radius: var(--app-radius-sm);
 	cursor: pointer;
 	box-sizing: border-box;
+	font-size: var(--app-text-sm);
+	line-height: var(--app-leading-ui);
 	transform: translateY(0);
 	transition:
 		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
@@ -609,6 +623,8 @@ a:hover {
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 20px;
+	width: 20px;
+	height: 20px;
 	transform: scale(1);
 	transition:
 		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
@@ -622,8 +638,8 @@ a:hover {
 
 .MenuBarNavLabel {
 	min-width: 0;
-	overflow: visible;
-	text-overflow: clip;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	font-family: var(--app-font-display);
 	font-size: var(--app-text-sm);
 	font-weight: var(--app-weight-label);
@@ -930,6 +946,70 @@ a:hover {
 	font-weight: var(--app-weight-label);
 	line-height: var(--app-leading-ui);
 	letter-spacing: 0;
+}
+
+.BlockLookupIndexRunStatus {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	min-height: 36px;
+	padding: 7px 10px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-alt);
+	border: 1px solid var(--app-color-border);
+	border-radius: var(--app-radius-sm);
+}
+
+.BlockLookupIndexRunStatus--running {
+	color: var(--app-color-info-text);
+	background: var(--app-color-info-surface);
+	border-color: var(--app-color-info-border);
+}
+
+.BlockLookupIndexRunStatus--success {
+	color: var(--app-color-success-text);
+	background: var(--app-color-success-surface);
+	border-color: var(--app-color-success-border);
+}
+
+.BlockLookupIndexRunStatus--error {
+	color: var(--app-color-error-text);
+	background: var(--app-color-error-surface);
+	border-color: var(--app-color-error-border);
+}
+
+.BlockLookupIndexRunStatusIcon {
+	flex: 0 0 auto;
+	color: currentcolor;
+}
+
+.BlockLookupIndexRunStatus--running .BlockLookupIndexRunStatusIcon {
+	animation: blockLookupIndexStatusSpin 900ms linear infinite;
+}
+
+.BlockLookupIndexRunStatusText {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 8px;
+	min-width: 0;
+	font-size: var(--app-text-ui);
+	line-height: var(--app-leading-ui);
+}
+
+.BlockLookupIndexRunStatusText strong {
+	font-size: var(--app-text-sm);
+	font-weight: var(--app-weight-label);
+	line-height: var(--app-leading-ui);
+}
+
+.BlockLookupIndexRunStatusText span {
+	min-width: 0;
+	color: color-mix(in oklch, currentcolor 82%, var(--app-color-text-base));
+	overflow-wrap: anywhere;
 }
 
 .BlockLookupTablePane {
@@ -1959,7 +2039,12 @@ a:hover {
 	height: 100%;
 	min-width: 0;
 	min-height: 0;
-	overflow: auto;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.MainCollectionVirtualScroll.has-horizontal-scroll {
+	overflow-x: auto;
 }
 
 .MainCollectionVirtualTable {
@@ -2565,6 +2650,15 @@ a:hover {
 }
 
 @keyframes mainCollectionIconSpin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes blockLookupIndexStatusSpin {
 	from {
 		transform: rotate(0deg);
 	}

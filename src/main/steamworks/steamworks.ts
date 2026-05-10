@@ -197,9 +197,29 @@ function normalizeWorkshopChildren(children: unknown): bigint[] | undefined {
 	return children.map((workshopID) => BigInt(String(workshopID)));
 }
 
+function normalizeWorkshopTag(tag: unknown): string | null {
+	if (typeof tag === 'string') {
+		const trimmedTag = tag.trim();
+		return trimmedTag.length > 0 ? trimmedTag : null;
+	}
+
+	if (!tag || typeof tag !== 'object' || Array.isArray(tag)) {
+		return null;
+	}
+
+	const tagRecord = tag as Record<string, unknown>;
+	const value = tagRecord.tag ?? tagRecord.displayName ?? tagRecord.display_name ?? tagRecord.name;
+	if (typeof value !== 'string') {
+		return null;
+	}
+
+	const trimmedTag = value.trim();
+	return trimmedTag.length > 0 ? trimmedTag : null;
+}
+
 function normalizeWorkshopTags(tags: unknown): string[] {
 	if (Array.isArray(tags)) {
-		return tags.map((tag) => `${tag}`.trim()).filter((tag) => tag.length > 0);
+		return tags.map(normalizeWorkshopTag).filter((tag): tag is string => !!tag);
 	}
 	if (typeof tags !== 'string') {
 		return [];
@@ -224,7 +244,7 @@ function normalizeSteamPageResults(apiResults: Partial<SteamPageResults> | RawWo
 	};
 }
 
-function normalizeWorkshopItem<T extends RawWorkshopItem>(result: T): NormalizedWorkshopItem<T> {
+export function normalizeWorkshopItem<T extends RawWorkshopItem>(result: T): NormalizedWorkshopItem<T> {
 	const normalizedTags = normalizeWorkshopTags(
 		Array.isArray(result.tagsDisplayNames) && result.tagsDisplayNames.length > 0 ? result.tagsDisplayNames : result.tags
 	);

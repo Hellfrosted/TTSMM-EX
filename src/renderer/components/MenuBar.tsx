@@ -139,7 +139,10 @@ export default function MenuBar({ config, disableNavigation, onWorkspacePreview,
 
 	useEffect(() => {
 		const handleKeyboardNavigation = (event: KeyboardEvent) => {
-			if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== 'Tab') {
+			const target = event.target;
+			const isEditableTarget =
+				target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName));
+			if (event.defaultPrevented || isEditableTarget || !event.ctrlKey || event.altKey || event.metaKey || event.key !== 'Tab') {
 				return;
 			}
 
@@ -181,6 +184,7 @@ export default function MenuBar({ config, disableNavigation, onWorkspacePreview,
 								className="MenuBarNavButton"
 								disabled={disableNavigation}
 								aria-current={selected ? 'page' : undefined}
+								title={item.label}
 								onClick={() => {
 									navigateToItem(item.key);
 								}}

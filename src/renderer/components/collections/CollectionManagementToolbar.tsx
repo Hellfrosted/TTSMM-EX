@@ -1,4 +1,4 @@
-import { Suspense, lazy, memo, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CollectionManagerModalType, NotificationProps } from 'model';
 import {
@@ -53,6 +53,8 @@ interface CollectionManagementToolbarProps {
 	launchGameDisabled?: boolean;
 	launchGameDisabledReason?: string;
 	numResults?: number;
+	numSelectedResults?: number;
+	activeFilterCount?: number;
 	onReloadModListCallback: () => void;
 	validateCollectionCallback?: () => void;
 	launchGameCallback?: () => void;
@@ -66,6 +68,10 @@ interface CollectionManagementToolbarProps {
 	renameCollectionCallback: (name: string) => void;
 	openNotification: (props: NotificationProps, type?: 'info' | 'error' | 'success' | 'warn') => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
+}
+
+function formatModCount(count: number) {
+	return `${count} mod${count === 1 ? '' : 's'}`;
 }
 
 function CollectionNamingDialog({
@@ -114,11 +120,13 @@ function CollectionSearchControls({
 	disabledFeatures,
 	onSearchCallback,
 	onSearchChangeCallback,
+	resultSummaryId,
 	searchString
 }: {
 	disabledFeatures: boolean;
 	onSearchCallback: (search: string) => void;
 	onSearchChangeCallback: (search: string) => void;
+	resultSummaryId?: string;
 	searchString: string;
 }) {
 	return (
@@ -127,7 +135,11 @@ function CollectionSearchControls({
 			<DesktopInput
 				className="w-full min-w-0 pl-9.5 pr-19 focus-visible:relative focus-visible:z-1"
 				aria-label="Search mods by name, ID, author, or tag"
+				aria-describedby={resultSummaryId}
 				placeholder="Search mods by name, ID, author, or tag"
+				type="search"
+				autoComplete="off"
+				spellCheck={false}
 				onChange={(event) => {
 					onSearchChangeCallback(event.target.value);
 				}}
@@ -534,6 +546,8 @@ function CollectionManagementToolbarComponent({
 	launchGameDisabledReason,
 	launchReady,
 	numResults,
+	numSelectedResults,
+	activeFilterCount,
 	onSearchCallback,
 	onSearchChangeCallback,
 	validateCollectionCallback,
@@ -552,6 +566,12 @@ function CollectionManagementToolbarComponent({
 	const disabledFeatures = !!savingCollection || !!appState.loadingMods || !!modalType;
 	const { activeCollection } = appState;
 	const sortedCollectionNames = Array.from(appState.allCollectionNames).sort();
+	const resultSummaryId = useId();
+	const shownSummary = numResults === undefined ? undefined : `${formatModCount(numResults)} shown`;
+	const selectedSummary = numSelectedResults === undefined ? undefined : `${formatModCount(numSelectedResults)} enabled in this view`;
+	const filterSummary =
+		activeFilterCount && activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} active` : undefined;
+	const resultSummary = [shownSummary, selectedSummary, filterSummary].filter(Boolean).join(', ');
 
 	const openCollectionModal = (nextModalType: CollectionNamingModalType) => {
 		const nextText =
@@ -636,6 +656,7 @@ function CollectionManagementToolbarComponent({
 					disabledFeatures={disabledFeatures}
 					onSearchCallback={onSearchCallback}
 					onSearchChangeCallback={onSearchChangeCallback}
+					resultSummaryId={resultSummary ? resultSummaryId : undefined}
 					searchString={searchString}
 				/>
 				<PrimaryCollectionControls
@@ -660,9 +681,13 @@ function CollectionManagementToolbarComponent({
 					disabledFeatures={disabledFeatures}
 					sortedCollectionNames={sortedCollectionNames}
 				/>
-				{numResults !== undefined ? (
-					<div className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[760px]:w-full" aria-live="polite">
-						<span>{`${numResults} mod${numResults === 1 ? '' : 's'} shown`}</span>
+				{resultSummary ? (
+					<div
+						id={resultSummaryId}
+						className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[760px]:w-full"
+						aria-live="polite"
+					>
+						<span>{resultSummary}</span>
 					</div>
 				) : null}
 				<ToolbarSecondaryMenus

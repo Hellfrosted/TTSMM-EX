@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
-import { X } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import {
 	APP_NOTIFICATION_EVENT,
 	type AppNotification,
@@ -22,6 +21,19 @@ function getNotificationTone(type: NotificationType) {
 	}
 }
 
+function getNotificationIcon(tone: ReturnType<typeof getNotificationTone>): LucideIcon {
+	switch (tone) {
+		case 'error':
+			return CircleAlert;
+		case 'success':
+			return CircleCheck;
+		case 'warning':
+			return TriangleAlert;
+		default:
+			return Info;
+	}
+}
+
 function getViewportClassName(placement: string) {
 	const placementClassName =
 		placement === 'topLeft'
@@ -39,7 +51,7 @@ function getToastClassName(tone: ReturnType<typeof getNotificationTone>, classNa
 	const toneClassName = getStatusSurfaceClassName(tone);
 
 	return [
-		'NotificationToast pointer-events-auto grid grid-cols-[minmax(0,1fr)_var(--app-control-height)] gap-2.5 rounded-sm border p-3 text-text shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
+		'NotificationToast pointer-events-auto grid grid-cols-[auto_minmax(0,1fr)_var(--app-control-height)] items-start gap-2.5 rounded-sm border p-3 text-text shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
 		toneClassName,
 		className
 	]
@@ -101,8 +113,12 @@ function reduceNotifications(notifications: RenderedNotification[], action: Noti
 
 export function NotificationViewport() {
 	const [notifications, dispatchNotifications] = useReducer(reduceNotifications, []);
+	const notificationsRef = useRef<RenderedNotification[]>([]);
 	const closingIdsRef = useRef(new Set<string>());
 	const closeTimersRef = useRef(new Map<string, number>());
+	const dismissTimersRef = useRef(new Map<string, number>());
+	notificationsRef.current = notifications;
+
 	const clearCloseState = useCallback((id: string) => {
 		const timeoutId = closeTimersRef.current.get(id);
 		if (timeoutId !== undefined) {
@@ -111,13 +127,23 @@ export function NotificationViewport() {
 		}
 		closingIdsRef.current.delete(id);
 	}, []);
+
+	const clearDismissTimer = useCallback((id: string) => {
+		const timeoutId = dismissTimersRef.current.get(id);
+		if (timeoutId !== undefined) {
+			window.clearTimeout(timeoutId);
+			dismissTimersRef.current.delete(id);
+		}
+	}, []);
+
 	const closeNotification = useCallback(
 		(id: string) => {
-			const target = notifications.find((notification) => notification.id === id);
+			const target = notificationsRef.current.find((notification) => notification.id === id);
 			if (!target || closingIdsRef.current.has(id)) {
 				return;
 			}
 
+			clearDismissTimer(id);
 			closingIdsRef.current.add(id);
 			target?.props.onClose?.();
 			dispatchNotifications({ type: 'close', id });
@@ -130,7 +156,7 @@ export function NotificationViewport() {
 			}, 180);
 			closeTimersRef.current.set(id, timeoutId);
 		},
-		[notifications]
+		[clearDismissTimer]
 	);
 
 	useEffect(() => {
@@ -151,30 +177,39 @@ export function NotificationViewport() {
 			closeTimersRef.current.forEach((timeoutId) => {
 				window.clearTimeout(timeoutId);
 			});
+			dismissTimersRef.current.forEach((timeoutId) => {
+				window.clearTimeout(timeoutId);
+			});
 			closeTimersRef.current.clear();
+			dismissTimersRef.current.clear();
 			closingIdsRef.current.clear();
 		};
 	}, []);
 
 	useEffect(() => {
-		const timeoutIds = notifications.reduce<number[]>((ids, notification) => {
-			if (notification.renderState === 'closing' || notification.props.duration === null) {
-				return ids;
-			}
-			const durationSeconds = notification.props.duration ?? 4.5;
-			ids.push(
-				window.setTimeout(() => {
-					closeNotification(notification.id);
-				}, durationSeconds * 1000)
-			);
-			return ids;
-		}, []);
-
-		return () => {
-			timeoutIds.forEach((timeoutId) => {
+		const activeNotificationIds = new Set(notifications.map((notification) => notification.id));
+		dismissTimersRef.current.forEach((timeoutId, id) => {
+			const notification = notifications.find((item) => item.id === id);
+			if (!activeNotificationIds.has(id) || notification?.renderState === 'closing') {
 				window.clearTimeout(timeoutId);
-			});
-		};
+				dismissTimersRef.current.delete(id);
+			}
+		});
+
+		notifications.forEach((notification) => {
+			if (notification.renderState === 'closing' || notification.props.duration === null || dismissTimersRef.current.has(notification.id)) {
+				return;
+			}
+
+			const durationSeconds = notification.props.duration ?? 4.5;
+			const timeoutId = window.setTimeout(() => {
+				dismissTimersRef.current.delete(notification.id);
+				if (notificationsRef.current.some((item) => item.id === notification.id && item.renderState === 'open')) {
+					closeNotification(notification.id);
+				}
+			}, durationSeconds * 1000);
+			dismissTimersRef.current.set(notification.id, timeoutId);
+		});
 	}, [closeNotification, notifications]);
 
 	const groupedNotifications = notifications.reduce<Record<string, RenderedNotification[]>>((acc, notification) => {
@@ -190,19 +225,12 @@ export function NotificationViewport() {
 					{placementNotifications.map((notification) => {
 						const { props: notificationProps, type, id } = notification;
 						const tone = getNotificationTone(type);
+						const NotificationIcon = getNotificationIcon(tone);
 						const notificationInteractive = !!notificationProps.onClick;
 						const announcementProps = getAnnouncementProps(type, notificationInteractive);
 						const interactiveProps = notificationProps.onClick
 							? {
-									role: 'button',
-									tabIndex: 0,
-									onClick: notificationProps.onClick,
-									onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-										if (event.key === 'Enter' || event.key === ' ') {
-											event.preventDefault();
-											notificationProps.onClick?.();
-										}
-									}
+									onClick: notificationProps.onClick
 								}
 							: {};
 						return (
@@ -218,21 +246,39 @@ export function NotificationViewport() {
 									top: notificationProps.top,
 									bottom: notificationProps.bottom
 								}}
-								{...announcementProps}
-								{...interactiveProps}
+								{...(notificationInteractive ? {} : announcementProps)}
 							>
+								<NotificationIcon className="mt-0.5 shrink-0 text-current" size={18} aria-hidden="true" />
 								<div className="min-w-0">
-									<strong className="NotificationToastTitle block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
-									{notificationProps.description ? (
-										<div className="NotificationToastDescription mt-1 block wrap-break-word leading-[1.35]">
-											{notificationProps.description}
-										</div>
-									) : null}
+									{notificationInteractive ? (
+										<button
+											type="button"
+											className="NotificationToastBody -m-1 block w-full cursor-pointer rounded-sm border-0 bg-transparent p-1 text-left text-inherit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+											{...announcementProps}
+											{...interactiveProps}
+										>
+											<strong className="NotificationToastTitle block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
+											{notificationProps.description ? (
+												<span className="NotificationToastDescription mt-1 block wrap-break-word leading-[1.35]">
+													{notificationProps.description}
+												</span>
+											) : null}
+										</button>
+									) : (
+										<>
+											<strong className="NotificationToastTitle block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
+											{notificationProps.description ? (
+												<span className="NotificationToastDescription mt-1 block wrap-break-word leading-[1.35]">
+													{notificationProps.description}
+												</span>
+											) : null}
+										</>
+									)}
 									{notificationProps.btn ? <div className="mt-2.5">{notificationProps.btn}</div> : null}
 								</div>
 								<button
 									type="button"
-									className="NotificationToastClose inline-flex size-control cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent focus-visible:outline-none"
+									className="NotificationToastClose inline-flex size-control cursor-pointer items-center justify-center self-start rounded-sm border-0 bg-transparent focus-visible:outline-none"
 									aria-label="Close notification"
 									onClick={(event) => {
 										event.stopPropagation();

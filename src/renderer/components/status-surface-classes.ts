@@ -3,13 +3,13 @@ type StatusSurfaceTone = 'default' | 'error' | 'info' | 'success' | 'warning';
 export function getStatusSurfaceClassName(tone: StatusSurfaceTone, defaultClassName = 'border-border bg-surface-elevated') {
 	switch (tone) {
 		case 'error':
-			return 'border-[var(--app-color-error-border)] bg-[var(--app-color-error-surface)]';
+			return 'border-error-border bg-error-surface';
 		case 'info':
-			return 'border-[var(--app-color-info-border)] bg-[var(--app-color-info-surface)]';
+			return 'border-info-border bg-info-surface';
 		case 'warning':
-			return 'border-[var(--app-color-warning-border)] bg-[var(--app-color-warning-surface)]';
+			return 'border-warning-border bg-warning-surface';
 		case 'success':
-			return 'border-[var(--app-color-success-border)] bg-[var(--app-color-success-surface)]';
+			return 'border-success-border bg-success-surface';
 		default:
 			return defaultClassName;
 	}

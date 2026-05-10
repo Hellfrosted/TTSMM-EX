@@ -13,7 +13,9 @@ import {
 	StartupProgressBar,
 	StartupScreen,
 	StartupStatusCard,
+	StartupStatusContent,
 	StartupStatusDetail,
+	StartupStatusIcon,
 	StartupStatusTitle,
 	StartupTitle
 } from './StartupPrimitives';
@@ -72,6 +74,7 @@ interface ConfigLoadingState {
 	loadingConfig: boolean;
 	totalCollections: number;
 	updatingSteamMod: boolean;
+	userDataPathLoaded: boolean;
 	userDataPathError?: string;
 }
 
@@ -79,6 +82,7 @@ type ConfigLoadingAction =
 	| { type: 'user-data-path-failed'; message: string }
 	| { type: 'config-load-failed'; message: string }
 	| { type: 'config-loaded' }
+	| { type: 'user-data-path-loaded' }
 	| { type: 'steam-mod-updated' }
 	| { type: 'boot-persistence-failed'; message: string }
 	| { type: 'boot-started' }
@@ -101,6 +105,11 @@ function reduceConfigLoadingState(state: ConfigLoadingState, action: ConfigLoadi
 			return {
 				...state,
 				loadingConfig: false
+			};
+		case 'user-data-path-loaded':
+			return {
+				...state,
+				userDataPathLoaded: true
 			};
 		case 'steam-mod-updated':
 			return {
@@ -140,6 +149,7 @@ export default function ConfigLoading() {
 		loadingConfig: true,
 		totalCollections: -1,
 		updatingSteamMod: true,
+		userDataPathLoaded: false,
 		userDataPathError: undefined
 	});
 	const {
@@ -150,6 +160,7 @@ export default function ConfigLoading() {
 		loadingConfig,
 		totalCollections,
 		updatingSteamMod,
+		userDataPathLoaded,
 		userDataPathError
 	} = state;
 
@@ -157,6 +168,7 @@ export default function ConfigLoading() {
 		try {
 			const path = await api.getUserDataPath();
 			updateAppState({ userDataPath: path });
+			dispatchLoading({ type: 'user-data-path-loaded' });
 		} catch (error) {
 			api.logger.error(error);
 			dispatchLoading({ type: 'user-data-path-failed', message: formatErrorMessage(error) });
@@ -243,7 +255,15 @@ export default function ConfigLoading() {
 	}, []);
 
 	useEffect(() => {
-		if (bootResolved || bootPersistenceError || configLoadError || updatingSteamMod || loadingConfig) {
+		if (
+			bootResolved ||
+			bootPersistenceError ||
+			configLoadError ||
+			userDataPathError ||
+			!userDataPathLoaded ||
+			updatingSteamMod ||
+			loadingConfig
+		) {
 			return;
 		}
 
@@ -283,18 +303,44 @@ export default function ConfigLoading() {
 		navigateApp,
 		queryClient,
 		updateAppState,
+		userDataPathError,
+		userDataPathLoaded,
 		updatingSteamMod
 	]);
 
-	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
 	const bootError = configLoadError || bootPersistenceError || userDataPathError;
 	const describedBootError = bootError ? describeStartupBootError(bootError) : undefined;
-	const statusLabel = bootError ? describedBootError?.title || 'Startup needs attention' : 'Preparing your mod manager';
+	const percent = bootError
+		? 100
+		: bootResolved && totalCollections > 0
+			? Math.ceil((100 * loadedCollections) / totalCollections)
+			: bootResolved
+				? 88
+				: loadingConfig
+					? userDataPathLoaded
+						? 42
+						: 18
+					: updatingSteamMod
+						? 64
+						: 78;
+	const statusLabel = bootError
+		? describedBootError?.title || 'Startup needs attention'
+		: !userDataPathLoaded
+			? 'Finding the app data folder'
+			: loadingConfig
+				? 'Reading saved settings'
+				: updatingSteamMod
+					? 'Preparing Steam Workshop defaults'
+					: 'Resolving saved collections';
 	const statusDetail = bootError
 		? describedBootError?.detail || 'Fix the issue below before the app can continue.'
 		: totalCollections > 0
 			? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
-			: 'Checking your saved settings and creating a default collection if this is your first launch.';
+			: !userDataPathLoaded
+				? 'Locating the folder where TTSMM-EX stores settings and collections.'
+				: loadingConfig
+					? 'Checking stored paths and first-launch defaults before the workspace opens.'
+					: 'Checking the active collection and saved collection files.';
 
 	return (
 		<StartupScreen>
@@ -305,10 +351,20 @@ export default function ConfigLoading() {
 					Restoring your saved configuration, checking required paths, and loading your collections before the mod workspace appears.
 				</StartupIntro>
 				<StartupStatusCard aria-live="polite" role="status" error={!!bootError}>
-					<StartupStatusTitle>{statusLabel}</StartupStatusTitle>
-					<StartupStatusDetail>{statusDetail}</StartupStatusDetail>
+					<StartupStatusContent>
+						<StartupStatusIcon status={bootError ? 'error' : 'loading'} />
+						<span>
+							<StartupStatusTitle>{statusLabel}</StartupStatusTitle>
+							<StartupStatusDetail>{statusDetail}</StartupStatusDetail>
+						</span>
+					</StartupStatusContent>
 				</StartupStatusCard>
-				<StartupProgressBar percent={percent} showInfo={!bootError} status={bootError ? 'exception' : 'active'} />
+				<StartupProgressBar
+					label="Configuration startup progress"
+					percent={percent}
+					showInfo={!bootError}
+					status={bootError ? 'exception' : 'active'}
+				/>
 				{bootError ? (
 					<StartupActions>
 						<StatusCallout tone="error" heading={describedBootError?.title || 'Resolve this before continuing'}>

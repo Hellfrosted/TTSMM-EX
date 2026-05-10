@@ -131,7 +131,6 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 			startTransition(() => {
 				setCurrentRecord(isClosingCurrentRecord ? undefined : record);
 				if (!isClosingCurrentRecord) {
-					setDetailsActiveTabKey('info');
 					setPrewarmAlternateDetails(false);
 					setBigDetailsState(nextBigDetails);
 				}

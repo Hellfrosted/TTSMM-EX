@@ -66,7 +66,7 @@ export function useGameLaunch({
 					clearGameLaunchOverrideTimeout();
 					openNotification(
 						{
-							message: 'Failed to launch game',
+							message: 'Game launch did not start. Check the configured executable and Steam state, then try again.',
 							placement: 'bottomRight',
 							duration: null
 						},

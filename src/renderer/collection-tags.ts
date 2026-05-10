@@ -8,11 +8,12 @@ export function getCanonicalCollectionTagLabel(tag: string) {
 export function getAllCollectionTags(record: DisplayModData) {
 	const tags = new Map<string, string>();
 	[...(record.tags || []), ...(record.overrides?.tags || [])].forEach((tag) => {
-		if (tag.toLowerCase() === 'mods' || /[\u0000-\u001F\u007F]/.test(tag)) {
+		const trimmedTag = tag.trim();
+		if (!trimmedTag || trimmedTag.toLowerCase() === 'mods' || /[\u0000-\u001F\u007F]/.test(trimmedTag)) {
 			return;
 		}
 
-		const label = getCanonicalCollectionTagLabel(tag);
+		const label = getCanonicalCollectionTagLabel(trimmedTag);
 		const normalizedLabel = label.toLowerCase();
 		if (label && !tags.has(normalizedLabel)) {
 			tags.set(normalizedLabel, label);

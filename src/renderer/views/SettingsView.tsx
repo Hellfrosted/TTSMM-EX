@@ -1,4 +1,15 @@
-import { Children, cloneElement, isValidElement, memo, useCallback, useEffect, useState, type AriaAttributes, type ReactNode } from 'react';
+import {
+	Children,
+	cloneElement,
+	isValidElement,
+	memo,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type AriaAttributes,
+	type ReactNode
+} from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { useOutletContext } from 'react-router-dom';
@@ -49,6 +60,7 @@ interface SettingsFieldProps {
 
 interface SettingsFieldControlProps extends AriaAttributes {
 	children?: ReactNode;
+	className?: string;
 	id?: string;
 }
 
@@ -59,6 +71,10 @@ function formatLogLevelLabel(level: string) {
 function parseWorkshopIDInput(value: string) {
 	const digits = value.replace(/[^\d]/g, '').slice(0, MAX_WORKSHOP_ID_DIGITS);
 	return BigInt(digits || 0);
+}
+
+function joinFieldClassNames(...classNames: Array<string | false | undefined>) {
+	return classNames.filter(Boolean).join(' ');
 }
 
 async function getSettingsPathError(field: string, value: string | undefined) {
@@ -78,8 +94,14 @@ function mergeAriaDescribedBy(currentValue: AriaAttributes['aria-describedby'], 
 	return [current, next].filter(Boolean).join(' ') || undefined;
 }
 
-function enhanceSettingsFieldChildren(children: ReactNode, fieldId: string, describedBy: string | undefined, invalid: boolean): ReactNode {
-	if (!describedBy && !invalid) {
+function enhanceSettingsFieldChildren(
+	children: ReactNode,
+	fieldId: string,
+	describedBy: string | undefined,
+	invalid: boolean,
+	required: boolean
+): ReactNode {
+	if (!describedBy && !invalid && !required) {
 		return children;
 	}
 
@@ -90,7 +112,7 @@ function enhanceSettingsFieldChildren(children: ReactNode, fieldId: string, desc
 
 		const childChildren = child.props.children;
 		const nextChildren =
-			childChildren === undefined ? undefined : enhanceSettingsFieldChildren(childChildren, fieldId, describedBy, invalid);
+			childChildren === undefined ? undefined : enhanceSettingsFieldChildren(childChildren, fieldId, describedBy, invalid, required);
 		const nextProps: SettingsFieldControlProps = {};
 
 		if (nextChildren !== childChildren) {
@@ -103,6 +125,10 @@ function enhanceSettingsFieldChildren(children: ReactNode, fieldId: string, desc
 			}
 			if (invalid) {
 				nextProps['aria-invalid'] = true;
+				nextProps.className = joinFieldClassNames(child.props.className, 'border-error focus:border-error');
+			}
+			if (required) {
+				nextProps['aria-required'] = true;
 			}
 		}
 
@@ -114,7 +140,7 @@ function SettingsField({ id, label, required, error, extra, tooltip, children }:
 	const helpId = `${id}-help`;
 	const errorId = `${id}-error`;
 	const describedBy = [extra ? helpId : undefined, error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
-	const enhancedChildren = enhanceSettingsFieldChildren(children, id, describedBy, !!error);
+	const enhancedChildren = enhanceSettingsFieldChildren(children, id, describedBy, !!error, !!required);
 
 	return (
 		<div className="mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
@@ -123,7 +149,14 @@ function SettingsField({ id, label, required, error, extra, tooltip, children }:
 				htmlFor={id}
 				title={tooltip}
 			>
-				{required ? <span className="mr-1 text-error">*</span> : null}
+				{required ? (
+					<>
+						<span aria-hidden="true" className="mr-1 text-error">
+							*
+						</span>
+						<span className="sr-only">Required. </span>
+					</>
+				) : null}
 				{label}
 			</label>
 			<div className="flex min-w-0 flex-col gap-1.5">
@@ -148,11 +181,14 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 	const isLinux = window.electron.platform === 'linux';
 	const { openNotification } = useNotifications();
 	const [loggingOverridesOpen, setLoggingOverridesOpen] = useState(false);
+	const loggerIdInputRef = useRef<HTMLInputElement>(null);
+	const workshopIdInputRef = useRef<HTMLInputElement>(null);
 	const configErrors = appConfigErrors || {};
 	const {
 		editingConfig,
 		form,
 		selectingDirectory,
+		selectingPathTarget,
 		modalType,
 		editingContextIndex,
 		editingContext,
@@ -173,6 +209,20 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 			setLoggingOverridesOpen(true);
 		}
 	}, [editingConfig.editingLogConfig.length]);
+
+	useEffect(() => {
+		if (modalType === SettingsViewModalType.LOG_EDIT) {
+			window.requestAnimationFrame(() => {
+				loggerIdInputRef.current?.focus();
+				loggerIdInputRef.current?.select();
+			});
+		} else if (modalType === SettingsViewModalType.WORKSHOP_ID_EDIT) {
+			window.requestAnimationFrame(() => {
+				workshopIdInputRef.current?.focus();
+				workshopIdInputRef.current?.select();
+			});
+		}
+	}, [modalType]);
 
 	const commitConfigErrors = useCallback(
 		(nextErrors: SettingsConfigErrors) => {
@@ -198,6 +248,20 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 		},
 		[commitConfigErrors, configErrors]
 	);
+
+	const clearLoggingOverrideErrors = useCallback(() => {
+		const nextErrors = { ...(configErrors || {}) };
+		let changed = false;
+		for (const field of Object.keys(nextErrors)) {
+			if (field.startsWith('editingLogConfig.')) {
+				delete nextErrors[field];
+				changed = true;
+			}
+		}
+		if (changed) {
+			commitConfigErrors(nextErrors);
+		}
+	}, [commitConfigErrors, configErrors]);
 
 	const validateFile = useCallback(
 		async (field: string, value: string) => {
@@ -307,10 +371,27 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 		);
 	}, [openNotification, saveChanges, validateSettingsBeforeSave]);
 
+	useEffect(() => {
+		const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+			if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+				event.preventDefault();
+				if (modalType === SettingsViewModalType.NONE && madeConfigEdits && !savingConfig) {
+					void handleSaveChanges();
+				}
+			}
+		};
+
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [handleSaveChanges, madeConfigEdits, modalType, savingConfig]);
+
 	return {
 		addLogConfig,
 		appState,
 		cancelChanges,
+		clearLoggingOverrideErrors,
 		closeModal,
 		config,
 		configErrors,
@@ -321,6 +402,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 		handleSaveChanges,
 		handleSelectPath,
 		isLinux,
+		loggerIdInputRef,
 		loggingOverridesOpen,
 		madeConfigEdits,
 		modalType,
@@ -329,11 +411,13 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 		removeLogConfig,
 		savingConfig,
 		selectingDirectory,
+		selectingPathTarget,
 		setField,
 		setLoggingOverridesOpen,
 		updateConfigErrors,
 		updateLogConfig,
-		validateFile
+		validateFile,
+		workshopIdInputRef
 	};
 }
 
@@ -343,6 +427,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 	const {
 		addLogConfig,
 		cancelChanges,
+		clearLoggingOverrideErrors,
 		closeModal,
 		config,
 		configErrors,
@@ -353,6 +438,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 		handleSaveChanges,
 		handleSelectPath,
 		isLinux,
+		loggerIdInputRef,
 		loggingOverridesOpen,
 		madeConfigEdits,
 		modalType,
@@ -361,11 +447,13 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 		removeLogConfig,
 		savingConfig,
 		selectingDirectory,
+		selectingPathTarget,
 		setField,
 		setLoggingOverridesOpen,
 		updateConfigErrors,
 		updateLogConfig,
-		validateFile
+		validateFile,
+		workshopIdInputRef
 	} = controller;
 
 	return (
@@ -404,13 +492,21 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						<SettingsField id="logger-id" label="Logger ID" error={configErrors?.[`editingLogConfig.${editingContextIndex}.loggerID`]}>
 							<DesktopInput
 								id="logger-id"
+								ref={loggerIdInputRef}
 								value={editingContext.loggerID}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter') {
+										event.preventDefault();
+										closeModal();
+									}
+								}}
 								onChange={(event) => {
 									if (editingContextIndex === undefined) {
 										return;
 									}
 
 									updateLogConfig(editingContextIndex, { loggerID: event.target.value });
+									clearLoggingOverrideErrors();
 								}}
 							/>
 						</SettingsField>
@@ -461,10 +557,17 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						<SettingsField id="workshop-id" label="Workshop item ID" required>
 							<DesktopInput
 								id="workshop-id"
+								ref={workshopIdInputRef}
 								inputMode="numeric"
 								maxLength={MAX_WORKSHOP_ID_DIGITS}
 								pattern="[0-9]*"
 								value={editingConfig.workshopID.toString()}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter') {
+										event.preventDefault();
+										closeModal();
+									}
+								}}
 								onChange={(event) => {
 									setField(AppConfigKeys.MANAGER_ID, parseWorkshopIDInput(event.target.value));
 								}}
@@ -497,6 +600,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 									id="localDir"
 									label="Local Mods Folder"
 									error={configErrors?.localDir}
+									extra="Optional. Use this when developing or testing local mods."
 									tooltip="Optional. Use this only when you develop or test local mods."
 								>
 									<DesktopInlineControls>
@@ -515,8 +619,14 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 											}}
 										/>
 										<DesktopButton
-											aria-label="Browse for the Local Mods directory"
+											aria-label={
+												selectingPathTarget === AppConfigKeys.LOCAL_DIR
+													? 'Selecting the Local Mods directory'
+													: 'Browse for the Local Mods directory'
+											}
+											disabled={selectingDirectory && selectingPathTarget !== AppConfigKeys.LOCAL_DIR}
 											icon={<Folder size={16} />}
+											loading={selectingPathTarget === AppConfigKeys.LOCAL_DIR}
 											onClick={() => {
 												void handleSelectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory');
 											}}
@@ -528,7 +638,11 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 									label="TerraTech Executable"
 									required={!isLinux}
 									error={configErrors?.gameExec}
-									extra={isLinux ? 'Unused on Linux. TerraTech is launched through Steam.' : undefined}
+									extra={
+										isLinux
+											? 'Unused on Linux. TerraTech is launched through Steam.'
+											: 'Required on Windows. Choose the TerraTech executable this app should launch.'
+									}
 								>
 									{isLinux ? (
 										<DesktopInput id="gameExec" disabled value="Launched through Steam on Linux" />
@@ -549,8 +663,14 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 												}}
 											/>
 											<DesktopButton
-												aria-label="Browse for the TerraTech executable"
+												aria-label={
+													selectingPathTarget === AppConfigKeys.GAME_EXEC
+														? 'Selecting the TerraTech executable'
+														: 'Browse for the TerraTech executable'
+												}
+												disabled={selectingDirectory && selectingPathTarget !== AppConfigKeys.GAME_EXEC}
 												icon={<Folder size={16} />}
+												loading={selectingPathTarget === AppConfigKeys.GAME_EXEC}
 												onClick={() => {
 													void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
 												}}
@@ -562,6 +682,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 									id="logsDir"
 									label="Logs Folder"
 									error={configErrors?.logsDir}
+									extra="Optional. Leave empty to use the default app data logs folder."
 									tooltip="Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder."
 								>
 									<DesktopInlineControls>
@@ -580,8 +701,12 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 											}}
 										/>
 										<DesktopButton
-											aria-label="Browse for the logs directory"
+											aria-label={
+												selectingPathTarget === AppConfigKeys.LOGS_DIR ? 'Selecting the logs directory' : 'Browse for the logs directory'
+											}
+											disabled={selectingDirectory && selectingPathTarget !== AppConfigKeys.LOGS_DIR}
 											icon={<Folder size={16} />}
+											loading={selectingPathTarget === AppConfigKeys.LOGS_DIR}
 											onClick={() => {
 												void handleSelectPath(AppConfigKeys.LOGS_DIR, true, 'Select directory for logs');
 											}}
@@ -646,6 +771,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 									id="workshopID"
 									label="Manager Workshop ID"
 									required
+									extra="Steam Workshop item ID for the manager package TTSMM-EX launches with."
 									tooltip="The Steam Workshop item ID for the mod manager package this app should launch with."
 								>
 									<DesktopInlineControls>
@@ -669,7 +795,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						</div>
 						<div key="additional-commands" className="SettingsPanelWrap">
 							<div className="SettingsPanel">
-								<SettingsField id="extraParams" label="Launch Arguments">
+								<SettingsField id="extraParams" label="Launch Arguments" extra="Passed to TerraTech when launching from TTSMM-EX.">
 									<DesktopInput
 										id="extraParams"
 										value={editingConfig.extraParams ?? ''}
@@ -728,6 +854,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 															variant="primary"
 															onClick={() => {
 																removeLogConfig(index);
+																clearLoggingOverrideErrors();
 															}}
 														/>
 													</div>
@@ -739,6 +866,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 												icon={<Plus size={16} />}
 												onClick={() => {
 													addLogConfig();
+													clearLoggingOverrideErrors();
 												}}
 												variant="primary"
 											>
@@ -751,13 +879,16 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						</div>
 					</div>
 					<div className="SettingsActions">
-						<span className="SettingsDirtyState" aria-live="polite">
-							{madeConfigEdits ? 'Unsaved changes' : ''}
+						<span
+							className={joinFieldClassNames('SettingsDirtyState', !madeConfigEdits && !savingConfig && 'text-text-muted')}
+							aria-live="polite"
+						>
+							{savingConfig ? 'Saving settings...' : madeConfigEdits ? 'Unsaved changes' : 'No changes to save'}
 						</span>
-						<DesktopButton disabled={!madeConfigEdits} type="button" onClick={cancelChanges}>
+						<DesktopButton disabled={!madeConfigEdits || savingConfig} type="button" onClick={cancelChanges}>
 							Reset Changes
 						</DesktopButton>
-						<DesktopButton loading={savingConfig} disabled={!madeConfigEdits} variant="primary" type="submit">
+						<DesktopButton loading={savingConfig} disabled={!madeConfigEdits || savingConfig} variant="primary" type="submit">
 							Save Changes
 						</DesktopButton>
 					</div>

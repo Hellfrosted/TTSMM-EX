@@ -44,7 +44,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		selectedRowKeysInCopyOrder,
 		settings,
 		stats,
-		workshopRoot
+		workshopRoot,
+		indexRunStatus
 	} = sessionState;
 	const { config: appConfig, mods } = appState;
 	const { gameExec } = appConfig;
@@ -129,6 +130,22 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		};
 	}, [query, refreshResults]);
 
+	useEffect(() => {
+		if (!indexRunStatus || indexRunStatus.phase === 'running') {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(
+			() => {
+				dispatchSessionEvent({ type: 'build-index-status-cleared' });
+			},
+			indexRunStatus.phase === 'success' ? 5000 : 8000
+		);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [indexRunStatus]);
+
 	const handleSaveSettings = useCallback(async () => {
 		try {
 			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
@@ -197,15 +214,15 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 
 	const handleBuildIndex = useCallback(
 		async (forceRebuild = false) => {
-			dispatchSessionEvent({ type: 'build-index-started' });
+			dispatchSessionEvent({ type: 'build-index-started', forceRebuild });
 			try {
 				const request = buildRequest(forceRebuild);
 				const result = await measurePerfAsync('blockLookup.buildIndex.ipc', () => buildIndexMutation.mutateAsync(request), {
 					forceRebuild,
 					modSources: modSources.length
 				});
-				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', result });
-				dispatchSessionEvent({ type: 'build-index-completed', result });
+				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', forceRebuild, result });
+				dispatchSessionEvent({ type: 'build-index-completed', forceRebuild, result });
 				setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(buildState));
 				await invalidateBlockLookupSearchQueries(queryClient);
 				await refreshResults(query);
@@ -220,6 +237,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 			} catch (error) {
 				api.logger.error(error);
+				dispatchSessionEvent({ type: 'build-index-failed', forceRebuild, message: formatErrorMessage(error) });
 				openNotification(
 					{
 						message: 'Block index update failed',
@@ -270,6 +288,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		handleAutoDetectWorkshopRoot,
 		handleBrowseWorkshopRoot,
 		handleBuildIndex,
+		indexRunStatus,
 		handleSaveSettings,
 		loadingResults,
 		modSources,

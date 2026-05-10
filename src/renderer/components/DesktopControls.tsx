@@ -332,7 +332,9 @@ export function DesktopDialog({
 					>
 						{title}
 					</h2>
-					<DesktopButton aria-label={closeLabel} icon={<X size={16} aria-hidden="true" />} onClick={onCancel} />
+					<DesktopIconButton aria-label={closeLabel} title={closeLabel} onClick={onCancel}>
+						<X size={16} aria-hidden="true" />
+					</DesktopIconButton>
 				</div>
 				<div className={joinClassNames('overflow-auto p-4', bodyClassName)}>{children}</div>
 				{footer ? <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</div> : null}

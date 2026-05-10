@@ -119,7 +119,7 @@ describe('main-collection-row', () => {
 
 		const row = screen.getByText('HumanReadableModId').closest('tr') as HTMLTableRowElement;
 		expect(row).toHaveAttribute('aria-roledescription', 'selectable row');
-		expect(row).toHaveAttribute('aria-keyshortcuts', 'Enter Space');
+		expect(row).toHaveAttribute('aria-keyshortcuts', 'Enter Space ArrowUp ArrowDown Home End');
 		expect(row).toHaveAccessibleName('Mod row for HumanReadableModId. Press Enter or Space to select the row.');
 		fireEvent.click(row);
 		fireEvent.keyDown(row, { key: 'Enter' });

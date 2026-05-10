@@ -37,7 +37,7 @@ export function AppRoutes() {
 					<Route
 						path="config"
 						element={
-							<Suspense fallback={<RouteChunkFallback label="Loading startup checks..." />}>
+							<Suspense fallback={<RouteChunkFallback label="Loading startup checks" />}>
 								<ConfigLoadingComponentLazy />
 							</Suspense>
 						}
@@ -45,7 +45,7 @@ export function AppRoutes() {
 					<Route
 						path="steamworks"
 						element={
-							<Suspense fallback={<RouteChunkFallback label="Loading Steamworks verification..." />}>
+							<Suspense fallback={<RouteChunkFallback label="Loading Steamworks verification" />}>
 								<SteamworksVerificationLazy />
 							</Suspense>
 						}

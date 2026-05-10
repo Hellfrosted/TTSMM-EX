@@ -253,7 +253,7 @@ function AppShell() {
 
 	return (
 		<div className="AppLayout">
-			<aside className={`AppSidebar MenuBar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
+			<aside className={`AppSidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Workspace navigation">
 				<div className="logo" />
 				<Suspense fallback={null}>
 					<MenuBarStageView disableNavigation={appShell.disableNavigation} onWorkspacePreview={previewWorkspaceNavigation} />

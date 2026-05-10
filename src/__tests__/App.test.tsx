@@ -1,7 +1,7 @@
 import React from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App, { AppViewStage } from '../renderer/App';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
 import { AppRoutes } from '../renderer/routes';
@@ -20,6 +20,10 @@ function AppFlowProbe() {
 		</div>
 	);
 }
+
+afterEach(() => {
+	cleanup();
+});
 
 describe('App', () => {
 	it('marks inactive view stages as hidden to assistive tech without native inert', () => {

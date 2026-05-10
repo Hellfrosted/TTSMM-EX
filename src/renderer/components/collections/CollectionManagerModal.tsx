@@ -32,6 +32,8 @@ import {
 
 const VALIDATION_ISSUES_HEADING_ID = 'collection-validation-issues-heading';
 const DEFAULT_MAIN_CONFIG: MainCollectionConfig = {};
+const MODAL_COPY_STACK_CLASS_NAME = 'grid gap-3';
+const MODAL_COPY_CLASS_NAME = 'm-0 max-w-[72ch] text-body leading-[var(--app-leading-body)] text-text';
 type ValidationIssueSummaryList = ReturnType<typeof getValidationIssueList>;
 
 function ValidationIssueList({ validationIssueSummaries }: { validationIssueSummaries: ValidationIssueSummaryList }) {
@@ -40,15 +42,17 @@ function ValidationIssueList({ validationIssueSummaries }: { validationIssueSumm
 	}
 
 	return (
-		<section className="mt-5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
-			<h3 id={VALIDATION_ISSUES_HEADING_ID}>Mods to review</h3>
-			<div className="pr-2">
-				<ul className="m-0 grid gap-3.5 p-0">
+		<section className="mt-5 grid gap-2.5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID} aria-live="polite">
+			<h3 id={VALIDATION_ISSUES_HEADING_ID} className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">
+				Mods to review
+			</h3>
+			<div>
+				<ul className="m-0 grid gap-2.5 p-0">
 					{validationIssueSummaries.map((summary) => (
-						<li key={summary.uid} className="grid gap-1">
-							<strong className="block">{summary.label}</strong>
-							<span className="block">{summary.uid}</span>
-							<ul className="m-0 grid gap-1 pl-5">
+						<li key={summary.uid} className="grid gap-1 rounded-sm border border-border bg-surface-alt px-3 py-2.5">
+							<strong className="block text-ui font-[650] leading-[var(--app-leading-ui)] text-text">{summary.label}</strong>
+							<span className="block text-caption leading-[var(--app-leading-ui)] text-text-muted">UID: {summary.uid}</span>
+							<ul className="m-0 grid gap-1 pl-4 text-ui leading-[var(--app-leading-ui)] text-text">
 								{summary.issues.map((issue) => (
 									<li key={`${summary.uid}-${issue}`}>{issue}</li>
 								))}
@@ -201,6 +205,9 @@ function ValidationLaunchDialog({
 	onReviewIssues: () => void;
 	validationIssueSummaries: ValidationIssueSummaryList;
 }) {
+	const affectedModCount = validationIssueSummaries.length;
+	const affectedModCopy = affectedModCount === 1 ? '1 mod needs review.' : `${affectedModCount} mods need review.`;
+
 	return (
 		<CollectionDialog
 			key={blocking ? 'error-modal' : 'warning-modal'}
@@ -226,20 +233,28 @@ function ValidationLaunchDialog({
 			}
 		>
 			{blocking ? (
-				<>
-					<p>One or more enabled mods are missing required dependencies or conflict with another selected mod.</p>
-					<p>Launching with this collection can cause missing content, startup failures, or save corruption.</p>
-					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
+				<div className={MODAL_COPY_STACK_CLASS_NAME}>
+					<p className={MODAL_COPY_CLASS_NAME}>
+						Enabled mods have missing dependencies or conflicts that can stop TerraTech from loading this collection correctly.
+					</p>
+					<p className={MODAL_COPY_CLASS_NAME}>Launching anyway can cause missing content, startup failures, or damaged saves.</p>
+					<p className={MODAL_COPY_CLASS_NAME}>
+						Mods with the same Mod ID are mutually incompatible. TerraTech loads the first match it finds and ignores the others.
+					</p>
+					<p className="m-0 text-ui font-[650] leading-[var(--app-leading-ui)] text-error">{affectedModCopy}</p>
 					<ValidationIssueList validationIssueSummaries={validationIssueSummaries} />
-					<p>Review the list above before deciding whether to launch anyway.</p>
-				</>
+					<p className={MODAL_COPY_CLASS_NAME}>Review the affected mods before launching.</p>
+				</div>
 			) : (
-				<>
-					<p>Some mods could not be fully validated.</p>
-					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
+				<div className={MODAL_COPY_STACK_CLASS_NAME}>
+					<p className={MODAL_COPY_CLASS_NAME}>Some enabled mods could not be fully validated.</p>
+					<p className={MODAL_COPY_CLASS_NAME}>
+						This usually means a Workshop item is not subscribed, not installed yet, or still downloading from Steam.
+					</p>
+					<p className="m-0 text-ui font-[650] leading-[var(--app-leading-ui)] text-warning">{affectedModCopy}</p>
 					<ValidationIssueList validationIssueSummaries={validationIssueSummaries} />
-					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
-				</>
+					<p className={MODAL_COPY_CLASS_NAME}>Launching is allowed, but review these mods if this collection needs to be stable.</p>
+				</div>
 			)}
 		</CollectionDialog>
 	);
@@ -257,7 +272,7 @@ function MainTableSettingsForm({
 	setSmallRows: (checked: boolean) => void;
 }) {
 	return (
-		<form className="grid w-full max-w-full gap-3">
+		<form className="grid w-full max-w-full gap-3" noValidate>
 			<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
 				<div className="flex min-w-0 items-center">
 					<h3 className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
@@ -373,6 +388,8 @@ function CollectionManagerModal({
 		() => getValidationIssueList(collectionErrors, appState.mods),
 		[appState.mods, collectionErrors]
 	);
+	const overrideIdError = overrideForm.formState.errors.overrideId?.message;
+	const overrideFormDirty = overrideForm.formState.isDirty;
 
 	const getModManagerUID = () => {
 		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
@@ -433,9 +450,11 @@ function CollectionManagerModal({
 						</>
 					}
 				>
-					<p>Delete the saved collection from TTSMM-EX.</p>
-					<p>Your installed mods and Steam subscriptions will stay unchanged.</p>
-					<p>This cannot be undone.</p>
+					<div className={MODAL_COPY_STACK_CLASS_NAME}>
+						<p className={MODAL_COPY_CLASS_NAME}>Delete the saved collection from TTSMM-EX.</p>
+						<p className={MODAL_COPY_CLASS_NAME}>Installed mods and Steam subscriptions stay unchanged.</p>
+						<p className="m-0 text-ui font-[650] leading-[var(--app-leading-ui)] text-error">This cannot be undone.</p>
+					</div>
 				</CollectionDialog>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
@@ -452,9 +471,15 @@ function CollectionManagerModal({
 						</CollectionModalButton>
 					}
 				>
-					<p>TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.</p>
-					<p>Your current manager is {`${managerData.name} (${appState.config.workshopID})`}.</p>
-					<p>To switch managers, update the workshop item ID in Settings instead of disabling the current one here.</p>
+					<div className={MODAL_COPY_STACK_CLASS_NAME}>
+						<p className={MODAL_COPY_CLASS_NAME}>
+							TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.
+						</p>
+						<p className={MODAL_COPY_CLASS_NAME}>Current manager: {`${managerData.name} (${appState.config.workshopID})`}.</p>
+						<p className={MODAL_COPY_CLASS_NAME}>
+							To switch managers, update the workshop item ID in Settings instead of disabling the current one here.
+						</p>
+					</div>
 				</CollectionDialog>
 			);
 		}
@@ -530,6 +555,11 @@ function CollectionManagerModal({
 			if (!nextRecord) {
 				return null;
 			}
+			const overrideIdInputId = 'collection-override-id';
+			const overrideIdHelpId = 'collection-override-id-help';
+			const overrideIdErrorId = 'collection-override-id-error';
+			const currentUserTagsInputId = 'collection-current-user-tags';
+			const currentUserTagsHelpId = 'collection-current-user-tags-help';
 			const submitOverrideSettings = overrideForm.handleSubmit((values) => {
 				const nextConfig = cloneAppConfig(appState.config);
 				const nextOverride = nextConfig.userOverrides.get(nextRecord.uid) || {};
@@ -562,29 +592,57 @@ function CollectionManagerModal({
 							<CollectionModalButton disabled={savingConfig} onClick={closeModal}>
 								Cancel
 							</CollectionModalButton>
-							<CollectionModalButton loading={savingConfig} disabled={savingConfig} variant="primary" onClick={submitOverrideSettings}>
+							<CollectionModalButton
+								loading={savingConfig}
+								disabled={savingConfig || !overrideFormDirty || !!overrideIdError}
+								variant="primary"
+								onClick={submitOverrideSettings}
+							>
 								Save Settings
 							</CollectionModalButton>
 						</>
 					}
 				>
-					<form className="mt-1">
-						<p className="mb-4">
+					<form className="mt-1 grid gap-4" onSubmit={submitOverrideSettings} noValidate aria-busy={savingConfig}>
+						<p className={MODAL_COPY_CLASS_NAME}>
 							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod
 							metadata.
 						</p>
 						<div className="grid grid-cols-2 gap-4 max-[620px]:grid-cols-1">
 							<div className="h-full rounded-sm border border-border bg-surface-alt px-4.5 py-4">
-								<label className="flex flex-col gap-2" htmlFor="collection-override-id">
+								<label className="flex flex-col gap-2" htmlFor={overrideIdInputId}>
 									<span className="font-[650] text-text">Override ID</span>
-									<CollectionTextInput id="collection-override-id" {...overrideForm.register('overrideId')} />
+									<CollectionTextInput
+										id={overrideIdInputId}
+										className="aria-invalid:border-error"
+										{...overrideForm.register('overrideId')}
+										aria-describedby={overrideIdError ? `${overrideIdHelpId} ${overrideIdErrorId}` : overrideIdHelpId}
+										aria-invalid={overrideIdError ? 'true' : 'false'}
+										placeholder={nextRecord.id || 'DependencyTarget'}
+									/>
 								</label>
+								<p id={overrideIdHelpId} className="mb-0 mt-2 text-caption leading-[var(--app-leading-ui)] text-text-muted">
+									Leave blank to remove the override. Spaces at the start or end are not saved.
+								</p>
+								{overrideIdError ? (
+									<p id={overrideIdErrorId} className="mb-0 mt-2 text-caption leading-[var(--app-leading-ui)] text-error" role="alert">
+										{overrideIdError}
+									</p>
+								) : null}
 							</div>
 							<div className="h-full rounded-sm border border-border bg-surface-alt px-4.5 py-4">
-								<label className="flex flex-col gap-2" htmlFor="collection-current-user-tags">
+								<label className="flex flex-col gap-2" htmlFor={currentUserTagsInputId}>
 									<span className="font-[650] text-text">Current User Tags</span>
-									<CollectionTextInput id="collection-current-user-tags" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />
+									<CollectionTextInput
+										id={currentUserTagsInputId}
+										aria-describedby={currentUserTagsHelpId}
+										disabled
+										value={nextRecord.overrides?.tags?.join(', ') || 'No user tags set'}
+									/>
 								</label>
+								<p id={currentUserTagsHelpId} className="mb-0 mt-2 text-caption leading-[var(--app-leading-ui)] text-text-muted">
+									User tags are shown here for reference and are managed from the mod details panel.
+								</p>
 							</div>
 						</div>
 					</form>

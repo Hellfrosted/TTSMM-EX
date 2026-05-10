@@ -36,7 +36,14 @@ export function DetailIconButton({
 	title
 }: DetailIconButtonProps) {
 	return (
-		<button type="button" className="ModDetailIconButton" aria-label={ariaLabel} aria-pressed={ariaPressed} title={title} onClick={onClick}>
+		<button
+			type="button"
+			className="ModDetailIconButton"
+			aria-label={ariaLabel}
+			aria-pressed={ariaPressed}
+			title={title ?? ariaLabel}
+			onClick={onClick}
+		>
 			{children}
 		</button>
 	);
@@ -56,7 +63,7 @@ export function ModDetailsFooterHeader({
 			className="ModDetailFooterHeader"
 			style={{
 				width: '100%',
-				minHeight: 48,
+				minHeight: 'calc(var(--app-control-height) + 4px)',
 				padding: '8px 16px',
 				display: 'flex',
 				alignItems: 'center',
@@ -66,7 +73,9 @@ export function ModDetailsFooterHeader({
 		>
 			<div>
 				<h2 className="ModDetailFooterTitle">{name}</h2>
-				<div className="ModDetailFooterIdentity">{identity}</div>
+				<div className="ModDetailFooterIdentity" title={identity}>
+					{identity}
+				</div>
 			</div>
 			<div className="ModDetailFooterHeaderActions">
 				<DetailIconButton

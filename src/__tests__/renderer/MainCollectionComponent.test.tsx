@@ -157,6 +157,257 @@ describe('MainCollectionView', () => {
 		expect(row).toHaveAttribute('aria-selected', 'true');
 	});
 
+	it('moves the active details row with arrow keys without changing collection inclusion', async () => {
+		stubResizeObserver();
+		const rows = createRows(3);
+		const getModDetails = vi.fn();
+		const setEnabled = vi.fn();
+		const setDisabled = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: true,
+					getModDetails,
+					setEnabledCallback: setEnabled,
+					setDisabledCallback: setDisabled
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstRow = screen.getByText('Mod1').closest('tr');
+		const secondRow = screen.getByText('Mod2').closest('tr');
+		expect(firstRow).not.toBeNull();
+		expect(secondRow).not.toBeNull();
+
+		const firstDetailsButton = screen.getByRole('button', { name: 'Open details for Mod1' });
+		fireEvent.click(firstDetailsButton);
+		firstDetailsButton.focus();
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		fireEvent.scroll(scrollPane);
+		expect(scrollPane).toHaveFocus();
+		fireEvent.keyDown(scrollPane, { key: 'ArrowDown' });
+
+		expect(getModDetails).toHaveBeenLastCalledWith(rows[1].uid, expect.objectContaining({ uid: rows[1].uid }));
+		expect(secondRow).toHaveAttribute('aria-selected', 'true');
+		expect(setEnabled).not.toHaveBeenCalled();
+		expect(setDisabled).not.toHaveBeenCalled();
+		expect(screen.getByRole('checkbox', { name: 'Include Mod1 in collection' })).toBeChecked();
+		expect(screen.getByRole('checkbox', { name: 'Include Mod2 in collection' })).not.toBeChecked();
+	});
+
+	it('does not reactivate stale mod name buttons with Space after manual scrolling', async () => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: true,
+					getModDetails
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstDetailsButton = screen.getByRole('button', { name: 'Open details for Mod1' });
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		fireEvent.click(firstDetailsButton);
+		firstDetailsButton.focus();
+		expect(getModDetails).toHaveBeenCalledWith(rows[0].uid, expect.objectContaining({ uid: rows[0].uid }));
+		getModDetails.mockClear();
+
+		fireEvent.scroll(scrollPane);
+		expect(scrollPane).toHaveFocus();
+		fireEvent.keyDown(scrollPane, { key: ' ' });
+
+		expect(getModDetails).not.toHaveBeenCalled();
+	});
+
+	it.each(['Enter', ' '])('opens the highlighted mod details with %s from the scrolled table focus', async (key) => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: false,
+					getModDetails
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstDetailsButton = screen.getByRole('button', { name: 'Open details for Mod1' });
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		fireEvent.click(firstDetailsButton);
+		firstDetailsButton.focus();
+		fireEvent.scroll(scrollPane);
+		expect(scrollPane).toHaveFocus();
+
+		fireEvent.keyDown(scrollPane, { key });
+
+		expect(getModDetails).toHaveBeenCalledWith(rows[0].uid, expect.objectContaining({ uid: rows[0].uid }));
+	});
+
+	it('ignores non-navigation keys on an initially unhighlighted mod row', async () => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: false,
+					getModDetails
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstDetailsButton = screen.getByRole('button', { name: 'Open details for Mod1' });
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		firstDetailsButton.focus();
+
+		fireEvent.keyDown(firstDetailsButton, { key: 'Tab' });
+
+		expect(scrollPane).not.toHaveFocus();
+		expect(getModDetails).not.toHaveBeenCalled();
+		expect(screen.getByText('Mod1').closest('tr')).toHaveAttribute('aria-selected', 'false');
+	});
+
+	it('moves focus to the table pane after arrowing between visible mod rows', async () => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: false,
+					getModDetails
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstDetailsButton = screen.getByRole('button', { name: 'Open details for Mod1' });
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		fireEvent.click(firstDetailsButton);
+		firstDetailsButton.focus();
+
+		fireEvent.keyDown(firstDetailsButton, { key: 'ArrowDown' });
+		expect(scrollPane).toHaveFocus();
+		fireEvent.keyDown(scrollPane, { key: 'Enter' });
+
+		expect(getModDetails).toHaveBeenCalledWith(rows[1].uid, expect.objectContaining({ uid: rows[1].uid }));
+	});
+
+	it('navigates from the focused mod row before any row is highlighted', async () => {
+		stubResizeObserver();
+		const rows = createRows(3);
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: false
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod3');
+		const secondDetailsButton = screen.getByRole('button', { name: 'Open details for Mod2' });
+		const thirdRow = screen.getByText('Mod3').closest('tr');
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		secondDetailsButton.focus();
+
+		fireEvent.keyDown(secondDetailsButton, { key: 'ArrowDown' });
+
+		expect(scrollPane).toHaveFocus();
+		expect(thirdRow).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('keeps the details panel open when arrow navigation is clamped at the list boundary', async () => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: true,
+					getModDetails
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const lastDetailsButton = screen.getByRole('button', { name: 'Open details for Mod2' });
+		const scrollPane = document.querySelector('.MainCollectionVirtualScroll') as HTMLDivElement;
+		fireEvent.click(lastDetailsButton);
+		lastDetailsButton.focus();
+		fireEvent.scroll(scrollPane);
+		getModDetails.mockClear();
+
+		fireEvent.keyDown(scrollPane, { key: 'ArrowDown' });
+
+		expect(getModDetails).not.toHaveBeenCalled();
+		expect(screen.getByText('Mod2').closest('tr')).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('does not navigate mod rows from focused collection inclusion checkboxes', async () => {
+		stubResizeObserver();
+		const rows = createRows(2);
+		const getModDetails = vi.fn();
+		const setEnabled = vi.fn();
+		const setDisabled = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: [rows[0].uid] },
+					detailsOpen: true,
+					getModDetails,
+					setEnabledCallback: setEnabled,
+					setDisabledCallback: setDisabled
+				})}
+			/>
+		);
+
+		await screen.findByText('Mod2');
+		const firstCheckbox = screen.getByRole('checkbox', { name: 'Include Mod1 in collection' });
+		fireEvent.keyDown(firstCheckbox, { key: 'ArrowDown' });
+
+		expect(getModDetails).not.toHaveBeenCalled();
+		expect(screen.getByText('Mod2').closest('tr')).toHaveAttribute('aria-selected', 'false');
+	});
+
 	it('opens row details when the highlighted row details icon is clicked', async () => {
 		stubResizeObserver();
 		const getModDetails = vi.fn();

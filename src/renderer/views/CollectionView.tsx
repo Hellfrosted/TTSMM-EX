@@ -1,5 +1,4 @@
 import {
-	Profiler,
 	ReactNode,
 	Suspense,
 	lazy,
@@ -20,7 +19,7 @@ import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, Ma
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { logProfilerRender, markPerfInteraction } from '../perf';
+import { PerfProfiler, markPerfInteraction } from '../perf';
 import {
 	filterCollectionRowsByTags,
 	getCollectionRowFilterTags,
@@ -228,10 +227,26 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		});
 		return Array.from(tags).sort((left, right) => left.localeCompare(right));
 	}, [baseRows]);
+	useEffect(() => {
+		if (selectedFilterTags.length === 0) {
+			return;
+		}
+
+		const availableTagSet = new Set(availableFilterTags);
+		setSelectedFilterTags((currentTags) => {
+			const retainedTags = currentTags.filter((tag) => availableTagSet.has(tag));
+			return retainedTags.length === currentTags.length ? currentTags : retainedTags;
+		});
+	}, [availableFilterTags, selectedFilterTags.length]);
 	const visibleRows = useMemo(
 		() => filterCollectionRowsByTags(filteredRows || rows, selectedFilterTags),
 		[filteredRows, rows, selectedFilterTags]
 	);
+	const visibleSelectedCount = useMemo(() => {
+		const selectedModIds = new Set(activeCollection?.mods ?? []);
+		return visibleRows.reduce((count, row) => count + (selectedModIds.has(row.uid) ? 1 : 0), 0);
+	}, [activeCollection?.mods, visibleRows]);
+	const activeFilterCount = selectedFilterTags.length + (searchString.trim().length > 0 ? 1 : 0);
 	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord, currentCollectionErrors);
 	const currentViewConfig = config.viewConfigs?.[currentView];
 	const {
@@ -490,23 +505,23 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		</Suspense>
 	) : !guidedFixActive ? (
 		<Suspense fallback={collectionSurfaceFallback}>
-			<Profiler id="Collection.MainTable" onRender={logProfilerRender}>
+			<PerfProfiler id="Collection.MainTable">
 				<MainCollectionViewLazy {...collectionComponentProps} />
-			</Profiler>
+			</PerfProfiler>
 		</Suspense>
 	) : null;
 	const fullDetailsFooter = displayedCurrentRecord ? (
 		<Suspense fallback={detailsFallback}>
-			<Profiler id="Collection.DetailsFull" onRender={logProfilerRender}>
+			<PerfProfiler id="Collection.DetailsFull">
 				<ModDetailsFooterLazy key="mod-details-full" {...sharedDetailsProps!} bigDetails />
-			</Profiler>
+			</PerfProfiler>
 		</Suspense>
 	) : null;
 	const halfDetailsFooter = displayedCurrentRecord ? (
 		<Suspense fallback={detailsFallback}>
-			<Profiler id="Collection.DetailsHalf" onRender={logProfilerRender}>
+			<PerfProfiler id="Collection.DetailsHalf">
 				<ModDetailsFooterLazy key="mod-details-half" {...sharedDetailsProps!} bigDetails={false} />
-			</Profiler>
+			</PerfProfiler>
 		</Suspense>
 	) : null;
 	const isCollectionModalOpen = modalType !== CollectionManagerModalType.NONE;
@@ -564,7 +579,9 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		shouldRenderExpandedDetailsSurface,
 		savingDraft,
 		validatingDraft,
-		visibleRows
+		visibleRows,
+		visibleSelectedCount,
+		activeFilterCount
 	};
 }
 
@@ -974,7 +991,9 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 		shouldRenderExpandedDetailsSurface,
 		savingDraft,
 		validatingDraft,
-		visibleRows
+		visibleRows,
+		visibleSelectedCount,
+		activeFilterCount
 	} = useCollectionViewController(props);
 
 	return (
@@ -1000,6 +1019,8 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 					onSearchCallback={onSearch}
 					changeActiveCollectionCallback={changeActiveCollection}
 					numResults={visibleRows.length}
+					numSelectedResults={visibleSelectedCount}
+					activeFilterCount={activeFilterCount}
 					newCollectionCallback={createNewCollection}
 					duplicateCollectionCallback={duplicateCollection}
 					renameCollectionCallback={renameCollection}
