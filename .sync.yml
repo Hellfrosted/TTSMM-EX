@@ -1,0 +1,63 @@
+version: 1
+
+branches:
+  development: indev
+  publish: main
+
+paths:
+  generated:
+    - node_modules/
+    - release/app/node_modules/
+    - native/block-lookup-extractor/target/
+    - release/app/bin/
+    - release/app/dist/
+    - release/build/
+    - release/package-app/
+    - src/node_modules
+    - coverage/
+    - dist/
+    - build/
+    - target/
+    - "*.tsbuildinfo"
+
+auto_add:
+  allowlist:
+    - "src/**"
+    - "tests/**"
+    - "package.json"
+    - "pnpm-lock.yaml"
+    - "pnpm-workspace.yaml"
+    - "native/block-lookup-extractor/Cargo.toml"
+    - "native/block-lookup-extractor/Cargo.lock"
+    - "*.md"
+
+privacy:
+  denylist:
+    - ".env"
+    - ".env.*"
+    - "**/*secret*"
+    - "**/*token*"
+    - "**/*password*"
+    - "**/*credential*"
+    - "**/id_rsa"
+    - "**/id_ed25519"
+    - "**/*.pem"
+    - "**/*.key"
+
+commands:
+  wsl:
+    install: auto
+    check: auto
+    test: auto
+  windows:
+    install: auto
+    check: auto
+    test: auto
+
+hooks:
+  enabled: true
+  auto_push: true
+  auto_merge: true
+  merge_mode: ff-only
+  run_checks_after_hook_merge: false
+  fail_commit_on_sync_failure: false

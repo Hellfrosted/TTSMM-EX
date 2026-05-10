@@ -104,7 +104,7 @@ export function createReadModMetadataHandler(scanInventory: ScanModInventory = s
 	};
 }
 
-export function createSteamworksInitHandler(getSteamStatus: () => SteamworksStatus, tryInitSteamworks: () => SteamworksStatus) {
+function createSteamworksInitHandler(getSteamStatus: () => SteamworksStatus, tryInitSteamworks: () => SteamworksStatus) {
 	return async (): Promise<SteamworksStatus> => {
 		const status = getSteamStatus();
 		if (status.inited) {
