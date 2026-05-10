@@ -268,10 +268,13 @@ function addModDirectorySources(sourceMap: Map<string, BlockLookupSourceRecord>,
 	}
 
 	const entries = fs.readdirSync(modDir, { withFileTypes: true });
-	const bundles = entries
-		.filter((entry) => entry.isFile())
-		.map((entry) => path.join(modDir, entry.name))
-		.filter(isBundleCandidate);
+	const bundles = entries.flatMap((entry) => {
+		if (!entry.isFile()) {
+			return [];
+		}
+		const bundlePath = path.join(modDir, entry.name);
+		return isBundleCandidate(bundlePath) ? [bundlePath] : [];
+	});
 	const workshopId = modSource?.workshopID || (/^\d+$/.test(path.basename(modDir)) ? path.basename(modDir) : modSource?.uid || 'local');
 	const modTitle = deriveModTitle(modDir, bundles, modSource);
 
@@ -346,7 +349,7 @@ export function collectBlockLookupSources(request: BlockLookupBuildRequest): { s
 	}
 
 	return {
-		sources: [...sourceMap.values()].sort((left, right) => left.sourcePath.localeCompare(right.sourcePath)),
+		sources: Array.from(sourceMap.values()).sort((left, right) => left.sourcePath.localeCompare(right.sourcePath)),
 		workshopRoot
 	};
 }

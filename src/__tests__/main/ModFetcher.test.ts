@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import Steamworks from '../../main/steamworks';
 import { UGCItemState } from '../../main/steamworks/types';
 import { buildWorkshopMod, createModInventoryContext, fetchWorkshopMods, processSteamModResults } from '../../main/mod-fetcher';
@@ -13,7 +14,12 @@ import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
+import { SteamPersonaCacheLive } from '../../main/steam-persona-cache';
 import { createTempDir, createWorkshopDetails } from './test-utils';
+
+function runWithSteamPersonaCache<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {
+	return Effect.runPromise(effect.pipe(Effect.provide(SteamPersonaCacheLive as never)));
+}
 
 describe('ModFetcher', () => {
 	afterEach(() => {
@@ -29,7 +35,7 @@ describe('ModFetcher', () => {
 			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle preview.png'), 'preview');
 			const progress = new ModInventoryProgress({ send: vi.fn() });
 
-			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
+			await expect(Effect.runPromise(scanLocalMods(tempDir, progress))).resolves.toEqual([
 				expect.objectContaining({
 					uid: 'local:AdapterBundle',
 					id: 'AdapterBundle',
@@ -58,7 +64,7 @@ describe('ModFetcher', () => {
 			fs.writeFileSync(path.join(modDir, 'ttsmm.json'), Buffer.alloc(MAX_TTSMM_METADATA_BYTES + 1, 'x'));
 			const progress = new ModInventoryProgress({ send: vi.fn() });
 
-			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
+			await expect(Effect.runPromise(scanLocalMods(tempDir, progress))).resolves.toEqual([
 				expect.objectContaining({
 					uid: 'local:OversizedBundle',
 					id: 'OversizedBundle',
@@ -84,12 +90,14 @@ describe('ModFetcher', () => {
 
 		try {
 			await expect(
-				scanModInventory({
-					knownWorkshopMods: [],
-					localPath: tempDir,
-					platform: 'win32',
-					progressSender
-				})
+				Effect.runPromise(
+					scanModInventory({
+						knownWorkshopMods: [],
+						localPath: tempDir,
+						platform: 'win32',
+						progressSender
+					})
+				)
 			).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadeBundle' })]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
@@ -102,7 +110,7 @@ describe('ModFetcher', () => {
 		progress.localMods = 1;
 		progress.workshopMods = 1;
 
-		await progress.addLoaded(1);
+		progress.addLoaded(1);
 		progress.finish();
 
 		expect(sender.send).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), 0.5, 'Loading mod details');
@@ -133,17 +141,19 @@ describe('ModFetcher', () => {
 		const onProgress = vi.fn();
 
 		await expect(
-			hydrateWorkshopMod({
-				onProgress,
-				steamUGCDetails: createWorkshopDetails({
-					publishedFileId: workshopID,
-					title: 'Steam Workshop Title',
-					description: 'Steam description',
-					tags: ['Mods'],
-					tagsDisplayNames: ['Mods']
-				}),
-				workshopID
-			})
+			runWithSteamPersonaCache(
+				hydrateWorkshopMod({
+					onProgress,
+					steamUGCDetails: createWorkshopDetails({
+						publishedFileId: workshopID,
+						title: 'Steam Workshop Title',
+						description: 'Steam description',
+						tags: ['Mods'],
+						tagsDisplayNames: ['Mods']
+					}),
+					workshopID
+				})
+			)
 		).resolves.toEqual(
 			expect.objectContaining({
 				uid: `workshop:${workshopID}`,
@@ -166,15 +176,17 @@ describe('ModFetcher', () => {
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
 		await expect(
-			processSteamModResults(context, [
-				createWorkshopDetails({
-					publishedFileId: BigInt(77),
-					title: 'Unknown Dependencies',
-					tags: ['Mods'],
-					tagsDisplayNames: ['Mods'],
-					children: undefined
-				})
-			])
+			runWithSteamPersonaCache(
+				processSteamModResults(context, [
+					createWorkshopDetails({
+						publishedFileId: BigInt(77),
+						title: 'Unknown Dependencies',
+						tags: ['Mods'],
+						tagsDisplayNames: ['Mods'],
+						children: undefined
+					})
+				])
+			)
 		).resolves.toEqual([
 			expect.objectContaining({
 				steamDependencies: undefined,
@@ -203,15 +215,17 @@ describe('ModFetcher', () => {
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
 		await expect(
-			processSteamModResults(context, [
-				createWorkshopDetails({
-					publishedFileId: BigInt(77),
-					title: 'Parent',
-					tags: ['Mods'],
-					tagsDisplayNames: ['Mods'],
-					children: [BigInt(11)]
-				})
-			])
+			runWithSteamPersonaCache(
+				processSteamModResults(context, [
+					createWorkshopDetails({
+						publishedFileId: BigInt(77),
+						title: 'Parent',
+						tags: ['Mods'],
+						tagsDisplayNames: ['Mods'],
+						children: [BigInt(11)]
+					})
+				])
+			)
 		).resolves.toEqual([
 			expect.objectContaining({
 				steamDependencies: [BigInt(11)],
@@ -265,7 +279,7 @@ describe('ModFetcher', () => {
 		vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
-		await expect(fetchWorkshopMods(context)).resolves.toEqual([
+		await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toEqual([
 			expect.objectContaining({
 				workshopID: BigInt(77),
 				steamDependencies: [BigInt(11)],
@@ -446,23 +460,27 @@ describe('ModFetcher', () => {
 		const childWorkshopID = BigInt(11);
 		const knownWorkshopMods = new Set([parentWorkshopID]);
 		const workshopMap = new Map<bigint, { uid: string }>();
-		const getDetailsForWorkshopModList = vi.fn(async () => [
-			{
-				uid: `workshop:${parentWorkshopID}`,
-				id: null,
-				type: ModType.WORKSHOP,
-				hasCode: false,
-				workshopID: parentWorkshopID,
-				steamDependencies: [childWorkshopID]
-			}
-		]);
+		const getDetailsForWorkshopModList = vi.fn(() =>
+			Effect.succeed([
+				{
+					uid: `workshop:${parentWorkshopID}`,
+					id: null,
+					type: ModType.WORKSHOP,
+					hasCode: false,
+					workshopID: parentWorkshopID,
+					steamDependencies: [childWorkshopID]
+				}
+			])
+		);
 
 		await expect(
-			resolveWorkshopDependencyChunk(workshopMap as never, new Set(), new Set([parentWorkshopID]), {
-				getDetailsForWorkshopModList,
-				knownWorkshopMods,
-				updateModLoadingProgress: vi.fn()
-			})
+			Effect.runPromise(
+				resolveWorkshopDependencyChunk(workshopMap as never, new Set(), new Set([parentWorkshopID]), {
+					getDetailsForWorkshopModList,
+					knownWorkshopMods,
+					updateModLoadingProgress: vi.fn()
+				})
+			)
 		).resolves.toEqual(new Set([childWorkshopID]));
 
 		expect(knownWorkshopMods).toEqual(new Set());
@@ -478,7 +496,7 @@ describe('ModFetcher', () => {
 		});
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetchWorkshopMods(context)).resolves.toEqual([]);
+		await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toEqual([]);
 
 		expect(isAppInstalled).toHaveBeenCalledWith(285920);
 		expect(getAppInstallDir).toHaveBeenCalledWith(285920);
@@ -498,7 +516,7 @@ describe('ModFetcher', () => {
 		});
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetchWorkshopMods(context)).resolves.toEqual([]);
+		await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toEqual([]);
 
 		expect(isAppInstalled).toHaveBeenCalledWith(285920);
 		expect(getAppInstallDir).toHaveBeenCalledWith(285920);
@@ -578,7 +596,7 @@ describe('ModFetcher', () => {
 
 			const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-			await expect(fetchWorkshopMods(context)).resolves.toEqual([
+			await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toEqual([
 				expect.objectContaining({
 					uid: `workshop:${validWorkshopID}`,
 					workshopID: validWorkshopID,
@@ -615,7 +633,7 @@ describe('ModFetcher', () => {
 
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [explicitWorkshopID], 'linux');
 
-		await expect(fetchWorkshopMods(context)).resolves.toEqual([
+		await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toEqual([
 			expect.objectContaining({
 				uid: `workshop:${explicitWorkshopID}`,
 				workshopID: explicitWorkshopID,
@@ -675,7 +693,7 @@ describe('ModFetcher', () => {
 		const requestUserInformation = vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetchWorkshopMods(context)).resolves.toMatchObject([
+		await expect(runWithSteamPersonaCache(fetchWorkshopMods(context))).resolves.toMatchObject([
 			{
 				workshopID: BigInt(42),
 				name: 'Workshop Title',
@@ -730,16 +748,18 @@ describe('ModFetcher', () => {
 			vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 
 			const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
-			const mod = await buildWorkshopMod(
-				context,
-				workshopID,
-				createWorkshopDetails({
-					publishedFileId: workshopID,
-					title: 'Steam Workshop Title',
-					description: 'Steam description',
-					tags: ['Mods', 'Blocks'],
-					tagsDisplayNames: ['Mods', 'Blocks']
-				})
+			const mod = await runWithSteamPersonaCache(
+				buildWorkshopMod(
+					context,
+					workshopID,
+					createWorkshopDetails({
+						publishedFileId: workshopID,
+						title: 'Steam Workshop Title',
+						description: 'Steam description',
+						tags: ['Mods', 'Blocks'],
+						tagsDisplayNames: ['Mods', 'Blocks']
+					})
+				)
 			);
 
 			expect(mod).toEqual(

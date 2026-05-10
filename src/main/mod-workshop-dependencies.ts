@@ -12,22 +12,20 @@ export function collectMissingWorkshopDependencies(
 	const policy = createModDependencyTargetSatisfactionPolicy(options);
 	const loadedWorkshopMods = [...workshopMap.values()];
 	for (const mod of mods) {
-		mod.steamDependencies
-			?.filter((dependency) => {
-				if (workshopMap.has(dependency) || knownInvalidMods.has(dependency)) {
-					return false;
-				}
-				const dependencyName = getSteamDependencyName(mod.steamDependencyNames, dependency);
-				if (
-					loadedWorkshopMods.some((loadedMod) =>
-						policy.isDependencyTargetSatisfiedByMod({ workshopID: dependency, name: dependencyName }, loadedMod)
-					)
-				) {
-					return false;
-				}
-				return true;
-			})
-			.forEach((missingDependency) => modDependencies.add(missingDependency));
+		for (const dependency of mod.steamDependencies ?? []) {
+			if (workshopMap.has(dependency) || knownInvalidMods.has(dependency)) {
+				continue;
+			}
+			const dependencyName = getSteamDependencyName(mod.steamDependencyNames, dependency);
+			if (
+				loadedWorkshopMods.some((loadedMod) =>
+					policy.isDependencyTargetSatisfiedByMod({ workshopID: dependency, name: dependencyName }, loadedMod)
+				)
+			) {
+				continue;
+			}
+			modDependencies.add(dependency);
+		}
 	}
 	return modDependencies;
 }

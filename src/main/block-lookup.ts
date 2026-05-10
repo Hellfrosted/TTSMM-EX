@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { Effect } from 'effect';
 import log from 'electron-log';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
@@ -91,10 +92,10 @@ function readStringArray(value: unknown): string[] | undefined {
 	}
 	const strings = [
 		...new Set(
-			value
-				.map(readString)
-				.filter((entry): entry is string => !!entry?.trim())
-				.map((entry) => entry.trim())
+			value.flatMap((entry) => {
+				const text = readString(entry)?.trim();
+				return text ? [text] : [];
+			})
 		)
 	];
 	return strings.length ? strings : undefined;
@@ -233,22 +234,25 @@ function normalizeBlockLookupIndex(index: unknown): PersistedBlockLookupIndex {
 		return createEmptyIndex();
 	}
 
-	const records = indexRecord.records
-		.map((record) => normalizeBlockLookupRecord(record))
-		.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record);
+	const records = indexRecord.records.flatMap((record) => {
+		const normalizedRecord = normalizeBlockLookupRecord(record);
+		return normalizedRecord ? [normalizedRecord] : [];
+	});
 	const sourceRecords = Array.isArray(indexRecord.sourceRecords)
-		? indexRecord.sourceRecords
-				.map((record) => normalizeBlockLookupRecord(record))
-				.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record)
+		? indexRecord.sourceRecords.flatMap((record) => {
+				const normalizedRecord = normalizeBlockLookupRecord(record);
+				return normalizedRecord ? [normalizedRecord] : [];
+			})
 		: undefined;
 
 	return {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
 		builtAt: typeof indexRecord.builtAt === 'string' ? indexRecord.builtAt : '',
 		renderedPreviewsEnabled: indexRecord.renderedPreviewsEnabled === true,
-		sources: indexRecord.sources
-			.map((source) => normalizeBlockLookupSource(source))
-			.filter((source): source is PersistedBlockLookupIndex['sources'][number] => !!source),
+		sources: indexRecord.sources.flatMap((source) => {
+			const normalizedSource = normalizeBlockLookupSource(source);
+			return normalizedSource ? [normalizedSource] : [];
+		}),
 		records,
 		sourceRecords
 	};
@@ -262,14 +266,14 @@ function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookup
 	writeJsonFile(getBlockLookupIndexPath(userDataPath), index);
 }
 
-export async function buildBlockLookupIndex(
+export const buildBlockLookupIndex = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: BlockLookupBuildRequest,
 	onProgress?: BlockLookupIndexProgressCallback
-): Promise<{ stats: BlockLookupIndexStats }> {
+): Effect.fn.Return<{ stats: BlockLookupIndexStats }, unknown> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
 	const settings = readBlockLookupSettings(userDataPath);
-	const build = await createBlockLookupIndexBuild(
+	const build = yield* createBlockLookupIndexBuild(
 		existingIndex,
 		{
 			...request,
@@ -287,7 +291,7 @@ export async function buildBlockLookupIndex(
 	return {
 		stats: build.stats
 	};
-}
+});
 
 export function getBlockLookupStats(userDataPath: string): BlockLookupIndexStats | null {
 	const index = readBlockLookupIndex(userDataPath);

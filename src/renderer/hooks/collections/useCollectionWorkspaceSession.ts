@@ -156,6 +156,7 @@ export function useCollectionWorkspaceSession({
 				}
 			};
 			for (const effect of getCollectionValidationRunCompletionEffects(outcome, launchRequested)) {
+				// eslint-disable-next-line react-doctor/async-await-in-loop -- completion effects are ordered UI state transitions.
 				await runEffect(effect);
 			}
 		},

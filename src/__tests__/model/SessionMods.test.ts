@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Effect } from 'effect';
 import { ModType } from '../../model/Mod';
 import { validateCollection } from '../../model/collection-validator';
 import { SessionMods, getDependencies, getDependents, getDescriptor, setupDescriptors } from '../../model/SessionMods';
@@ -69,10 +70,12 @@ describe('session mod descriptors', () => {
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependency.uid, dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependency.uid, dependent.uid]
+			})
+		);
 
 		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
 		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
@@ -101,10 +104,12 @@ describe('session mod descriptors', () => {
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependency.uid, dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependency.uid, dependent.uid]
+			})
+		);
 
 		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
 		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
@@ -142,10 +147,12 @@ describe('session mod descriptors', () => {
 
 		expect(getDependencies(session, dependent)).toEqual([getDescriptor(session, stableDependency)]);
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [stableDependency.uid, dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [stableDependency.uid, dependent.uid]
+			})
+		);
 
 		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
 	});
@@ -175,10 +182,12 @@ describe('session mod descriptors', () => {
 
 		expect(getDependencies(session, dependent)).not.toEqual([getDescriptor(session, stableDependency)]);
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [stableDependency.uid, dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [stableDependency.uid, dependent.uid]
+			})
+		);
 
 		expect(errors[dependent.uid]?.missingDependencies).toHaveLength(1);
 		expect(errors[dependent.uid]?.missingDependencies?.[0]).toMatchObject({
@@ -199,10 +208,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependent.uid]
+			})
+		);
 
 		expect(getDependencies(session, dependent)).toHaveLength(1);
 		expect(getDependencies(session, dependent)[0]).toMatchObject({ modID: 'MissingMod', name: 'MissingMod' });
@@ -223,10 +234,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependent.uid]
+			})
+		);
 
 		expect(getDependencies(session, dependent)).toHaveLength(1);
 		expect(getDependencies(session, dependent)[0]).toMatchObject({ workshopID: BigInt(11) });
@@ -250,10 +263,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependent.uid]
+			})
+		);
 
 		expect(getDependencies(session, dependent)).toEqual([]);
 		expect(errors[dependent.uid]).toBeUndefined();
@@ -286,10 +301,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [dependent.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [dependent.uid]
+			})
+		);
 
 		expect(getDependencies(session, dependent)).toEqual([]);
 		expect(errors[dependent.uid]).toBeUndefined();
@@ -360,10 +377,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [mod.uid, mod.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [mod.uid, mod.uid]
+			})
+		);
 
 		expect(errors[mod.uid]?.incompatibleMods).toEqual([mod.uid]);
 	});
@@ -379,10 +398,12 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		const errors = await validateCollection(session, {
-			name: 'default',
-			mods: [mod.uid]
-		});
+		const errors = await Effect.runPromise(
+			validateCollection(session, {
+				name: 'default',
+				mods: [mod.uid]
+			})
+		);
 
 		expect(errors[mod.uid]?.invalidId).toBe(true);
 	});

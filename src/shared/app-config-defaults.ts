@@ -50,10 +50,13 @@ function normalizeIgnoredValidationErrors(value: unknown): AppConfig['ignoredVal
 			return;
 		}
 		const ignoredByUid = Object.fromEntries(
-			Object.entries(ignoredErrors as Record<string, unknown>)
-				.filter((entry): entry is [string, string[]] => typeof entry[0] === 'string' && Array.isArray(entry[1]))
-				.map(([uid, ignoredIds]) => [uid, ignoredIds.filter((ignoredId): ignoredId is string => typeof ignoredId === 'string')])
-				.filter(([, ignoredIds]) => ignoredIds.length > 0)
+			Object.entries(ignoredErrors as Record<string, unknown>).flatMap(([uid, ignoredIds]) => {
+				if (!Array.isArray(ignoredIds)) {
+					return [];
+				}
+				const normalizedIds = ignoredIds.filter((ignoredId): ignoredId is string => typeof ignoredId === 'string');
+				return normalizedIds.length > 0 ? [[uid, normalizedIds]] : [];
+			})
 		);
 		if (Object.keys(ignoredByUid).length > 0) {
 			convertedMap.set(errorType as ModErrorType, ignoredByUid);
@@ -70,19 +73,17 @@ function normalizeUserOverrides(value: unknown): AppConfig['userOverrides'] {
 		return new Map();
 	}
 
-	const overrides = Object.entries(value as Record<string, unknown>)
-		.map(([uid, override]) => {
-			if (!override || typeof override !== 'object' || Array.isArray(override)) {
-				return undefined;
-			}
-			const overrideRecord = override as Record<string, unknown>;
-			const normalizedOverride: ModDataOverride = {
-				...(typeof overrideRecord.id === 'string' ? { id: overrideRecord.id } : {}),
-				...(Array.isArray(overrideRecord.tags) ? { tags: overrideRecord.tags.filter((tag): tag is string => typeof tag === 'string') } : {})
-			};
-			return Object.keys(normalizedOverride).length > 0 ? ([uid, normalizedOverride] as const) : undefined;
-		})
-		.filter((entry): entry is readonly [string, ModDataOverride] => !!entry);
+	const overrides = Object.entries(value as Record<string, unknown>).flatMap(([uid, override]) => {
+		if (!override || typeof override !== 'object' || Array.isArray(override)) {
+			return [];
+		}
+		const overrideRecord = override as Record<string, unknown>;
+		const normalizedOverride: ModDataOverride = {
+			...(typeof overrideRecord.id === 'string' ? { id: overrideRecord.id } : {}),
+			...(Array.isArray(overrideRecord.tags) ? { tags: overrideRecord.tags.filter((tag): tag is string => typeof tag === 'string') } : {})
+		};
+		return Object.keys(normalizedOverride).length > 0 ? ([[uid, normalizedOverride] as const] as const) : [];
+	});
 	return new Map(overrides);
 }
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Effect } from 'effect';
 import type { ModData, NotificationProps } from 'model';
 import api from 'renderer/Api';
-import { pause } from 'util/Sleep';
+import { pauseEffect } from 'util/Sleep';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { NotificationType } from './useNotifications';
 
@@ -45,15 +46,17 @@ export function useGameLaunch({
 			void pollGameRunning();
 
 			try {
-				const success = await pause(1000, () =>
-					api.launchGame(
-						config.gameExec,
-						config.workshopID,
-						config.closeOnLaunch,
-						mods,
-						config.pureVanilla,
-						config.logParams,
-						config.extraParams
+				const success = await Effect.runPromise(
+					pauseEffect(1000, () =>
+						api.launchGame(
+							config.gameExec,
+							config.workshopID,
+							config.closeOnLaunch,
+							mods,
+							config.pureVanilla,
+							config.logParams,
+							config.extraParams
+						)
 					)
 				);
 

@@ -1,13 +1,13 @@
-export const pause = <Args extends unknown[], Result>(
+import { Effect } from 'effect';
+
+export const pauseEffect = Effect.fnUntraced(function* <Args extends unknown[], Result>(
 	ms: number,
 	callback: (...args: Args) => Result | Promise<Result>,
 	...args: Args
-): Promise<Awaited<Result>> => {
-	return new Promise((resolve, reject) => {
-		setTimeout(() => {
-			void Promise.resolve(callback(...args))
-				.then(resolve)
-				.catch(reject);
-		}, ms);
+) {
+	yield* Effect.sleep(ms);
+	return yield* Effect.tryPromise({
+		try: () => Promise.resolve(callback(...args)),
+		catch: (error) => error
 	});
-};
+});

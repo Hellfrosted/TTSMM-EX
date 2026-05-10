@@ -1,5 +1,6 @@
 import log from 'electron-log';
 import fs from 'fs';
+import { Effect } from 'effect';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 import Steamworks, {
 	type GetUserItemsProps,
@@ -33,24 +34,28 @@ export function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: t
 	}
 }
 
-export async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
-	return new Promise((resolve, reject) => {
-		const options: GetUserItemsProps = {
-			options: {
-				app_id: TERRATECH_APP_ID,
-				page_num: pageNum,
-				required_tag: 'Mods'
-			},
-			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
-			ugc_list: UserUGCList.Subscribed,
-			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
-			success_callback: (results: SteamPageResults) => {
-				resolve(results);
-			},
-			error_callback: (err: Error) => {
-				reject(err);
-			}
-		};
-		Steamworks.ugcGetUserItems(options);
+export const getSteamSubscribedPage = Effect.fnUntraced(function* (pageNum: number): Effect.fn.Return<SteamPageResults, Error> {
+	return yield* Effect.tryPromise({
+		try: () =>
+			new Promise<SteamPageResults>((resolve, reject) => {
+				const options: GetUserItemsProps = {
+					options: {
+						app_id: TERRATECH_APP_ID,
+						page_num: pageNum,
+						required_tag: 'Mods'
+					},
+					ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
+					ugc_list: UserUGCList.Subscribed,
+					ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
+					success_callback: (results: SteamPageResults) => {
+						resolve(results);
+					},
+					error_callback: (err: Error) => {
+						reject(err);
+					}
+				};
+				Steamworks.ugcGetUserItems(options);
+			}),
+		catch: (error) => (error instanceof Error ? error : new Error(String(error)))
 	});
-}
+});

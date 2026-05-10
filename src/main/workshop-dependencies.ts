@@ -1,4 +1,5 @@
 import log from 'electron-log';
+import { Effect } from 'effect';
 import type {
 	KnownWorkshopDependencySnapshotMetadata,
 	WorkshopDependencySnapshotLookupResult,
@@ -13,7 +14,7 @@ import { chunkWorkshopIds, getRawWorkshopDetailsForList } from './mod-workshop-m
 import type { SteamUGCDetails } from './steamworks';
 import { EResult } from './steamworks/types';
 
-type GetRawWorkshopDetailsForList = (workshopIDs: bigint[]) => Promise<SteamUGCDetails[]>;
+type GetRawWorkshopDetailsForList = (workshopIDs: bigint[]) => Effect.Effect<SteamUGCDetails[], unknown>;
 
 interface WorkshopDependencySnapshotBatchOptions {
 	getDetailsForWorkshopModList?: GetRawWorkshopDetailsForList;
@@ -55,9 +56,10 @@ export function createWorkshopDependencySnapshot(
 	}
 
 	const steamDependencyNames = Object.fromEntries(
-		steamUGCDetails.children
-			.map((dependencyID) => [getSteamDependencyNameKey(dependencyID), dependencyNames.get(dependencyID)] as const)
-			.filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
+		steamUGCDetails.children.flatMap((dependencyID) => {
+			const dependencyName = dependencyNames.get(dependencyID);
+			return dependencyName === undefined ? [] : [[getSteamDependencyNameKey(dependencyID), dependencyName] as const];
+		})
 	);
 
 	return {
@@ -97,34 +99,37 @@ function createWorkshopDependencySnapshotLookupResult(
 	return steamUGCDetails.result === EResult.k_EResultOK ? { status: 'unknown', checkedAt: now } : { status: 'failed' };
 }
 
-export async function resolveWorkshopDependencyNames(
+export const resolveWorkshopDependencyNames = Effect.fnUntraced(function* (
 	steamDetails: Iterable<SteamUGCDetails>,
 	getDetailsForWorkshopModList: GetRawWorkshopDetailsForList = getRawWorkshopDetailsForList
-): Promise<Map<bigint, string>> {
+): Effect.fn.Return<Map<bigint, string>> {
 	const dependencyIDs = getKnownDependencyIds(steamDetails);
 	if (dependencyIDs.length === 0) {
 		return new Map();
 	}
 
-	try {
-		const dependencyDetails: SteamUGCDetails[] = [];
-		for (const dependencyChunk of chunkWorkshopIds(dependencyIDs)) {
-			dependencyDetails.push(...(await getDetailsForWorkshopModList(dependencyChunk)));
-		}
-		return createDependencyNameMap(dependencyDetails);
-	} catch (error) {
-		log.warn(`Failed to resolve Workshop dependency names for ${dependencyIDs.length} dependencies.`);
-		log.warn(error);
-		return new Map();
-	}
-}
+	const dependencyDetails = yield* Effect.forEach(
+		chunkWorkshopIds(dependencyIDs),
+		(dependencyChunk) => getDetailsForWorkshopModList(dependencyChunk),
+		{ concurrency: 1 }
+	).pipe(
+		Effect.map((chunks) => chunks.flat()),
+		Effect.catch((error) => {
+			log.warn(`Failed to resolve Workshop dependency names for ${dependencyIDs.length} dependencies.`);
+			log.warn(error);
+			return Effect.succeed<SteamUGCDetails[]>([]);
+		})
+	);
 
-export async function ingestWorkshopDependencySnapshotBatch(
+	return createDependencyNameMap(dependencyDetails);
+});
+
+export const ingestWorkshopDependencySnapshotBatch = Effect.fnUntraced(function* (
 	steamDetails: SteamUGCDetails[],
 	options: WorkshopDependencySnapshotBatchOptions = {}
-): Promise<Map<bigint, WorkshopDependencySnapshotLookupResult>> {
+): Effect.fn.Return<Map<bigint, WorkshopDependencySnapshotLookupResult>> {
 	const { getDetailsForWorkshopModList = getRawWorkshopDetailsForList, now = Date.now() } = options;
-	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails, getDetailsForWorkshopModList);
+	const dependencyNames = yield* resolveWorkshopDependencyNames(steamDetails, getDetailsForWorkshopModList);
 	const snapshots = new Map<bigint, WorkshopDependencySnapshotLookupResult>();
 
 	for (const steamUGCDetails of steamDetails) {
@@ -132,7 +137,7 @@ export async function ingestWorkshopDependencySnapshotBatch(
 	}
 
 	return snapshots;
-}
+});
 
 export function applyWorkshopDependencySnapshotResult(
 	mod: WorkshopDependencySnapshotMetadata,
@@ -144,24 +149,24 @@ export function applyWorkshopDependencySnapshotResult(
 	}
 }
 
-export async function fetchWorkshopDependencySnapshot(
+export const fetchWorkshopDependencySnapshot = Effect.fnUntraced(function* (
 	workshopID: bigint,
 	getDetailsForWorkshopModList: GetRawWorkshopDetailsForList = getRawWorkshopDetailsForList,
 	now = Date.now()
-): Promise<WorkshopDependencySnapshotLookupResult> {
-	let steamUGCDetails: SteamUGCDetails | undefined;
-	try {
-		[steamUGCDetails] = await getDetailsForWorkshopModList([workshopID]);
-	} catch (error) {
-		log.warn(`Failed to fetch Workshop dependency snapshot for ${workshopID}.`);
-		log.warn(error);
-		return { status: 'failed' };
-	}
+): Effect.fn.Return<WorkshopDependencySnapshotLookupResult> {
+	const steamUGCDetails = yield* getDetailsForWorkshopModList([workshopID]).pipe(
+		Effect.map((details) => details[0]),
+		Effect.catch((error) => {
+			log.warn(`Failed to fetch Workshop dependency snapshot for ${workshopID}.`);
+			log.warn(error);
+			return Effect.succeed(undefined);
+		})
+	);
 
 	if (!steamUGCDetails) {
 		return { status: 'failed' };
 	}
 
-	const snapshots = await ingestWorkshopDependencySnapshotBatch([steamUGCDetails], { getDetailsForWorkshopModList, now });
+	const snapshots = yield* ingestWorkshopDependencySnapshotBatch([steamUGCDetails], { getDetailsForWorkshopModList, now });
 	return snapshots.get(workshopID) ?? { status: 'failed' };
-}
+});

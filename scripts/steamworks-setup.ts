@@ -76,16 +76,14 @@ function validateSteamworksSdkPath(steamworksSdkPath: string) {
 		);
 	}
 
-	const missingPaths = requiredPathGroups
-		.map((candidatePaths) => {
-			const foundPath = candidatePaths.find((candidatePath) => fs.existsSync(path.join(resolvedSdkPath, candidatePath)));
-			if (foundPath) {
-				return null;
-			}
+	const missingPaths = requiredPathGroups.flatMap((candidatePaths) => {
+		const foundPath = candidatePaths.find((candidatePath) => fs.existsSync(path.join(resolvedSdkPath, candidatePath)));
+		if (foundPath) {
+			return [];
+		}
 
-			return candidatePaths[0]!;
-		})
-		.filter((relativePath): relativePath is string => Boolean(relativePath));
+		return candidatePaths[0] ? [candidatePaths[0]] : [];
+	});
 
 	if (missingPaths.length > 0) {
 		throw new Error(
@@ -268,16 +266,19 @@ function terminateSteamworksSmokeProcesses() {
 			cwd: repoRoot,
 			encoding: 'utf8'
 		});
-		const matchingPids = processList
-			.split(/\r?\n/)
-			.map((line) => line.match(/^\s*(\d+)\s+(.*)$/))
-			.filter((match): match is RegExpMatchArray => Boolean(match))
-			.filter(([, , commandLine]) => {
-				const normalizedCommandLine = commandLine.toLowerCase().replace(/\\/g, '/');
-				return normalizedCommandLine.includes('electron') && normalizedCommandLine.includes(smokePathFragment);
-			})
-			.map(([, pid]) => Number.parseInt(pid, 10))
-			.filter((pid) => Number.isInteger(pid) && pid > 0);
+		const matchingPids = processList.split(/\r?\n/).flatMap((line) => {
+			const match = line.match(/^\s*(\d+)\s+(.*)$/);
+			if (!match) {
+				return [];
+			}
+			const [, pid, commandLine] = match;
+			const normalizedCommandLine = commandLine.toLowerCase().replace(/\\/g, '/');
+			if (!normalizedCommandLine.includes('electron') || !normalizedCommandLine.includes(smokePathFragment)) {
+				return [];
+			}
+			const parsedPid = Number.parseInt(pid, 10);
+			return Number.isInteger(parsedPid) && parsedPid > 0 ? [parsedPid] : [];
+		});
 
 		matchingPids.forEach((pid) => {
 			try {

@@ -8,12 +8,5 @@
 		"moduleResolution": "Bundler",
 		"types": ["node", "electron"]
 	},
-	"include": [
-		"src/main/**/*",
-		"src/model/**/*",
-		"src/shared/**/*",
-		"src/__tests__/types/**/*.d.ts",
-		"src/util/Promise.ts",
-		"assets/assets.d.ts"
-	]
+	"include": ["src/main/**/*", "src/model/**/*", "src/shared/**/*", "src/__tests__/types/**/*.d.ts", "assets/assets.d.ts"]
 }

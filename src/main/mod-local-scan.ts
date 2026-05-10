@@ -1,4 +1,5 @@
 import log from 'electron-log';
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import { ModData, ModType } from '../model';
@@ -99,7 +100,12 @@ function applyTtsmmMetadataFile(potentialMod: ModData, metadataPath: string) {
 		return;
 	}
 
-	applyTtsmmMetadata(potentialMod, JSON.parse(metadataText));
+	try {
+		applyTtsmmMetadata(potentialMod, JSON.parse(metadataText));
+	} catch (error) {
+		log.warn(`Failed to parse TTSMM metadata at ${metadataPath}`);
+		log.warn(error);
+	}
 }
 
 export function createLocalPotentialMod(localPath: string, subDir: string): ModData {
@@ -112,107 +118,107 @@ export function createLocalPotentialMod(localPath: string, subDir: string): ModD
 	};
 }
 
-export async function getModDetailsFromPath(potentialMod: ModData, modPath: string, type: ModType): Promise<ModData | null> {
+export const getModDetailsFromPath = Effect.fnUntraced(function* (
+	potentialMod: ModData,
+	modPath: string,
+	type: ModType
+): Effect.fn.Return<ModData | null, unknown> {
 	log.debug(`Reading mod metadata for ${modPath}`);
-	return new Promise((resolve, reject) => {
-		fs.readdir(modPath, { withFileTypes: true }, async (err, files) => {
-			try {
-				if (err) {
-					log.error(`fs.readdir failed on path ${modPath}`);
-					log.error(err);
-					reject(err);
-				} else {
-					let validModData = false;
-					try {
-						const stats = fs.statSync(modPath);
-						potentialMod.lastUpdate = stats.mtime;
-						if (!potentialMod.dateAdded) {
-							potentialMod.dateAdded = stats.birthtime;
-						}
-					} catch (e) {
-						log.error(`Failed to get file details for path ${modPath}`);
-						log.error(e);
-					}
-					const fileSizes = files.map((file) => {
-						let size = 0;
-						if (file.isFile()) {
-							try {
-								const stats = fs.statSync(path.join(modPath, file.name));
-								const { size: fileSize, mtime } = stats;
-								size = fileSize;
-								if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
-									potentialMod.lastUpdate = mtime;
-								}
-							} catch {
-								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
-							}
-							const normalizedFileName = file.name.toLowerCase();
-							if ((normalizedFileName === 'preview.png' || normalizedFileName.endsWith(' preview.png')) && !potentialMod.preview) {
-								potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
-							} else if (file.name.match(/^(.*)\.dll$/)) {
-								potentialMod.hasCode = true;
-							} else if (file.name === 'ttsmm.json') {
-								applyTtsmmMetadataFile(potentialMod, path.join(modPath, file.name));
-							} else {
-								const matches = file.name.match(/^(.*)_bundle$/);
-								if (matches && matches.length > 1) {
-									const [, modId] = matches;
-									potentialMod.id = modId;
-									if (type !== ModType.WORKSHOP) {
-										potentialMod.uid = `${type}:${potentialMod.id}`;
-									}
-									if (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name)) {
-										potentialMod.name = modId;
-									}
-									potentialMod.path = modPath;
-									validModData = true;
-								}
-								log.silly(`Found file: ${file.name} under mod path ${modPath}`);
-							}
-						}
-						return size;
-					});
-
-					if (validModData) {
-						potentialMod.size = fileSizes.reduce((acc: number, curr: number) => acc + curr, 0);
-						resolve(potentialMod);
-					} else {
-						log.warn(`Marking potential mod at ${modPath} as invalid mod`);
-						resolve(null);
-					}
-				}
-			} catch (e) {
-				log.error(`Failed to get local mod details at ${modPath}:`);
-				log.error(e);
-				reject(e);
-			}
-		});
+	const files = yield* Effect.tryPromise({
+		try: () => fs.promises.readdir(modPath, { withFileTypes: true }),
+		catch: (error) => {
+			log.error(`fs.readdir failed on path ${modPath}`);
+			log.error(error);
+			return error;
+		}
 	});
-}
+	let validModData = false;
+	try {
+		const stats = fs.statSync(modPath);
+		potentialMod.lastUpdate = stats.mtime;
+		if (!potentialMod.dateAdded) {
+			potentialMod.dateAdded = stats.birthtime;
+		}
+	} catch (e) {
+		log.error(`Failed to get file details for path ${modPath}`);
+		log.error(e);
+	}
+	const fileSizes = files.map((file) => {
+		let size = 0;
+		if (file.isFile()) {
+			try {
+				const stats = fs.statSync(path.join(modPath, file.name));
+				const { size: fileSize, mtime } = stats;
+				size = fileSize;
+				if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
+					potentialMod.lastUpdate = mtime;
+				}
+			} catch {
+				log.error(`Failed to get file details for ${file.name} under ${modPath}`);
+			}
+			const normalizedFileName = file.name.toLowerCase();
+			if ((normalizedFileName === 'preview.png' || normalizedFileName.endsWith(' preview.png')) && !potentialMod.preview) {
+				potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
+			} else if (file.name.match(/^(.*)\.dll$/)) {
+				potentialMod.hasCode = true;
+			} else if (file.name === 'ttsmm.json') {
+				applyTtsmmMetadataFile(potentialMod, path.join(modPath, file.name));
+			} else {
+				const matches = file.name.match(/^(.*)_bundle$/);
+				if (matches && matches.length > 1) {
+					const [, modId] = matches;
+					potentialMod.id = modId;
+					if (type !== ModType.WORKSHOP) {
+						potentialMod.uid = `${type}:${potentialMod.id}`;
+					}
+					if (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name)) {
+						potentialMod.name = modId;
+					}
+					potentialMod.path = modPath;
+					validModData = true;
+				}
+				log.silly(`Found file: ${file.name} under mod path ${modPath}`);
+			}
+		}
+		return size;
+	});
 
-export async function scanLocalMods(localPath: string | undefined, progress: ModInventoryProgress): Promise<ModData[]> {
+	if (validModData) {
+		potentialMod.size = fileSizes.reduce((acc: number, curr: number) => acc + curr, 0);
+		return potentialMod;
+	}
+	log.warn(`Marking potential mod at ${modPath} as invalid mod`);
+	return null;
+});
+
+export const scanLocalMods = Effect.fnUntraced(function* (
+	localPath: string | undefined,
+	progress: ModInventoryProgress
+): Effect.fn.Return<ModData[]> {
 	let localModDirs: string[] = [];
 	if (localPath) {
 		try {
-			localModDirs = fs
-				.readdirSync(localPath, { withFileTypes: true })
-				.filter((dirent) => dirent.isDirectory())
-				.map((dirent) => dirent.name);
+			localModDirs = fs.readdirSync(localPath, { withFileTypes: true }).flatMap((dirent) => (dirent.isDirectory() ? [dirent.name] : []));
 			progress.localMods = localModDirs.length;
 		} catch {
 			log.error(`Failed to read local mods in ${localModDirs}`);
 		}
 	}
 
-	const modResponses = await Promise.allSettled<ModData | null>(
-		localModDirs.map((subDir: string) => {
+	const modResponses = yield* Effect.forEach(
+		localModDirs,
+		(subDir: string) => {
 			const potentialMod = createLocalPotentialMod(localPath!, subDir);
-			return getModDetailsFromPath(potentialMod, potentialMod.path!, ModType.LOCAL).finally(() => {
-				progress.addLoaded(1);
-			});
-		})
+			return getModDetailsFromPath(potentialMod, potentialMod.path!, ModType.LOCAL).pipe(
+				Effect.catch((error) => {
+					log.error(`Failed to get local mod details at ${potentialMod.path}:`);
+					log.error(error);
+					return Effect.succeed<ModData | null>(null);
+				}),
+				Effect.ensuring(Effect.sync(() => progress.addLoaded(1)))
+			);
+		},
+		{ concurrency: 'unbounded' }
 	);
-	return modResponses
-		.filter((result): result is PromiseFulfilledResult<ModData> => result.status === 'fulfilled' && !!result.value)
-		.map((result) => result.value);
-}
+	return modResponses.filter((mod): mod is ModData => !!mod);
+});

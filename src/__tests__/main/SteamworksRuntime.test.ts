@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import { SteamworksRuntime, classifySteamworksReadiness } from '../../main/steamworks-runtime';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../../main/workshop-actions';
@@ -60,21 +61,25 @@ describe('SteamworksRuntime', () => {
 		});
 
 		await expect(
-			runSteamworksAction({ inited: false, readiness: { kind: 'steam-not-running', retryable: true } }, 'Failed action', action, logger)
+			Effect.runPromise(
+				runSteamworksAction({ inited: false, readiness: { kind: 'steam-not-running', retryable: true } }, 'Failed action', action, logger)
+			)
 		).resolves.toBe(false);
 		expect(action).not.toHaveBeenCalled();
 
 		await expect(
-			runSteamworksAction({ inited: true, readiness: { kind: 'ready', retryable: false } }, 'Failed action', action, logger)
+			Effect.runPromise(
+				runSteamworksAction({ inited: true, readiness: { kind: 'ready', retryable: false } }, 'Failed action', action, logger)
+			)
 		).resolves.toBe(false);
 		expect(action).toHaveBeenCalledTimes(1);
 		expect(logger.error).toHaveBeenCalledWith(`Failed action. Status ${EResult.k_EResultFail.toString()}`);
 	});
 
 	it('refreshes workshop metadata through an injectable Steamworks adapter', async () => {
-		const loadModDetailsFromPath = vi.fn(async (mod) => {
+		const loadModDetailsFromPath = vi.fn((mod) => {
 			mod.id = 'BundleId';
-			return mod;
+			return Effect.succeed(mod);
 		});
 		const steamworks = {
 			ugcGetItemState: vi.fn(() => UGCItemState.Subscribed | UGCItemState.Installed),
@@ -85,18 +90,20 @@ describe('SteamworksRuntime', () => {
 			}))
 		};
 
-		const update = await refreshWorkshopMetadata(
-			{
-				uid: 'workshop:42',
-				type: ModType.WORKSHOP,
-				workshopID: BigInt(42),
-				id: 'HumanReadableModId',
-				name: 'Steam Title'
-			},
-			{
-				loadModDetailsFromPath,
-				steamworks: steamworks as never
-			}
+		const update = await Effect.runPromise(
+			refreshWorkshopMetadata(
+				{
+					uid: 'workshop:42',
+					type: ModType.WORKSHOP,
+					workshopID: BigInt(42),
+					id: 'HumanReadableModId',
+					name: 'Steam Title'
+				},
+				{
+					loadModDetailsFromPath,
+					steamworks: steamworks as never
+				}
+			)
 		);
 
 		expect(steamworks.ugcGetItemState).toHaveBeenCalledWith(BigInt(42));

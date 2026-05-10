@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Effect } from 'effect';
 import {
 	createActiveCollectionTransition,
 	deleteActiveCollectionTransition,
@@ -22,11 +23,13 @@ describe('active collection transition', () => {
 	it('creates and activates a collection while preserving a dirty active collection draft', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
-		const result = createActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig(),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			collection: { name: 'fresh', mods: ['local:new'] }
-		});
+		const result = Effect.runSync(
+			createActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig(),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				collection: { name: 'fresh', mods: ['local:new'] }
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -42,10 +45,12 @@ describe('active collection transition', () => {
 	it('rolls back a created collection when activation config persistence fails', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
-		const result = createActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig(),
-			collection: { name: 'fresh', mods: [] }
-		});
+		const result = Effect.runSync(
+			createActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig(),
+				collection: { name: 'fresh', mods: [] }
+			})
+		);
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -61,11 +66,13 @@ describe('active collection transition', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 		writeTestCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
 
-		const result = switchActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'default' }),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			name: 'alt'
-		});
+		const result = Effect.runSync(
+			switchActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'default' }),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'alt'
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:dirty'] });
@@ -76,10 +83,12 @@ describe('active collection transition', () => {
 	});
 
 	it('rejects a switch to a missing collection target', () => {
-		const result = switchActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'default' }),
-			name: 'missing'
-		});
+		const result = Effect.runSync(
+			switchActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'default' }),
+				name: 'missing'
+			})
+		);
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -91,11 +100,13 @@ describe('active collection transition', () => {
 		const activeCollection = { name: 'default', mods: ['local:old'] };
 		writeTestCollection(tempDir, activeCollection);
 
-		const result = renameActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig(),
-			activeCollection,
-			name: 'renamed'
-		});
+		const result = Effect.runSync(
+			renameActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig(),
+				activeCollection,
+				name: 'renamed'
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toBeNull();
@@ -106,11 +117,13 @@ describe('active collection transition', () => {
 
 		fs.rmSync(path.join(tempDir, 'config.json'), { force: true });
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
-		const rollbackResult = renameActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'renamed' }),
-			activeCollection: { name: 'renamed', mods: ['local:old'] },
-			name: 'rolled-back'
-		});
+		const rollbackResult = Effect.runSync(
+			renameActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'renamed' }),
+				activeCollection: { name: 'renamed', mods: ['local:old'] },
+				name: 'rolled-back'
+			})
+		);
 
 		expect(rollbackResult).toMatchObject({
 			ok: false,
@@ -128,10 +141,12 @@ describe('active collection transition', () => {
 		writeTestCollection(tempDir, activeCollection);
 		writeTestCollection(tempDir, { name: 'archived', mods: ['local:a'] });
 
-		const result = deleteActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'default' }),
-			activeCollection
-		});
+		const result = Effect.runSync(
+			deleteActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'default' }),
+				activeCollection
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toBeNull();
@@ -139,10 +154,12 @@ describe('active collection transition', () => {
 			expect(result.activeCollection).toEqual({ name: 'archived', mods: ['local:a'] });
 		}
 
-		const fallbackResult = deleteActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'archived' }),
-			activeCollection: { name: 'archived', mods: ['local:a'] }
-		});
+		const fallbackResult = Effect.runSync(
+			deleteActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'archived' }),
+				activeCollection: { name: 'archived', mods: ['local:a'] }
+			})
+		);
 
 		expect(fallbackResult.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'archived')).toBeNull();
@@ -154,10 +171,12 @@ describe('active collection transition', () => {
 		writeTestCollection(tempDir, activeCollection);
 		fs.writeFileSync(path.join(tempDir, 'collections', 'broken.json'), '{', 'utf8');
 
-		const result = deleteActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'default' }),
-			activeCollection
-		});
+		const result = Effect.runSync(
+			deleteActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'default' }),
+				activeCollection
+			})
+		);
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -171,10 +190,12 @@ describe('active collection transition', () => {
 		writeTestCollection(tempDir, activeCollection);
 		fs.mkdirSync(path.join(tempDir, 'collections', 'default.json'), { recursive: true });
 
-		const result = deleteActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'active' }),
-			activeCollection
-		});
+		const result = Effect.runSync(
+			deleteActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'active' }),
+				activeCollection
+			})
+		);
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -189,9 +210,11 @@ describe('active collection transition', () => {
 		writeTestCollection(tempDir, { name: 'zeta', mods: [] });
 		writeTestCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
 
-		const result = resolveStartupActiveCollectionTransition(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'missing' })
-		});
+		const result = Effect.runSync(
+			resolveStartupActiveCollectionTransition(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'missing' })
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {

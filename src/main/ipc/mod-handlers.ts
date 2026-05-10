@@ -8,8 +8,9 @@ import { ModData, ModType, SessionMods, ValidChannel, createModUid, parseWorksho
 import { cloneModData } from '../../model/SessionMods';
 import { openExternalUrl } from '../external-links';
 import { getModDetailsFromPath } from '../mod-fetcher';
-import { scanModInventory } from '../mod-inventory-scan';
+import { scanModInventoryProgram } from '../mod-inventory-scan';
 import { expandUserPath } from '../path-utils';
+import { runMain } from '../runtime';
 import Steamworks from '../steamworks';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../workshop-actions';
 import { fetchWorkshopDependencySnapshot } from '../workshop-dependencies';
@@ -20,7 +21,7 @@ interface MainWindowProvider {
 	getWebContents: () => WebContents | null;
 }
 
-type ScanModInventory = typeof scanModInventory;
+type ScanModInventory = typeof scanModInventoryProgram;
 
 interface ModContextMenuRecordStore {
 	get: (uid: string) => ModData | undefined;
@@ -44,13 +45,15 @@ function createModContextMenuRecordStore(): ModContextMenuRecordStore {
 export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus?: () => SteamworksStatus) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.DOWNLOAD_MOD, workshopID);
-		return runSteamworksAction(
-			getSteamStatus?.(),
-			`Failed to download mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
-			},
-			log
+		return runMain(
+			runSteamworksAction(
+				getSteamStatus?.(),
+				`Failed to download mod ${validatedWorkshopID}`,
+				(success, failure) => {
+					steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
+				},
+				log
+			)
 		);
 	};
 }
@@ -58,13 +61,15 @@ export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus
 export function createSubscribeModHandler(steamworks = Steamworks, getSteamStatus?: () => SteamworksStatus) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.SUBSCRIBE_MOD, workshopID);
-		return runSteamworksAction(
-			getSteamStatus?.(),
-			`Failed to subscribe to mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
-			},
-			log
+		return runMain(
+			runSteamworksAction(
+				getSteamStatus?.(),
+				`Failed to subscribe to mod ${validatedWorkshopID}`,
+				(success, failure) => {
+					steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
+				},
+				log
+			)
 		);
 	};
 }
@@ -72,19 +77,21 @@ export function createSubscribeModHandler(steamworks = Steamworks, getSteamStatu
 function createUnsubscribeModHandler(steamworks = Steamworks, getSteamStatus?: () => SteamworksStatus) {
 	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.UNSUBSCRIBE_MOD, workshopID);
-		return runSteamworksAction(
-			getSteamStatus?.(),
-			`Failed to unsubscribe from mod ${validatedWorkshopID}`,
-			(success, failure) => {
-				steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
-			},
-			log
+		return runMain(
+			runSteamworksAction(
+				getSteamStatus?.(),
+				`Failed to unsubscribe from mod ${validatedWorkshopID}`,
+				(success, failure) => {
+					steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
+				},
+				log
+			)
 		);
 	};
 }
 
 export function createReadModMetadataHandler(
-	scanInventory: ScanModInventory = scanModInventory,
+	scanInventory: ScanModInventory = scanModInventoryProgram,
 	contextMenuRecords?: ModContextMenuRecordStore
 ) {
 	return async (
@@ -112,12 +119,14 @@ export function createReadModMetadataHandler(
 		});
 
 		try {
-			const modsList = await scanInventory({
-				knownWorkshopMods,
-				localPath: resolvedLocalDir,
-				progressSender: event.sender,
-				treatNuterraSteamBetaAsEquivalent: validatedPayload.treatNuterraSteamBetaAsEquivalent
-			});
+			const modsList = await runMain(
+				scanInventory({
+					knownWorkshopMods,
+					localPath: resolvedLocalDir,
+					progressSender: event.sender,
+					treatNuterraSteamBetaAsEquivalent: validatedPayload.treatNuterraSteamBetaAsEquivalent
+				})
+			);
 			contextMenuRecords?.replace(modsList);
 			return new SessionMods(resolvedLocalDir, modsList);
 		} catch (error) {
@@ -143,7 +152,7 @@ async function runContextMenuSteamworksAction(
 	action: (success: (result?: unknown) => void, failure: (error: Error) => void) => void,
 	onSuccess: () => void
 ): Promise<void> {
-	const success = await runSteamworksAction(undefined, failureMessage, action as never, log);
+	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log));
 	if (success) {
 		onSuccess();
 	}
@@ -178,10 +187,13 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 		const getUpdatedInfo = async () => {
 			const requestId = metadataUpdateRequestId + 1;
 			metadataUpdateRequestId = requestId;
-			const update = await refreshWorkshopMetadata(record, {
-				loadModDetailsFromPath: getModDetailsFromPath,
-				logger: log
-			});
+			// eslint-disable-next-line react-doctor/async-defer-await -- stale metadata requests are detected after the refresh resolves.
+			const update = await runMain(
+				refreshWorkshopMetadata(record, {
+					loadModDetailsFromPath: getModDetailsFromPath,
+					logger: log
+				})
+			);
 			if (requestId !== metadataUpdateRequestId) {
 				return;
 			}
@@ -258,7 +270,7 @@ export function createFetchWorkshopDependenciesHandler(
 ) {
 	return async (_event: unknown, workshopID: bigint): Promise<WorkshopDependencyRefreshResult> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, workshopID);
-		const dependencySnapshot = await workshopDependencySnapshot(validatedWorkshopID);
+		const dependencySnapshot = await runMain(workshopDependencySnapshot(validatedWorkshopID));
 		const metadataUpdate = getWorkshopDependencySnapshotMetadataUpdate(dependencySnapshot);
 		if (!metadataUpdate) {
 			return { status: 'failed' };
@@ -305,7 +317,7 @@ export function registerModHandlers(
 		return downloadMod(event, workshopID);
 	});
 
-	const readModMetadata = createReadModMetadataHandler(scanModInventory, contextMenuRecords);
+	const readModMetadata = createReadModMetadataHandler(scanModInventoryProgram, contextMenuRecords);
 	registerValidatedIpcHandler(
 		ipcMain,
 		ValidChannel.READ_MOD_METADATA,

@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
+import { Effect } from 'effect';
 import type { AppConfig, NotificationProps } from 'model';
 import type { MainColumnTitles } from 'model';
 import api from 'renderer/Api';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
-import { persistConfigChange } from 'renderer/util/config-write';
+import { persistConfigChangeProgram } from 'renderer/util/config-write';
+import { runRenderer, type RendererElectron } from 'renderer/runtime';
 import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 import { moveBlockLookupColumn, setBlockLookupColumnWidth, setBlockLookupColumns } from 'renderer/block-lookup-view-config-commands';
 import {
@@ -22,21 +24,30 @@ interface PersistViewConfigChangeOptions {
 	updateState: CollectionWorkspaceAppState['updateState'];
 }
 
-export async function persistViewConfigChange({ logger, nextConfig, openNotification, updateState }: PersistViewConfigChangeOptions) {
-	try {
-		return await persistConfigChange(nextConfig, (config) => updateState({ config }));
-	} catch (error) {
-		logger.error(error);
-		openNotification(
-			{
-				message: 'Failed to update view settings',
-				placement: 'bottomLeft',
-				duration: null
-			},
-			'error'
-		);
-		return false;
-	}
+const persistViewConfigChangeProgram = Effect.fnUntraced(function* ({
+	logger,
+	nextConfig,
+	openNotification,
+	updateState
+}: PersistViewConfigChangeOptions): Effect.fn.Return<boolean, never, RendererElectron> {
+	return yield* persistConfigChangeProgram(nextConfig, (config) => updateState({ config })).pipe(
+		Effect.catch((error) => {
+			logger.error(error);
+			openNotification(
+				{
+					message: 'Failed to update view settings',
+					placement: 'bottomLeft',
+					duration: null
+				},
+				'error'
+			);
+			return Effect.succeed(false);
+		})
+	);
+});
+
+export function persistViewConfigChange(options: PersistViewConfigChangeOptions) {
+	return runRenderer(persistViewConfigChangeProgram(options));
 }
 
 interface ViewConfigCommandsOptions {

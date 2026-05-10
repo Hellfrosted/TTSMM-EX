@@ -118,6 +118,27 @@ Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` w
 
 For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run validate` before relying on the pushed commit.
 
+## Effect Boundaries
+
+TypeScript internals use Effect v4 beta for async composition, expected failures, and schema decoding. Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
+
+- Electron IPC, preload, contextBridge, and the shared renderer API contract.
+- React event handlers, hooks, TanStack Query callbacks, React Hook Form resolvers, and dynamic component imports. Renderer programs that touch Electron run through `runRenderer(...)`; React and TanStack still receive Promises at their callback boundary.
+- Electron app startup, window/devtools/updater/menu wiring, UI smoke scripts, and Vitest bridges.
+- Main-process IPC handlers that run Effect programs use `runMain(...)` at the Electron Promise boundary.
+- Native or callback adapters that must expose a Promise or callback to an external lifecycle, including Steam UGC callbacks, Steam persona event callbacks that resume Effect state with `Effect.runFork`, process/window lifecycle hooks, dynamic imports, and low-level test adapters.
+- Internal concurrency owners should stay in Effect services or primitives. Current owners include validation fibers, the Steam persona cache service, and the hook-local collection write semaphore.
+
+Remaining Promise/Effect ledger:
+
+- Framework edges: `runRenderer(...)`, `runMain(...)`, React hooks/events, TanStack Query callbacks, React Hook Form resolvers, and Vitest `Effect.runPromise(...)` bridges.
+- Transport edges: `src/renderer/Api.ts`, `src/shared/electron-api.ts`, preload/contextBridge, and Electron IPC handler return values.
+- Native/callback edges: Steamworks callback adapters, child process launch events, Electron window/updater/devtools lifecycle code, dynamic imports, and UI smoke delays.
+- Runtime edges: `src/main/runtime.ts` and `src/renderer/runtime.ts`; do not create additional ad hoc runtime runners inside domain code.
+- Follow-up candidates: remaining direct `Effect.runPromise(...)` calls inside renderer loading/settings hooks, collection save/validation/lifecycle/game-launch hooks, and other React callback boundaries are framework-edge calls today, but should move to `runRenderer(...)` when they start touching `RendererElectron` services.
+
+Schema validation at IPC and form boundaries uses Effect Schema. Do not reintroduce Zod or duplicate old and new validation paths.
+
 ## Reference Links
 
 Product and platform:
@@ -143,7 +164,8 @@ Renderer libraries:
 - [TanStack Table documentation](https://tanstack.com/table/latest)
 - [TanStack Virtual documentation](https://tanstack.com/virtual/latest)
 - [React Hook Form documentation](https://react-hook-form.com/)
-- [Zod documentation](https://zod.dev/)
+- [Effect documentation](https://effect.website/docs/)
+- [Effect Schema documentation](https://effect.website/docs/schema/introduction/)
 - [Zustand documentation](https://zustand.docs.pmnd.rs/)
 - [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react)
 

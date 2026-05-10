@@ -128,7 +128,7 @@ describe('vite config', () => {
 			expect(isExternal('node:path')).toBe(true);
 			expect(isExternal('ps-list')).toBe(true);
 			expect(isExternal('greenworks')).toBe(true);
-			expect(isExternal('async-mutex')).toBe(false);
+			expect(isExternal('effect')).toBe(true);
 			expect(isExternal('@tanstack/react-query')).toBe(false);
 		}
 	});
@@ -144,7 +144,7 @@ describe('vite config', () => {
 		expect(normalizePath(rendererConfig.build?.rollupOptions?.input)).toContain('/src/renderer/index.html');
 		const reactChunk = manualChunks('/repo/node_modules/react/index.js', manualChunkMeta);
 		const routerChunk = manualChunks('/repo/node_modules/react-router-dom/dist/index.js', manualChunkMeta);
-		const dataChunk = manualChunks('/repo/node_modules/async-mutex/index.js', manualChunkMeta);
+		const dataChunk = manualChunks('/repo/node_modules/effect/dist/esm/index.js', manualChunkMeta);
 
 		expect(reactChunk).toBeDefined();
 		expect(routerChunk).toBe(reactChunk);

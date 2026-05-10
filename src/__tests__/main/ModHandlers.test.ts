@@ -1,5 +1,6 @@
 import type { MenuItemConstructorOptions } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import {
 	createContextMenuTemplate,
 	createDownloadModHandler,
@@ -18,12 +19,12 @@ vi.mock('../../main/mod-fetcher', async () => {
 	const actual = await vi.importActual<typeof import('../../main/mod-fetcher')>('../../main/mod-fetcher');
 	return {
 		...actual,
-		getModDetailsFromPath: vi.fn(async (potentialMod) => {
+		getModDetailsFromPath: vi.fn((potentialMod) => {
 			if (!potentialMod.name) {
 				potentialMod.name = 'BundleId';
 			}
 			potentialMod.id = 'BundleId';
-			return potentialMod;
+			return Effect.succeed(potentialMod);
 		})
 	};
 });
@@ -125,16 +126,18 @@ describe('mod handlers', () => {
 		const mainWindowProvider = {
 			getWebContents: () => ({ send })
 		};
-		const dependencyLookup = vi.fn(async () => ({
-			status: 'updated' as const,
-			snapshot: {
-				steamDependencies: [BigInt(11)],
-				steamDependencyNames: {
-					'11': 'Harmony (2.2.2)'
-				},
-				steamDependenciesFetchedAt: 1777777777777
-			}
-		}));
+		const dependencyLookup = vi.fn(() =>
+			Effect.succeed({
+				status: 'updated' as const,
+				snapshot: {
+					steamDependencies: [BigInt(11)],
+					steamDependencyNames: {
+						'11': 'Harmony (2.2.2)'
+					},
+					steamDependenciesFetchedAt: 1777777777777
+				}
+			})
+		);
 
 		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
 
@@ -154,7 +157,7 @@ describe('mod handlers', () => {
 		const mainWindowProvider = {
 			getWebContents: () => ({ send })
 		};
-		const dependencyLookup = vi.fn(async () => ({ status: 'unknown' as const, checkedAt: 1777777777777 }));
+		const dependencyLookup = vi.fn(() => Effect.succeed({ status: 'unknown' as const, checkedAt: 1777777777777 }));
 
 		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
 
@@ -173,7 +176,7 @@ describe('mod handlers', () => {
 		const mainWindowProvider = {
 			getWebContents: () => ({ send })
 		};
-		const dependencyLookup = vi.fn(async () => ({ status: 'failed' as const }));
+		const dependencyLookup = vi.fn(() => Effect.succeed({ status: 'failed' as const }));
 
 		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
 
@@ -271,7 +274,7 @@ describe('mod handlers', () => {
 	});
 
 	it('rejects mod metadata requests when scanning mods fails', async () => {
-		const scanInventory = vi.fn().mockRejectedValueOnce(new Error('scan failed'));
+		const scanInventory = vi.fn(() => Effect.fail(new Error('scan failed')));
 
 		await expect(createReadModMetadataHandler(scanInventory)({ sender: {} as never }, 'C:\\mods', [])).rejects.toThrow('scan failed');
 	});
@@ -287,7 +290,7 @@ describe('mod handlers', () => {
 	});
 
 	it('scans mod metadata after validating metadata requests', async () => {
-		const scanInventory = vi.fn().mockResolvedValueOnce([]);
+		const scanInventory = vi.fn(() => Effect.succeed([]));
 
 		await createReadModMetadataHandler(scanInventory)({ sender: {} as never }, 'C:\\mods', []);
 
@@ -366,7 +369,7 @@ describe('mod handlers', () => {
 			getWebContents: () => ({ send })
 		};
 
-		vi.mocked(getModDetailsFromPath).mockRejectedValueOnce(new Error('bad metadata'));
+		vi.mocked(getModDetailsFromPath).mockReturnValueOnce(Effect.fail(new Error('bad metadata')));
 		vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_workshopID, success) => {
 			success(EResult.k_EResultOK);
 			return true;

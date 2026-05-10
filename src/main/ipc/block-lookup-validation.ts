@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { Schema } from 'effect';
 import {
 	BLOCK_LOOKUP_SEARCH_RESULT_LIMIT,
 	type BlockLookupBuildRequest,
@@ -6,45 +6,47 @@ import {
 	type BlockLookupSettings
 } from 'shared/block-lookup';
 import type { ValidChannel } from 'shared/ipc';
-import { parseIpcPayload } from './ipc-validation';
+import { parseEffectIpcPayload } from './ipc-validation';
 
 const MAX_BLOCK_LOOKUP_MOD_SOURCES = 20_000;
 const MAX_BLOCK_LOOKUP_QUERY_LENGTH = 1_000;
 
-const blockLookupModSourceSchema = z.object({
-	uid: z.string().min(1),
-	id: z.string().optional(),
-	name: z.string().optional(),
-	path: z.string().optional(),
-	workshopID: z.string().optional()
+const blockLookupModSourceSchema = Schema.Struct({
+	uid: Schema.String.check(Schema.isMinLength(1)),
+	id: Schema.optional(Schema.String),
+	name: Schema.optional(Schema.String),
+	path: Schema.optional(Schema.String),
+	workshopID: Schema.optional(Schema.String)
 });
 
-const blockLookupSettingsSchema = z.object({
-	workshopRoot: z.string(),
-	renderedPreviewsEnabled: z.boolean()
+const blockLookupSettingsSchema = Schema.Struct({
+	workshopRoot: Schema.String,
+	renderedPreviewsEnabled: Schema.Boolean
 });
 
-const blockLookupBuildRequestSchema = z.object({
-	workshopRoot: z.string().optional(),
-	gameExec: z.string().optional(),
-	modSources: z.array(blockLookupModSourceSchema).max(MAX_BLOCK_LOOKUP_MOD_SOURCES).optional(),
-	forceRebuild: z.boolean().optional(),
-	renderedPreviewsEnabled: z.boolean().optional()
+const blockLookupBuildRequestSchema = Schema.Struct({
+	workshopRoot: Schema.optional(Schema.String),
+	gameExec: Schema.optional(Schema.String),
+	modSources: Schema.optional(Schema.Array(blockLookupModSourceSchema).check(Schema.isMaxLength(MAX_BLOCK_LOOKUP_MOD_SOURCES))),
+	forceRebuild: Schema.optional(Schema.Boolean),
+	renderedPreviewsEnabled: Schema.optional(Schema.Boolean)
 });
 
-const blockLookupSearchRequestSchema = z.object({
-	query: z.string().max(MAX_BLOCK_LOOKUP_QUERY_LENGTH),
-	limit: z.number().int().positive().max(BLOCK_LOOKUP_SEARCH_RESULT_LIMIT).optional()
+const blockLookupSearchRequestSchema = Schema.Struct({
+	query: Schema.String.check(Schema.isMaxLength(MAX_BLOCK_LOOKUP_QUERY_LENGTH)),
+	limit: Schema.optional(
+		Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(BLOCK_LOOKUP_SEARCH_RESULT_LIMIT))
+	)
 });
 
 export function parseBlockLookupSettingsPayload(channel: ValidChannel, payload: unknown): BlockLookupSettings {
-	return parseIpcPayload(channel, blockLookupSettingsSchema, payload);
+	return parseEffectIpcPayload(channel, blockLookupSettingsSchema, payload, { onExcessProperty: 'ignore' });
 }
 
 export function parseBlockLookupBuildRequestPayload(channel: ValidChannel, payload: unknown): BlockLookupBuildRequest {
-	return parseIpcPayload(channel, blockLookupBuildRequestSchema, payload);
+	return parseEffectIpcPayload(channel, blockLookupBuildRequestSchema, payload, { onExcessProperty: 'ignore' }) as BlockLookupBuildRequest;
 }
 
 export function parseBlockLookupSearchRequestPayload(channel: ValidChannel, payload: unknown): BlockLookupSearchRequest {
-	return parseIpcPayload(channel, blockLookupSearchRequestSchema, payload);
+	return parseEffectIpcPayload(channel, blockLookupSearchRequestSchema, payload, { onExcessProperty: 'ignore' });
 }

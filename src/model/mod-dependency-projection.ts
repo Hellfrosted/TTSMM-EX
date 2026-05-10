@@ -43,9 +43,9 @@ export function createModDependencyProjection(session: SessionMods, mod: ModData
 	const modDescriptor = getDescriptor(session, mod);
 	const requiredModData = getDependencies(session, mod).map((descriptor) => mapDescriptorToDisplayMod(session, descriptor));
 	const dependentModData = getDependents(session, mod).map((descriptor) => mapDescriptorToDisplayMod(session, descriptor, 'Mod Group'));
-	const conflictingModData = [...(modDescriptor?.UIDs || [])]
-		.filter((uid) => uid !== mod.uid)
-		.map((uid) => session.modIdToModDataMap.get(uid) || { uid, id: 'INVALID', type: ModType.INVALID });
+	const conflictingModData = Array.from(modDescriptor?.UIDs || []).flatMap((uid) =>
+		uid === mod.uid ? [] : [session.modIdToModDataMap.get(uid) || { uid, id: 'INVALID', type: ModType.INVALID }]
+	);
 
 	return {
 		conflictingModData,

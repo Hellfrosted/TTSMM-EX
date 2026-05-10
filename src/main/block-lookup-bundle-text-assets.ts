@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import log from 'electron-log';
+import { Effect } from 'effect';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
 
 const EXTRACTOR_SOURCE_BATCH_SIZE = 1;
@@ -109,42 +110,53 @@ interface BlockLookupBundleExtractionRunOptions extends BlockLookupBundleExtract
 	previewMatchNamesFile?: string;
 }
 
-function runBlockLookupBundleExtractor(
+const runBlockLookupBundleExtractor = Effect.fnUntraced(function* (
 	extractorPath: string,
 	sourcePaths: readonly string[],
 	options: BlockLookupBundleExtractionRunOptions
-) {
-	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-		childProcess.execFile(
-			extractorPath,
-			[...sourcePaths],
-			{
-				encoding: 'utf8',
-				env: {
-					...process.env,
-					...(options.previewCacheDir ? { TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: options.previewCacheDir } : {}),
-					...(options.previewMatchNamesFile ? { TTSMM_BLOCK_LOOKUP_PREVIEW_MATCH_NAMES_FILE: options.previewMatchNamesFile } : {})
-				},
-				maxBuffer: 64 * 1024 * 1024,
-				timeout: 120000,
-				windowsHide: true
-			},
-			(error, stdout, stderr) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-				resolve({
-					stdout: String(stdout),
-					stderr: String(stderr)
-				});
-			}
-		);
+): Effect.fn.Return<{ stdout: string; stderr: string }, unknown> {
+	return yield* Effect.tryPromise({
+		try: () =>
+			new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+				childProcess.execFile(
+					extractorPath,
+					[...sourcePaths],
+					{
+						encoding: 'utf8',
+						env: {
+							...process.env,
+							...(options.previewCacheDir ? { TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: options.previewCacheDir } : {}),
+							...(options.previewMatchNamesFile ? { TTSMM_BLOCK_LOOKUP_PREVIEW_MATCH_NAMES_FILE: options.previewMatchNamesFile } : {})
+						},
+						maxBuffer: 64 * 1024 * 1024,
+						timeout: 120000,
+						windowsHide: true
+					},
+					(error, stdout, stderr) => {
+						if (error) {
+							reject(error);
+							return;
+						}
+						resolve({
+							stdout: String(stdout),
+							stderr: String(stderr)
+						});
+					}
+				);
+			}),
+		catch: (error) => error
 	});
-}
+});
 
 function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | undefined): { directory: string; filePath: string } | null {
-	const uniqueNames = [...new Set((previewMatchNames ?? []).map((name) => name.trim()).filter(Boolean))];
+	const uniqueNames = [
+		...new Set(
+			(previewMatchNames ?? []).flatMap((name) => {
+				const trimmedName = name.trim();
+				return trimmedName ? [trimmedName] : [];
+			})
+		)
+	];
 	if (!uniqueNames.length) {
 		return null;
 	}
@@ -162,71 +174,79 @@ function createExtractorSourceBatches(sourcePaths: readonly string[]): string[][
 	return batches;
 }
 
-export async function extractBlockLookupBundleOutcomes(
+export const extractBlockLookupBundleOutcomes = Effect.fnUntraced(function* (
 	sourcePaths: readonly string[],
 	options: BlockLookupBundleExtractionOptions = {}
-): Promise<Map<string, BlockLookupBundleExtractionOutcome>> {
+): Effect.fn.Return<Map<string, BlockLookupBundleExtractionOutcome>, unknown> {
 	const extractorPath = options.extractorPath === undefined ? findBlockLookupExtractorPath() : options.extractorPath;
 	if (!extractorPath) {
-		throw new Error('Block Lookup native extractor is unavailable.');
+		return yield* Effect.fail(new Error('Block Lookup native extractor is unavailable.'));
 	}
 
-	try {
-		const previewMatchNamesFile = createPreviewMatchNamesFile(options.previewMatchNames);
+	const previewMatchNamesFile = createPreviewMatchNamesFile(options.previewMatchNames);
+	const outputs = yield* Effect.gen(function* () {
 		const outputs: ExtractorOutput[] = [];
-		try {
-			for (const batch of createExtractorSourceBatches(sourcePaths)) {
-				const { stdout, stderr } = await runBlockLookupBundleExtractor(extractorPath, batch, {
-					...options,
-					...(previewMatchNamesFile ? { previewMatchNamesFile: previewMatchNamesFile.filePath } : {})
-				});
-				if (stderr.trim()) {
-					log.warn(`Block Lookup native extractor stderr: ${stderr.trim()}`);
-				}
-				outputs.push(parseExtractorOutput(stdout));
-			}
-		} finally {
-			if (previewMatchNamesFile) {
-				fs.rmSync(previewMatchNamesFile.directory, { force: true, recursive: true });
-			}
-		}
-		const results = new Map<string, BlockLookupBundleExtractionOutcome>();
-		sourcePaths.forEach((sourcePath) =>
-			results.set(sourcePath, {
-				issues: ['Block Lookup native extractor did not return a result for this source.'],
-				previewAssets: [],
-				sourcePath,
-				status: 'issue',
-				textAssets: []
-			})
-		);
-		outputs
-			.flatMap((output) => output.files)
-			.forEach((file) => {
-				if (file.errors.length) {
-					log.warn(`Block Lookup native extractor reported issues for ${file.sourcePath}: ${file.errors.join('; ')}`);
-				}
-				const issues = file.errors;
-				results.set(file.sourcePath, {
-					issues,
-					previewAssets: file.previewAssets,
-					sourcePath: file.sourcePath,
-					status: issues.length ? 'issue' : 'success',
-					textAssets: file.textAssets
-				});
+		for (const batch of createExtractorSourceBatches(sourcePaths)) {
+			const { stdout, stderr } = yield* runBlockLookupBundleExtractor(extractorPath, batch, {
+				...options,
+				...(previewMatchNamesFile ? { previewMatchNamesFile: previewMatchNamesFile.filePath } : {})
 			});
-		return results;
-	} catch (error) {
-		log.warn('Block Lookup native extractor failed.');
-		log.warn(error);
-		throw error;
+			if (stderr.trim()) {
+				log.warn(`Block Lookup native extractor stderr: ${stderr.trim()}`);
+			}
+			const output = yield* Effect.try({
+				try: () => parseExtractorOutput(stdout),
+				catch: (error) => error
+			});
+			outputs.push(output);
+		}
+		return outputs;
+	}).pipe(
+		Effect.ensuring(
+			Effect.sync(() => {
+				if (previewMatchNamesFile) {
+					fs.rmSync(previewMatchNamesFile.directory, { force: true, recursive: true });
+				}
+			})
+		),
+		Effect.catch((error) => {
+			log.warn('Block Lookup native extractor failed.');
+			log.warn(error);
+			return Effect.fail(error);
+		})
+	);
+	const results = new Map<string, BlockLookupBundleExtractionOutcome>();
+	sourcePaths.forEach((sourcePath) =>
+		results.set(sourcePath, {
+			issues: ['Block Lookup native extractor did not return a result for this source.'],
+			previewAssets: [],
+			sourcePath,
+			status: 'issue',
+			textAssets: []
+		})
+	);
+	for (const output of outputs) {
+		for (const file of output.files) {
+			if (file.errors.length) {
+				log.warn(`Block Lookup native extractor reported issues for ${file.sourcePath}: ${file.errors.join('; ')}`);
+			}
+			const issues = file.errors;
+			results.set(file.sourcePath, {
+				issues,
+				previewAssets: file.previewAssets,
+				sourcePath: file.sourcePath,
+				status: issues.length ? 'issue' : 'success',
+				textAssets: file.textAssets
+			});
+		}
 	}
-}
+	return results;
+});
 
-export async function extractBundleTextAssets(
+export const extractBundleTextAssets = Effect.fnUntraced(function* (
 	sourcePaths: readonly string[],
 	options: BlockLookupBundleExtractionOptions = {}
-): Promise<Map<string, BlockLookupTextAsset[]>> {
-	const outcomes = await extractBlockLookupBundleOutcomes(sourcePaths, options);
+): Effect.fn.Return<Map<string, BlockLookupTextAsset[]>, unknown> {
+	const outcomes = yield* extractBlockLookupBundleOutcomes(sourcePaths, options);
 	return new Map([...outcomes].map(([sourcePath, outcome]) => [sourcePath, outcome.textAssets]));
-}
+});

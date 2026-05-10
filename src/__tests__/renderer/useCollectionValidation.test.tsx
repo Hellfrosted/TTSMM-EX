@@ -1,11 +1,29 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModErrorType, ModType, SessionMods, getDependencies, getModDescriptorKey, setupDescriptors } from '../../model';
 import { createCollectionWorkspaceSession } from '../../renderer/collection-workspace-session';
 import { useCollectionValidation } from '../../renderer/hooks/collections/useCollectionValidation';
 import { createAppState, createTestConfig } from './test-utils';
 
+const validateCollectionMock = vi.hoisted(() => vi.fn());
+
+vi.mock('model', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../../model')>();
+	validateCollectionMock.mockImplementation(actual.validateCollection);
+	return {
+		...actual,
+		validateCollection: validateCollectionMock
+	};
+});
+
 describe('useCollectionValidation', () => {
+	beforeEach(async () => {
+		const actual = await vi.importActual<typeof import('../../model')>('model');
+		validateCollectionMock.mockReset();
+		validateCollectionMock.mockImplementation(actual.validateCollection);
+	});
+
 	it('does not treat a previous validation result as current after switching collections', async () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const modB = { uid: 'local:b', id: 'ModB', name: 'Mod B', type: ModType.LOCAL };
@@ -341,5 +359,55 @@ describe('useCollectionValidation', () => {
 				validationResult: result.current.validationResult
 			}).validationStatus
 		).toBe('passed');
+	});
+
+	it('interrupts an in-flight validation Effect before starting the next validation', async () => {
+		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
+		const mods = new SessionMods('', [modA]);
+		const appState = createAppState({
+			config: createTestConfig({ activeCollection: 'default' }),
+			mods,
+			activeCollection: { name: 'default', mods: ['local:a'] }
+		});
+		let firstValidationAborted = false;
+
+		setupDescriptors(mods, appState.config.userOverrides);
+		validateCollectionMock
+			.mockImplementationOnce(() =>
+				Effect.tryPromise({
+					try: (signal) =>
+						new Promise<Record<string, never>>((resolve) => {
+							signal.addEventListener('abort', () => {
+								firstValidationAborted = true;
+								resolve({});
+							});
+						}),
+					catch: (error) => error
+				})
+			)
+			.mockImplementationOnce(() => Effect.succeed({}));
+
+		const { result } = renderHook(() =>
+			useCollectionValidation({
+				appState,
+				openNotification: vi.fn(),
+				setModalType: vi.fn(),
+				persistCollection: vi.fn(async () => true)
+			})
+		);
+
+		act(() => {
+			void result.current.validateActiveCollection(false);
+		});
+		await waitFor(() => {
+			expect(validateCollectionMock).toHaveBeenCalledTimes(1);
+		});
+
+		await act(async () => {
+			await result.current.validateActiveCollection(false);
+		});
+
+		expect(firstValidationAborted).toBe(true);
+		expect(result.current.lastValidationStatus).toBe(true);
 	});
 });

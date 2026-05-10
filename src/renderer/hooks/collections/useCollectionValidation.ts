@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Cause, Effect, Exit, Fiber } from 'effect';
 import {
 	CollectionErrors,
 	CollectionManagerModalType,
@@ -17,7 +18,6 @@ import {
 	type CollectionWorkspaceValidationResult
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { cancellablePromise, type CancellablePromise } from 'util/Promise';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionValidationOptions {
@@ -37,6 +37,11 @@ interface ValidationRequest {
 	mods: CollectionWorkspaceAppState['mods'];
 }
 
+interface ActiveValidationFiber {
+	cancel: () => void;
+	promise: Promise<Exit.Exit<CollectionErrors, unknown>>;
+}
+
 function notifyValidationFailure(openNotification: UseCollectionValidationOptions['openNotification'], message: string) {
 	openNotification?.(
 		{
@@ -51,7 +56,7 @@ function notifyValidationFailure(openNotification: UseCollectionValidationOption
 export function useCollectionValidation({ appState, openNotification, persistCollection }: UseCollectionValidationOptions) {
 	const [validatingMods, setValidatingMods] = useState(false);
 	const [validationResult, setValidationResult] = useState<CollectionWorkspaceValidationResult>();
-	const validationPromiseRef = useRef<CancellablePromise<CollectionErrors> | undefined>(undefined);
+	const validationFiberRef = useRef<ActiveValidationFiber | undefined>(undefined);
 	const { activeCollection, config, mods } = appState;
 	const collectionErrors = validationResult?.errors;
 	const lastValidationStatus = validationResult?.success;
@@ -59,13 +64,13 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 
 	useEffect(() => {
 		return () => {
-			validationPromiseRef.current?.cancel();
+			validationFiberRef.current?.cancel();
 		};
 	}, []);
 
 	const cancelValidation = useCallback(() => {
-		validationPromiseRef.current?.cancel();
-		validationPromiseRef.current = undefined;
+		validationFiberRef.current?.cancel();
+		validationFiberRef.current = undefined;
 	}, []);
 
 	const logValidationIssues = useCallback((summary: ValidationIssueSummary) => {
@@ -245,28 +250,50 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 				config: options?.config ?? appState.config,
 				mods: appState.mods
 			};
-			const validationPromise = cancellablePromise(validateCollection(validationRequest.mods, validationRequest.collection));
-			validationPromiseRef.current = validationPromise;
+			const validationFiber = Effect.runFork(validateCollection(validationRequest.mods, validationRequest.collection));
+			const activeValidation: ActiveValidationFiber = {
+				cancel: () => {
+					Effect.runFork(Fiber.interrupt(validationFiber));
+				},
+				promise: Effect.runPromise(Fiber.await(validationFiber))
+			};
+			validationFiberRef.current = activeValidation;
 
-			try {
-				const result = await validationPromise.promise;
-				return await processValidationResult(result, launchIfValid, validationRequest);
-			} catch (error) {
-				const wrappedError = error as { cancelled?: boolean; error?: unknown };
-				if (!wrappedError.cancelled) {
-					api.logger.error(wrappedError.error);
-					setValidationResult(undefined);
-					setValidatingMods(false);
-					notifyValidationFailure(openNotification, 'Collection validation did not complete. Check the mod list and try again.');
+			const exit = await activeValidation.promise;
+			const isCurrentValidation = validationFiberRef.current === activeValidation;
+			if (isCurrentValidation) {
+				validationFiberRef.current = undefined;
+			}
+
+			if (Exit.isSuccess(exit)) {
+				if (!isCurrentValidation) {
 					return {
-						type: 'validation-run-failed'
+						type: 'cancelled'
+					} satisfies CollectionValidationRunOutcome;
+				}
+				return await processValidationResult(exit.value, launchIfValid, validationRequest);
+			}
+
+			if (Exit.isFailure(exit)) {
+				if (!isCurrentValidation) {
+					return {
+						type: 'cancelled'
+					} satisfies CollectionValidationRunOutcome;
+				}
+				if (Exit.hasInterrupts(exit)) {
+					return {
+						type: 'cancelled'
 					} satisfies CollectionValidationRunOutcome;
 				}
 
-				return {
-					type: 'cancelled'
-				} satisfies CollectionValidationRunOutcome;
+				api.logger.error(Cause.squash((exit as { cause: Cause.Cause<unknown> }).cause));
 			}
+			setValidationResult(undefined);
+			setValidatingMods(false);
+			notifyValidationFailure(openNotification, 'Collection validation did not complete. Check the mod list and try again.');
+			return {
+				type: 'validation-run-failed'
+			} satisfies CollectionValidationRunOutcome;
 		},
 		[activeCollection, appState.config, appState.mods, cancelValidation, openNotification, processValidationResult]
 	);

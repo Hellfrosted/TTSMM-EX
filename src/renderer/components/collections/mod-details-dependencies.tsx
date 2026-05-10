@@ -233,7 +233,7 @@ function DetailTable({
 					{loading ? (
 						<tr>
 							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								Refreshing dependency data...
+								Refreshing dependency data…
 							</td>
 						</tr>
 					) : null}

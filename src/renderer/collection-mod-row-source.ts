@@ -32,6 +32,6 @@ export function getCollectionRowsWithMissingSelections(
 	}
 
 	const knownRowIds = new Set(rows.map((row) => row.uid));
-	const missingRows = collection.mods.filter((uid) => !knownRowIds.has(uid)).map(createMissingCollectionRow);
+	const missingRows = collection.mods.flatMap((uid) => (knownRowIds.has(uid) ? [] : [createMissingCollectionRow(uid)]));
 	return missingRows.length > 0 ? [...rows, ...missingRows] : rows;
 }

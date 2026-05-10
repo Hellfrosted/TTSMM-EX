@@ -136,18 +136,12 @@ function parseNuterraBlockText(text: string, fallbackInternalName: string): Extr
 }
 
 export function extractNuterraBlocksFromText(text: string, fallbackInternalName: string): ExtractedTextBlock[] {
-	if (!text.includes('NuterraBlock')) {
-		return [];
-	}
-
+	const nuterraBlockPattern = /NuterraBlock/g;
 	const records: ExtractedTextBlock[] = [];
 	const seen = new Set<string>();
-	let cursor = 0;
-	while (cursor < text.length) {
-		const index = text.indexOf('NuterraBlock', cursor);
-		if (index < 0) {
-			break;
-		}
+	let match: RegExpExecArray | null;
+	while ((match = nuterraBlockPattern.exec(text))) {
+		const index = match.index;
 
 		const start = Math.max(0, index - BUNDLE_SCAN_CONTEXT_CHARS);
 		const end = Math.min(text.length, index + BUNDLE_SCAN_CONTEXT_CHARS);
@@ -159,7 +153,6 @@ export function extractNuterraBlocksFromText(text: string, fallbackInternalName:
 				records.push(parsed);
 			}
 		}
-		cursor = index + 'NuterraBlock'.length;
 	}
 
 	return records;
@@ -175,9 +168,11 @@ function isExtractedTextBlock(value: unknown): value is ExtractedTextBlock {
 
 function toUniqueBlocks(blocks: ExtractedTextBlock[]) {
 	const uniqueBlocks = new Map<string, ExtractedTextBlock>();
-	blocks.filter(isExtractedTextBlock).forEach((block) => {
-		uniqueBlocks.set(`${normalizedBlockLookupKey(block.blockName)}:${block.blockId}:${block.internalName}`, block);
-	});
+	for (const block of blocks) {
+		if (isExtractedTextBlock(block)) {
+			uniqueBlocks.set(`${normalizedBlockLookupKey(block.blockName)}:${block.blockId}:${block.internalName}`, block);
+		}
+	}
 	return [...uniqueBlocks.values()];
 }
 

@@ -341,6 +341,23 @@ describe('config handlers', () => {
 		);
 	});
 
+	it('preserves unknown config keys when updating through the ipc seam', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const { invoke } = createConfigHandlerHarness(tempDir);
+
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, { ...createValidConfig(), futureConfigKey: 'kept' })).resolves.toEqual(
+			expect.objectContaining({
+				futureConfigKey: 'kept'
+			})
+		);
+
+		expect(readConfigFile(path.join(tempDir, 'config.json'), true)).toEqual(
+			expect.objectContaining({
+				futureConfigKey: 'kept'
+			})
+		);
+	});
+
 	it('keeps config storage as the json adapter while shared defaults restore runtime types', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');

@@ -1,4 +1,3 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, useFormState, useWatch } from 'react-hook-form';
 import type { Path, PathValue } from 'react-hook-form';
@@ -6,7 +5,7 @@ import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
 import { useWriteConfigMutation } from 'renderer/async-cache';
-import { settingsFormSchema, type EditingConfig, type LogConfig } from 'renderer/settings-validation';
+import { settingsFormResolver, type EditingConfig, type LogConfig } from 'renderer/settings-validation';
 
 function cloneEditingConfig(config: EditingConfig): EditingConfig {
 	return {
@@ -28,6 +27,19 @@ type SaveSettingsResult =
 	  };
 
 type SettingsPathTarget = AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC;
+
+type SettingsFormUiState = {
+	selectingDirectory: boolean;
+	selectingPathTarget?: SettingsPathTarget;
+	modalType: SettingsViewModalType;
+	editingContextIndex?: number;
+	modalSnapshot?: EditingConfig;
+};
+
+const defaultSettingsFormUiState: SettingsFormUiState = {
+	selectingDirectory: false,
+	modalType: SettingsViewModalType.NONE
+};
 
 function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
@@ -58,7 +70,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 	const form = useForm<EditingConfig>({
 		defaultValues: createEditingConfig(config),
 		mode: 'onSubmit',
-		resolver: zodResolver(settingsFormSchema)
+		resolver: settingsFormResolver
 	});
 	const watchedEditingConfig = useWatch({ control: form.control });
 	const { isDirty } = useFormState({ control: form.control });
@@ -71,19 +83,12 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			}) as EditingConfig,
 		[config, watchedEditingConfig]
 	);
-	const [selectingDirectory, setSelectingDirectory] = useState(false);
-	const [selectingPathTarget, setSelectingPathTarget] = useState<SettingsPathTarget>();
-	const [modalType, setModalType] = useState(SettingsViewModalType.NONE);
-	const [editingContextIndex, setEditingContextIndex] = useState<number>();
-	const [modalSnapshot, setModalSnapshot] = useState<EditingConfig>();
+	const [uiState, setUiState] = useState<SettingsFormUiState>(defaultSettingsFormUiState);
+	const { selectingDirectory, selectingPathTarget, modalType, editingContextIndex, modalSnapshot } = uiState;
 
 	useEffect(() => {
 		form.reset(createEditingConfig(config));
-		setSelectingDirectory(false);
-		setSelectingPathTarget(undefined);
-		setModalType(SettingsViewModalType.NONE);
-		setEditingContextIndex(undefined);
-		setModalSnapshot(undefined);
+		setUiState(defaultSettingsFormUiState);
 	}, [config, form]);
 
 	useEffect(() => {
@@ -125,8 +130,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			shouldDirty: true,
 			shouldValidate: false
 		});
-		setModalType(SettingsViewModalType.NONE);
-		setEditingContextIndex(undefined);
+		setUiState((current) => ({ ...current, modalType: SettingsViewModalType.NONE, editingContextIndex: undefined }));
 	}, [form]);
 
 	const removeLogConfig = useCallback(
@@ -137,8 +141,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				currentEditingConfig.editingLogConfig.filter((_, currentIndex) => currentIndex !== index),
 				{ shouldDirty: true, shouldValidate: false }
 			);
-			setModalType(SettingsViewModalType.NONE);
-			setEditingContextIndex(undefined);
+			setUiState((current) => ({ ...current, modalType: SettingsViewModalType.NONE, editingContextIndex: undefined }));
 		},
 		[form]
 	);
@@ -149,8 +152,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				return null;
 			}
 
-			setSelectingDirectory(true);
-			setSelectingPathTarget(target);
+			setUiState((current) => ({ ...current, selectingDirectory: true, selectingPathTarget: target }));
 			try {
 				const selectedPath = await api.selectPath(directory, title);
 				if (selectedPath) {
@@ -161,8 +163,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				api.logger.error(error);
 				throw error instanceof Error ? error : new Error('Failed to browse for a path');
 			} finally {
-				setSelectingDirectory(false);
-				setSelectingPathTarget(undefined);
+				setUiState((current) => ({ ...current, selectingDirectory: false, selectingPathTarget: undefined }));
 			}
 		},
 		[form, selectingDirectory]
@@ -242,9 +243,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 	const cancelChanges = useCallback(() => {
 		form.reset(createEditingConfig(config));
-		setModalType(SettingsViewModalType.NONE);
-		setEditingContextIndex(undefined);
-		setModalSnapshot(undefined);
+		setUiState(defaultSettingsFormUiState);
 		updateState({ madeConfigEdits: false, configErrors: {} });
 	}, [config, form, updateState]);
 
@@ -253,9 +252,12 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			if (options?.restoreSnapshot && modalSnapshot) {
 				form.reset(cloneEditingConfig(modalSnapshot), { keepDefaultValues: true });
 			}
-			setModalType(SettingsViewModalType.NONE);
-			setEditingContextIndex(undefined);
-			setModalSnapshot(undefined);
+			setUiState((current) => ({
+				...current,
+				modalType: SettingsViewModalType.NONE,
+				editingContextIndex: undefined,
+				modalSnapshot: undefined
+			}));
 		},
 		[form, modalSnapshot]
 	);
@@ -276,14 +278,20 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		saveChanges,
 		cancelChanges,
 		openLogEditModal: (index: number) => {
-			setModalSnapshot(cloneEditingConfig(editingConfig));
-			setModalType(SettingsViewModalType.LOG_EDIT);
-			setEditingContextIndex(index);
+			setUiState((current) => ({
+				...current,
+				modalSnapshot: cloneEditingConfig(editingConfig),
+				modalType: SettingsViewModalType.LOG_EDIT,
+				editingContextIndex: index
+			}));
 		},
 		openWorkshopIdModal: () => {
-			setModalSnapshot(cloneEditingConfig(editingConfig));
-			setModalType(SettingsViewModalType.WORKSHOP_ID_EDIT);
-			setEditingContextIndex(undefined);
+			setUiState((current) => ({
+				...current,
+				modalSnapshot: cloneEditingConfig(editingConfig),
+				modalType: SettingsViewModalType.WORKSHOP_ID_EDIT,
+				editingContextIndex: undefined
+			}));
 		},
 		closeModal
 	};

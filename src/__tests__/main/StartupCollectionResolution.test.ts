@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Effect } from 'effect';
 import { readCollectionFile } from '../../main/collection-store';
 import { readConfigFile } from '../../main/config-store';
 import { resolveStartupCollection } from '../../main/startup-collection-resolution';
@@ -17,7 +18,7 @@ describe('startup collection resolution', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:a'] });
 		writeTestCollection(tempDir, { name: 'other', mods: [] });
 
-		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'default' }));
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'default' })));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -34,7 +35,7 @@ describe('startup collection resolution', () => {
 		writeTestCollection(tempDir, { name: 'zeta', mods: [] });
 		writeTestCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
 
-		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' }));
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' })));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -47,7 +48,7 @@ describe('startup collection resolution', () => {
 	});
 
 	it('creates and activates the default collection when none exist', () => {
-		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined }));
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined })));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -64,7 +65,7 @@ describe('startup collection resolution', () => {
 		writeTestCollection(tempDir, { name: 'alpha', mods: [] });
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
-		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' }));
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' })));
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -76,7 +77,7 @@ describe('startup collection resolution', () => {
 	it('rolls back the default collection when default activation fails', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
-		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined }));
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined })));
 
 		expect(result).toMatchObject({
 			ok: false,

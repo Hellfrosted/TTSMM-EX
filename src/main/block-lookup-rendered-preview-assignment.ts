@@ -13,23 +13,29 @@ export interface BlockLookupRenderedPreviewAssignmentOptions {
 }
 
 export function getBlockLookupRecordPreviewMatchNameCandidates(records: readonly BlockLookupRecord[]): string[] {
-	return [
-		...new Set(
-			records
-				.flatMap((record) => [
-					record.internalName,
-					record.blockName,
-					record.preferredAlias.replace(/\(.*$/, ''),
-					...(record.previewAssetNames ?? [])
-				])
-				.map((value) => value.trim())
-				.filter(Boolean)
-		)
-	];
+	const candidates = new Set<string>();
+	for (const record of records) {
+		for (const value of [
+			record.internalName,
+			record.blockName,
+			record.preferredAlias.replace(/\(.*$/, ''),
+			...(record.previewAssetNames ?? [])
+		]) {
+			const candidate = value.trim();
+			if (candidate) {
+				candidates.add(candidate);
+			}
+		}
+	}
+	return Array.from(candidates);
 }
 
 function normalizePreviewAssetMatchKey(value: string): string {
 	return normalizedBlockLookupKey(value).replace(/(renderedpreview|thumbnail|preview|thumb|icon|texture|sprite)$/g, '');
+}
+
+function createLiteralPattern(value: string): RegExp {
+	return new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 }
 
 const PREVIEW_MATCH_SUFFIX_TOKENS = new Set(['rendered', 'preview', 'thumbnail', 'thumb', 'icon', 'texture', 'sprite']);
@@ -66,13 +72,18 @@ function tokenizePreviewMatchValue(value: string): string[] {
 	return value
 		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
 		.split(/[^A-Za-z0-9]+/)
-		.map((token) => token.toLowerCase())
-		.map(normalizePreviewMatchToken)
-		.filter((token) => token.length > 0 && !PREVIEW_MATCH_SUFFIX_TOKENS.has(token) && !PREVIEW_MATCH_GENERIC_TOKENS.has(token));
+		.flatMap((token) => {
+			const normalizedToken = normalizePreviewMatchToken(token.toLowerCase());
+			return normalizedToken.length > 0 &&
+				!PREVIEW_MATCH_SUFFIX_TOKENS.has(normalizedToken) &&
+				!PREVIEW_MATCH_GENERIC_TOKENS.has(normalizedToken)
+				? [normalizedToken]
+				: [];
+		});
 }
 
 function getPreviewMatchVariantTokens(tokens: ReadonlySet<string>, group: ReadonlySet<string>): string[] {
-	return [...group].filter((token) => tokens.has(token));
+	return Array.from(group).filter((token) => tokens.has(token));
 }
 
 function hasPreviewMatchVariantConflict(recordTokens: ReadonlySet<string>, assetTokens: ReadonlySet<string>): boolean {
@@ -94,15 +105,17 @@ function isStrongPreviewMatchToken(token: string): boolean {
 }
 
 function getRecordPreviewMatchKeys(record: BlockLookupRecord): string[] {
-	return getBlockLookupRecordPreviewMatchNameCandidates([record])
-		.map(normalizePreviewAssetMatchKey)
-		.filter((key) => key.length > 0);
+	return getBlockLookupRecordPreviewMatchNameCandidates([record]).flatMap((candidate) => {
+		const key = normalizePreviewAssetMatchKey(candidate);
+		return key.length > 0 ? [key] : [];
+	});
 }
 
 function getRecordPreviewMatchTokenSets(record: BlockLookupRecord): string[][] {
-	return getBlockLookupRecordPreviewMatchNameCandidates([record])
-		.map(tokenizePreviewMatchValue)
-		.filter((tokens) => tokens.length >= 2);
+	return getBlockLookupRecordPreviewMatchNameCandidates([record]).flatMap((candidate) => {
+		const tokens = tokenizePreviewMatchValue(candidate);
+		return tokens.length >= 2 ? [tokens] : [];
+	});
 }
 
 function scorePreviewTokenMatch(recordTokenSets: readonly string[][], assetName: string): number {
@@ -140,11 +153,13 @@ function scorePreviewAssetForRecord(
 	const assetKey = normalizePreviewAssetMatchKey(asset.assetName);
 	let keyScore = 0;
 	for (const recordKey of recordKeys) {
+		const recordKeyPattern = createLiteralPattern(recordKey);
+		const assetKeyPattern = createLiteralPattern(assetKey);
 		if (assetKey === recordKey) {
 			keyScore = Math.max(keyScore, 1000 + recordKey.length);
-		} else if (assetKey.includes(recordKey)) {
+		} else if (recordKeyPattern.test(assetKey)) {
 			keyScore = Math.max(keyScore, 800 + recordKey.length);
-		} else if (recordKey.includes(assetKey)) {
+		} else if (assetKeyPattern.test(recordKey)) {
 			keyScore = Math.max(keyScore, 600 + assetKey.length);
 		}
 	}

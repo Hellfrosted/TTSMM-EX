@@ -1,6 +1,7 @@
-import { z } from 'zod';
+import { Schema } from 'effect';
 import { LogLevel, NLogLevel } from 'model';
 import type { AppConfig } from 'model';
+import { createFormResolver, type FormErrorMap } from './form-resolver';
 
 export interface LogConfig {
 	level: NLogLevel;
@@ -29,58 +30,51 @@ export const NLOG_LEVEL_OPTIONS = [
 	NLogLevel.TRACE
 ] as const;
 
-const logConfigSchema = z.object({
-	loggerID: z.string(),
-	level: z.enum(NLOG_LEVEL_OPTIONS)
+const logConfigSchema = Schema.Struct({
+	loggerID: Schema.String,
+	level: Schema.Literals([...NLOG_LEVEL_OPTIONS])
 });
 
-const settingsFormShapeSchema = z.object({
-	editingLogConfig: z.array(logConfigSchema)
+const settingsFormShapeSchema = Schema.Struct({
+	editingLogConfig: Schema.Array(logConfigSchema)
 });
 
-export const settingsFormSchema = z
-	.custom<EditingConfig>((value) => settingsFormShapeSchema.safeParse(value).success, 'Invalid settings form data')
-	.superRefine((config, context) => {
-		const loggerCounts = config.editingLogConfig.reduce<Record<string, number>>((counts, logConfig) => {
-			const loggerID = logConfig.loggerID.trim();
-			if (loggerID) {
-				counts[loggerID] = (counts[loggerID] || 0) + 1;
-			}
-			return counts;
-		}, {});
-
-		config.editingLogConfig.forEach((logConfig, index) => {
-			const loggerID = logConfig.loggerID.trim();
-			if (!loggerID) {
-				context.addIssue({
-					code: 'custom',
-					message: 'Logger ID is required',
-					path: ['editingLogConfig', index, 'loggerID']
-				});
-			}
-			if (!loggerID || loggerCounts[loggerID] <= 1) {
-				return;
-			}
-
-			context.addIssue({
-				code: 'custom',
-				message: 'Duplicate logger IDs',
-				path: ['editingLogConfig', index, 'loggerID']
-			});
-		});
-	});
-
-export function getSettingsFormErrors(config: EditingConfig) {
-	const result = settingsFormSchema.safeParse(config);
-	if (result.success) {
+function getSettingsFormShapeErrors(config: EditingConfig): FormErrorMap {
+	try {
+		Schema.decodeUnknownSync(settingsFormShapeSchema)(config);
 		return {};
+	} catch {
+		return { editingLogConfig: 'Invalid settings form data' };
 	}
+}
 
-	return result.error.issues.reduce<{ [field: string]: string }>((errors, issue) => {
-		const field = issue.path.join('.');
-		if (field) {
-			errors[field] = issue.message;
+function getLoggerFormErrors(config: EditingConfig): FormErrorMap {
+	const loggerCounts = config.editingLogConfig.reduce<Record<string, number>>((counts, logConfig) => {
+		const loggerID = logConfig.loggerID.trim();
+		if (loggerID) {
+			counts[loggerID] = (counts[loggerID] || 0) + 1;
+		}
+		return counts;
+	}, {});
+
+	return config.editingLogConfig.reduce<FormErrorMap>((errors, logConfig, index) => {
+		const loggerID = logConfig.loggerID.trim();
+		if (!loggerID) {
+			errors[`editingLogConfig.${index}.loggerID`] = 'Logger ID is required';
+		} else if (loggerCounts[loggerID] > 1) {
+			errors[`editingLogConfig.${index}.loggerID`] = 'Duplicate logger IDs';
 		}
 		return errors;
 	}, {});
+}
+
+export const settingsFormResolver = createFormResolver<EditingConfig>(getSettingsFormErrors);
+
+export function getSettingsFormErrors(config: EditingConfig) {
+	const shapeErrors = getSettingsFormShapeErrors(config);
+	if (Object.keys(shapeErrors).length > 0) {
+		return shapeErrors;
+	}
+
+	return getLoggerFormErrors(config);
 }

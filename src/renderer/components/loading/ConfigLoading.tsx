@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useReducer } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { Effect } from 'effect';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
 import type { AppState } from 'model/AppState';
 import api from 'renderer/Api';
@@ -26,11 +27,20 @@ import { validateSettingsPath } from 'util/Validation';
 import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
 import { formatErrorMessage } from 'renderer/util/error-message';
+import { RendererElectron, runRenderer, type RendererElectron as RendererElectronService } from 'renderer/runtime';
 
-async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
+const validateAppConfig = Effect.fnUntraced(function* (
+	config: AppConfig
+): Effect.fn.Return<{ [field: string]: string } | undefined, unknown, RendererElectronService> {
 	const errors: { [field: string]: string } = {};
-	const checks: { field: AppConfigKeys; label: string; task: Promise<string | undefined> | undefined }[] = [
-		...(window.electron.platform === 'linux'
+	const renderer = yield* RendererElectron;
+	const platform = renderer.electron.platform;
+	const checks: {
+		field: AppConfigKeys;
+		label: string;
+		task: Effect.Effect<string | undefined, unknown, RendererElectronService> | undefined;
+	}[] = [
+		...(platform === 'linux'
 			? []
 			: [
 					{
@@ -46,26 +56,31 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 		}
 	];
 	let failed = false;
-	await Promise.allSettled(checks.map((check) => check.task)).then((results) => {
-		results.forEach((result, index) => {
-			const check = checks[index];
-			if (result.status !== 'fulfilled') {
-				errors[check.field] = `Unexpected error checking ${check.field} path (${check.label})`;
-				failed = true;
-			} else if (result.value !== undefined) {
-				errors[check.field] = result.value;
-				failed = true;
-			}
-		});
-
-		return failed;
+	const results = yield* Effect.all(
+		checks.map((check) =>
+			(check.task ?? Effect.succeed<string | undefined>(undefined)).pipe(
+				Effect.map((value) => ({ ok: true as const, value })),
+				Effect.catch(() => Effect.succeed({ ok: false as const }))
+			)
+		),
+		{ concurrency: checks.length }
+	);
+	results.forEach((result, index) => {
+		const check = checks[index];
+		if (!result.ok) {
+			errors[check.field] = `Unexpected error checking ${check.field} path (${check.label})`;
+			failed = true;
+		} else if (result.value !== undefined) {
+			errors[check.field] = result.value;
+			failed = true;
+		}
 	});
 
 	if (failed) {
 		return errors;
 	}
 	return {};
-}
+});
 
 interface ConfigLoadingState {
 	bootPersistenceError?: string;
@@ -235,7 +250,7 @@ function getConfigLoadingViewModel(state: ConfigLoadingState) {
 	};
 }
 
-async function resolveConfigLoadingBoot({
+const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 	config,
 	configErrors,
 	dispatchLoading,
@@ -251,30 +266,37 @@ async function resolveConfigLoadingBoot({
 	navigateApp: AppState['navigate'];
 	queryClient: QueryClient;
 	updateAppState: AppState['updateState'];
-}) {
-	try {
-		const result = await api.resolveStartupCollection({ config });
-		if (!result.ok) {
-			haltBootOnPersistenceFailure(result.message);
-			return;
-		}
-
-		dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
-		const navigation = resolveStartupNavigation(result.config, configErrors);
-		const authoritativeResult = {
-			...result,
-			config: navigation.config
-		};
-		applyAuthoritativeCollectionState(authoritativeResult, {
-			syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
-			updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
-		});
-		navigateApp(navigation.path);
-	} catch (error) {
-		api.logger.error(error);
-		haltBootOnPersistenceFailure(formatErrorMessage(error));
+}): Effect.fn.Return<void> {
+	const result = yield* Effect.tryPromise({
+		try: () => api.resolveStartupCollection({ config }),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			api.logger.error(error);
+			haltBootOnPersistenceFailure(formatErrorMessage(error));
+			return Effect.succeed(undefined);
+		})
+	);
+	if (!result) {
+		return;
 	}
-}
+	if (!result.ok) {
+		haltBootOnPersistenceFailure(result.message);
+		return;
+	}
+
+	dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
+	const navigation = resolveStartupNavigation(result.config, configErrors);
+	const authoritativeResult = {
+		...result,
+		config: navigation.config
+	};
+	applyAuthoritativeCollectionState(authoritativeResult, {
+		syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
+		updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
+	});
+	navigateApp(navigation.path);
+});
 
 export default function ConfigLoading() {
 	const queryClient = useQueryClient();
@@ -298,7 +320,7 @@ export default function ConfigLoading() {
 	const validateConfig = useEffectEvent(async (nextConfig: AppConfig) => {
 		updateAppState({ configErrors: {} });
 		try {
-			const result = await validateAppConfig(nextConfig);
+			const result = await runRenderer(validateAppConfig(nextConfig));
 			updateAppState({ configErrors: result });
 		} catch (error) {
 			api.logger.error(error);
@@ -369,15 +391,17 @@ export default function ConfigLoading() {
 	});
 
 	const resolveBoot = useEffectEvent(async () => {
-		await resolveConfigLoadingBoot({
-			config,
-			configErrors,
-			dispatchLoading,
-			haltBootOnPersistenceFailure,
-			navigateApp,
-			queryClient,
-			updateAppState
-		});
+		await Effect.runPromise(
+			resolveConfigLoadingBoot({
+				config,
+				configErrors,
+				dispatchLoading,
+				haltBootOnPersistenceFailure,
+				navigateApp,
+				queryClient,
+				updateAppState
+			})
+		);
 	});
 
 	useEffect(() => {

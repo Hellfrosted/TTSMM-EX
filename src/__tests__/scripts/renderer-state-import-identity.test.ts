@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 const rendererRoot = path.join(process.cwd(), 'src', 'renderer');
 const rendererStateRoot = path.join(rendererRoot, 'state');
 const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx'];
+const sourceExtensionSet = new Set(sourceExtensions);
 
 function walkSourceFiles(directoryPath: string): string[] {
 	const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
@@ -20,7 +21,7 @@ function walkSourceFiles(directoryPath: string): string[] {
 			continue;
 		}
 
-		if (entry.isFile() && sourceExtensions.includes(path.extname(entry.name)) && !entry.name.endsWith('.d.ts')) {
+		if (entry.isFile() && sourceExtensionSet.has(path.extname(entry.name)) && !entry.name.endsWith('.d.ts')) {
 			files.push(entryPath);
 		}
 	}

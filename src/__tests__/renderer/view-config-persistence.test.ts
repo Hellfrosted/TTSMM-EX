@@ -261,11 +261,9 @@ describe('view-config-persistence', () => {
 			visible: column.title === BlockLookupColumnTitles.BLOCK
 		}));
 
-		expect(
-			getBlockLookupDraftColumnStates(columns)
-				.filter((state) => state.cannotHide)
-				.map((state) => state.column.title)
-		).toEqual([BlockLookupColumnTitles.BLOCK]);
+		expect(getBlockLookupDraftColumnStates(columns).flatMap((state) => (state.cannotHide ? [state.column.title] : []))).toEqual([
+			BlockLookupColumnTitles.BLOCK
+		]);
 	});
 
 	it('updates and clears block lookup draft widths', () => {

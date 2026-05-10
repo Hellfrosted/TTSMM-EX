@@ -3,15 +3,16 @@ import fs from 'fs';
 import os from 'node:os';
 import { app, IpcMain, dialog, shell } from 'electron';
 import log from 'electron-log';
+import { Effect, Schema } from 'effect';
 import path from 'path';
-import { z } from 'zod';
 
 import { PathType, ValidChannel, createModManagerUid } from '../../model';
 import { TERRATECH_STEAM_APP_ID } from '../../shared/terratech';
 import { expandUserPath } from '../path-utils';
+import { runMain } from '../runtime';
 import { findSteamLibraryPaths } from '../steam-library-discovery';
 import { registerValidatedIpcHandler } from './ipc-handler';
-import { parseIpcPayload } from './ipc-validation';
+import { parseEffectIpcPayload } from './ipc-validation';
 
 interface ProcessDetails {
 	pid: number;
@@ -23,21 +24,21 @@ const WINDOWS_TERRATECH_EXECUTABLE_PATH = path.join('steamapps', 'common', 'Terr
 
 const MAX_LAUNCH_ARGS = 1_000;
 
-const launchGamePayloadSchema = z.object({
-	gameExec: z.string(),
-	workshopID: z.union([z.string(), z.bigint(), z.null()]),
-	closeOnLaunch: z.boolean(),
-	args: z.array(z.string()).max(MAX_LAUNCH_ARGS)
+const launchGamePayloadSchema = Schema.Struct({
+	gameExec: Schema.String,
+	workshopID: Schema.Union([Schema.String, Schema.BigInt, Schema.Null]),
+	closeOnLaunch: Schema.Boolean,
+	args: Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_LAUNCH_ARGS))
 });
 
-const pathExistsPayloadSchema = z.object({
-	targetPath: z.string(),
-	expectedType: z.enum(PathType).optional()
+const pathExistsPayloadSchema = Schema.Struct({
+	targetPath: Schema.String,
+	expectedType: Schema.optional(Schema.Literals([PathType.FILE, PathType.DIRECTORY]))
 });
 
-const selectPathPayloadSchema = z.object({
-	directory: z.boolean(),
-	title: z.string()
+const selectPathPayloadSchema = Schema.Struct({
+	directory: Schema.Boolean,
+	title: Schema.String
 });
 
 export function parseLaunchGamePayload(
@@ -47,26 +48,41 @@ export function parseLaunchGamePayload(
 	closeOnLaunch: unknown,
 	args: unknown
 ) {
-	return parseIpcPayload(channel, launchGamePayloadSchema, {
-		gameExec,
-		workshopID,
-		closeOnLaunch,
-		args
-	});
+	return parseEffectIpcPayload(
+		channel,
+		launchGamePayloadSchema,
+		{
+			gameExec,
+			workshopID,
+			closeOnLaunch,
+			args
+		},
+		{ onExcessProperty: 'ignore' }
+	) as { args: string[]; closeOnLaunch: boolean; gameExec: string; workshopID: bigint | null | string };
 }
 
 export function parsePathExistsPayload(channel: ValidChannel, targetPath: unknown, expectedType: unknown) {
-	return parseIpcPayload(channel, pathExistsPayloadSchema, {
-		targetPath,
-		expectedType
-	});
+	return parseEffectIpcPayload(
+		channel,
+		pathExistsPayloadSchema,
+		{
+			targetPath,
+			expectedType
+		},
+		{ onExcessProperty: 'ignore' }
+	) as { expectedType?: PathType; targetPath: string };
 }
 
 export function parseSelectPathPayload(channel: ValidChannel, directory: unknown, title: unknown) {
-	return parseIpcPayload(channel, selectPathPayloadSchema, {
-		directory,
-		title
-	});
+	return parseEffectIpcPayload(
+		channel,
+		selectPathPayloadSchema,
+		{
+			directory,
+			title
+		},
+		{ onExcessProperty: 'ignore' }
+	);
 }
 
 interface DiscoverGameExecutableOptions {
@@ -98,23 +114,38 @@ export function discoverGameExecutablePath({
 	return null;
 }
 
-async function isGameRunning(): Promise<boolean> {
-	try {
-		const { default: psList } = await import('ps-list');
-		const processes: ProcessDetails[] = await psList();
-		const matches = processes.filter((process) => /[Tt]erra[Tt]ech(?!.*[Mm]od)/.test(process.name));
-		const running = matches.length > 0;
-		if (running) {
-			log.debug('Detected TerraTech is running:');
-			log.debug(processes.filter((process) => /[Tt]erra[Tt]ech/.test(process.name)).map((process) => process.name));
-		}
-		return running;
-	} catch (error) {
-		log.error('Failed to get game running status. Defaulting to not running');
-		log.error(error);
+const isGameRunning = Effect.fnUntraced(function* (): Effect.fn.Return<boolean> {
+	const psList = yield* Effect.tryPromise({
+		try: () => import('ps-list').then((module) => module.default),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			log.error('Failed to get game running status. Defaulting to not running');
+			log.error(error);
+			return Effect.succeed(undefined);
+		})
+	);
+	if (!psList) {
 		return false;
 	}
-}
+	const processes = yield* Effect.tryPromise({
+		try: () => psList(),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			log.error('Failed to get game running status. Defaulting to not running');
+			log.error(error);
+			return Effect.succeed<ProcessDetails[]>([]);
+		})
+	);
+	const matches = processes.filter((process) => /[Tt]erra[Tt]ech(?!.*[Mm]od)/.test(process.name));
+	const running = matches.length > 0;
+	if (running) {
+		log.debug('Detected TerraTech is running:');
+		log.debug(processes.flatMap((process) => (/[Tt]erra[Tt]ech/.test(process.name) ? [process.name] : [])));
+	}
+	return running;
+});
 
 function encodeSteamRunArgument(argument: string) {
 	return encodeURIComponent(argument).replace(/%2B/gi, '+').replace(/%5B/gi, '[').replace(/%5D/gi, ']').replace(/%3A/gi, ':');
@@ -130,7 +161,7 @@ export function launchGameProcess(
 	platform: NodeJS.Platform = process.platform,
 	quit?: typeof app.quit,
 	homeDir: string = os.homedir()
-): Promise<boolean> {
+): Effect.Effect<boolean> {
 	log.info('Launching game with custom args:');
 	const allArgs = ['+custom_mod_list', workshopID ? `[${createModManagerUid(workshopID)}]` : '[]', ...args];
 	log.info(allArgs);
@@ -141,18 +172,22 @@ export function launchGameProcess(
 		const steamRunUrl = `steam://run/${TERRATECH_STEAM_APP_ID}//${steamRunArgs}/`;
 		log.info(`Launching game via Steam protocol: ${steamRunUrl}`);
 		const launchExternal = openExternal ?? ((url: string) => shell.openExternal(url));
-		return launchExternal(steamRunUrl)
-			.then(() => {
+		return Effect.tryPromise({
+			try: () => launchExternal(steamRunUrl),
+			catch: (error) => error
+		}).pipe(
+			Effect.map(() => {
 				if (closeOnLaunch) {
 					quitApp();
 				}
 				return true;
-			})
-			.catch((error) => {
+			}),
+			Effect.catch((error) => {
 				log.error('Failed to launch game through Steam protocol');
 				log.error(error);
-				return false;
-			});
+				return Effect.succeed(false);
+			})
+		);
 	}
 	try {
 		const child = spawn(
@@ -162,7 +197,7 @@ export function launchGameProcess(
 				detached: true
 			}
 		);
-		return new Promise((resolve) => {
+		return Effect.callback<boolean>((resume) => {
 			const settle = (success: boolean, error?: unknown) => {
 				child.removeAllListeners('error');
 				child.removeAllListeners('spawn');
@@ -176,7 +211,7 @@ export function launchGameProcess(
 						quitApp();
 					}
 				}
-				resolve(success);
+				resume(Effect.succeed(success));
 			};
 
 			child.once('error', (error) => {
@@ -190,25 +225,29 @@ export function launchGameProcess(
 	} catch (error) {
 		log.error('Failed to launch game');
 		log.error(error);
-		return Promise.resolve(false);
+		return Effect.succeed(false);
 	}
 }
 
-async function selectPath(directory: boolean, title: string): Promise<string | null> {
-	try {
-		const result = await dialog.showOpenDialog({
-			title,
-			properties: ['showHiddenFiles', directory ? 'openDirectory' : 'openFile', 'promptToCreate', 'createDirectory']
-		});
-		if (result.canceled) {
-			return null;
-		}
-		return result.filePaths[0] || null;
-	} catch (error) {
-		log.error(error);
+const selectPath = Effect.fnUntraced(function* (directory: boolean, title: string): Effect.fn.Return<string | null> {
+	const result = yield* Effect.tryPromise({
+		try: () =>
+			dialog.showOpenDialog({
+				title,
+				properties: ['showHiddenFiles', directory ? 'openDirectory' : 'openFile', 'promptToCreate', 'createDirectory']
+			}),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			log.error(error);
+			return Effect.succeed(undefined);
+		})
+	);
+	if (!result || result.canceled) {
 		return null;
 	}
-}
+	return result.filePaths[0] || null;
+});
 
 export function pathExists(targetPath: string, expectedType?: PathType, homeDir: string = os.homedir()): boolean {
 	const normalizedTargetPath = expandUserPath(targetPath, homeDir);
@@ -233,7 +272,7 @@ export function pathExists(targetPath: string, expectedType?: PathType, homeDir:
 
 export function registerGameHandlers(ipcMain: IpcMain) {
 	registerValidatedIpcHandler(ipcMain, ValidChannel.GAME_RUNNING, async () => {
-		return isGameRunning();
+		return runMain(isGameRunning());
 	});
 
 	registerValidatedIpcHandler(
@@ -241,7 +280,7 @@ export function registerGameHandlers(ipcMain: IpcMain) {
 		ValidChannel.LAUNCH_GAME,
 		async (_event, gameExec: unknown, workshopID: unknown, closeOnLaunch: unknown, args: unknown) => {
 			const payload = parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args);
-			return launchGameProcess(payload.gameExec, payload.workshopID, payload.closeOnLaunch, payload.args);
+			return runMain(launchGameProcess(payload.gameExec, payload.workshopID, payload.closeOnLaunch, payload.args));
 		}
 	);
 
@@ -256,6 +295,6 @@ export function registerGameHandlers(ipcMain: IpcMain) {
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.SELECT_PATH, async (_event, directory: unknown, title: unknown) => {
 		const payload = parseSelectPathPayload(ValidChannel.SELECT_PATH, directory, title);
-		return selectPath(payload.directory, payload.title);
+		return runMain(selectPath(payload.directory, payload.title));
 	});
 }

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { Schema } from 'effect';
 import type { ModCollection } from 'model';
 import { collectionContentSaveRequestSchema, type CollectionContentSaveRequest } from 'shared/collection-content-save';
 import type {
@@ -12,70 +12,68 @@ import type { StartupCollectionResolutionRequest } from 'shared/startup-collecti
 import type { ValidChannel } from 'shared/ipc';
 import { MAX_COLLECTION_MODS } from 'shared/collection-payload';
 import { appConfigPayloadSchema } from './config-validation';
-import { parseIpcPayload } from './ipc-validation';
+import { parseEffectIpcPayload } from './ipc-validation';
 
-const collectionNameSchema = z.string();
-const modCollectionSchema = z
-	.object({
-		name: collectionNameSchema,
-		mods: z.array(z.string()).max(MAX_COLLECTION_MODS)
-	})
-	.passthrough();
-const storedModCollectionSchema = z
-	.object({
-		mods: z.array(z.string()).max(MAX_COLLECTION_MODS)
-	})
-	.passthrough();
-const collectionLifecycleBaseRequestSchema = z
-	.object({
-		config: appConfigPayloadSchema,
-		dirtyCollection: modCollectionSchema.optional()
-	})
-	.passthrough();
-const createCollectionLifecycleRequestSchema = collectionLifecycleBaseRequestSchema.extend({
+const collectionNameSchema = Schema.String;
+const collectionModsSchema = Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_COLLECTION_MODS));
+const modCollectionSchema = Schema.Struct({
 	name: collectionNameSchema,
-	mods: z.array(z.string()).max(MAX_COLLECTION_MODS).optional()
+	mods: collectionModsSchema
 });
-const namedCollectionLifecycleRequestSchema = collectionLifecycleBaseRequestSchema.extend({
+const storedModCollectionSchema = Schema.Struct({
+	mods: collectionModsSchema
+});
+const collectionLifecycleBaseRequestSchema = Schema.Struct({
+	config: appConfigPayloadSchema,
+	dirtyCollection: Schema.optional(modCollectionSchema)
+});
+const createCollectionLifecycleRequestSchema = Schema.Struct({
+	config: appConfigPayloadSchema,
+	dirtyCollection: Schema.optional(modCollectionSchema),
+	name: collectionNameSchema,
+	mods: Schema.optional(collectionModsSchema)
+});
+const namedCollectionLifecycleRequestSchema = Schema.Struct({
+	config: appConfigPayloadSchema,
+	dirtyCollection: Schema.optional(modCollectionSchema),
 	name: collectionNameSchema
+});
+const startupCollectionResolutionRequestSchema = Schema.Struct({
+	config: appConfigPayloadSchema
 });
 
 export function parseCollectionNamePayload(channel: ValidChannel, payload: unknown): string {
-	return parseIpcPayload(channel, collectionNameSchema, payload);
+	return parseEffectIpcPayload(channel, collectionNameSchema, payload);
 }
 
 export function parseStoredModCollectionPayload(channel: ValidChannel, payload: unknown): Pick<ModCollection, 'mods'> {
-	return parseIpcPayload(channel, storedModCollectionSchema, payload);
+	return parseEffectIpcPayload(channel, storedModCollectionSchema, payload) as Pick<ModCollection, 'mods'>;
 }
 
 export function parseCollectionContentSaveRequest(channel: ValidChannel, payload: unknown): CollectionContentSaveRequest {
-	return parseIpcPayload(channel, collectionContentSaveRequestSchema, payload) as CollectionContentSaveRequest;
+	return parseEffectIpcPayload(channel, collectionContentSaveRequestSchema, payload) as CollectionContentSaveRequest;
 }
 
 export function parseCreateCollectionLifecycleRequest(channel: ValidChannel, payload: unknown): CreateCollectionLifecycleRequest {
-	return parseIpcPayload(channel, createCollectionLifecycleRequestSchema, payload) as CreateCollectionLifecycleRequest;
+	return parseEffectIpcPayload(channel, createCollectionLifecycleRequestSchema, payload) as CreateCollectionLifecycleRequest;
 }
 
 export function parseDuplicateCollectionLifecycleRequest(channel: ValidChannel, payload: unknown): DuplicateCollectionLifecycleRequest {
-	return parseIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as DuplicateCollectionLifecycleRequest;
+	return parseEffectIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as DuplicateCollectionLifecycleRequest;
 }
 
 export function parseRenameCollectionLifecycleRequest(channel: ValidChannel, payload: unknown): RenameCollectionLifecycleRequest {
-	return parseIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as RenameCollectionLifecycleRequest;
+	return parseEffectIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as RenameCollectionLifecycleRequest;
 }
 
 export function parseDeleteCollectionLifecycleRequest(channel: ValidChannel, payload: unknown): CollectionLifecycleBaseRequest {
-	return parseIpcPayload(channel, collectionLifecycleBaseRequestSchema, payload) as CollectionLifecycleBaseRequest;
+	return parseEffectIpcPayload(channel, collectionLifecycleBaseRequestSchema, payload) as CollectionLifecycleBaseRequest;
 }
 
 export function parseSwitchCollectionLifecycleRequest(channel: ValidChannel, payload: unknown): SwitchCollectionLifecycleRequest {
-	return parseIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as SwitchCollectionLifecycleRequest;
+	return parseEffectIpcPayload(channel, namedCollectionLifecycleRequestSchema, payload) as SwitchCollectionLifecycleRequest;
 }
 
 export function parseStartupCollectionResolutionRequest(channel: ValidChannel, payload: unknown): StartupCollectionResolutionRequest {
-	return parseIpcPayload(
-		channel,
-		collectionLifecycleBaseRequestSchema.pick({ config: true }),
-		payload
-	) as StartupCollectionResolutionRequest;
+	return parseEffectIpcPayload(channel, startupCollectionResolutionRequestSchema, payload) as StartupCollectionResolutionRequest;
 }

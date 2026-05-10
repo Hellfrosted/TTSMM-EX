@@ -1,4 +1,5 @@
 import type log from 'electron-log';
+import { Effect } from 'effect';
 import type { ModData } from 'model/Mod';
 import { ModType } from 'model/Mod';
 import { cloneModData } from 'model/SessionMods';
@@ -6,7 +7,7 @@ import type { SteamworksStatus } from 'shared/ipc';
 import Steamworks, { EResult, UGCItemState } from './steamworks';
 
 interface WorkshopMetadataRefreshOptions {
-	loadModDetailsFromPath: (mod: ModData, path: string, type: ModType) => Promise<ModData | null>;
+	loadModDetailsFromPath: (mod: ModData, path: string, type: ModType) => Effect.Effect<ModData | null, unknown>;
 	logger?: Pick<typeof log, 'error' | 'verbose' | 'warn'>;
 	steamworks?: Pick<typeof Steamworks, 'ugcGetItemInstallInfo' | 'ugcGetItemState'>;
 }
@@ -21,34 +22,40 @@ export function runSteamworksAction(
 	failureMessage: string,
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void,
 	logger: Pick<typeof log, 'error'> = console
-): Promise<boolean> {
+): Effect.Effect<boolean> {
 	if (status && status.readiness.kind !== 'ready') {
-		return Promise.resolve(false);
+		return Effect.succeed(false);
 	}
 
-	return new Promise((resolve) => {
+	return Effect.callback<boolean>((resume) => {
 		try {
 			action(
 				(result: EResult | undefined) => {
 					if (result === undefined || result === EResult.k_EResultOK) {
-						resolve(true);
+						resume(Effect.succeed(true));
 					} else {
 						logger.error(`${failureMessage}. Status ${result.toString()}`);
-						resolve(false);
+						resume(Effect.succeed(false));
 					}
 				},
 				(error: Error) => {
 					logger.error(failureMessage);
 					logger.error(error);
-					resolve(false);
+					resume(Effect.succeed(false));
 				}
 			);
 		} catch (error) {
 			logger.error(failureMessage);
 			logger.error(error);
-			resolve(false);
+			resume(Effect.succeed(false));
 		}
-	});
+	}).pipe(
+		Effect.catch((error) => {
+			logger.error(failureMessage);
+			logger.error(error);
+			return Effect.succeed(false);
+		})
+	);
 }
 
 export function applyWorkshopRuntimeState(mod: ModData, options: WorkshopRuntimeStateOptions = {}): { installedPath?: string } {
@@ -92,7 +99,10 @@ export function applyWorkshopRuntimeState(mod: ModData, options: WorkshopRuntime
 	return {};
 }
 
-export async function refreshWorkshopMetadata(record: ModData, options: WorkshopMetadataRefreshOptions): Promise<ModData> {
+export const refreshWorkshopMetadata = Effect.fnUntraced(function* (
+	record: ModData,
+	options: WorkshopMetadataRefreshOptions
+): Effect.fn.Return<ModData> {
 	const update = cloneModData(record);
 	if (!record.workshopID) {
 		return update;
@@ -100,13 +110,14 @@ export async function refreshWorkshopMetadata(record: ModData, options: Workshop
 
 	const runtimeState = applyWorkshopRuntimeState(update, options);
 	if (runtimeState.installedPath) {
-		try {
-			await options.loadModDetailsFromPath(update, runtimeState.installedPath, record.type);
-		} catch (error) {
-			options.logger?.error(`Failed to refresh workshop metadata for ${record.workshopID}`);
-			options.logger?.error(error);
-		}
+		yield* options.loadModDetailsFromPath(update, runtimeState.installedPath, record.type).pipe(
+			Effect.catch((error) => {
+				options.logger?.error(`Failed to refresh workshop metadata for ${record.workshopID}`);
+				options.logger?.error(error);
+				return Effect.succeed(null);
+			})
+		);
 	}
 
 	return update;
-}
+});

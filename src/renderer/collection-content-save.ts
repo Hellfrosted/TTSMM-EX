@@ -1,4 +1,5 @@
 import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
+import { Effect, Semaphore } from 'effect';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import type { NotificationType } from './hooks/collections/useNotifications';
 import type { CollectionContentSaveCompletion } from './collection-workspace-session';
@@ -23,37 +24,40 @@ interface CollectionContentSaveOutcome {
 interface CollectionContentSaveInput {
 	collection: ModCollection;
 	logger: CollectionContentSaveLogger;
-	persistCollectionFile: (collection: ModCollection) => Promise<CollectionContentSaveResult>;
+	persistCollectionFile: (collection: ModCollection) => Effect.Effect<CollectionContentSaveResult, unknown>;
 	pureSave: boolean;
 	showSuccessNotification?: boolean;
 }
 
 interface CollectionWriteQueue {
+	runEffect: <A, E, R>(operation: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
 	run: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
 export function createCollectionWriteQueue(): CollectionWriteQueue {
-	let currentOperation: Promise<void> = Promise.resolve();
+	const semaphore = Semaphore.makeUnsafe(1);
 
 	return {
+		runEffect<A, E, R>(operation: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> {
+			return Semaphore.withPermit(semaphore, operation);
+		},
 		async run<T>(operation: () => Promise<T>): Promise<T> {
-			const previousOperation = currentOperation;
-			let releaseQueue: () => void = () => undefined;
-			currentOperation = new Promise<void>((resolve) => {
-				releaseQueue = resolve;
-			});
-
-			await previousOperation;
-			try {
-				return await operation();
-			} finally {
-				releaseQueue();
-			}
+			return await Effect.runPromise(
+				Semaphore.withPermit(
+					semaphore,
+					Effect.tryPromise({
+						try: operation,
+						catch: (error) => error
+					})
+				)
+			);
 		}
 	};
 }
 
-export async function runCollectionContentSave(input: CollectionContentSaveInput): Promise<CollectionContentSaveOutcome> {
+export const runCollectionContentSave = Effect.fnUntraced(function* (
+	input: CollectionContentSaveInput
+): Effect.fn.Return<CollectionContentSaveOutcome> {
 	const targetCollection = cloneCollection(input.collection);
 	let result: CollectionContentSaveResult = {
 		ok: false,
@@ -61,11 +65,12 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 		message: `Failed to save collection ${targetCollection.name}`
 	};
 
-	try {
-		result = await input.persistCollectionFile(targetCollection);
-	} catch (error) {
-		input.logger.error(error);
-	}
+	result = yield* input.persistCollectionFile(targetCollection).pipe(
+		Effect.catch((error) => {
+			input.logger.error(error);
+			return Effect.succeed(result);
+		})
+	);
 	const writeAccepted = result.ok;
 	const savedCollection = result.ok ? result.collection : targetCollection;
 
@@ -99,4 +104,4 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 		targetCollection: savedCollection,
 		writeAccepted
 	};
-}
+});

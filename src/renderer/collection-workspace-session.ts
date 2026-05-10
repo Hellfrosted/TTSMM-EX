@@ -576,7 +576,7 @@ export function setCollectionDraftEnabledMods(input: {
 		};
 	}
 
-	const nextMods = [...new Set([...input.enabledMods, input.modManagerUid])].sort();
+	const nextMods = Array.from(new Set([...input.enabledMods, input.modManagerUid])).sort();
 	return createDraftEditResult(input.collection, nextMods);
 }
 
@@ -615,7 +615,7 @@ export function setCollectionDraftModSubset(input: {
 	}
 
 	return {
-		...createDraftEditResult(input.collection, [...nextSelection].sort()),
+		...createDraftEditResult(input.collection, Array.from(nextSelection).sort()),
 		blockedModManagerDeselect
 	};
 }

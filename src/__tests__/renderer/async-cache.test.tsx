@@ -302,6 +302,6 @@ describe('renderer async cache', () => {
 
 		expect(window.electron.buildBlockLookupIndex).toHaveBeenCalledWith({ workshopRoot: settings.workshopRoot, forceRebuild: true });
 		expect(queryClient.getQueryData(blockLookupBootstrapQueryOptions().queryKey)).toBeUndefined();
-		expect(invalidateQueries).not.toHaveBeenCalled();
+		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['blockLookup'] });
 	});
 });

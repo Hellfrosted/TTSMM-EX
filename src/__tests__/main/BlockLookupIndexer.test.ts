@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import { createBlockLookupIndexModule } from '../../main/block-lookup-indexer';
 import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import Steamworks from '../../main/steamworks';
-import { BLOCK_LOOKUP_INDEX_VERSION } from '../../shared/block-lookup';
+import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupBuildResult } from '../../shared/block-lookup';
 import { createTempDir } from './test-utils';
 
 beforeEach(() => {
@@ -16,6 +17,23 @@ beforeEach(() => {
 afterEach(() => {
 	vi.restoreAllMocks();
 });
+
+function createBlockLookupBuildResult(builtAt: string): BlockLookupBuildResult {
+	return {
+		stats: {
+			sources: 0,
+			scanned: 0,
+			skipped: 0,
+			removed: 0,
+			blocks: 0,
+			updatedBlocks: 0,
+			renderedPreviewsEnabled: false,
+			renderedPreviews: 0,
+			unavailablePreviews: 0,
+			builtAt
+		}
+	};
+}
 
 describe('block lookup indexer facade', () => {
 	it('owns build, persisted JSON shape, stats, and search behind one main-process interface', async () => {
@@ -37,17 +55,19 @@ describe('block lookup indexer facade', () => {
 		);
 
 		const indexModule = createBlockLookupIndexModule(userDataPath);
-		const buildResult = await indexModule.buildIndex({
-			workshopRoot,
-			modSources: [
-				{
-					uid: 'workshop:12345',
-					name: 'Test Blocks',
-					path: modDir,
-					workshopID: '12345'
-				}
-			]
-		});
+		const buildResult = await Effect.runPromise(
+			indexModule.buildIndex({
+				workshopRoot,
+				modSources: [
+					{
+						uid: 'workshop:12345',
+						name: 'Test Blocks',
+						path: modDir,
+						workshopID: '12345'
+					}
+				]
+			})
+		);
 
 		expect(buildResult.stats).toEqual({
 			sources: 1,
@@ -366,7 +386,7 @@ describe('block lookup indexer facade', () => {
 				readCount += 1;
 				return JSON.parse(fs.readFileSync(path.join(pathToRead, 'block-lookup-index.json'), 'utf8'));
 			},
-			buildBlockLookupIndex: async () => {
+			buildBlockLookupIndex: () => {
 				fs.writeFileSync(
 					indexPath,
 					JSON.stringify(
@@ -382,8 +402,7 @@ describe('block lookup indexer facade', () => {
 					),
 					'utf8'
 				);
-				return {
-					settings: { workshopRoot: '', renderedPreviewsEnabled: false },
+				return Effect.succeed({
 					stats: {
 						sources: 0,
 						scanned: 0,
@@ -396,7 +415,7 @@ describe('block lookup indexer facade', () => {
 						unavailablePreviews: 0,
 						builtAt: '2026-04-26T01:00:00.000Z'
 					}
-				};
+				});
 			}
 		});
 
@@ -404,12 +423,41 @@ describe('block lookup indexer facade', () => {
 		expect(indexer.search({ query: 'cannon', limit: 10 }).rows).toHaveLength(1);
 		expect(readCount).toBe(1);
 
-		await indexer.buildIndex({ workshopRoot: path.join(userDataPath, 'missing-workshop-root'), modSources: [], forceRebuild: true });
+		await Effect.runPromise(
+			indexer.buildIndex({ workshopRoot: path.join(userDataPath, 'missing-workshop-root'), modSources: [], forceRebuild: true })
+		);
 
 		expect(indexer.search({ query: 'alpha', limit: 10 })).toMatchObject({
 			rows: [],
 			stats: expect.objectContaining({ blocks: 0 })
 		});
 		expect(readCount).toBe(2);
+	});
+
+	it('serializes concurrent builds before touching the persisted index cache', async () => {
+		const startedBuilds: string[] = [];
+		const releaseBuilds: Array<(result: BlockLookupBuildResult) => void> = [];
+		const indexer = createBlockLookupIndexModule('/tmp/ttsmm-block-lookup-serialized-builds', {
+			buildBlockLookupIndex: (_userDataPath, request) =>
+				Effect.callback<BlockLookupBuildResult>((resume) => {
+					startedBuilds.push(request.workshopRoot);
+					releaseBuilds.push((result) => resume(Effect.succeed(result)));
+				})
+		});
+
+		const firstBuild = Effect.runPromise(indexer.buildIndex({ workshopRoot: 'first', modSources: [] }));
+		const secondBuild = Effect.runPromise(indexer.buildIndex({ workshopRoot: 'second', modSources: [] }));
+		await Promise.resolve();
+
+		expect(startedBuilds).toEqual(['first']);
+
+		releaseBuilds[0](createBlockLookupBuildResult('2026-04-26T01:00:00.000Z'));
+		await firstBuild;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(startedBuilds).toEqual(['first', 'second']);
+
+		releaseBuilds[1](createBlockLookupBuildResult('2026-04-26T02:00:00.000Z'));
+		await secondBuild;
 	});
 });

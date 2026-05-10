@@ -1,4 +1,5 @@
 import type Logger from 'electron-log';
+import { Effect } from 'effect';
 import { type CollectionErrors, type ModErrors } from './CollectionValidation';
 import { type ModCollection } from './ModCollection';
 import { type ModData, type ModDescriptor, ModType, getModDataId } from './Mod';
@@ -33,9 +34,9 @@ function validateMod(session: SessionMods, modData: ModData, logger?: ElectronLo
 	return thisModErrors;
 }
 
-export function validateCollection(session: SessionMods, collection: ModCollection, logger?: ElectronLogger): Promise<CollectionErrors> {
-	return new Promise<CollectionErrors>((resolve, reject) => {
-		try {
+export const validateCollection = Effect.fnUntraced(function* (session: SessionMods, collection: ModCollection, logger?: ElectronLogger) {
+	return yield* Effect.try({
+		try: () => {
 			const errors: CollectionErrors = {};
 			const duplicateSelections = new Set<string>();
 			const activeUidCounts = new Map<string, number>();
@@ -104,11 +105,12 @@ export function validateCollection(session: SessionMods, collection: ModCollecti
 				}
 			});
 
-			resolve(errors);
-		} catch (error) {
+			return errors;
+		},
+		catch: (error) => {
 			logger?.error('Failed to perform collection validation');
 			logger?.error(error);
-			reject(error);
+			return error;
 		}
 	});
-}
+});

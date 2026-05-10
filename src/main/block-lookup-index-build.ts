@@ -9,6 +9,7 @@ import {
 	type BlockLookupRecord,
 	type PersistedBlockLookupIndex
 } from 'shared/block-lookup';
+import { Effect } from 'effect';
 import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
 import { extractBlockLookupBundleOutcomes } from './block-lookup-bundle-text-assets';
 import {
@@ -182,12 +183,12 @@ function createModPreviewGroupKey(value: Pick<BlockLookupRecord | BlockLookupInd
 	return `${value.workshopId}\0${value.modTitle}`;
 }
 
-async function assignModBundleRenderedPreviewsToRecords(
+const assignModBundleRenderedPreviewsToRecords = Effect.fnUntraced(function* (
 	records: readonly BlockLookupRecord[],
 	sources: readonly BlockLookupIndexSource[],
 	options: BlockLookupIndexBuildOptions,
 	extractBlockLookupBundleOutcomesImpl: typeof extractBlockLookupBundleOutcomes
-): Promise<BlockLookupRecord[]> {
+): Effect.fn.Return<BlockLookupRecord[], unknown> {
 	if (!options.previewCacheDir || records.every((record) => record.renderedPreview)) {
 		return [...records];
 	}
@@ -221,7 +222,7 @@ async function assignModBundleRenderedPreviewsToRecords(
 			continue;
 		}
 		const previewMatchNames = getBlockLookupRecordPreviewMatchNameCandidates(modRecords.map((entry) => entry.record));
-		const outcomes = await extractBlockLookupBundleOutcomesImpl(
+		const outcomes = yield* extractBlockLookupBundleOutcomesImpl(
 			bundleSources.map((source) => source.sourcePath),
 			{ previewCacheDir: options.previewCacheDir, previewMatchNames }
 		);
@@ -237,15 +238,15 @@ async function assignModBundleRenderedPreviewsToRecords(
 	}
 
 	return assignedRecords;
-}
+});
 
-export async function createBlockLookupIndexBuild(
+export const createBlockLookupIndexBuild = Effect.fnUntraced(function* (
 	existingIndex: PersistedBlockLookupIndex,
 	request: BlockLookupBuildRequest,
 	adapters: BlockLookupIndexBuildAdapters = {},
 	onProgress?: BlockLookupIndexProgressCallback,
 	options: BlockLookupIndexBuildOptions = {}
-): Promise<BlockLookupIndexBuild> {
+): Effect.fn.Return<BlockLookupIndexBuild, unknown> {
 	const indexBlockLookupSourcesImpl = adapters.indexBlockLookupSources ?? indexBlockLookupSources;
 	const extractBlockLookupBundleOutcomesImpl = adapters.extractBlockLookupBundleOutcomes ?? extractBlockLookupBundleOutcomes;
 	reportBlockLookupIndexProgress(onProgress, 'planning', 0, 1, 0);
@@ -261,7 +262,7 @@ export async function createBlockLookupIndexBuild(
 	const changedRecords: BlockLookupRecord[] = [];
 	let scanned = 0;
 	let skipped = 0;
-	const changedSources = indexPlan.tasks.filter((task) => !task.reusedRecords).map((task) => task.source);
+	const changedSources = indexPlan.tasks.flatMap((task) => (task.reusedRecords ? [] : [task.source]));
 	reportBlockLookupIndexProgress(onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10, 'sources');
 	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', 0, changedSources.length, 10, 'sources');
 	if (renderedPreviewsEnabled) {
@@ -300,9 +301,9 @@ export async function createBlockLookupIndexBuild(
 			: undefined;
 	const indexedSources =
 		changedSources.length > 0
-			? sourceIndexingOptions
-				? await indexBlockLookupSourcesImpl(changedSources, {}, sourceIndexingOptions)
-				: await indexBlockLookupSourcesImpl(changedSources)
+			? yield* sourceIndexingOptions
+					? indexBlockLookupSourcesImpl(changedSources, {}, sourceIndexingOptions)
+					: indexBlockLookupSourcesImpl(changedSources)
 			: {
 					recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
 				};
@@ -318,6 +319,7 @@ export async function createBlockLookupIndexBuild(
 		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', changedSources.length, changedSources.length, 75, 'sources');
 	}
 
+	const taskCount = indexPlan.tasks.length;
 	for (const [taskIndex, task] of indexPlan.tasks.entries()) {
 		if (task.reusedRecords) {
 			skipped += 1;
@@ -327,8 +329,8 @@ export async function createBlockLookupIndexBuild(
 				onProgress,
 				'finalizing',
 				taskIndex + 1,
-				Math.max(1, indexPlan.tasks.length),
-				75 + ((taskIndex + 1) / Math.max(1, indexPlan.tasks.length)) * 20
+				Math.max(1, taskCount),
+				75 + ((taskIndex + 1) / Math.max(1, taskCount)) * 20
 			);
 			continue;
 		}
@@ -349,7 +351,7 @@ export async function createBlockLookupIndexBuild(
 	}
 
 	const previewCompletedRecords = renderedPreviewsEnabled
-		? await assignModBundleRenderedPreviewsToRecords(nextRecords, nextSources, options, extractBlockLookupBundleOutcomesImpl)
+		? yield* assignModBundleRenderedPreviewsToRecords(nextRecords, nextSources, options, extractBlockLookupBundleOutcomesImpl)
 		: nextRecords;
 	const dedupedRecords = dedupeBlockLookupRecords(previewCompletedRecords);
 	const dedupedChangedRecords = dedupeBlockLookupRecords(changedRecords);
@@ -367,4 +369,4 @@ export async function createBlockLookupIndexBuild(
 		stats: createBlockLookupIndexStats(index, scanned, skipped, indexPlan.removed, dedupedChangedRecords.length),
 		workshopRoot
 	};
-}
+});

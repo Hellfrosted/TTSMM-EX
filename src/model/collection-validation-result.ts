@@ -64,16 +64,16 @@ function getValidationConfigKey(config: AppConfig) {
 			errorType,
 			Object.entries(ignoredByUid)
 				.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
-				.map(([uid, ignoredIds]) => [uid, [...ignoredIds].sort()])
+				.map(([uid, ignoredIds]) => [uid, Array.from(ignoredIds).sort()])
 		])
 		.sort(([leftType], [rightType]) => Number(leftType) - Number(rightType));
-	const userOverrides = [...config.userOverrides.entries()]
+	const userOverrides = Array.from(config.userOverrides.entries())
 		.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
 		.map(([uid, override]) => [
 			uid,
 			{
 				id: override.id ?? null,
-				tags: override.tags ? [...override.tags].sort() : []
+				tags: override.tags ? Array.from(override.tags).sort() : []
 			}
 		]);
 
@@ -89,7 +89,7 @@ export function getCollectionValidationKey(collection: ModCollection | undefined
 		return undefined;
 	}
 
-	return `${[...collection.mods].sort().join('\u0000')}\u0001${getValidationConfigKey(config)}`;
+	return `${Array.from(collection.mods).sort().join('\u0000')}\u0001${getValidationConfigKey(config)}`;
 }
 
 export function summarizeValidationIssues(errors: CollectionErrors): ValidationIssueSummary {
@@ -133,7 +133,7 @@ export function getValidationIssueList(errors: CollectionErrors | undefined, mod
 	}
 
 	return Object.entries(errors)
-		.map(([uid, modErrors]) => {
+		.flatMap(([uid, modErrors]) => {
 			const modData = getByUID(mods, uid);
 			const issues: string[] = [];
 
@@ -163,13 +163,16 @@ export function getValidationIssueList(errors: CollectionErrors | undefined, mod
 				issues.push('Needs update');
 			}
 
-			return {
-				uid,
-				label: modData?.name || modData?.id || uid,
-				issues
-			};
+			return issues.length > 0
+				? [
+						{
+							uid,
+							label: modData?.name || modData?.id || uid,
+							issues
+						}
+					]
+				: [];
 		})
-		.filter((summary) => summary.issues.length > 0)
 		.sort((left, right) => left.label.localeCompare(right.label));
 }
 

@@ -1,3 +1,5 @@
+import log from 'electron-log';
+import { Effect } from 'effect';
 import { ModData, type NuterraSteamCompatibilityOptions } from '../model';
 
 import type { SteamUGCDetails } from './steamworks';
@@ -6,7 +8,8 @@ import { ModInventoryProgress } from './mod-inventory-progress';
 import { scanLocalMods } from './mod-local-scan';
 import { getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import { hydrateWorkshopMod } from './mod-workshop-hydration';
-import { buildWorkshopMods, fetchWorkshopInventory, filterSettledModResults } from './mod-workshop-inventory';
+import { buildWorkshopMods, fetchWorkshopInventory } from './mod-workshop-inventory';
+import type { SteamPersonaCache } from './steam-persona-cache';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -46,7 +49,7 @@ function updateModLoadingProgress(context: ModInventoryContext, size: number) {
 	context.progress.addLoaded(size);
 }
 
-function fetchLocalMods(context: ModInventoryContext): Promise<ModData[]> {
+function fetchLocalMods(context: ModInventoryContext): Effect.Effect<ModData[], unknown> {
 	return scanLocalMods(context.localPath, context.progress);
 }
 
@@ -56,32 +59,38 @@ function getNuterraSteamCompatibilityOptions(context: ModInventoryContext): Nute
 	};
 }
 
-export async function buildWorkshopMod(
+export const buildWorkshopMod = Effect.fnUntraced(function* (
 	context: ModInventoryContext,
 	workshopID: bigint,
 	steamUGCDetails?: SteamUGCDetails,
 	keepUnknownWorkshopItem = false
-): Promise<ModData | null> {
-	return hydrateWorkshopMod({
+): Effect.fn.Return<ModData | null, unknown, SteamPersonaCache> {
+	return yield* hydrateWorkshopMod({
 		keepUnknownWorkshopItem,
 		onProgress: (size) => updateModLoadingProgress(context, size),
 		steamUGCDetails,
 		workshopID
 	});
-}
+});
 
-export async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
-	return buildWorkshopMods(steamDetails, (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
+export const processSteamModResults = Effect.fnUntraced(function* (
+	context: ModInventoryContext,
+	steamDetails: SteamUGCDetails[]
+): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
+	return yield* buildWorkshopMods(steamDetails, (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
 		buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem)
 	);
-}
+});
 
-async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {
-	const steamDetails = await getRawWorkshopDetailsForList(workshopIDs);
-	return processSteamModResults(context, steamDetails);
-}
+const getDetailsForWorkshopModList = Effect.fnUntraced(function* (
+	context: ModInventoryContext,
+	workshopIDs: bigint[]
+): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
+	const steamDetails = yield* getRawWorkshopDetailsForList(workshopIDs);
+	return yield* processSteamModResults(context, steamDetails);
+});
 
-export function fetchWorkshopMods(context: ModInventoryContext): Promise<ModData[]> {
+export function fetchWorkshopMods(context: ModInventoryContext): Effect.Effect<ModData[], unknown, SteamPersonaCache> {
 	return fetchWorkshopInventory({
 		buildWorkshopMod: (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
 			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem),
@@ -94,12 +103,25 @@ export function fetchWorkshopMods(context: ModInventoryContext): Promise<ModData
 	});
 }
 
-export async function fetchModInventory(context: ModInventoryContext): Promise<ModData[]> {
+export const fetchModInventory = Effect.fnUntraced(function* (
+	context: ModInventoryContext
+): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
 	clearPreviewAllowlist();
 
-	const modResponses = await Promise.allSettled<ModData[]>([fetchLocalMods(context), fetchWorkshopMods(context)]);
-	const allMods: ModData[] = filterSettledModResults(modResponses).flat();
+	const modResponses = yield* Effect.forEach(
+		[fetchLocalMods(context), fetchWorkshopMods(context)],
+		(effect) =>
+			effect.pipe(
+				Effect.catch((error) => {
+					log.error('Failed to process some mod data:');
+					log.error(error);
+					return Effect.succeed<ModData[]>([]);
+				})
+			),
+		{ concurrency: 'unbounded' }
+	);
+	const allMods: ModData[] = modResponses.flat();
 
 	context.progress.finish();
 	return allMods;
-}
+});

@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import {
 	extractRecordsFromSources,
@@ -59,30 +60,32 @@ function getProgressIndexingSourceGroups(sources: readonly BlockLookupSourceReco
 	return [smallSources, largeSources, hugeSources].filter((group) => group.length > 0);
 }
 
-async function indexBlockLookupSourcesWithProgress(
+const indexBlockLookupSourcesWithProgress = Effect.fnUntraced(function* (
 	sources: readonly BlockLookupSourceRecord[],
 	extractRecordsFromSourcesImpl: typeof extractRecordsFromSources,
 	adapters: BlockLookupSourceIndexingAdapters,
 	options: BlockLookupSourceIndexingOptions
-): Promise<BlockLookupSourceIndexResult> {
+): Effect.fn.Return<BlockLookupSourceIndexResult, unknown> {
 	const recordsBySourcePathByIndex = new Map<number, BlockLookupRecord[]>();
 	let completed = 0;
 	for (const group of getProgressIndexingSourceGroups(sources)) {
-		let nextGroupIndex = 0;
 		const concurrency = getProgressIndexingConcurrency(group.map(({ source }) => source));
-		const workerCount = Math.min(concurrency, group.length);
-		const workers = Array.from({ length: workerCount }, async () => {
-			while (nextGroupIndex < group.length) {
-				const { source, sourceIndex } = group[nextGroupIndex];
-				nextGroupIndex += 1;
-				const batchRecordsBySourcePath = await extractRecordsFromSourcesImpl([source], adapters.sourceExtractionAdapters, options);
-				recordsBySourcePathByIndex.set(sourceIndex, batchRecordsBySourcePath.get(source.sourcePath) ?? []);
-				completed += 1;
-				options.onIndexedSourceBatch?.(completed, sources.length);
-			}
-		});
+		const groupResults = yield* Effect.forEach(
+			group,
+			({ source, sourceIndex }) =>
+				extractRecordsFromSourcesImpl([source], adapters.sourceExtractionAdapters, options).pipe(
+					Effect.map((batchRecordsBySourcePath) => {
+						completed += 1;
+						options.onIndexedSourceBatch?.(completed, sources.length);
+						return { batchRecordsBySourcePath, source, sourceIndex };
+					})
+				),
+			{ concurrency }
+		);
 
-		await Promise.all(workers);
+		for (const { batchRecordsBySourcePath, source, sourceIndex } of groupResults) {
+			recordsBySourcePathByIndex.set(sourceIndex, batchRecordsBySourcePath.get(source.sourcePath) ?? []);
+		}
 	}
 
 	const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
@@ -92,23 +95,23 @@ async function indexBlockLookupSourcesWithProgress(
 	return {
 		recordsBySourcePath
 	};
-}
+});
 
-export async function indexBlockLookupSources(
+export const indexBlockLookupSources = Effect.fnUntraced(function* (
 	sources: readonly BlockLookupSourceRecord[],
 	adapters: BlockLookupSourceIndexingAdapters = {},
 	options?: BlockLookupSourceIndexingOptions
-): Promise<BlockLookupSourceIndexResult> {
+): Effect.fn.Return<BlockLookupSourceIndexResult, unknown> {
 	const extractRecordsFromSourcesImpl = adapters.extractRecordsFromSources ?? extractRecordsFromSources;
 	const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 	let completed = 0;
 	if (options?.onIndexedSourceBatch) {
-		return indexBlockLookupSourcesWithProgress(sources, extractRecordsFromSourcesImpl, adapters, options);
+		return yield* indexBlockLookupSourcesWithProgress(sources, extractRecordsFromSourcesImpl, adapters, options);
 	}
 	const batchSize = options?.onIndexedSourceBatch ? BLOCK_LOOKUP_SOURCE_INDEX_BATCH_SIZE : Math.max(1, sources.length);
 	for (let index = 0; index < sources.length; index += batchSize) {
 		const batch = sources.slice(index, index + batchSize);
-		const batchRecordsBySourcePath = await extractRecordsFromSourcesImpl(batch, adapters.sourceExtractionAdapters, options);
+		const batchRecordsBySourcePath = yield* extractRecordsFromSourcesImpl(batch, adapters.sourceExtractionAdapters, options);
 		for (const source of batch) {
 			recordsBySourcePath.set(source.sourcePath, batchRecordsBySourcePath.get(source.sourcePath) ?? []);
 		}
@@ -118,4 +121,4 @@ export async function indexBlockLookupSources(
 	return {
 		recordsBySourcePath
 	};
-}
+});

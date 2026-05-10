@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import type { ModCollection } from '../model';
 import type {
 	CollectionLifecycleResult,
@@ -52,7 +53,10 @@ export type CollectionLifecycleCommand =
 			type: 'switch';
 	  };
 
-export function createAndActivateCollection(userDataPath: string, request: CreateCollectionLifecycleRequest): CollectionLifecycleResult {
+export const createAndActivateCollection = Effect.fnUntraced(function* (
+	userDataPath: string,
+	request: CreateCollectionLifecycleRequest
+): Effect.fn.Return<CollectionLifecycleResult> {
 	const nameFailure = validateNewCollectionName(userDataPath, request.name);
 	if (nameFailure) {
 		return nameFailure;
@@ -62,31 +66,34 @@ export function createAndActivateCollection(userDataPath: string, request: Creat
 		name: request.name,
 		mods: [...(request.mods ?? [])]
 	};
-	return createActiveCollectionTransition(userDataPath, {
+	return yield* createActiveCollectionTransition(userDataPath, {
 		config: request.config,
 		dirtyCollection: request.dirtyCollection,
 		collection
 	});
-}
+});
 
-export function duplicateAndActivateCollection(
+export const duplicateAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DuplicateCollectionLifecycleRequest
-): CollectionLifecycleResult {
+): Effect.fn.Return<CollectionLifecycleResult> {
 	const source = readActiveCollection(userDataPath, request);
 	if (!source) {
 		return failure('missing-active-collection', 'No active collection is available to duplicate');
 	}
 
-	return createAndActivateCollection(userDataPath, {
+	return yield* createAndActivateCollection(userDataPath, {
 		config: request.config,
 		dirtyCollection: request.dirtyCollection,
 		name: request.name,
 		mods: source.mods
 	});
-}
+});
 
-export function renameActiveCollection(userDataPath: string, request: RenameCollectionLifecycleRequest): CollectionLifecycleResult {
+export const renameActiveCollection = Effect.fnUntraced(function* (
+	userDataPath: string,
+	request: RenameCollectionLifecycleRequest
+): Effect.fn.Return<CollectionLifecycleResult> {
 	const activeCollection = readActiveCollection(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to rename');
@@ -97,40 +104,49 @@ export function renameActiveCollection(userDataPath: string, request: RenameColl
 		return nameFailure;
 	}
 
-	return renameActiveCollectionTransition(userDataPath, {
+	return yield* renameActiveCollectionTransition(userDataPath, {
 		config: request.config,
 		activeCollection,
 		name: request.name
 	});
-}
+});
 
-export function deleteActiveCollection(userDataPath: string, request: DeleteCollectionLifecycleRequest): CollectionLifecycleResult {
+export const deleteActiveCollection = Effect.fnUntraced(function* (
+	userDataPath: string,
+	request: DeleteCollectionLifecycleRequest
+): Effect.fn.Return<CollectionLifecycleResult> {
 	const activeCollection = readActiveCollection(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to delete');
 	}
 
-	return deleteActiveCollectionTransition(userDataPath, {
+	return yield* deleteActiveCollectionTransition(userDataPath, {
 		config: request.config,
 		activeCollection
 	});
-}
+});
 
-export function switchActiveCollection(userDataPath: string, request: SwitchCollectionLifecycleRequest): CollectionLifecycleResult {
-	return switchActiveCollectionTransition(userDataPath, request);
-}
+export const switchActiveCollection = Effect.fnUntraced(function* (
+	userDataPath: string,
+	request: SwitchCollectionLifecycleRequest
+): Effect.fn.Return<CollectionLifecycleResult> {
+	return yield* switchActiveCollectionTransition(userDataPath, request);
+});
 
-export function runCollectionLifecycle(userDataPath: string, command: CollectionLifecycleCommand): CollectionLifecycleResult {
+export const runCollectionLifecycle = Effect.fnUntraced(function* (
+	userDataPath: string,
+	command: CollectionLifecycleCommand
+): Effect.fn.Return<CollectionLifecycleResult> {
 	switch (command.type) {
 		case 'create':
-			return createAndActivateCollection(userDataPath, command.request);
+			return yield* createAndActivateCollection(userDataPath, command.request);
 		case 'duplicate':
-			return duplicateAndActivateCollection(userDataPath, command.request);
+			return yield* duplicateAndActivateCollection(userDataPath, command.request);
 		case 'rename':
-			return renameActiveCollection(userDataPath, command.request);
+			return yield* renameActiveCollection(userDataPath, command.request);
 		case 'delete':
-			return deleteActiveCollection(userDataPath, command.request);
+			return yield* deleteActiveCollection(userDataPath, command.request);
 		case 'switch':
-			return switchActiveCollection(userDataPath, command.request);
+			return yield* switchActiveCollection(userDataPath, command.request);
 	}
-}
+});

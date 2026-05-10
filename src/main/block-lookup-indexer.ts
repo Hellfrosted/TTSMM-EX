@@ -1,3 +1,4 @@
+import { Effect, Semaphore } from 'effect';
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
@@ -24,7 +25,10 @@ interface BlockLookupIndexerAdapters {
 
 export interface BlockLookupIndexModule {
 	autoDetectWorkshopRoot(request: BlockLookupBuildRequest): string | null;
-	buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback): Promise<BlockLookupBuildResult>;
+	buildIndex(
+		request: BlockLookupBuildRequest,
+		onProgress?: BlockLookupIndexProgressCallback
+	): Effect.Effect<BlockLookupBuildResult, unknown>;
 	getStats(): BlockLookupIndexStats | null;
 	readSettings(): BlockLookupSettings;
 	saveSettings(settings: BlockLookupSettings): BlockLookupSettings;
@@ -34,6 +38,7 @@ export interface BlockLookupIndexModule {
 export function createBlockLookupIndexModule(userDataPath: string, adapters: BlockLookupIndexerAdapters = {}): BlockLookupIndexModule {
 	const buildIndexImpl = adapters.buildBlockLookupIndex ?? buildBlockLookupIndex;
 	const readIndexImpl = adapters.readBlockLookupIndex ?? readBlockLookupIndex;
+	const buildSemaphore = Semaphore.makeUnsafe(1);
 	let warmSearchIndex: WarmBlockLookupSearchIndex | null | undefined;
 	const getWarmSearchIndex = () => {
 		if (warmSearchIndex === undefined) {
@@ -47,10 +52,15 @@ export function createBlockLookupIndexModule(userDataPath: string, adapters: Blo
 		autoDetectWorkshopRoot(request: BlockLookupBuildRequest) {
 			return autoDetectBlockLookupWorkshopRoot(request);
 		},
-		async buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback) {
-			const result = await buildIndexImpl(userDataPath, request, onProgress);
-			warmSearchIndex = undefined;
-			return result;
+		buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback) {
+			return buildSemaphore.withPermits(1)(
+				buildIndexImpl(userDataPath, request, onProgress).pipe(
+					Effect.map((result) => {
+						warmSearchIndex = undefined;
+						return result;
+					})
+				)
+			);
 		},
 		getStats() {
 			return getWarmSearchIndex()?.stats ?? getBlockLookupStats(userDataPath);

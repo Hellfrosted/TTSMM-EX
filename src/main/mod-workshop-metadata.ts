@@ -1,8 +1,9 @@
 import log from 'electron-log';
+import { Effect } from 'effect';
 import type { ModData } from '../model';
 import { createWorkshopPlaceholderMod } from '../model';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
-import { resolvePersonaName } from './steam-persona-cache';
+import { SteamPersonaCache } from './steam-persona-cache';
 
 const MAX_MODS_PER_PAGE = 50;
 
@@ -12,24 +13,30 @@ export function chunkWorkshopIds(workshopIDs: bigint[]): bigint[][] {
 	);
 }
 
-export async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promise<SteamUGCDetails[]> {
-	return new Promise((resolve, reject) => {
-		Steamworks.getUGCDetails(
-			workshopIDs.map((workshopID) => workshopID.toString()),
-			(steamDetails: SteamUGCDetails[]) => {
-				log.silly(
-					`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`
+export const getRawWorkshopDetailsForList = Effect.fnUntraced(function* (
+	workshopIDs: bigint[]
+): Effect.fn.Return<SteamUGCDetails[], Error> {
+	return yield* Effect.tryPromise({
+		try: () =>
+			new Promise<SteamUGCDetails[]>((resolve, reject) => {
+				Steamworks.getUGCDetails(
+					workshopIDs.map((workshopID) => workshopID.toString()),
+					(steamDetails: SteamUGCDetails[]) => {
+						log.silly(
+							`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`
+						);
+						resolve(steamDetails);
+					},
+					(err: Error) => {
+						log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
+						log.error(err);
+						reject(err);
+					}
 				);
-				resolve(steamDetails);
-			},
-			(err: Error) => {
-				log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
-				log.error(err);
-				reject(err);
-			}
-		);
+			}),
+		catch: (error) => (error instanceof Error ? error : new Error(String(error)))
 	});
-}
+});
 
 export function createWorkshopPotentialMod(workshopID: bigint): ModData {
 	return {
@@ -42,7 +49,10 @@ export function hasWorkshopModTag(tags: string[] | undefined): boolean {
 	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
 }
 
-export async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
+export const populateWorkshopModMetadata = Effect.fnUntraced(function* (
+	potentialMod: ModData,
+	steamUGCDetails?: SteamUGCDetails
+): Effect.fn.Return<void, unknown, SteamPersonaCache> {
 	if (!steamUGCDetails) {
 		return;
 	}
@@ -56,16 +66,20 @@ export async function populateWorkshopModMetadata(potentialMod: ModData, steamUG
 	potentialMod.lastWorkshopUpdate = new Date(steamUGCDetails.timeUpdated * 1000);
 	potentialMod.preview = steamUGCDetails.previewURL;
 
-	try {
-		potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
-	} catch (err) {
-		log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
-		log.warn(err);
-		potentialMod.authors = [steamUGCDetails.steamIDOwner];
-	}
-}
+	const personaCache = yield* SteamPersonaCache;
+	const author = yield* personaCache.resolve(steamUGCDetails.steamIDOwner).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
+			log.warn(error);
+			return Effect.succeed(steamUGCDetails.steamIDOwner);
+		})
+	);
+	potentialMod.authors = [author];
+});
 
-export async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map<bigint, SteamUGCDetails>> {
+export const getWorkshopDetailsMap = Effect.fnUntraced(function* (
+	workshopIDs: Iterable<bigint>
+): Effect.fn.Return<Map<bigint, SteamUGCDetails>> {
 	const workshopDetailMap = new Map<bigint, SteamUGCDetails>();
 
 	for (const workshopChunk of chunkWorkshopIds([...workshopIDs])) {
@@ -73,18 +87,19 @@ export async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Prom
 			continue;
 		}
 
-		try {
-			const workshopDetails = await getRawWorkshopDetailsForList(workshopChunk);
-			workshopDetails.forEach((detail) => {
-				workshopDetailMap.set(detail.publishedFileId, detail);
-			});
-		} catch (error) {
-			log.warn(
-				`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`
-			);
-			log.warn(error);
-		}
+		const workshopDetails = yield* getRawWorkshopDetailsForList(workshopChunk).pipe(
+			Effect.catch((error) => {
+				log.warn(
+					`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`
+				);
+				log.warn(error);
+				return Effect.succeed<SteamUGCDetails[]>([]);
+			})
+		);
+		workshopDetails.forEach((detail) => {
+			workshopDetailMap.set(detail.publishedFileId, detail);
+		});
 	}
 
 	return workshopDetailMap;
-}
+});

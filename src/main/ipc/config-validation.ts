@@ -1,30 +1,31 @@
-import { z } from 'zod';
+import { Schema } from 'effect';
 import type { AppConfig } from 'model';
 import type { ValidChannel } from 'shared/ipc';
-import { parseIpcPayload } from './ipc-validation';
+import { parseEffectIpcPayload } from './ipc-validation';
 
-export const appConfigPayloadSchema = z
-	.object({
-		closeOnLaunch: z.boolean(),
-		language: z.string(),
-		localDir: z.string().optional(),
-		gameExec: z.string(),
-		workshopID: z.bigint().positive(),
-		activeCollection: z.string().optional(),
-		extraParams: z.string().optional(),
-		logParams: z.record(z.string(), z.string()).optional(),
-		logLevel: z.string().optional(),
-		logsDir: z.string(),
-		steamMaxConcurrency: z.number().int().positive(),
-		currentPath: z.string(),
-		viewConfigs: z.record(z.string(), z.unknown()),
-		ignoredValidationErrors: z.instanceof(Map),
-		userOverrides: z.instanceof(Map),
-		pureVanilla: z.boolean().optional(),
-		treatNuterraSteamBetaAsEquivalent: z.boolean()
-	})
-	.passthrough();
+export const appConfigPayloadSchema = Schema.StructWithRest(
+	Schema.Struct({
+		closeOnLaunch: Schema.Boolean,
+		language: Schema.String,
+		localDir: Schema.optional(Schema.String),
+		gameExec: Schema.String,
+		workshopID: Schema.BigInt.check(Schema.isGreaterThanBigInt(0n)),
+		activeCollection: Schema.optional(Schema.String),
+		extraParams: Schema.optional(Schema.String),
+		logParams: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+		logLevel: Schema.optional(Schema.String),
+		logsDir: Schema.String,
+		steamMaxConcurrency: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+		currentPath: Schema.String,
+		viewConfigs: Schema.Record(Schema.String, Schema.Unknown),
+		ignoredValidationErrors: Schema.instanceOf(Map),
+		userOverrides: Schema.instanceOf(Map),
+		pureVanilla: Schema.optional(Schema.Boolean),
+		treatNuterraSteamBetaAsEquivalent: Schema.Boolean
+	}),
+	[Schema.Record(Schema.String, Schema.Unknown)]
+);
 
 export function parseAppConfigPayload(channel: ValidChannel, payload: unknown): AppConfig {
-	return parseIpcPayload(channel, appConfigPayloadSchema, payload) as AppConfig;
+	return parseEffectIpcPayload(channel, appConfigPayloadSchema, payload) as AppConfig;
 }

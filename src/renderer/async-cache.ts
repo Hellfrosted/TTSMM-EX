@@ -1,13 +1,14 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { Effect } from 'effect';
 import { hydrateSessionMods, type AppConfig } from 'model';
 import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
-import api from 'renderer/Api';
 import type { AuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { createCollectionContentSaveRequest } from 'shared/collection-content-save';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
+import { RendererElectron, runRenderer } from './runtime';
 
 type BlockLookupBootstrapQueryData = readonly [BlockLookupSettings, BlockLookupIndexStats | null];
 
@@ -59,7 +60,7 @@ export const queryKeys = {
 export function configQueryOptions() {
 	return queryOptions({
 		queryKey: queryKeys.config.current(),
-		queryFn: () => api.readConfig()
+		queryFn: () => runRenderer(readConfigEffect())
 	});
 }
 
@@ -67,12 +68,30 @@ export function setConfigQueryData(queryClient: QueryClient, config: AppConfig |
 	queryClient.setQueryData(queryKeys.config.current(), config);
 }
 
-export async function writeConfigMutationFn(nextConfig: AppConfig) {
-	const persistedConfig = await api.updateConfig(nextConfig);
+const readConfigEffect = Effect.fnUntraced(function* (): Effect.fn.Return<AppConfig | null, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.readConfig(),
+		catch: (error) => error
+	});
+});
+
+export const writeConfigEffect = Effect.fnUntraced(function* (
+	nextConfig: AppConfig
+): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	const persistedConfig = yield* Effect.tryPromise({
+		try: () => renderer.electron.updateConfig(nextConfig),
+		catch: (error) => error
+	});
 	if (!persistedConfig) {
-		throw new Error('Config write was rejected');
+		return yield* Effect.fail(new Error('Config write was rejected'));
 	}
 	return persistedConfig;
+});
+
+function writeConfigMutationFn(nextConfig: AppConfig) {
+	return runRenderer(writeConfigEffect(nextConfig));
 }
 
 export function useWriteConfigMutation() {
@@ -81,7 +100,7 @@ export function useWriteConfigMutation() {
 	return useMutation({
 		mutationFn: writeConfigMutationFn,
 		onSuccess: (nextConfig) => {
-			setConfigQueryData(queryClient, nextConfig);
+			queryClient.setQueryData(queryKeys.config.current(), nextConfig);
 		}
 	});
 }
@@ -89,16 +108,35 @@ export function useWriteConfigMutation() {
 export function collectionsListQueryOptions() {
 	return queryOptions({
 		queryKey: queryKeys.collections.list(),
-		queryFn: async () => (await api.readCollectionsList()) || []
+		queryFn: () => runRenderer(readCollectionsListEffect())
 	});
 }
+
+const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Return<string[], unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	const collections = yield* Effect.tryPromise({
+		try: () => renderer.electron.readCollectionsList(),
+		catch: (error) => error
+	});
+	return collections || [];
+});
 
 export function collectionQueryOptions(collectionName: string) {
 	return queryOptions({
 		queryKey: queryKeys.collections.detail(collectionName),
-		queryFn: () => api.readCollection(collectionName)
+		queryFn: () => runRenderer(readCollectionEffect(collectionName))
 	});
 }
+
+const readCollectionEffect = Effect.fnUntraced(function* (
+	collectionName: string
+): Effect.fn.Return<ModCollection | null, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.readCollection(collectionName),
+		catch: (error) => error
+	});
+});
 
 interface ModMetadataQueryOptionsInput {
 	localDir: string | undefined;
@@ -127,13 +165,13 @@ function getKnownModIds(allCollections: Map<string, ModCollection>, workshopID: 
 		? new Set<string>()
 		: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
 	knownMods.add(createModManagerUid(workshopID));
-	return [...knownMods].sort();
+	return Array.from(knownMods).sort();
 }
 
 function getUserOverridesQueryKey(userOverrides: Map<string, ModDataOverride>) {
-	return [...userOverrides.entries()]
+	return Array.from(userOverrides.entries())
 		.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
-		.map(([uid, override]) => [uid, override.id ?? null, override.tags ? [...override.tags].sort() : []]);
+		.map(([uid, override]) => [uid, override.id ?? null, override.tags ? Array.from(override.tags).sort() : []]);
 }
 
 export function createModMetadataScanRequest({
@@ -173,35 +211,86 @@ export function modMetadataQueryOptions({
 			treatNuterraSteamBetaAsEquivalent,
 			scanRequest.userOverridesKey
 		),
-		queryFn: () =>
-			api
-				.readModMetadata(localDir, new Set(scanRequest.knownModIds), dependencyGraphOptions)
-				.then((mods) => hydrateSessionMods(mods, userOverrides, dependencyGraphOptions)),
+		queryFn: () => runRenderer(readModMetadataEffect(localDir, scanRequest.knownModIds, userOverrides, dependencyGraphOptions)),
 		staleTime: forceReload ? 0 : MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS
 	});
 }
 
+const readModMetadataEffect = Effect.fnUntraced(function* (
+	localDir: string | undefined,
+	knownModIds: readonly string[],
+	userOverrides: Map<string, ModDataOverride>,
+	dependencyGraphOptions: { treatNuterraSteamBetaAsEquivalent: boolean }
+): Effect.fn.Return<ReturnType<typeof hydrateSessionMods>, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	const mods = yield* Effect.tryPromise({
+		try: () => renderer.electron.readModMetadata(localDir, [...knownModIds], dependencyGraphOptions),
+		catch: (error) => error
+	});
+	return hydrateSessionMods(mods, userOverrides, dependencyGraphOptions);
+});
+
 export function gameRunningQueryOptions(requestId: number) {
 	return queryOptions({
 		queryKey: queryKeys.game.running(requestId),
-		queryFn: () => api.gameRunning(),
+		queryFn: () => runRenderer(gameRunningEffect()),
 		staleTime: 0
 	});
 }
 
+const gameRunningEffect = Effect.fnUntraced(function* (): Effect.fn.Return<boolean, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.isGameRunning(),
+		catch: (error) => error
+	});
+});
+
 export function blockLookupBootstrapQueryOptions() {
 	return queryOptions({
 		queryKey: queryKeys.blockLookup.bootstrap(),
-		queryFn: () => Promise.all([api.readBlockLookupSettings(), api.getBlockLookupStats()]) as Promise<BlockLookupBootstrapQueryData>
+		queryFn: () => runRenderer(readBlockLookupBootstrapEffect())
 	});
 }
+
+const readBlockLookupBootstrapEffect = Effect.fnUntraced(function* (): Effect.fn.Return<
+	BlockLookupBootstrapQueryData,
+	unknown,
+	RendererElectron
+> {
+	const renderer = yield* RendererElectron;
+	const [settings, stats] = yield* Effect.all(
+		[
+			Effect.tryPromise({
+				try: () => renderer.electron.readBlockLookupSettings(),
+				catch: (error) => error
+			}),
+			Effect.tryPromise({
+				try: () => renderer.electron.getBlockLookupStats(),
+				catch: (error) => error
+			})
+		],
+		{ concurrency: 2 }
+	);
+	return [settings, stats] as const;
+});
 
 export function blockLookupSearchQueryOptions(request: BlockLookupSearchRequest) {
 	return queryOptions({
 		queryKey: queryKeys.blockLookup.search(request.query, request.limit),
-		queryFn: () => api.searchBlockLookup(request)
+		queryFn: () => runRenderer(searchBlockLookupEffect(request))
 	});
 }
+
+const searchBlockLookupEffect = Effect.fnUntraced(function* (
+	request: BlockLookupSearchRequest
+): Effect.fn.Return<Awaited<ReturnType<typeof window.electron.searchBlockLookup>>, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.searchBlockLookup(request),
+		catch: (error) => error
+	});
+});
 
 export function fetchBlockLookupBootstrap(queryClient: QueryClient) {
 	return queryClient.fetchQuery(blockLookupBootstrapQueryOptions());
@@ -211,13 +300,26 @@ export function fetchBlockLookupSearch(queryClient: QueryClient, request: BlockL
 	return queryClient.fetchQuery(blockLookupSearchQueryOptions(request));
 }
 
-async function buildBlockLookupIndexMutationFn(request: BlockLookupBuildRequest) {
-	return api.buildBlockLookupIndex(request);
+const buildBlockLookupIndexEffect = Effect.fnUntraced(function* (request: BlockLookupBuildRequest) {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.buildBlockLookupIndex(request),
+		catch: (error) => error
+	});
+});
+
+function buildBlockLookupIndexMutationFn(request: BlockLookupBuildRequest) {
+	return runRenderer(buildBlockLookupIndexEffect(request));
 }
 
 export function useBuildBlockLookupIndexMutation() {
+	const queryClient = useQueryClient();
+
 	return useMutation({
-		mutationFn: buildBlockLookupIndexMutationFn
+		mutationFn: buildBlockLookupIndexMutationFn,
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: queryKeys.blockLookup.root() });
+		}
 	});
 }
 
@@ -238,8 +340,18 @@ function getCachedCollectionDetailNames(queryClient: QueryClient) {
 		});
 }
 
-async function updateCollectionMutationFn(collection: ModCollection): Promise<CollectionContentSaveResult> {
-	return api.updateCollection(createCollectionContentSaveRequest(collection));
+const updateCollectionEffect = Effect.fnUntraced(function* (
+	collection: ModCollection
+): Effect.fn.Return<CollectionContentSaveResult, unknown, RendererElectron> {
+	const renderer = yield* RendererElectron;
+	return yield* Effect.tryPromise({
+		try: () => renderer.electron.updateCollection(createCollectionContentSaveRequest(collection)),
+		catch: (error) => error
+	});
+});
+
+function updateCollectionMutationFn(collection: ModCollection): Promise<CollectionContentSaveResult> {
+	return runRenderer(updateCollectionEffect(collection));
 }
 
 export function useUpdateCollectionMutation() {
@@ -249,7 +361,7 @@ export function useUpdateCollectionMutation() {
 		mutationFn: updateCollectionMutationFn,
 		onSuccess: (result) => {
 			if (result.ok) {
-				setCollectionQueryData(queryClient, result.collection);
+				queryClient.setQueryData(queryKeys.collections.detail(result.collection.name), result.collection);
 			}
 		}
 	});

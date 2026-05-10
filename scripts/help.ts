@@ -45,9 +45,14 @@ const formatRunCommand = (packageScripts: PackageScripts, scriptName: string) =>
 };
 
 const packageScriptSets = sourceOwnedManifestPaths
-	.filter((manifestPath) => fs.existsSync(manifestPath))
-	.map(readPackageScripts)
-	.filter((packageScripts): packageScripts is PackageScripts => packageScripts !== null)
+	.flatMap((manifestPath) => {
+		if (!fs.existsSync(manifestPath)) {
+			return [];
+		}
+
+		const packageScripts = readPackageScripts(manifestPath);
+		return packageScripts ? [packageScripts] : [];
+	})
 	.sort((left, right) => left.relativeManifestPath.localeCompare(right.relativeManifestPath));
 
 console.log('Available pnpm scripts:\n');

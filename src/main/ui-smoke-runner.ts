@@ -207,7 +207,7 @@ function hasVisiblePngContent(png: Buffer) {
 		return false;
 	}
 
-	const compressed = Buffer.concat(chunks.filter((chunk) => chunk.type === 'IDAT').map((chunk) => chunk.data));
+	const compressed = Buffer.concat(chunks.flatMap((chunk) => (chunk.type === 'IDAT' ? [chunk.data] : [])));
 	if (compressed.length === 0) {
 		return false;
 	}
@@ -244,10 +244,12 @@ async function waitForRenderableCheckpoint(window: BrowserWindow, checkpoint: Ui
 
 	while (Date.now() - startedAt < timeoutMs) {
 		showSmokeWindow(window);
+		// eslint-disable-next-line react-doctor/async-await-in-loop -- smoke checks poll until the renderer becomes stable.
 		lastMetrics = await collectCheckpointMetrics(window, checkpoint.selector);
 		if (isRenderableCheckpoint(lastMetrics)) {
 			return lastMetrics;
 		}
+		// eslint-disable-next-line react-doctor/async-await-in-loop -- the delay is the polling interval.
 		await delay(150);
 	}
 
@@ -258,6 +260,7 @@ async function waitForRenderableCheckpoint(window: BrowserWindow, checkpoint: Ui
 async function waitForSelector(window: BrowserWindow, selector: string, timeoutMs = 30000) {
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < timeoutMs) {
+		// eslint-disable-next-line react-doctor/async-await-in-loop -- selector polling must run sequentially.
 		const found = (await window.webContents.executeJavaScript(
 			`Boolean(document.querySelector(${JSON.stringify(selector)}))`,
 			true
@@ -289,6 +292,7 @@ async function waitForSelector(window: BrowserWindow, selector: string, timeoutM
 async function clickMenuItem(window: BrowserWindow, label: string) {
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < 30000) {
+		// eslint-disable-next-line react-doctor/async-await-in-loop -- menu polling depends on the previous attempt.
 		const clicked = (await window.webContents.executeJavaScript(
 			`
 			(() => {
@@ -384,6 +388,7 @@ export async function runUiSmoke(window: BrowserWindow, env: NodeJS.ProcessEnv =
 		await waitForSelector(window, '.AppRoot');
 		const results = [];
 		for (const checkpoint of CHECKPOINTS) {
+			// eslint-disable-next-line react-doctor/async-await-in-loop -- screenshots are captured in deterministic checkpoint order.
 			results.push(await captureCheckpoint(window, checkpoint, screenshotDir));
 		}
 		writeOutput(outputPath, { results, consoleMessages, lifecycle, packaged: app.isPackaged });

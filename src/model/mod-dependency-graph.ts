@@ -299,17 +299,19 @@ function finalizeDependencyEdges(graph: ModDependencyGraphBuilder) {
 	graph.dependencyKeySetsByDescriptorKey.forEach((dependencyKeys, descriptorKey) => {
 		graph.dependenciesByDescriptorKey.set(
 			descriptorKey,
-			[...dependencyKeys]
-				.map((dependencyKey) => graph.descriptorByKey.get(dependencyKey))
-				.filter((descriptor): descriptor is ModDescriptor => !!descriptor)
+			Array.from(dependencyKeys).flatMap((dependencyKey) => {
+				const descriptor = graph.descriptorByKey.get(dependencyKey);
+				return descriptor ? [descriptor] : [];
+			})
 		);
 	});
 	graph.dependentKeySetsByDescriptorKey.forEach((dependentKeys, descriptorKey) => {
 		graph.dependentsByDescriptorKey.set(
 			descriptorKey,
-			[...dependentKeys]
-				.map((dependentKey) => graph.descriptorByKey.get(dependentKey))
-				.filter((descriptor): descriptor is ModDescriptor => !!descriptor)
+			Array.from(dependentKeys).flatMap((dependentKey) => {
+				const descriptor = graph.descriptorByKey.get(dependentKey);
+				return descriptor ? [descriptor] : [];
+			})
 		);
 	});
 }

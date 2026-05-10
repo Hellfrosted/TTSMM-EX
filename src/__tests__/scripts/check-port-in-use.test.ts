@@ -43,6 +43,20 @@ function runPortCheck(port: string | number) {
 	});
 }
 
+async function waitForPortCheck(port: string | number) {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < 10; attempt++) {
+		try {
+			await runPortCheck(port);
+			return;
+		} catch (error) {
+			lastError = error;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+	}
+	throw lastError;
+}
+
 function getMachineIpAddress() {
 	return Object.values(os.networkInterfaces())
 		.flatMap((addresses) => addresses ?? [])
@@ -62,7 +76,7 @@ describe('check-port-in-use', () => {
 		openServers = [];
 		await closeServer(server);
 
-		await expect(runPortCheck(port)).resolves.toBeUndefined();
+		await expect(waitForPortCheck(port)).resolves.toBeUndefined();
 	});
 
 	it('fails when the requested localhost port is already in use', async () => {

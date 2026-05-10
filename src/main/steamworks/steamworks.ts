@@ -219,16 +219,19 @@ function normalizeWorkshopTag(tag: unknown): string | null {
 
 function normalizeWorkshopTags(tags: unknown): string[] {
 	if (Array.isArray(tags)) {
-		return tags.map(normalizeWorkshopTag).filter((tag): tag is string => !!tag);
+		return tags.flatMap((tag) => {
+			const normalizedTag = normalizeWorkshopTag(tag);
+			return normalizedTag ? [normalizedTag] : [];
+		});
 	}
 	if (typeof tags !== 'string') {
 		return [];
 	}
 
-	return tags
-		.split(',')
-		.map((tag) => tag.trim())
-		.filter((tag) => tag.length > 0);
+	return tags.split(',').flatMap((tag) => {
+		const trimmedTag = tag.trim();
+		return trimmedTag.length > 0 ? [trimmedTag] : [];
+	});
 }
 
 function normalizeSteamPageResults(apiResults: Partial<SteamPageResults> | RawWorkshopItem[] | undefined): RawSteamPageResults {
@@ -434,15 +437,14 @@ class SteamworksAPI {
 			return [];
 		}
 
-		return subscribedItems
-			.map((workshopID) => {
-				try {
-					return BigInt(String(workshopID));
-				} catch {
-					return 0n;
-				}
-			})
-			.filter((id: bigint) => id > 0);
+		return subscribedItems.flatMap((workshopID) => {
+			try {
+				const id = BigInt(String(workshopID));
+				return id > 0 ? [id] : [];
+			} catch {
+				return [];
+			}
+		});
 	}
 
 	getUGCDetails(workshop_ids: string[], success_callback: (items: SteamUGCDetails[]) => void, error_callback?: SteamErrorCallback) {

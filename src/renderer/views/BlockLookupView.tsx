@@ -2,6 +2,7 @@ import {
 	memo,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useReducer,
 	useRef,
@@ -289,6 +290,10 @@ function BlockLookupModHeaderFilter({
 		});
 	}, []);
 
+	const closeMenuFromEffect = useEffectEvent((restoreFocus?: boolean) => {
+		closeMenu(restoreFocus);
+	});
+
 	useEffect(() => {
 		if (!menuPosition) {
 			return undefined;
@@ -300,18 +305,18 @@ function BlockLookupModHeaderFilter({
 		const closeFromPointer = (event: globalThis.MouseEvent) => {
 			const target = event.target;
 			if (!(target instanceof Node)) {
-				closeMenu(false);
+				closeMenuFromEffect(false);
 				return;
 			}
 			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
 				return;
 			}
-			closeMenu(false);
+			closeMenuFromEffect(false);
 		};
 		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				event.preventDefault();
-				closeMenu();
+				closeMenuFromEffect();
 			}
 		};
 
@@ -322,7 +327,7 @@ function BlockLookupModHeaderFilter({
 			window.removeEventListener('mousedown', closeFromPointer);
 			window.removeEventListener('keydown', closeFromKeyboard);
 		};
-	}, [closeMenu, menuPosition]);
+	}, [menuPosition]);
 
 	const toggleMod = useCallback(
 		(mod: string) => {
@@ -1548,7 +1553,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 						<form className="grid w-full max-w-full gap-3">
 							<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
 								<div className="flex min-w-0 items-center">
-									<h3 className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
+									<h3 className="m-0 text-body font-semibold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
 								</div>
 								<div className="inline-flex min-w-0 items-center gap-2.5">
 									<div className="min-w-0">

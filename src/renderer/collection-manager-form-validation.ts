@@ -1,6 +1,7 @@
-import { z } from 'zod';
+import { Schema } from 'effect';
 import { MainColumnTitles, type MainCollectionConfig } from 'model';
 import { getResolvedMainColumnMinWidth, normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
+import { createFormResolver, type FormErrorMap } from './form-resolver';
 
 export interface MainCollectionTableSettingsFormValues {
 	smallRows: boolean;
@@ -18,33 +19,48 @@ function isMainColumnTitle(column: string): column is MainColumnTitles {
 	return mainColumnTitleSet.has(column as MainColumnTitles);
 }
 
-export const mainCollectionTableSettingsSchema = z
-	.object({
-		smallRows: z.boolean(),
-		columnActiveConfig: z.record(z.string(), z.boolean()),
-		columnWidthConfig: z.record(z.string(), z.number().optional())
-	})
-	.superRefine((values, context) => {
-		Object.entries(values.columnWidthConfig).forEach(([column, width]) => {
-			if (width === undefined || !isMainColumnTitle(column)) {
-				return;
-			}
+const mainCollectionTableSettingsSchema = Schema.Struct({
+	smallRows: Schema.Boolean,
+	columnActiveConfig: Schema.Record(Schema.String, Schema.Boolean),
+	columnWidthConfig: Schema.Record(Schema.String, Schema.optional(Schema.Number))
+});
 
-			const minimumWidth = getResolvedMainColumnMinWidth(column);
-			if (width < minimumWidth) {
-				context.addIssue({
-					code: 'custom',
-					message: `${column} must be at least ${minimumWidth}px wide`,
-					path: ['columnWidthConfig', column]
-				});
-			}
-		});
-	});
+const modOverrideFormSchema = Schema.Struct({
+	overrideId: Schema.String
+});
 
-export const modOverrideFormSchema = z.object({
-	overrideId: z.string().refine((overrideId) => overrideId === overrideId.trim(), {
-		message: 'Remove spaces from the start or end of the override ID'
-	})
+export const mainCollectionTableSettingsResolver = createFormResolver<MainCollectionTableSettingsFormValues>((values) => {
+	try {
+		Schema.decodeUnknownSync(mainCollectionTableSettingsSchema)(values);
+	} catch {
+		return { root: 'Invalid table settings' };
+	}
+
+	return Object.entries(values.columnWidthConfig).reduce<Record<string, string>>((errors, [column, width]) => {
+		if (width === undefined || !isMainColumnTitle(column)) {
+			return errors;
+		}
+
+		const minimumWidth = getResolvedMainColumnMinWidth(column);
+		if (width < minimumWidth) {
+			errors[`columnWidthConfig.${column}`] = `${column} must be at least ${minimumWidth}px wide`;
+		}
+		return errors;
+	}, {});
+});
+
+export const modOverrideResolver = createFormResolver<ModOverrideFormValues>((values): FormErrorMap => {
+	try {
+		Schema.decodeUnknownSync(modOverrideFormSchema)(values);
+	} catch {
+		return { overrideId: 'Invalid override ID' };
+	}
+
+	if (values.overrideId !== values.overrideId.trim()) {
+		return { overrideId: 'Remove spaces from the start or end of the override ID' };
+	}
+
+	return {};
 });
 
 export function createMainTableSettingsFormValues(config?: MainCollectionConfig): MainCollectionTableSettingsFormValues {

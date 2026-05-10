@@ -1,5 +1,5 @@
 import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -375,6 +375,9 @@ function TagsHeaderFilter({
 			buttonRef.current?.focus();
 		}
 	}, []);
+	const closeMenuFromEffect = useEffectEvent((restoreFocus?: boolean) => {
+		closeMenu(restoreFocus);
+	});
 
 	const openMenu = useCallback(() => {
 		const bounds = buttonRef.current?.getBoundingClientRect();
@@ -398,18 +401,18 @@ function TagsHeaderFilter({
 		const closeFromPointer = (event: MouseEvent) => {
 			const target = event.target;
 			if (!(target instanceof Node)) {
-				closeMenu(false);
+				closeMenuFromEffect(false);
 				return;
 			}
 			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
 				return;
 			}
-			closeMenu(false);
+			closeMenuFromEffect(false);
 		};
 		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				event.preventDefault();
-				closeMenu();
+				closeMenuFromEffect();
 			}
 		};
 
@@ -420,7 +423,7 @@ function TagsHeaderFilter({
 			window.removeEventListener('mousedown', closeFromPointer);
 			window.removeEventListener('keydown', closeFromKeyboard);
 		};
-	}, [closeMenu, menuPosition]);
+	}, [menuPosition]);
 
 	const toggleTag = useCallback(
 		(tag: string) => {
@@ -1487,7 +1490,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						<div className="mt-1 text-text-muted">{emptyState.detail}</div>
 					</div>
 				) : null}
-				{launchingGame ? <div className="MainCollectionVirtualLoading">Launching game...</div> : null}
+				{launchingGame ? <div className="MainCollectionVirtualLoading">Launching game…</div> : null}
 			</div>
 		</div>
 	);

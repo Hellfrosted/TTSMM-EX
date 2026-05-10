@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron';
 import type { BlockLookupBuildRequest, BlockLookupIndexProgress, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { ValidChannel } from '../../model';
 import { createBlockLookupIndexModule, type BlockLookupIndexModule } from '../block-lookup-indexer';
+import { runMain } from '../runtime';
 import {
 	parseBlockLookupBuildRequestPayload,
 	parseBlockLookupSearchRequestPayload,
@@ -40,9 +41,11 @@ export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvid
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (event, request: BlockLookupBuildRequest) => {
-		return getIndexModule().buildIndex(
-			parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
-			sendBlockLookupIndexProgress(event)
+		return runMain(
+			getIndexModule().buildIndex(
+				parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
+				sendBlockLookupIndexProgress(event)
+			)
 		);
 	});
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Effect } from 'effect';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import { WorkshopInventoryResolver } from '../../main/workshop-inventory-resolution';
 import { ModType, type ModData } from '../../model';
@@ -47,22 +48,25 @@ describe('WorkshopInventoryResolver', () => {
 		const workshopMap = new Map<bigint, ModData>();
 		const knownInvalidMods = new Set<bigint>();
 
-		const missingDependencies = await resolveWorkshopDependencyChunk(workshopMap, knownInvalidMods, new Set([workshopID]), {
-			getDetailsForWorkshopModList: async () => [
-				{
-					uid: `workshop:${workshopID}`,
-					id: 'Parent',
-					type: ModType.WORKSHOP,
-					workshopID,
-					steamDependencies: [dependencyID],
-					steamDependencyNames: {
-						[dependencyID.toString()]: 'Dependency'
-					}
-				}
-			],
-			knownWorkshopMods: new Set([workshopID]),
-			updateModLoadingProgress: () => undefined
-		});
+		const missingDependencies = await Effect.runPromise(
+			resolveWorkshopDependencyChunk(workshopMap, knownInvalidMods, new Set([workshopID]), {
+				getDetailsForWorkshopModList: () =>
+					Effect.succeed([
+						{
+							uid: `workshop:${workshopID}`,
+							id: 'Parent',
+							type: ModType.WORKSHOP,
+							workshopID,
+							steamDependencies: [dependencyID],
+							steamDependencyNames: {
+								[dependencyID.toString()]: 'Dependency'
+							}
+						}
+					]),
+				knownWorkshopMods: new Set([workshopID]),
+				updateModLoadingProgress: () => undefined
+			})
+		);
 
 		expect(missingDependencies).toEqual(new Set([dependencyID]));
 		expect(workshopMap.get(workshopID)).toEqual(

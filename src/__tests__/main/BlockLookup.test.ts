@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import childProcess from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import {
 	buildBlockLookupAliases,
 	buildBlockLookupIndex,
@@ -22,6 +23,11 @@ import { indexBlockLookupSources } from '../../main/block-lookup-source-indexing
 import Steamworks from '../../main/steamworks';
 import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupRecord } from '../../shared/block-lookup';
 import { createTempDir } from './test-utils';
+
+const runIndexBlockLookupSources = (...args: Parameters<typeof indexBlockLookupSources>) =>
+	Effect.runPromise(indexBlockLookupSources(...args));
+const runCreateBlockLookupIndexBuild = (...args: Parameters<typeof createBlockLookupIndexBuild>) =>
+	Effect.runPromise(createBlockLookupIndexBuild(...args));
 
 beforeEach(() => {
 	vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
@@ -129,7 +135,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"Alpha Cannon","ID":42,"BlockExtents":{"x":2,"y":1,"z":3}}', 'utf8');
 		const stats = fs.statSync(jsonPath);
 
-		const result = await indexBlockLookupSources([
+		const result = await runIndexBlockLookupSources([
 			{
 				modTitle: 'Test Blocks',
 				mtimeMs: stats.mtimeMs,
@@ -157,7 +163,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(jsonPath, '{"NuterraBlock":{"GamePrefabReference":"GSO_Shop_121","BlockExtents":{"x":3,"y":6,"z":3}}}', 'utf8');
 		const stats = fs.statSync(jsonPath);
 
-		const result = await indexBlockLookupSources([
+		const result = await runIndexBlockLookupSources([
 			{
 				modTitle: 'Flaggship Industries',
 				mtimeMs: stats.mtimeMs,
@@ -201,7 +207,7 @@ describe('block lookup index', () => {
 		}) as typeof childProcess.execFile);
 		const stats = fs.statSync(assemblyPath);
 
-		const result = await indexBlockLookupSources([
+		const result = await runIndexBlockLookupSources([
 			{
 				modTitle: 'TerraTech',
 				mtimeMs: stats.mtimeMs,
@@ -264,8 +270,10 @@ describe('block lookup index', () => {
 			return createFetchResponse(new Uint8Array([1, 2, 3, 4]));
 		});
 
-		const firstLoad = await loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl });
-		const secondLoad = await loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl });
+		// eslint-disable-next-line react-doctor/server-sequential-independent-await -- the second load verifies the first load populated the cache.
+		const firstLoad = await Effect.runPromise(loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl }));
+		// eslint-disable-next-line react-doctor/server-sequential-independent-await -- this must run after the first load writes cache files.
+		const secondLoad = await Effect.runPromise(loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl }));
 
 		expect(firstLoad).toEqual([
 			expect.objectContaining({
@@ -276,6 +284,23 @@ describe('block lookup index', () => {
 		expect(secondLoad).toEqual(firstLoad);
 		expect(fetchImpl).toHaveBeenCalledTimes(2);
 		expect(fs.existsSync(path.join(previewCacheDir, firstLoad[0].cacheRelativePath))).toBe(true);
+	});
+
+	it('ignores malformed Blockpedia preview image URLs', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-blockpedia-malformed-url-');
+		const previewCacheDir = path.join(tempDir, 'preview-cache');
+		const fetchImpl = vi.fn(async () =>
+			createFetchResponse(`
+				<tr>
+					<td><img data-original="https://[malformed" width="128" height="128"></td>
+					<td>GSO</td><td>2</td><td>GSO Cosmonaut Wide Cab</td>
+				</tr>
+			`)
+		);
+
+		const assets = await Effect.runPromise(loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl }));
+
+		expect(assets).toEqual([]);
 	});
 
 	it('uses cached Blockpedia thumbnails as the first vanilla preview source', async () => {
@@ -337,7 +362,7 @@ describe('block lookup index', () => {
 		}) as typeof fetch);
 		const stats = fs.statSync(assemblyPath);
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'TerraTech',
@@ -400,20 +425,22 @@ describe('block lookup index', () => {
 			workshopId: 'vanilla'
 		};
 		const createRoutingAdapter = (blockName: string) => ({
-			extractRecords: vi.fn(async (sources: readonly BlockLookupSourceRecord[]) => {
-				return new Map(
-					sources.map((source) => [
-						source.sourcePath,
-						[
-							createTestBlockLookupRecord({
-								blockName: `${blockName} ${source.workshopId}`,
-								modTitle: source.modTitle,
-								sourceKind: source.sourceKind,
-								sourcePath: source.sourcePath,
-								workshopId: source.workshopId
-							})
-						]
-					])
+			extractRecords: vi.fn((sources: readonly BlockLookupSourceRecord[]) => {
+				return Effect.succeed(
+					new Map(
+						sources.map((source) => [
+							source.sourcePath,
+							[
+								createTestBlockLookupRecord({
+									blockName: `${blockName} ${source.workshopId}`,
+									modTitle: source.modTitle,
+									sourceKind: source.sourceKind,
+									sourcePath: source.sourcePath,
+									workshopId: source.workshopId
+								})
+							]
+						])
+					)
 				);
 			})
 		});
@@ -421,7 +448,7 @@ describe('block lookup index', () => {
 		const jsonAdapter = createRoutingAdapter('JSON Routed');
 		const vanillaAdapter = createRoutingAdapter('Vanilla Routed');
 
-		const result = await indexBlockLookupSources([bundleSource, jsonSource, secondBundleSource, vanillaSource], {
+		const result = await runIndexBlockLookupSources([bundleSource, jsonSource, secondBundleSource, vanillaSource], {
 			sourceExtractionAdapters: {
 				bundle: bundleAdapter,
 				json: jsonAdapter,
@@ -447,7 +474,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(goodPath, '{"Type":"NuterraBlock","Name":"Good Block","ID":7}', 'utf8');
 		const goodStats = fs.statSync(goodPath);
 
-		const result = await indexBlockLookupSources([
+		const result = await runIndexBlockLookupSources([
 			{
 				modTitle: 'Bad Blocks',
 				mtimeMs: 0,
@@ -475,21 +502,23 @@ describe('block lookup index', () => {
 		const bundlePath = path.join(tempDir, 'BundleBlocks_bundle');
 		fs.writeFileSync(bundlePath, 'bundle', 'utf8');
 		const stats = fs.statSync(bundlePath);
-		const extractBundleTextAssetsAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					bundlePath,
+		const extractBundleTextAssetsAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
 					[
-						{
-							assetName: 'BundleBlocks',
-							text: '{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}'
-						}
+						bundlePath,
+						[
+							{
+								assetName: 'BundleBlocks',
+								text: '{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}'
+							}
+						]
 					]
-				]
-			]);
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Bundle Blocks',
@@ -528,30 +557,32 @@ describe('block lookup index', () => {
 		const jsonStats = fs.statSync(jsonPath);
 		const firstBundleStats = fs.statSync(firstBundlePath);
 		const secondBundleStats = fs.statSync(secondBundlePath);
-		const extractBundleTextAssetsAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					firstBundlePath,
+		const extractBundleTextAssetsAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
 					[
-						{
-							assetName: 'FirstBundle',
-							text: '{"m_Name":"First_Bundle_Internal","Type":"NuterraBlock","Name":"First Bundle Block","ID":11}'
-						}
-					]
-				],
-				[
-					secondBundlePath,
+						firstBundlePath,
+						[
+							{
+								assetName: 'FirstBundle',
+								text: '{"m_Name":"First_Bundle_Internal","Type":"NuterraBlock","Name":"First Bundle Block","ID":11}'
+							}
+						]
+					],
 					[
-						{
-							assetName: 'SecondBundle',
-							text: '{"m_Name":"Second_Bundle_Internal","Type":"NuterraBlock","Name":"Second Bundle Block","ID":12}'
-						}
+						secondBundlePath,
+						[
+							{
+								assetName: 'SecondBundle',
+								text: '{"m_Name":"Second_Bundle_Internal","Type":"NuterraBlock","Name":"Second Bundle Block","ID":12}'
+							}
+						]
 					]
-				]
-			]);
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'JSON Blocks',
@@ -605,22 +636,24 @@ describe('block lookup index', () => {
 		fs.writeFileSync(goodBundlePath, 'bundle', 'utf8');
 		const failedStats = fs.statSync(failedBundlePath);
 		const goodStats = fs.statSync(goodBundlePath);
-		const extractBundleTextAssetsAdapter = vi.fn(async () => {
-			return new Map([
-				[failedBundlePath, []],
-				[
-					goodBundlePath,
+		const extractBundleTextAssetsAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[failedBundlePath, []],
 					[
-						{
-							assetName: 'GoodBundle',
-							text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
-						}
+						goodBundlePath,
+						[
+							{
+								assetName: 'GoodBundle',
+								text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+							}
+						]
 					]
-				]
-			]);
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Failed Bundle',
@@ -664,47 +697,49 @@ describe('block lookup index', () => {
 		const emptyStats = fs.statSync(emptyBundlePath);
 		const failedStats = fs.statSync(failedBundlePath);
 		const goodStats = fs.statSync(goodBundlePath);
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					emptyBundlePath,
-					{
-						issues: [],
-						previewAssets: [],
-						sourcePath: emptyBundlePath,
-						status: 'success' as const,
-						textAssets: []
-					}
-				],
-				[
-					failedBundlePath,
-					{
-						issues: ['Unable to read bundle TextAssets'],
-						previewAssets: [],
-						sourcePath: failedBundlePath,
-						status: 'issue' as const,
-						textAssets: []
-					}
-				],
-				[
-					goodBundlePath,
-					{
-						issues: [],
-						previewAssets: [],
-						sourcePath: goodBundlePath,
-						status: 'success' as const,
-						textAssets: [
-							{
-								assetName: 'GoodBundle',
-								text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
-							}
-						]
-					}
-				]
-			]);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[
+						emptyBundlePath,
+						{
+							issues: [],
+							previewAssets: [],
+							sourcePath: emptyBundlePath,
+							status: 'success' as const,
+							textAssets: []
+						}
+					],
+					[
+						failedBundlePath,
+						{
+							issues: ['Unable to read bundle TextAssets'],
+							previewAssets: [],
+							sourcePath: failedBundlePath,
+							status: 'issue' as const,
+							textAssets: []
+						}
+					],
+					[
+						goodBundlePath,
+						{
+							issues: [],
+							previewAssets: [],
+							sourcePath: goodBundlePath,
+							status: 'success' as const,
+							textAssets: [
+								{
+									assetName: 'GoodBundle',
+									text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+								}
+							]
+						}
+					]
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Empty Bundle',
@@ -757,34 +792,36 @@ describe('block lookup index', () => {
 		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
 		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
 		const stats = fs.statSync(bundlePath);
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					bundlePath,
-					{
-						issues: [],
-						previewAssets: [
-							{
-								assetName: 'Good_Bundle_Internal_icon',
-								cacheRelativePath,
-								height: 2,
-								width: 3
-							}
-						],
-						sourcePath: bundlePath,
-						status: 'success' as const,
-						textAssets: [
-							{
-								assetName: 'GoodBundle',
-								text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
-							}
-						]
-					}
-				]
-			]);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[
+						bundlePath,
+						{
+							issues: [],
+							previewAssets: [
+								{
+									assetName: 'Good_Bundle_Internal_icon',
+									cacheRelativePath,
+									height: 2,
+									width: 3
+								}
+							],
+							sourcePath: bundlePath,
+							status: 'success' as const,
+							textAssets: [
+								{
+									assetName: 'GoodBundle',
+									text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+								}
+							]
+						}
+					]
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Good Bundle',
@@ -823,34 +860,36 @@ describe('block lookup index', () => {
 		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
 		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
 		const stats = fs.statSync(bundlePath);
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					bundlePath,
-					{
-						issues: [],
-						previewAssets: [
-							{
-								assetName: 'HE_Jormungand_Railcannon',
-								cacheRelativePath,
-								height: 64,
-								width: 64
-							}
-						],
-						sourcePath: bundlePath,
-						status: 'success' as const,
-						textAssets: [
-							{
-								assetName: 'JormungandBlock',
-								text: '{"m_Name":"HE_Jormungand_Railgun","Type":"NuterraBlock","Name":"Hawkeye Jormungand 86 MJ Railcannon","ID":13,"IconName":"HE_Jormungand_Railcannon.png"}'
-							}
-						]
-					}
-				]
-			]);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[
+						bundlePath,
+						{
+							issues: [],
+							previewAssets: [
+								{
+									assetName: 'HE_Jormungand_Railcannon',
+									cacheRelativePath,
+									height: 64,
+									width: 64
+								}
+							],
+							sourcePath: bundlePath,
+							status: 'success' as const,
+							textAssets: [
+								{
+									assetName: 'JormungandBlock',
+									text: '{"m_Name":"HE_Jormungand_Railgun","Type":"NuterraBlock","Name":"Hawkeye Jormungand 86 MJ Railcannon","ID":13,"IconName":"HE_Jormungand_Railcannon.png"}'
+								}
+							]
+						}
+					]
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Good Bundle',
@@ -884,38 +923,40 @@ describe('block lookup index', () => {
 		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
 		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
 		const stats = fs.statSync(bundlePath);
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					bundlePath,
-					{
-						issues: [],
-						previewAssets: [
-							{
-								assetName: 'Alpha_Block_preview',
-								cacheRelativePath,
-								height: 64,
-								width: 64
-							}
-						],
-						sourcePath: bundlePath,
-						status: 'success' as const,
-						textAssets: [
-							{
-								assetName: 'AlphaBlock',
-								text: '{"m_Name":"Alpha_Block","Type":"NuterraBlock","Name":"Alpha Block","ID":13}'
-							},
-							{
-								assetName: 'BetaBlock',
-								text: '{"m_Name":"Beta_Block","Type":"NuterraBlock","Name":"Beta Block","ID":14}'
-							}
-						]
-					}
-				]
-			]);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[
+						bundlePath,
+						{
+							issues: [],
+							previewAssets: [
+								{
+									assetName: 'Alpha_Block_preview',
+									cacheRelativePath,
+									height: 64,
+									width: 64
+								}
+							],
+							sourcePath: bundlePath,
+							status: 'success' as const,
+							textAssets: [
+								{
+									assetName: 'AlphaBlock',
+									text: '{"m_Name":"Alpha_Block","Type":"NuterraBlock","Name":"Alpha Block","ID":13}'
+								},
+								{
+									assetName: 'BetaBlock',
+									text: '{"m_Name":"Beta_Block","Type":"NuterraBlock","Name":"Beta Block","ID":14}'
+								}
+							]
+						}
+					]
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Mixed Bundle',
@@ -952,40 +993,42 @@ describe('block lookup index', () => {
 		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
 		fs.writeFileSync(path.join(previewCacheDir, partialCacheRelativePath), 'partial png bytes');
 		const stats = fs.statSync(bundlePath);
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
-			return new Map([
-				[
-					bundlePath,
-					{
-						issues: [],
-						previewAssets: [
-							{
-								assetName: 'LK_corner_outer_icon',
-								cacheRelativePath: partialCacheRelativePath,
-								height: 64,
-								width: 64
-							},
-							{
-								assetName: 'LK_outerCorner_battlement_icon',
-								cacheRelativePath,
-								height: 64,
-								width: 64
-							}
-						],
-						sourcePath: bundlePath,
-						status: 'success' as const,
-						textAssets: [
-							{
-								assetName: 'LKBattlement',
-								text: '{"m_Name":"LK_battlement_corner_outer","Type":"NuterraBlock","Name":"LK Outer Corner Battlement Block","ID":14}'
-							}
-						]
-					}
-				]
-			]);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(() => {
+			return Effect.succeed(
+				new Map([
+					[
+						bundlePath,
+						{
+							issues: [],
+							previewAssets: [
+								{
+									assetName: 'LK_corner_outer_icon',
+									cacheRelativePath: partialCacheRelativePath,
+									height: 64,
+									width: 64
+								},
+								{
+									assetName: 'LK_outerCorner_battlement_icon',
+									cacheRelativePath,
+									height: 64,
+									width: 64
+								}
+							],
+							sourcePath: bundlePath,
+							status: 'success' as const,
+							textAssets: [
+								{
+									assetName: 'LKBattlement',
+									text: '{"m_Name":"LK_battlement_corner_outer","Type":"NuterraBlock","Name":"LK Outer Corner Battlement Block","ID":14}'
+								}
+							]
+						}
+					]
+				])
+			);
 		});
 
-		const result = await indexBlockLookupSources(
+		const result = await runIndexBlockLookupSources(
 			[
 				{
 					modTitle: 'Reordered Bundle',
@@ -1161,17 +1204,19 @@ describe('block lookup index', () => {
 			'utf8'
 		);
 
-		const firstBuild = await buildBlockLookupIndex(userDataPath, {
-			workshopRoot,
-			modSources: [
-				{
-					uid: 'workshop:12345',
-					name: 'Test Blocks',
-					path: modDir,
-					workshopID: '12345'
-				}
-			]
-		});
+		const firstBuild = await Effect.runPromise(
+			buildBlockLookupIndex(userDataPath, {
+				workshopRoot,
+				modSources: [
+					{
+						uid: 'workshop:12345',
+						name: 'Test Blocks',
+						path: modDir,
+						workshopID: '12345'
+					}
+				]
+			})
+		);
 
 		expect(firstBuild.stats.blocks).toBe(1);
 		expect(firstBuild.stats.scanned).toBe(1);
@@ -1187,17 +1232,19 @@ describe('block lookup index', () => {
 			fallbackSpawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
 		});
 
-		const secondBuild = await buildBlockLookupIndex(userDataPath, {
-			workshopRoot,
-			modSources: [
-				{
-					uid: 'workshop:12345',
-					name: 'Test Blocks',
-					path: modDir,
-					workshopID: '12345'
-				}
-			]
-		});
+		const secondBuild = await Effect.runPromise(
+			buildBlockLookupIndex(userDataPath, {
+				workshopRoot,
+				modSources: [
+					{
+						uid: 'workshop:12345',
+						name: 'Test Blocks',
+						path: modDir,
+						workshopID: '12345'
+					}
+				]
+			})
+		);
 
 		expect(secondBuild.stats.blocks).toBe(1);
 		expect(secondBuild.stats.skipped).toBe(1);
@@ -1228,7 +1275,7 @@ describe('block lookup index', () => {
 			records: []
 		} as const;
 
-		const firstBuild = await createBlockLookupIndexBuild(emptyIndex, {
+		const firstBuild = await runCreateBlockLookupIndexBuild(emptyIndex, {
 			workshopRoot,
 			modSources: [
 				{
@@ -1239,7 +1286,7 @@ describe('block lookup index', () => {
 				}
 			]
 		});
-		const secondBuild = await createBlockLookupIndexBuild(firstBuild.index, {
+		const secondBuild = await runCreateBlockLookupIndexBuild(firstBuild.index, {
 			workshopRoot,
 			modSources: [
 				{
@@ -1288,7 +1335,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(firstBlockJsonPath, 'a', 'utf8');
 		fs.writeFileSync(secondBlockJsonPath, 'bbbbbbbbb', 'utf8');
 		const progress: Array<{ completed: number; percent: number; phase: string; total: number }> = [];
-		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn(async (sources, _adapters, options) => {
+		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn((sources, _adapters, options) => {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const [index, source] of sources.entries()) {
 				recordsBySourcePath.set(source.sourcePath, [
@@ -1303,10 +1350,10 @@ describe('block lookup index', () => {
 				]);
 				options?.onIndexedSourceBatch?.(index + 1, sources.length);
 			}
-			return { recordsBySourcePath };
+			return Effect.succeed({ recordsBySourcePath });
 		});
 
-		await createBlockLookupIndexBuild(
+		await runCreateBlockLookupIndexBuild(
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '',
@@ -1343,7 +1390,7 @@ describe('block lookup index', () => {
 				renderedPreviewsEnabled: false
 			})
 		);
-		expect(progress.filter((entry) => entry.phase === 'indexing-sources').map((entry) => entry.percent)).toEqual([10, 17, 75, 75]);
+		expect(progress.flatMap((entry) => (entry.phase === 'indexing-sources' ? [entry.percent] : []))).toEqual([10, 17, 75, 75]);
 		expect(progress.map((entry) => entry.phase)).not.toContain('extracting-rendered-previews');
 	});
 
@@ -1362,7 +1409,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(secondBlockJsonPath, 'bbbbbbbbb', 'utf8');
 		const progress: Array<{ completed: number; countUnit?: string; percent: number; phase: string; phaseLabel: string; total: number }> =
 			[];
-		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn(async (sources, _adapters, options) => {
+		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn((sources, _adapters, options) => {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const [index, source] of sources.entries()) {
 				recordsBySourcePath.set(source.sourcePath, [
@@ -1388,10 +1435,10 @@ describe('block lookup index', () => {
 				]);
 				options?.onIndexedSourceBatch?.(index + 1, sources.length);
 			}
-			return { recordsBySourcePath };
+			return Effect.succeed({ recordsBySourcePath });
 		});
 
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '',
@@ -1431,7 +1478,7 @@ describe('block lookup index', () => {
 				renderedPreviewsEnabled: true
 			})
 		);
-		expect(progress.filter((entry) => entry.phase === 'indexing-sources').map((entry) => entry.percent)).toEqual([10, 14, 45, 45]);
+		expect(progress.flatMap((entry) => (entry.phase === 'indexing-sources' ? [entry.percent] : []))).toEqual([10, 14, 45, 45]);
 		expect(progress.filter((entry) => entry.phase === 'extracting-rendered-previews')).toEqual([
 			expect.objectContaining({
 				completed: 0,
@@ -1489,7 +1536,7 @@ describe('block lookup index', () => {
 			records: []
 		} as const;
 
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			emptyIndex,
 			{
 				workshopRoot,
@@ -1503,7 +1550,7 @@ describe('block lookup index', () => {
 				]
 			},
 			{
-				indexBlockLookupSources: async (sources) => {
+				indexBlockLookupSources: (sources) => {
 					const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 					for (const source of sources) {
 						recordsBySourcePath.set(source.sourcePath, [
@@ -1519,7 +1566,7 @@ describe('block lookup index', () => {
 							})
 						]);
 					}
-					return { recordsBySourcePath };
+					return Effect.succeed({ recordsBySourcePath });
 				}
 			}
 		);
@@ -1539,7 +1586,7 @@ describe('block lookup index', () => {
 		});
 
 		fs.rmSync(jsonPath);
-		const rebuildWithoutJson = await createBlockLookupIndexBuild(
+		const rebuildWithoutJson = await runCreateBlockLookupIndexBuild(
 			build.index,
 			{
 				workshopRoot,
@@ -1553,9 +1600,7 @@ describe('block lookup index', () => {
 				]
 			},
 			{
-				indexBlockLookupSources: async () => {
-					throw new Error('unchanged bundle source should reuse sourceRecords');
-				}
+				indexBlockLookupSources: () => Effect.fail(new Error('unchanged bundle source should reuse sourceRecords'))
 			}
 		);
 
@@ -1573,7 +1618,7 @@ describe('block lookup index', () => {
 	});
 
 	it('persists rendered preview support on indexes built with the opt-in flag', async () => {
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
 			{
 				modSources: [],
@@ -1599,7 +1644,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"GSO Megaton Cannon, Classic Edition","ID":1700050}', 'utf8');
 		const cacheRelativePath = 'bundle/exp-megaton.png';
 		const previewCacheDir = path.join(tempDir, 'preview-cache');
-		const indexBlockLookupSourcesAdapter = vi.fn(async (sources: BlockLookupSourceRecord[]) => {
+		const indexBlockLookupSourcesAdapter = vi.fn((sources: BlockLookupSourceRecord[]) => {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
 				recordsBySourcePath.set(
@@ -1620,32 +1665,34 @@ describe('block lookup index', () => {
 						: []
 				);
 			}
-			return { recordsBySourcePath };
+			return Effect.succeed({ recordsBySourcePath });
 		});
-		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async (_sourcePaths: string[], options?: { previewMatchNames?: string[] }) => {
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn((_sourcePaths: string[], options?: { previewMatchNames?: string[] }) => {
 			expect(options?.previewMatchNames).toContain('EXP_Megaton');
-			return new Map([
-				[
-					bundlePath,
-					{
-						issues: [],
-						previewAssets: [
-							{
-								assetName: 'EXP_Megaton',
-								cacheRelativePath,
-								height: 64,
-								width: 64
-							}
-						],
-						sourcePath: bundlePath,
-						status: 'success' as const,
-						textAssets: []
-					}
-				]
-			]);
+			return Effect.succeed(
+				new Map([
+					[
+						bundlePath,
+						{
+							issues: [],
+							previewAssets: [
+								{
+									assetName: 'EXP_Megaton',
+									cacheRelativePath,
+									height: 64,
+									width: 64
+								}
+							],
+							sourcePath: bundlePath,
+							status: 'success' as const,
+							textAssets: []
+						}
+					]
+				])
+			);
 		});
 
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
 			{ workshopRoot, forceRebuild: true, renderedPreviewsEnabled: true },
 			{
@@ -1675,7 +1722,7 @@ describe('block lookup index', () => {
 		fs.writeFileSync(bundlePath, 'bundle', 'utf8');
 		fs.writeFileSync(jsonPath, '{"NuterraBlock":{"GamePrefabReference":"GSO_Shop_121"}}', 'utf8');
 
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '',
@@ -1695,7 +1742,7 @@ describe('block lookup index', () => {
 				]
 			},
 			{
-				indexBlockLookupSources: async (sources) => {
+				indexBlockLookupSources: (sources) => {
 					const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 					for (const source of sources) {
 						recordsBySourcePath.set(source.sourcePath, [
@@ -1710,7 +1757,7 @@ describe('block lookup index', () => {
 							})
 						]);
 					}
-					return { recordsBySourcePath };
+					return Effect.succeed({ recordsBySourcePath });
 				}
 			}
 		);
@@ -1744,16 +1791,17 @@ describe('block lookup index', () => {
 			]
 		};
 
-		const firstBuild = await createBlockLookupIndexBuild(
+		const firstBuild = await runCreateBlockLookupIndexBuild(
 			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
 			request
 		);
-		const reuseIndexer = vi.fn(async () => ({
-			records: [],
-			recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
-		}));
+		const reuseIndexer = vi.fn(() =>
+			Effect.succeed({
+				recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
+			})
+		);
 
-		const reusedBuild = await createBlockLookupIndexBuild(firstBuild.index, request, {
+		const reusedBuild = await runCreateBlockLookupIndexBuild(firstBuild.index, request, {
 			indexBlockLookupSources: reuseIndexer
 		});
 
@@ -1764,7 +1812,7 @@ describe('block lookup index', () => {
 			updatedBlocks: 0
 		});
 
-		const forceIndexer = vi.fn(async (sources) => {
+		const forceIndexer = vi.fn((sources) => {
 			const source = sources[0]!;
 			const record: BlockLookupRecord = {
 				blockId: '43',
@@ -1779,13 +1827,12 @@ describe('block lookup index', () => {
 				spawnCommand: 'SpawnBlock Forced_Block(Test_Blocks)',
 				workshopId: source.workshopId
 			};
-			return {
-				records: [record],
+			return Effect.succeed({
 				recordsBySourcePath: new Map([[source.sourcePath, [record]]])
-			};
+			});
 		});
 
-		const forceBuild = await createBlockLookupIndexBuild(
+		const forceBuild = await runCreateBlockLookupIndexBuild(
 			firstBuild.index,
 			{ ...request, forceRebuild: true },
 			{
@@ -1852,12 +1899,13 @@ describe('block lookup index', () => {
 				workshopId: '222'
 			})
 		];
-		const indexBlockLookupSourcesAdapter = vi.fn(async () => ({
-			records: changedRecords,
-			recordsBySourcePath: new Map([[path.normalize(changedPath), changedRecords]])
-		}));
+		const indexBlockLookupSourcesAdapter = vi.fn(() =>
+			Effect.succeed({
+				recordsBySourcePath: new Map([[path.normalize(changedPath), changedRecords]])
+			})
+		);
 
-		const build = await createBlockLookupIndexBuild(
+		const build = await runCreateBlockLookupIndexBuild(
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
@@ -1958,16 +2006,18 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		await buildBlockLookupIndex(userDataPath, {
-			modSources: [
-				{
-					uid: 'workshop:24680',
-					name: 'Bundle Blocks',
-					path: modDir,
-					workshopID: '24680'
-				}
-			]
-		});
+		await Effect.runPromise(
+			buildBlockLookupIndex(userDataPath, {
+				modSources: [
+					{
+						uid: 'workshop:24680',
+						name: 'Bundle Blocks',
+						path: modDir,
+						workshopID: '24680'
+					}
+				]
+			})
+		);
 
 		const searchResult = searchBlockLookupIndex(userDataPath, 'bundle block');
 
@@ -2007,9 +2057,11 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		const textAssetsBySource = await extractBundleTextAssets([bundlePath], {
-			extractorPath: '/fake/block-lookup-extractor'
-		});
+		const textAssetsBySource = await Effect.runPromise(
+			extractBundleTextAssets([bundlePath], {
+				extractorPath: '/fake/block-lookup-extractor'
+			})
+		);
 		const textAssets = textAssetsBySource.get(bundlePath) ?? [];
 		const records = createBlockLookupRecordsFromTextAssets(
 			{
@@ -2071,9 +2123,11 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		const textAssetsBySource = await extractBundleTextAssets([firstBundlePath, secondBundlePath], {
-			extractorPath: '/fake/block-lookup-extractor'
-		});
+		const textAssetsBySource = await Effect.runPromise(
+			extractBundleTextAssets([firstBundlePath, secondBundlePath], {
+				extractorPath: '/fake/block-lookup-extractor'
+			})
+		);
 
 		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual([[firstBundlePath], [secondBundlePath]]);
 		expect(execFileSpy.mock.calls[0]).toEqual([
@@ -2132,10 +2186,12 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		const outcomes = await extractBlockLookupBundleOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
-			extractorPath: '/fake/block-lookup-extractor',
-			previewCacheDir
-		});
+		const outcomes = await Effect.runPromise(
+			extractBlockLookupBundleOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
+				extractorPath: '/fake/block-lookup-extractor',
+				previewCacheDir
+			})
+		);
 
 		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual([[assetBundlePath], [emptyBundlePath], [failedBundlePath]]);
 		expect(execFileSpy.mock.calls[0]).toEqual([
@@ -2215,14 +2271,18 @@ describe('block lookup index', () => {
 			}) as typeof childProcess.execFile);
 
 		await expect(
-			extractBlockLookupBundleOutcomes([bundlePath], {
-				extractorPath: '/fake/block-lookup-extractor'
-			})
+			Effect.runPromise(
+				extractBlockLookupBundleOutcomes([bundlePath], {
+					extractorPath: '/fake/block-lookup-extractor'
+				})
+			)
 		).rejects.toThrow('Block Lookup extractor returned an unsupported JSON shape');
 		await expect(
-			extractBlockLookupBundleOutcomes([bundlePath], {
-				extractorPath: '/fake/block-lookup-extractor'
-			})
+			Effect.runPromise(
+				extractBlockLookupBundleOutcomes([bundlePath], {
+					extractorPath: '/fake/block-lookup-extractor'
+				})
+			)
 		).rejects.toThrow('Block Lookup extractor returned an unsupported JSON shape');
 		expect(execFileSpy).toHaveBeenCalledTimes(2);
 	});
@@ -2250,10 +2310,12 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		await extractBlockLookupBundleOutcomes([bundlePath], {
-			extractorPath: '/fake/block-lookup-extractor',
-			previewMatchNames: ['GSO_Cab_211', 'GSO Cab', 'GSO_Cab_211']
-		});
+		await Effect.runPromise(
+			extractBlockLookupBundleOutcomes([bundlePath], {
+				extractorPath: '/fake/block-lookup-extractor',
+				previewMatchNames: ['GSO_Cab_211', 'GSO Cab', 'GSO_Cab_211']
+			})
+		);
 
 		expect(execFileSpy).toHaveBeenCalledTimes(1);
 		expect(previewMatchNamesFile).not.toBe('');
@@ -2285,9 +2347,11 @@ describe('block lookup index', () => {
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		const outcomes = await extractBlockLookupBundleOutcomes(bundlePaths, {
-			extractorPath: '/fake/block-lookup-extractor'
-		});
+		const outcomes = await Effect.runPromise(
+			extractBlockLookupBundleOutcomes(bundlePaths, {
+				extractorPath: '/fake/block-lookup-extractor'
+			})
+		);
 
 		expect(execFileSpy).toHaveBeenCalledTimes(17);
 		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual(bundlePaths.map((bundlePath) => [bundlePath]));
@@ -2300,9 +2364,11 @@ describe('block lookup index', () => {
 		fs.writeFileSync(bundlePath, '{"Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
 
 		await expect(
-			extractBundleTextAssets([bundlePath], {
-				extractorPath: null
-			})
+			Effect.runPromise(
+				extractBundleTextAssets([bundlePath], {
+					extractorPath: null
+				})
+			)
 		).rejects.toThrow('Block Lookup native extractor is unavailable');
 	});
 });

@@ -5,5 +5,8 @@ export function getCollectionModDataList(session: SessionMods, collection: Pick<
 		return [];
 	}
 
-	return collection.mods.map((modUID) => getByUID(session, modUID)).filter((modData): modData is ModData => !!modData);
+	return collection.mods.flatMap((modUID) => {
+		const modData = getByUID(session, modUID);
+		return modData ? [modData] : [];
+	});
 }

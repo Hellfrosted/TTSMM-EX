@@ -14,10 +14,9 @@ export function parseConfiguredPort(rawPort = process.env.PORT || '1212') {
 }
 
 export function getMachineHosts(networkInterfaces = os.networkInterfaces()) {
-	return Object.values(networkInterfaces)
-		.flatMap((addresses) => addresses ?? [])
-		.filter((address) => !address.internal && address.family === 'IPv4')
-		.map((address) => address.address);
+	return Object.values(networkInterfaces).flatMap((addresses) =>
+		(addresses ?? []).flatMap((address) => (!address.internal && address.family === 'IPv4' ? [address.address] : []))
+	);
 }
 
 export function createProbeHosts(machineHosts = getMachineHosts()) {
@@ -64,7 +63,6 @@ export function assertPortAvailable(port: number, host: string | undefined) {
 export async function assertConfiguredPortAvailable(options: PortCheckOptions = {}) {
 	const port = options.port ?? parseConfiguredPort(options.rawPort);
 	const hosts = options.hosts ?? createProbeHosts();
-
 	for (const host of hosts) {
 		await assertPortAvailable(port, host);
 	}

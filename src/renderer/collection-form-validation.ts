@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { collectionNamesEqual, getCollectionNameComparisonKey, validateCollectionName } from 'shared/collection-name';
+import { createFormResolver, type FormErrorMap } from './form-resolver';
 
 export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 
@@ -9,11 +9,9 @@ interface CollectionNameValidationOptions {
 	modalType: CollectionNamingModalType;
 }
 
-const collectionNameFormSchema = z.object({
-	name: z.string()
-});
-
-export type CollectionNameFormValues = z.infer<typeof collectionNameFormSchema>;
+export interface CollectionNameFormValues {
+	name: string;
+}
 
 export function getCollectionNameError(name: string, options: CollectionNameValidationOptions) {
 	const validationError = validateCollectionName(name);
@@ -41,17 +39,13 @@ export function getCollectionNameError(name: string, options: CollectionNameVali
 	return undefined;
 }
 
-export function createCollectionNameFormSchema(options: CollectionNameValidationOptions) {
-	return collectionNameFormSchema.superRefine((values, context) => {
+export function createCollectionNameResolver(options: CollectionNameValidationOptions) {
+	return createFormResolver<CollectionNameFormValues>((values): FormErrorMap => {
 		const error = getCollectionNameError(values.name, options);
 		if (!error) {
-			return;
+			return {};
 		}
 
-		context.addIssue({
-			code: 'custom',
-			message: error,
-			path: ['name']
-		});
+		return { name: error };
 	});
 }

@@ -17,6 +17,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "effect": "4.0.0-beta.64",
     "greenworks": "github:FLSoz/greenworks",
     "ps-list": "^9.0.0"
   }

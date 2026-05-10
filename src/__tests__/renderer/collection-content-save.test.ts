@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import type { ModCollection } from '../../model';
 import { createCollectionWriteQueue, runCollectionContentSave } from '../../renderer/collection-content-save';
 
@@ -17,18 +18,20 @@ describe('collection-content-save', () => {
 	it('returns a completion event after a successful pure Collection Content Save', async () => {
 		const collection: ModCollection = { name: 'default', mods: ['local:a'] };
 		let persistedCollection: ModCollection | undefined;
-		const persistCollectionFile = vi.fn(async (nextCollection: ModCollection) => {
+		const persistCollectionFile = vi.fn((nextCollection: ModCollection) => {
 			persistedCollection = { ...nextCollection, mods: [...nextCollection.mods] };
 			nextCollection.mods.push('local:mutated');
-			return { ok: true, collection: persistedCollection } as const;
+			return Effect.succeed({ ok: true, collection: persistedCollection } as const);
 		});
 
-		const outcome = await runCollectionContentSave({
-			collection,
-			logger: { error: vi.fn() },
-			persistCollectionFile,
-			pureSave: true
-		});
+		const outcome = await Effect.runPromise(
+			runCollectionContentSave({
+				collection,
+				logger: { error: vi.fn() },
+				persistCollectionFile,
+				pureSave: true
+			})
+		);
 
 		expect(persistedCollection).toEqual({ name: 'default', mods: ['local:a'] });
 		expect(collection.mods).toEqual(['local:a']);
@@ -42,13 +45,15 @@ describe('collection-content-save', () => {
 	});
 
 	it('keeps dirty draft state after a non-pure save and can request success notification', async () => {
-		const outcome = await runCollectionContentSave({
-			collection: { name: 'default', mods: ['local:a'] },
-			logger: { error: vi.fn() },
-			persistCollectionFile: vi.fn(async () => ({ ok: true, collection: { name: 'default', mods: ['local:a'] } }) as const),
-			pureSave: false,
-			showSuccessNotification: true
-		});
+		const outcome = await Effect.runPromise(
+			runCollectionContentSave({
+				collection: { name: 'default', mods: ['local:a'] },
+				logger: { error: vi.fn() },
+				persistCollectionFile: vi.fn(() => Effect.succeed({ ok: true, collection: { name: 'default', mods: ['local:a'] } } as const)),
+				pureSave: false,
+				showSuccessNotification: true
+			})
+		);
 
 		expect(outcome.completion).toEqual({
 			pureSave: false,
@@ -65,19 +70,20 @@ describe('collection-content-save', () => {
 	});
 
 	it('keeps dirty draft state and returns an error notification when persistence is rejected', async () => {
-		const outcome = await runCollectionContentSave({
-			collection: { name: 'default', mods: ['local:a'] },
-			logger: { error: vi.fn() },
-			persistCollectionFile: vi.fn(
-				async () =>
-					({
+		const outcome = await Effect.runPromise(
+			runCollectionContentSave({
+				collection: { name: 'default', mods: ['local:a'] },
+				logger: { error: vi.fn() },
+				persistCollectionFile: vi.fn(() =>
+					Effect.succeed({
 						ok: false,
 						code: 'write-failed',
 						message: 'Failed to save collection default'
-					}) as const
-			),
-			pureSave: true
-		});
+					} as const)
+				),
+				pureSave: true
+			})
+		);
 
 		expect(outcome.completion).toEqual({
 			pureSave: true,

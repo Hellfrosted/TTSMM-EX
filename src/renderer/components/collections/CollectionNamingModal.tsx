@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import {
-	createCollectionNameFormSchema,
+	createCollectionNameResolver,
 	type CollectionNameFormValues,
 	type CollectionNamingModalType
 } from 'renderer/collection-form-validation';
@@ -36,9 +35,9 @@ export default function CollectionNamingModal({
 	const collectionNameErrorId = 'collection-name-error';
 	const collectionNameHelpId = 'collection-name-help';
 	const collectionNameInputRef = useRef<HTMLInputElement>(null);
-	const collectionNameFormSchema = useMemo(
+	const collectionNameResolver = useMemo(
 		() =>
-			createCollectionNameFormSchema({
+			createCollectionNameResolver({
 				activeCollectionName,
 				allCollectionNames,
 				modalType
@@ -48,7 +47,7 @@ export default function CollectionNamingModal({
 	const form = useForm<CollectionNameFormValues>({
 		defaultValues: { name: initialName },
 		mode: 'onChange',
-		resolver: zodResolver(collectionNameFormSchema)
+		resolver: collectionNameResolver
 	});
 	const nameField = form.register('name');
 	useWatch({ control: form.control, name: 'name' });

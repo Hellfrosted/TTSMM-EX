@@ -73,10 +73,13 @@ export function listCollections(userDataPath: string): string[] {
 	const collectionsDirectory = ensureCollectionsDirectory(userDataPath);
 	try {
 		const dirContents = fs.readdirSync(collectionsDirectory, { withFileTypes: true });
-		return dirContents
-			.filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.json')
-			.map((entry) => path.parse(entry.name).name)
-			.filter((collectionName) => validateCollectionName(collectionName) === undefined);
+		return dirContents.flatMap((entry) => {
+			if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') {
+				return [];
+			}
+			const collectionName = path.parse(entry.name).name;
+			return validateCollectionName(collectionName) === undefined ? [collectionName] : [];
+		});
 	} catch (error) {
 		log.error(error);
 		return [];

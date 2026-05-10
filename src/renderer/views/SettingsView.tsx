@@ -10,6 +10,7 @@ import {
 	type AriaAttributes,
 	type ReactNode
 } from 'react';
+import { Effect } from 'effect';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import { Edit3, Folder, Plus, X } from 'lucide-react';
@@ -27,6 +28,7 @@ import { APP_LOG_LEVEL_OPTIONS, NLOG_LEVEL_OPTIONS, getSettingsFormErrors } from
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { validateSettingsPath } from 'util/Validation';
 import { DEFAULT_WORKSHOP_ID } from 'shared/app-config-defaults';
+import { runRenderer, type RendererElectron } from 'renderer/runtime';
 
 type SettingsViewAppState = Pick<AppState, 'config' | 'configErrors' | 'madeConfigEdits' | 'savingConfig' | 'updateState'>;
 
@@ -71,7 +73,10 @@ function joinFieldClassNames(...classNames: Array<string | false | undefined>) {
 	return classNames.filter(Boolean).join(' ');
 }
 
-async function getSettingsPathError(field: string, value: string | undefined) {
+const getSettingsPathError = Effect.fnUntraced(function* (
+	field: string,
+	value: string | undefined
+): Effect.fn.Return<string | undefined, unknown, RendererElectron> {
 	if (!value || value.length === 0) {
 		if (field === AppConfigKeys.LOCAL_DIR || field === AppConfigKeys.LOGS_DIR) {
 			return undefined;
@@ -79,8 +84,8 @@ async function getSettingsPathError(field: string, value: string | undefined) {
 		return 'Path is required';
 	}
 
-	return validateSettingsPath(field, value);
-}
+	return yield* validateSettingsPath(field, value);
+});
 
 function mergeAriaDescribedBy(currentValue: AriaAttributes['aria-describedby'], nextValue: string | undefined) {
 	const current = typeof currentValue === 'string' ? currentValue.trim() : '';
@@ -260,7 +265,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 	const validateFile = useCallback(
 		async (field: string, value: string) => {
 			try {
-				const error = await getSettingsPathError(field, value);
+				const error = await runRenderer(getSettingsPathError(field, value));
 				if (error) {
 					updateConfigErrors(field, error);
 					throw new Error(error);
@@ -278,11 +283,16 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 
 	const validateSettingsBeforeSave = useCallback(async () => {
 		const nextErrors: SettingsConfigErrors = {};
-		const [localDirError, logsDirError, gameExecError] = await Promise.all([
-			getSettingsPathError(AppConfigKeys.LOCAL_DIR, editingConfig.localDir),
-			getSettingsPathError(AppConfigKeys.LOGS_DIR, editingConfig.logsDir),
-			isLinux ? Promise.resolve(undefined) : getSettingsPathError(AppConfigKeys.GAME_EXEC, editingConfig.gameExec)
-		]);
+		const [localDirError, logsDirError, gameExecError] = await runRenderer(
+			Effect.all(
+				[
+					getSettingsPathError(AppConfigKeys.LOCAL_DIR, editingConfig.localDir),
+					getSettingsPathError(AppConfigKeys.LOGS_DIR, editingConfig.logsDir),
+					isLinux ? Effect.succeed(undefined) : getSettingsPathError(AppConfigKeys.GAME_EXEC, editingConfig.gameExec)
+				],
+				{ concurrency: 3 }
+			)
+		);
 		if (localDirError) {
 			nextErrors[AppConfigKeys.LOCAL_DIR] = localDirError;
 		}

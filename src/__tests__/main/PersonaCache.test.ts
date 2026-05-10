@@ -33,18 +33,26 @@ describe('steam persona resolution', () => {
 		mockSteamworks.requestUserInformation.mockReturnValue(true);
 		mockSteamworks.getFriendPersonaName.mockReturnValueOnce('').mockReturnValueOnce('').mockReturnValue('Player One');
 
-		const { resolvePersonaName } = await import('../../main/steam-persona-cache');
+		const [{ ManagedRuntime }, { SteamPersonaCache, SteamPersonaCacheLive }] = await Promise.all([
+			import('effect'),
+			import('../../main/steam-persona-cache')
+		]);
+		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
 
-		const firstLookup = resolvePersonaName('123');
-		const secondLookup = resolvePersonaName('123');
+		const resolvePersonaName = (steamID: string) => SteamPersonaCache.use((cache) => cache.resolve(steamID));
+		const firstLookup = runtime.runPromise(resolvePersonaName('123'));
+		const secondLookup = runtime.runPromise(resolvePersonaName('123'));
 
-		expect(firstLookup).toBe(secondLookup);
-		expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1);
-		expect(personaStateChangeListener).toBeDefined();
+		await vi.waitFor(() => {
+			expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1);
+			expect(mockSteamworks.on).toHaveBeenCalledTimes(1);
+			expect(personaStateChangeListener).toBeDefined();
+		});
 
 		personaStateChangeListener?.('123');
 
 		await expect(firstLookup).resolves.toBe('Player One');
+		await expect(secondLookup).resolves.toBe('Player One');
 	});
 
 	it('falls back to the raw steam id after the timeout', async () => {
@@ -52,9 +60,16 @@ describe('steam persona resolution', () => {
 		mockSteamworks.requestUserInformation.mockReturnValue(true);
 		mockSteamworks.getFriendPersonaName.mockReturnValue('');
 
-		const { resolvePersonaName } = await import('../../main/steam-persona-cache');
+		const [{ ManagedRuntime }, { SteamPersonaCache, SteamPersonaCacheLive }] = await Promise.all([
+			import('effect'),
+			import('../../main/steam-persona-cache')
+		]);
+		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
 
-		const lookup = resolvePersonaName('456');
+		const lookup = runtime.runPromise(SteamPersonaCache.use((cache) => cache.resolve('456')));
+		await vi.waitFor(() => {
+			expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1);
+		});
 		vi.advanceTimersByTime(5000);
 
 		await expect(lookup).resolves.toBe('456');

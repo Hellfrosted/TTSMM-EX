@@ -165,10 +165,9 @@
 		"vitest": "^4.1.5"
 	},
 	"dependencies": {
-		"@hookform/resolvers": "^5.2.2",
 		"@tanstack/react-query": "^5.100.9",
 		"@tanstack/react-virtual": "^3.13.24",
-		"async-mutex": "^0.5.0",
+		"effect": "4.0.0-beta.64",
 		"electron-log": "^5.4.3",
 		"electron-updater": "^6.8.3",
 		"lucide-react": "^1.14.0",
@@ -178,7 +177,6 @@
 		"react-hook-form": "^7.75.0",
 		"react-router-dom": "^7.15.0",
 		"source-map-support": "^0.5.21",
-		"zod": "^4.4.3",
 		"zustand": "^5.0.13"
 	},
 	"engines": {

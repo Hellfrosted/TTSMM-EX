@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect } from 'react';
+import { startTransition, useCallback, useEffect, useEffectEvent } from 'react';
 import { Grid3X3, Search, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppConfig, AppState } from 'model';
@@ -37,6 +37,9 @@ export default function MenuBar({ disableNavigation, onWorkspacePreview }: MenuP
 		},
 		[disableNavigation, navigate, onWorkspacePreview, selectedPath]
 	);
+	const navigateToKeyboardItem = useEffectEvent((nextPath: string) => {
+		navigateToItem(nextPath);
+	});
 
 	useEffect(() => {
 		const handleKeyboardNavigation = (event: KeyboardEvent) => {
@@ -56,14 +59,14 @@ export default function MenuBar({ disableNavigation, onWorkspacePreview }: MenuP
 			);
 			const direction = event.shiftKey ? -1 : 1;
 			const nextIndex = (currentIndex + direction + navigationItems.length) % navigationItems.length;
-			navigateToItem(navigationItems[nextIndex].key);
+			navigateToKeyboardItem(navigationItems[nextIndex].key);
 		};
 
 		window.addEventListener('keydown', handleKeyboardNavigation, { capture: true });
 		return () => {
 			window.removeEventListener('keydown', handleKeyboardNavigation, { capture: true });
 		};
-	}, [navigateToItem, selectedPath]);
+	}, [selectedPath]);
 
 	return (
 		<nav id="MenuBar" className="MenuBarNav" aria-label="Primary">

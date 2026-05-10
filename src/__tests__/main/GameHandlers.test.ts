@@ -2,6 +2,7 @@ import child_process from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Effect } from 'effect';
 import { PathType, ValidChannel } from '../../model';
 import {
 	discoverGameExecutablePath,
@@ -106,7 +107,9 @@ describe('game handlers', () => {
 			throw new Error('spawn failed');
 		}) as unknown as typeof child_process.spawn;
 
-		await expect(launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn, undefined, 'win32')).resolves.toBe(false);
+		await expect(Effect.runPromise(launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn, undefined, 'win32'))).resolves.toBe(
+			false
+		);
 	});
 
 	it('returns false when process launch fails asynchronously', async () => {
@@ -119,7 +122,7 @@ describe('game handlers', () => {
 			unref: vi.fn()
 		})) as unknown as typeof child_process.spawn;
 
-		const launchPromise = launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn, undefined, 'win32');
+		const launchPromise = Effect.runPromise(launchGameProcess('game.exe', BigInt(1), false, ['+foo'], spawn, undefined, 'win32'));
 		onceHandlers.get('error')?.(new Error('spawn async failed'));
 
 		await expect(launchPromise).resolves.toBe(false);
@@ -135,16 +138,8 @@ describe('game handlers', () => {
 			unref: vi.fn()
 		};
 		const spawn = vi.fn(() => child) as unknown as typeof child_process.spawn;
-		const launchPromise = launchGameProcess(
-			'~/TerraTechOSX64.app',
-			BigInt(1),
-			false,
-			['+foo'],
-			spawn,
-			undefined,
-			'darwin',
-			undefined,
-			'/Users/tester'
+		const launchPromise = Effect.runPromise(
+			launchGameProcess('~/TerraTechOSX64.app', BigInt(1), false, ['+foo'], spawn, undefined, 'darwin', undefined, '/Users/tester')
 		);
 
 		expect(spawn).toHaveBeenCalledWith(
@@ -162,7 +157,9 @@ describe('game handlers', () => {
 		const openExternal = vi.fn(async () => undefined);
 		const quit = vi.fn();
 
-		await expect(launchGameProcess('game.exe', BigInt(42), false, ['-batchmode'], spawn, openExternal, 'linux', quit)).resolves.toBe(true);
+		await expect(
+			Effect.runPromise(launchGameProcess('game.exe', BigInt(42), false, ['-batchmode'], spawn, openExternal, 'linux', quit))
+		).resolves.toBe(true);
 
 		expect(spawn).not.toHaveBeenCalled();
 		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] -batchmode/');
@@ -174,7 +171,7 @@ describe('game handlers', () => {
 		const openExternal = vi.fn(async () => undefined);
 
 		await expect(
-			launchGameProcess('game.exe', BigInt(42), false, ['--flag', 'value with space'], spawn, openExternal, 'linux')
+			Effect.runPromise(launchGameProcess('game.exe', BigInt(42), false, ['--flag', 'value with space'], spawn, openExternal, 'linux'))
 		).resolves.toBe(true);
 
 		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] --flag value%20with%20space/');
@@ -186,14 +183,16 @@ describe('game handlers', () => {
 		const openExternal = vi.fn(async () => undefined);
 
 		await expect(
-			launchGameProcess(
-				'game.exe',
-				BigInt(42),
-				false,
-				['--url', 'https://example.com/mod?id=1&name=alpha#frag%20value'],
-				spawn,
-				openExternal,
-				'linux'
+			Effect.runPromise(
+				launchGameProcess(
+					'game.exe',
+					BigInt(42),
+					false,
+					['--url', 'https://example.com/mod?id=1&name=alpha#frag%20value'],
+					spawn,
+					openExternal,
+					'linux'
+				)
 			)
 		).resolves.toBe(true);
 
@@ -208,7 +207,9 @@ describe('game handlers', () => {
 		const openExternal = vi.fn(async () => undefined);
 		const quit = vi.fn();
 
-		await expect(launchGameProcess('game.exe', BigInt(42), true, ['-batchmode'], spawn, openExternal, 'linux', quit)).resolves.toBe(true);
+		await expect(
+			Effect.runPromise(launchGameProcess('game.exe', BigInt(42), true, ['-batchmode'], spawn, openExternal, 'linux', quit))
+		).resolves.toBe(true);
 
 		expect(spawn).not.toHaveBeenCalled();
 		expect(openExternal).toHaveBeenCalledWith('steam://run/285920//+custom_mod_list [workshop:42] -batchmode/');
@@ -222,15 +223,17 @@ describe('game handlers', () => {
 		const quit = vi.fn();
 
 		await expect(
-			launchGameProcess(
-				'game.exe',
-				BigInt(42),
-				false,
-				['-batchmode'],
-				vi.fn() as unknown as typeof child_process.spawn,
-				openExternal,
-				'linux',
-				quit
+			Effect.runPromise(
+				launchGameProcess(
+					'game.exe',
+					BigInt(42),
+					false,
+					['-batchmode'],
+					vi.fn() as unknown as typeof child_process.spawn,
+					openExternal,
+					'linux',
+					quit
+				)
 			)
 		).resolves.toBe(false);
 

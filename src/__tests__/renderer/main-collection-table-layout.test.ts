@@ -150,8 +150,7 @@ describe('main-collection-table-layout', () => {
 
 	it('measures the collection table content width without root padding', () => {
 		const tableRoot = document.createElement('div');
-		tableRoot.style.paddingLeft = '8px';
-		tableRoot.style.paddingRight = '8px';
+		tableRoot.style.cssText = 'padding-left: 8px; padding-right: 8px;';
 		Object.defineProperty(tableRoot, 'clientWidth', { configurable: true, value: 916 });
 
 		expect(getMainCollectionAvailableTableWidth(tableRoot)).toBe(900);

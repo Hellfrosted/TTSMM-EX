@@ -256,15 +256,19 @@ export function formatBlockLookupIndexStatus(stats: BlockLookupIndexStats | null
 }
 
 export function collectBlockLookupModSources(appState: BlockLookupWorkspaceAppState): BlockLookupModSource[] {
-	return getRows(appState.mods)
-		.filter((mod) => !!mod.path)
-		.map((mod) => ({
-			uid: mod.uid,
-			id: mod.id || undefined,
-			name: mod.name,
-			path: mod.path!,
-			workshopID: mod.workshopID?.toString()
-		}));
+	return getRows(appState.mods).flatMap((mod) =>
+		mod.path
+			? [
+					{
+						uid: mod.uid,
+						id: mod.id || undefined,
+						name: mod.name,
+						path: mod.path,
+						workshopID: mod.workshopID?.toString()
+					}
+				]
+			: []
+	);
 }
 
 export function createBlockLookupBuildRequest(
@@ -284,7 +288,7 @@ export function createBlockLookupBuildRequest(
 }
 
 export function getAvailableBlockLookupModFilters(rows: BlockLookupSearchRow[]) {
-	return Array.from(new Set(rows.map((record) => record.modTitle).filter((modTitle) => modTitle.trim()))).sort((leftMod, rightMod) =>
+	return Array.from(new Set(rows.flatMap((record) => (record.modTitle.trim() ? [record.modTitle] : [])))).sort((leftMod, rightMod) =>
 		leftMod.localeCompare(rightMod)
 	);
 }
@@ -446,7 +450,7 @@ export function sortBlockLookupRecords(rows: BlockLookupSearchRow[], sortKey: Bl
 	}
 
 	const directionMultiplier = sortDirection === 'ascend' ? 1 : -1;
-	return [...rows].sort((leftRecord, rightRecord) => {
+	return Array.from(rows).sort((leftRecord, rightRecord) => {
 		const compared = compareBlockLookupSortValues(
 			getBlockLookupSortValue(leftRecord, sortKey),
 			getBlockLookupSortValue(rightRecord, sortKey)

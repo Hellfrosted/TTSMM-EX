@@ -10,7 +10,10 @@ interface GameLaunchCommand {
 
 export function parseExtraLaunchParams(extraParams: string): string[] {
 	const matches = extraParams.matchAll(EXTRA_PARAM_PATTERN);
-	return [...matches].map((match) => match[1] ?? match[2] ?? match[0]).filter((arg) => arg.length > 0);
+	return Array.from(matches).flatMap((match) => {
+		const arg = match[1] ?? match[2] ?? match[0];
+		return arg.length > 0 ? [arg] : [];
+	});
 }
 
 export function createGameLaunchCommand(input: {
@@ -21,11 +24,9 @@ export function createGameLaunchCommand(input: {
 	workshopID: string | bigint;
 }): GameLaunchCommand {
 	const workshopIDText = input.workshopID.toString();
-	const actualMods = input.modList
-		.filter((modData) => modData && modData.workshopID !== BigInt(workshopIDText))
-		.map((mod: ModData) => {
-			return mod ? `[${mod.uid.toString().replaceAll(' ', ':/%20')}]` : '';
-		});
+	const actualMods = input.modList.flatMap((modData) =>
+		modData && modData.workshopID !== BigInt(workshopIDText) ? [`[${modData.uid.toString().replaceAll(' ', ':/%20')}]`] : []
+	);
 	let args: string[] = [];
 	let passedWorkshopID: string | null = workshopIDText;
 

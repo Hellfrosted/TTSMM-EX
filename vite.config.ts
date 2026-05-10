@@ -32,7 +32,7 @@ function getRendererManualChunk(id: string) {
 		return 'vendor-react';
 	}
 
-	if (matchesNodeModulePackage(id, 'async-mutex')) {
+	if (matchesNodeModulePackage(id, 'effect')) {
 		return 'vendor-data';
 	}
 

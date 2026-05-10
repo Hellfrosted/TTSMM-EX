@@ -172,7 +172,7 @@ describe('collection-mod-projection', () => {
 			allVisibleSelected: false,
 			someVisibleSelected: true
 		});
-		expect([...setVisibleCollectionRowsSelected(['a', 'hidden'], visibleRows, true)].sort()).toEqual(['a', 'b', 'hidden']);
-		expect([...setVisibleCollectionRowsSelected(['a', 'hidden'], visibleRows, false)].sort()).toEqual(['hidden']);
+		expect(Array.from(setVisibleCollectionRowsSelected(['a', 'hidden'], visibleRows, true)).sort()).toEqual(['a', 'b', 'hidden']);
+		expect(Array.from(setVisibleCollectionRowsSelected(['a', 'hidden'], visibleRows, false)).sort()).toEqual(['hidden']);
 	});
 });

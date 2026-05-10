@@ -1,5 +1,4 @@
 import { InputHTMLAttributes, ReactNode, memo, useEffect, useMemo, useState } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import {
 	AppConfig,
@@ -23,8 +22,8 @@ import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
 import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import {
 	createMainTableSettingsFormValues,
-	mainCollectionTableSettingsSchema,
-	modOverrideFormSchema,
+	mainCollectionTableSettingsResolver,
+	modOverrideResolver,
 	setMainTableSettingsColumnWidth,
 	toMainCollectionConfig,
 	type MainCollectionTableSettingsFormValues,
@@ -44,7 +43,7 @@ function ValidationIssueList({ validationIssueSummaries }: { validationIssueSumm
 
 	return (
 		<section className="mt-5 grid gap-2.5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID} aria-live="polite">
-			<h3 id={VALIDATION_ISSUES_HEADING_ID} className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">
+			<h3 id={VALIDATION_ISSUES_HEADING_ID} className="m-0 text-body font-semibold leading-[var(--app-leading-ui)] text-text">
 				Mods to review
 			</h3>
 			<div>
@@ -276,7 +275,7 @@ function MainTableSettingsForm({
 		<form className="grid w-full max-w-full gap-3" noValidate>
 			<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
 				<div className="flex min-w-0 items-center">
-					<h3 className="m-0 text-body font-bold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
+					<h3 className="m-0 text-body font-semibold leading-[var(--app-leading-ui)] text-text">Table layout</h3>
 				</div>
 				<div className="inline-flex min-w-0 items-center gap-2.5">
 					<div className="min-w-0">
@@ -408,12 +407,12 @@ function CollectionManagerModal({
 	const tableSettingsForm = useForm<MainCollectionTableSettingsFormValues>({
 		defaultValues: createMainTableSettingsFormValues(DEFAULT_MAIN_CONFIG),
 		mode: 'onChange',
-		resolver: zodResolver(mainCollectionTableSettingsSchema)
+		resolver: mainCollectionTableSettingsResolver
 	});
 	const overrideForm = useForm<ModOverrideFormValues>({
 		defaultValues: { overrideId: '' },
 		mode: 'onSubmit',
-		resolver: zodResolver(modOverrideFormSchema)
+		resolver: modOverrideResolver
 	});
 	const mainConfigDraft = useWatch({ control: tableSettingsForm.control }) as MainCollectionTableSettingsFormValues;
 	const activeCollectionName = appState.activeCollection?.name || 'this collection';

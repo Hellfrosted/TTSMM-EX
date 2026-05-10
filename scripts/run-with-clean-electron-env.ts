@@ -11,10 +11,14 @@ if (!command) {
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
-const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path');
+const pathKeys = Object.keys(env).flatMap((key) => (key.toLowerCase() === 'path' ? [key] : []));
 const primaryPathKey = pathKeys[0] ?? 'PATH';
 const mergedPath = [
-	...new Set([path.resolve('node_modules/.bin'), path.dirname(process.execPath), ...pathKeys.map((key) => env[key]).filter(Boolean)])
+	...new Set([
+		path.resolve('node_modules/.bin'),
+		path.dirname(process.execPath),
+		...pathKeys.flatMap((key) => (env[key] ? [env[key]] : []))
+	])
 ].join(path.delimiter);
 
 for (const pathKey of pathKeys) {

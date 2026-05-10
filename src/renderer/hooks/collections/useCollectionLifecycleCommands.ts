@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Effect } from 'effect';
 import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
 import api from 'renderer/Api';
 import { applyAuthoritativeCollectionStateToCache } from 'renderer/async-cache';
@@ -129,13 +130,19 @@ export function useCollectionLifecycleCommands({
 			await runQueuedCollectionWrite(async () => {
 				setSavingCollection(true);
 				try {
-					const saveOutcome = await runCollectionContentSave({
-						collection,
-						logger: api.logger,
-						persistCollectionFile,
-						pureSave,
-						showSuccessNotification: options.showSuccessNotification ?? true
-					});
+					const saveOutcome = await Effect.runPromise(
+						runCollectionContentSave({
+							collection,
+							logger: api.logger,
+							persistCollectionFile: (targetCollection) =>
+								Effect.tryPromise({
+									try: () => persistCollectionFile(targetCollection),
+									catch: (error) => error
+								}),
+							pureSave,
+							showSuccessNotification: options.showSuccessNotification ?? true
+						})
+					);
 					writeAccepted = saveOutcome.writeAccepted;
 					if (writeAccepted) {
 						updateState(getCollectionContentSaveStateUpdate(appState, saveOutcome.targetCollection));

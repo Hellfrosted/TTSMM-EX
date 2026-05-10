@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import childProcess from 'node:child_process';
 import log from 'electron-log';
+import { Effect } from 'effect';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import {
 	extractBlockLookupBundleOutcomes,
@@ -28,7 +29,7 @@ interface BlockLookupSourceExtractionAdapter {
 	extractRecords(
 		sources: readonly BlockLookupSourceRecord[],
 		options?: BlockLookupSourceExtractionOptions
-	): Promise<Map<string, BlockLookupRecord[]>>;
+	): Effect.Effect<Map<string, BlockLookupRecord[]>, unknown>;
 }
 
 export type BlockLookupSourceExtractionAdapters = Partial<
@@ -67,7 +68,10 @@ function escapePowerShellSingleQuoted(value: string) {
 	return value.replace(/'/g, "''");
 }
 
-function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProcess.execFile = childProcess.execFile): Promise<string[]> {
+const loadVanillaEnumNames = Effect.fnUntraced(function* (
+	assemblyPath: string,
+	execFile: typeof childProcess.execFile = childProcess.execFile
+): Effect.fn.Return<string[], unknown> {
 	const command = [
 		`$asm = [Reflection.Assembly]::LoadFrom('${escapePowerShellSingleQuoted(assemblyPath)}')`,
 		"$t = $asm.GetType('BlockTypes')",
@@ -77,27 +81,31 @@ function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProces
 		'ConvertTo-Json -InputObject $names -Compress'
 	].join('; ');
 
-	return new Promise((resolve, reject) => {
-		execFile('powershell', ['-NoProfile', '-Command', command], { encoding: 'utf8', timeout: 30000 }, (error, stdout) => {
-			if (error) {
-				reject(error);
-				return;
-			}
+	return yield* Effect.tryPromise({
+		try: () =>
+			new Promise<string[]>((resolve, reject) => {
+				execFile('powershell', ['-NoProfile', '-Command', command], { encoding: 'utf8', timeout: 30000 }, (error, stdout) => {
+					if (error) {
+						reject(error);
+						return;
+					}
 
-			try {
-				const trimmedOutput = stdout.trim();
-				if (!trimmedOutput) {
-					resolve([]);
-					return;
-				}
-				const parsed = JSON.parse(trimmedOutput);
-				resolve(Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]);
-			} catch (parseError) {
-				reject(parseError);
-			}
-		});
+					try {
+						const trimmedOutput = stdout.trim();
+						if (!trimmedOutput) {
+							resolve([]);
+							return;
+						}
+						const parsed = JSON.parse(trimmedOutput);
+						resolve(Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]);
+					} catch (parseError) {
+						reject(parseError);
+					}
+				});
+			}),
+		catch: (error) => error
 	});
-}
+});
 
 function isDeprecatedVanillaBlockIdentifier(value: string): boolean {
 	const identifier = value.trim().replace(/^_/, '');
@@ -117,24 +125,25 @@ function createSingleSourceExtractionAdapter(
 	extractSourceRecords: (
 		source: BlockLookupSourceRecord,
 		options?: BlockLookupSourceExtractionOptions
-	) => Promise<BlockLookupRecord[]> | BlockLookupRecord[]
+	) => Effect.Effect<BlockLookupRecord[], unknown> | BlockLookupRecord[]
 ): BlockLookupSourceExtractionAdapter {
 	return {
-		async extractRecords(sources, options) {
+		extractRecords: Effect.fnUntraced(function* (sources, options): Effect.fn.Return<Map<string, BlockLookupRecord[]>, unknown> {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
-				recordsBySourcePath.set(source.sourcePath, await extractSourceRecords(source, options));
+				const records = extractSourceRecords(source, options);
+				recordsBySourcePath.set(source.sourcePath, Array.isArray(records) ? records : yield* records);
 			}
 			return recordsBySourcePath;
-		}
+		})
 	};
 }
 
-async function extractLocalVanillaPreviewAssets(
+const extractLocalVanillaPreviewAssets = Effect.fnUntraced(function* (
 	assemblyPath: string,
 	records: readonly BlockLookupRecord[],
 	options: BlockLookupSourceExtractionOptions | undefined
-): Promise<BlockLookupBundlePreviewAsset[]> {
+): Effect.fn.Return<BlockLookupBundlePreviewAsset[]> {
 	if (!options?.renderedPreviewsEnabled || !options.previewCacheDir) {
 		return [];
 	}
@@ -148,46 +157,54 @@ async function extractLocalVanillaPreviewAssets(
 		path.join(dataRoot, 'resources.assets'),
 		...fs
 			.readdirSync(dataRoot, { withFileTypes: true })
-			.filter((entry) => entry.isFile() && /^sharedassets\d+\.assets$/i.test(entry.name))
-			.map((entry) => path.join(dataRoot, entry.name))
+			.flatMap((entry) => (entry.isFile() && /^sharedassets\d+\.assets$/i.test(entry.name) ? [path.join(dataRoot, entry.name)] : []))
 	].filter((sourcePath, index, allSourcePaths) => fs.existsSync(sourcePath) && allSourcePaths.indexOf(sourcePath) === index);
 	if (!sourcePaths.length) {
 		return [];
 	}
 	const previewMatchNames = getBlockLookupRecordPreviewMatchNameCandidates(records);
-	try {
-		const outcomes = await extractBlockLookupBundleOutcomes(sourcePaths, {
-			previewCacheDir: options.previewCacheDir,
-			previewMatchNames
-		});
-		return [...outcomes.values()].flatMap((outcome) => outcome.previewAssets);
-	} catch (error) {
-		log.warn(`Failed to extract vanilla block previews from ${dataRoot}`);
-		log.warn(error);
-		return [];
-	}
-}
+	const outcomes = yield* extractBlockLookupBundleOutcomes(sourcePaths, {
+		previewCacheDir: options.previewCacheDir,
+		previewMatchNames
+	}).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to extract vanilla block previews from ${dataRoot}`);
+			log.warn(error);
+			return Effect.succeed(null);
+		})
+	);
+	return outcomes ? [...outcomes.values()].flatMap((outcome) => outcome.previewAssets) : [];
+});
 
-async function extractVanillaPreviewAssets(
+const extractVanillaPreviewAssets = Effect.fnUntraced(function* (
 	assemblyPath: string,
 	records: readonly BlockLookupRecord[],
 	options: BlockLookupSourceExtractionOptions | undefined
-): Promise<BlockLookupBundlePreviewAsset[]> {
+): Effect.fn.Return<BlockLookupBundlePreviewAsset[]> {
 	if (!options?.renderedPreviewsEnabled || !options.previewCacheDir) {
 		return [];
 	}
-	const blockpediaPreviewAssets = await loadBlockpediaVanillaPreviewAssets(options.previewCacheDir);
-	const localPreviewAssets = await extractLocalVanillaPreviewAssets(assemblyPath, records, options);
+	const blockpediaPreviewAssets = yield* loadBlockpediaVanillaPreviewAssets(options.previewCacheDir);
+	const localPreviewAssets = yield* extractLocalVanillaPreviewAssets(assemblyPath, records, options);
 	return [...blockpediaPreviewAssets, ...localPreviewAssets];
-}
+});
 
-async function extractVanillaSourceRecords(
+const extractVanillaSourceRecords = Effect.fnUntraced(function* (
 	source: BlockLookupSourceRecord,
 	options?: BlockLookupSourceExtractionOptions
-): Promise<BlockLookupRecord[]> {
+): Effect.fn.Return<BlockLookupRecord[]> {
+	const enumNames = yield* loadVanillaEnumNames(source.sourcePath).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
+			log.warn(error);
+			return Effect.succeed(null);
+		})
+	);
+	if (!enumNames) {
+		return [];
+	}
 	try {
 		const exportMap = buildVanillaExportMap(source.sourcePath);
-		const enumNames = await loadVanillaEnumNames(source.sourcePath);
 		const records = enumNames.flatMap((enumName) => {
 			const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
 			if (shouldSkipVanillaBlockIdentifier(enumName) || shouldSkipVanillaBlockIdentifier(displaySource)) {
@@ -208,14 +225,14 @@ async function extractVanillaSourceRecords(
 		if (records.length === 0) {
 			return records;
 		}
-		const previewAssets = await extractVanillaPreviewAssets(source.sourcePath, records, options);
+		const previewAssets = yield* extractVanillaPreviewAssets(source.sourcePath, records, options);
 		return assignRenderedBlockPreviewsToRecords(records, previewAssets, options);
 	} catch (error) {
 		log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
 		log.warn(error);
 		return [];
 	}
-}
+});
 
 function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupRecord[] {
 	try {
@@ -230,8 +247,10 @@ function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupR
 export function createBlockLookupBundleSourceExtractionAdapter(
 	dependencies: BlockLookupBundleSourceExtractionAdapterDependencies = {}
 ): BlockLookupSourceExtractionAdapter {
-	const createTextAssetOnlyOutcomes = async (sourcePaths: readonly string[]): Promise<Map<string, BlockLookupBundleExtractionOutcome>> => {
-		const textAssetsBySourcePath = await dependencies.extractBundleTextAssets!(sourcePaths);
+	const createTextAssetOnlyOutcomes = Effect.fnUntraced(function* (
+		sourcePaths: readonly string[]
+	): Effect.fn.Return<Map<string, BlockLookupBundleExtractionOutcome>, unknown> {
+		const textAssetsBySourcePath = yield* dependencies.extractBundleTextAssets!(sourcePaths);
 		return new Map(
 			[...textAssetsBySourcePath].map(([sourcePath, textAssets]) => [
 				sourcePath,
@@ -244,15 +263,15 @@ export function createBlockLookupBundleSourceExtractionAdapter(
 				}
 			])
 		);
-	};
+	});
 	return {
-		async extractRecords(sources, options) {
+		extractRecords: Effect.fnUntraced(function* (sources, options): Effect.fn.Return<Map<string, BlockLookupRecord[]>, unknown> {
 			const sourcePaths = sources.map((source) => source.sourcePath);
 			const blockLookupOutcomesBySourcePath = dependencies.extractBlockLookupBundleOutcomes
-				? await dependencies.extractBlockLookupBundleOutcomes(sourcePaths)
+				? yield* dependencies.extractBlockLookupBundleOutcomes(sourcePaths)
 				: dependencies.extractBundleTextAssets
-					? await createTextAssetOnlyOutcomes(sourcePaths)
-					: await extractBlockLookupBundleOutcomes(sourcePaths, { previewCacheDir: options?.previewCacheDir });
+					? yield* createTextAssetOnlyOutcomes(sourcePaths)
+					: yield* extractBlockLookupBundleOutcomes(sourcePaths, { previewCacheDir: options?.previewCacheDir });
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
 				const outcome = blockLookupOutcomesBySourcePath.get(source.sourcePath);
@@ -260,7 +279,7 @@ export function createBlockLookupBundleSourceExtractionAdapter(
 				recordsBySourcePath.set(source.sourcePath, assignRenderedBlockPreviewsToRecords(records, outcome?.previewAssets ?? [], options));
 			}
 			return recordsBySourcePath;
-		}
+		})
 	};
 }
 
@@ -279,10 +298,10 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 	};
 
 	return {
-		async extractRecords(
+		extractRecords: Effect.fnUntraced(function* (
 			sources: readonly BlockLookupSourceRecord[],
 			options?: BlockLookupSourceExtractionOptions
-		): Promise<Map<string, BlockLookupRecord[]>> {
+		): Effect.fn.Return<Map<string, BlockLookupRecord[]>, unknown> {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			const sourcesByKind = new Map<BlockLookupSourceRecord['sourceKind'], BlockLookupSourceRecord[]>();
 			for (const source of sources) {
@@ -293,21 +312,21 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 
 			for (const [sourceKind, kindSources] of sourcesByKind) {
 				const adapter = sourceAdapters[sourceKind];
-				const extractedRecords = options ? await adapter.extractRecords(kindSources, options) : await adapter.extractRecords(kindSources);
+				const extractedRecords = yield* options ? adapter.extractRecords(kindSources, options) : adapter.extractRecords(kindSources);
 				for (const source of kindSources) {
 					recordsBySourcePath.set(source.sourcePath, extractedRecords.get(source.sourcePath) ?? []);
 				}
 			}
 
 			return recordsBySourcePath;
-		}
+		})
 	};
 }
 
-export async function extractRecordsFromSources(
+export const extractRecordsFromSources = Effect.fnUntraced(function* (
 	sources: readonly BlockLookupSourceRecord[],
 	adapters: BlockLookupSourceExtractionAdapters = {},
 	options?: BlockLookupSourceExtractionOptions
-): Promise<Map<string, BlockLookupRecord[]>> {
-	return createBlockLookupSourceExtractionRouter(adapters).extractRecords(sources, options);
-}
+): Effect.fn.Return<Map<string, BlockLookupRecord[]>, unknown> {
+	return yield* createBlockLookupSourceExtractionRouter(adapters).extractRecords(sources, options);
+});

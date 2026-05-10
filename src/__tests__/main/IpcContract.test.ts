@@ -100,7 +100,7 @@ describe('ipc contract', () => {
 	it('registers every request and send-only contract channel in the main process', () => {
 		const { handledChannels, listenerChannels } = registerAllMainHandlers();
 
-		expect([...Object.values(ipcInvokeChannels)].sort()).toEqual([...handledChannels].sort());
-		expect([...Object.values(ipcSendChannels)].sort()).toEqual([...listenerChannels].sort());
+		expect(Object.values(ipcInvokeChannels).sort()).toEqual(Array.from(handledChannels).sort());
+		expect(Object.values(ipcSendChannels).sort()).toEqual(Array.from(listenerChannels).sort());
 	});
 });

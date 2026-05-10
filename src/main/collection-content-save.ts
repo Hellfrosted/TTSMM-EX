@@ -1,7 +1,11 @@
+import { Effect } from 'effect';
 import type { CollectionContentSaveRequest, CollectionContentSaveResult } from 'shared/collection-content-save';
 import { readCollectionFile, updateCollectionFile } from './collection-store';
 
-export function saveExistingCollectionContent(userDataPath: string, request: CollectionContentSaveRequest): CollectionContentSaveResult {
+export const saveExistingCollectionContent = Effect.fnUntraced(function* (
+	userDataPath: string,
+	request: CollectionContentSaveRequest
+): Effect.fn.Return<CollectionContentSaveResult> {
 	if (!readCollectionFile(userDataPath, request.collectionName)) {
 		return {
 			ok: false,
@@ -32,4 +36,4 @@ export function saveExistingCollectionContent(userDataPath: string, request: Col
 	}
 
 	return { ok: true, collection: savedCollection };
-}
+});

@@ -6,6 +6,7 @@ import {
 	startTransition,
 	useCallback,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useReducer,
 	useRef,
@@ -69,10 +70,13 @@ interface MeasuredAreaProps {
 function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const [size, setSize] = useState({ width: 0, height: 0 });
+	const emitSizeChange = useEffectEvent((nextSize: { width: number; height: number }) => {
+		onSizeChange?.(nextSize);
+	});
 
 	useEffect(() => {
-		onSizeChange?.(size);
-	}, [onSizeChange, size]);
+		emitSizeChange(size);
+	}, [size]);
 
 	useEffect(() => {
 		const element = containerRef.current;

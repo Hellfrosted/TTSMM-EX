@@ -15,7 +15,7 @@ function getDirectiveSources(policy: string, directiveName: string) {
 }
 
 function expectDirectiveSources(policy: string, directiveName: string, sources: string[]) {
-	expect(getDirectiveSources(policy, directiveName).sort()).toEqual([...sources].sort());
+	expect(Array.from(getDirectiveSources(policy, directiveName)).sort()).toEqual(Array.from(sources).sort());
 }
 
 describe('renderer CSP', () => {

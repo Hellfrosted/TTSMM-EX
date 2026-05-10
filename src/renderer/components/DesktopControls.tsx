@@ -1,5 +1,6 @@
 import {
 	useEffect,
+	useEffectEvent,
 	useId,
 	useRef,
 	type ButtonHTMLAttributes,
@@ -91,24 +92,6 @@ export function DesktopButton({
 				<span className={joinClassNames('DesktopButtonLabel inline-flex min-w-0 items-center', labelClassName)}>{children}</span>
 			) : null}
 		</button>
-	);
-}
-
-export function DesktopToolbarButton({ children, className, labelClassName, ...props }: DesktopButtonProps) {
-	return (
-		<DesktopButton
-			{...props}
-			className={joinClassNames(
-				'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[1100px]:w-control max-[1100px]:min-w-control max-[1100px]:px-0',
-				className
-			)}
-			labelClassName={joinClassNames(
-				'inline-flex min-w-0 items-center overflow-hidden text-ellipsis whitespace-nowrap max-[1100px]:hidden',
-				labelClassName
-			)}
-		>
-			{children}
-		</DesktopButton>
 	);
 }
 
@@ -213,6 +196,10 @@ export function DesktopDialog({
 }: DesktopDialogProps) {
 	const titleId = useId();
 	const overlayRef = useRef<HTMLDivElement>(null);
+	const handleCancel = useEffectEvent(() => {
+		onCancel();
+	});
+
 	useEffect(() => {
 		if (!open) {
 			return undefined;
@@ -258,7 +245,7 @@ export function DesktopDialog({
 
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
-				onCancel();
+				handleCancel();
 				return;
 			}
 			if (event.key !== 'Tab') {
@@ -297,7 +284,7 @@ export function DesktopDialog({
 				previousActiveElement.focus();
 			}
 		};
-	}, [onCancel, open]);
+	}, [open]);
 
 	if (!open) {
 		return null;

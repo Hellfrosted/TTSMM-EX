@@ -88,7 +88,7 @@ export function sortMainCollectionRows(rows: DisplayModData[], columns: MainColl
 			}
 
 			const direction = sortState.order === 'ascend' ? 1 : -1;
-			return [...rows].sort((left, right) => direction * compare(left, right, sortState.order));
+			return Array.from(rows).sort((left, right) => direction * compare(left, right, sortState.order));
 		},
 		{
 			rows: rows.length,

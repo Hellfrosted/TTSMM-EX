@@ -120,8 +120,10 @@ export async function installDevtoolsExtension({
 }
 
 async function installExtensions() {
-	const installer = await import('electron-devtools-installer');
-	const { downloadChromeExtension } = await import('electron-devtools-installer/dist/downloadChromeExtension');
+	const [installer, { downloadChromeExtension }] = await Promise.all([
+		import('electron-devtools-installer'),
+		import('electron-devtools-installer/dist/downloadChromeExtension')
+	]);
 	const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
 	const extensions = [installer.REACT_DEVELOPER_TOOLS];
 

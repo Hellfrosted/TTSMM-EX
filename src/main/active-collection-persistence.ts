@@ -37,9 +37,10 @@ export function readSavedCollections(userDataPath: string, options: { sort?: boo
 		collectionNames.sort();
 	}
 
-	return collectionNames
-		.map((name) => readCollectionFile(userDataPath, name))
-		.filter((collection): collection is ModCollection => !!collection);
+	return collectionNames.flatMap((name) => {
+		const collection = readCollectionFile(userDataPath, name);
+		return collection ? [collection] : [];
+	});
 }
 
 export function readActiveCollection(userDataPath: string, request: { config: AppConfig; dirtyCollection?: ModCollection }) {
@@ -67,9 +68,9 @@ export function selectReplacementCollection(
 	userDataPath: string,
 	deletedName: string
 ): { collection: ModCollection; createdFallback: boolean } | undefined {
-	const remainingName = listCollections(userDataPath)
-		.filter((name) => !collectionNamesEqual(name, deletedName))
-		.sort()[0];
+	const remainingNames = listCollections(userDataPath).filter((name) => !collectionNamesEqual(name, deletedName));
+	const remainingName =
+		remainingNames.length > 0 ? remainingNames.reduce((left, right) => (left.localeCompare(right) <= 0 ? left : right)) : undefined;
 	if (remainingName) {
 		const collection = readCollectionFile(userDataPath, remainingName);
 		return collection ? { collection, createdFallback: false } : undefined;

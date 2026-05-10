@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import log from 'electron-log';
+import { Effect } from 'effect';
 import type { BlockLookupBundlePreviewAsset } from './block-lookup-bundle-text-assets';
 
 const BLOCKPEDIA_URL = 'https://terratechgame.com/blockpedia/';
@@ -102,7 +103,7 @@ export function parseBlockpediaPreviewEntries(html: string): BlockpediaPreviewEn
 			continue;
 		}
 		const parsedImageUrl = new URL(imageUrl, BLOCKPEDIA_URL);
-		if (parsedImageUrl.hostname !== 'terratechgame.com' || !parsedImageUrl.pathname.includes('/assets/images/blockpedia/')) {
+		if (parsedImageUrl.hostname !== 'terratechgame.com' || !/\/assets\/images\/blockpedia\//.test(parsedImageUrl.pathname)) {
 			continue;
 		}
 
@@ -161,31 +162,54 @@ function writeManifest(previewCacheDir: string, manifest: BlockpediaPreviewManif
 	fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
-async function downloadBlockpediaPreviewImages(
+const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 	previewCacheDir: string,
 	entries: readonly BlockpediaPreviewEntry[],
 	fetchImpl: BlockpediaPreviewFetch
-): Promise<BlockpediaPreviewEntry[]> {
+): Effect.fn.Return<BlockpediaPreviewEntry[]> {
 	const cachedEntries: BlockpediaPreviewEntry[] = [];
 	for (const entry of entries) {
 		const cachePath = path.join(previewCacheDir, entry.cacheRelativePath);
-		try {
-			if (!fs.existsSync(cachePath)) {
-				const imageResponse = await fetchImpl(entry.imageUrl);
-				if (!imageResponse.ok) {
-					continue;
-				}
-				fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-				fs.writeFileSync(cachePath, Buffer.from(await imageResponse.arrayBuffer()));
+		if (!fs.existsSync(cachePath)) {
+			const imageResponse = yield* Effect.tryPromise({
+				try: () => fetchImpl(entry.imageUrl),
+				catch: (error) => error
+			}).pipe(
+				Effect.catch((error) => {
+					log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
+					log.warn(error);
+					return Effect.succeed(null);
+				})
+			);
+			if (!imageResponse?.ok) {
+				continue;
 			}
-			cachedEntries.push(entry);
-		} catch (error) {
-			log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
-			log.warn(error);
+			const imageBytes = yield* Effect.tryPromise({
+				try: () => imageResponse.arrayBuffer(),
+				catch: (error) => error
+			}).pipe(
+				Effect.catch((error) => {
+					log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
+					log.warn(error);
+					return Effect.succeed(null);
+				})
+			);
+			if (!imageBytes) {
+				continue;
+			}
+			try {
+				fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+				fs.writeFileSync(cachePath, Buffer.from(imageBytes));
+			} catch (error) {
+				log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
+				log.warn(error);
+				continue;
+			}
 		}
+		cachedEntries.push(entry);
 	}
 	return cachedEntries;
-}
+});
 
 function toPreviewAssets(entries: readonly BlockpediaPreviewEntry[]): BlockLookupBundlePreviewAsset[] {
 	return entries.map((entry) => ({
@@ -196,10 +220,10 @@ function toPreviewAssets(entries: readonly BlockpediaPreviewEntry[]): BlockLooku
 	}));
 }
 
-export async function loadBlockpediaVanillaPreviewAssets(
+export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 	previewCacheDir: string,
 	options: LoadBlockpediaPreviewOptions = {}
-): Promise<BlockLookupBundlePreviewAsset[]> {
+): Effect.fn.Return<BlockLookupBundlePreviewAsset[]> {
 	const cachedManifest = readCachedManifest(previewCacheDir);
 	if (cachedManifest) {
 		return toPreviewAssets(cachedManifest.entries);
@@ -210,13 +234,35 @@ export async function loadBlockpediaVanillaPreviewAssets(
 		return [];
 	}
 
+	const pageResponse = yield* Effect.tryPromise({
+		try: () => fetchImpl(BLOCKPEDIA_URL),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			log.warn('Failed to load Blockpedia vanilla previews.');
+			log.warn(error);
+			return Effect.succeed(null);
+		})
+	);
+	if (!pageResponse?.ok) {
+		return [];
+	}
+	const pageText = yield* Effect.tryPromise({
+		try: () => pageResponse.text(),
+		catch: (error) => error
+	}).pipe(
+		Effect.catch((error) => {
+			log.warn('Failed to load Blockpedia vanilla previews.');
+			log.warn(error);
+			return Effect.succeed(null);
+		})
+	);
+	if (pageText === null) {
+		return [];
+	}
 	try {
-		const pageResponse = await fetchImpl(BLOCKPEDIA_URL);
-		if (!pageResponse.ok) {
-			return [];
-		}
-		const entries = parseBlockpediaPreviewEntries(await pageResponse.text());
-		const cachedEntries = await downloadBlockpediaPreviewImages(previewCacheDir, entries, fetchImpl);
+		const entries = parseBlockpediaPreviewEntries(pageText);
+		const cachedEntries = yield* downloadBlockpediaPreviewImages(previewCacheDir, entries, fetchImpl);
 		const manifest: BlockpediaPreviewManifest = {
 			entries: cachedEntries,
 			fetchedAt: new Date().toISOString(),
@@ -230,4 +276,4 @@ export async function loadBlockpediaVanillaPreviewAssets(
 		log.warn(error);
 		return [];
 	}
-}
+});

@@ -1,8 +1,10 @@
 import log from 'electron-log';
+import { Effect } from 'effect';
 import { ModType, type ModData } from '../model';
 import type { SteamUGCDetails } from './steamworks';
 import { getModDetailsFromPath } from './mod-local-scan';
 import { createWorkshopPotentialMod, hasWorkshopModTag, populateWorkshopModMetadata } from './mod-workshop-metadata';
+import type { SteamPersonaCache } from './steam-persona-cache';
 import { applyWorkshopRuntimeState } from './workshop-actions';
 
 interface WorkshopModHydrationInput {
@@ -16,14 +18,14 @@ function logWorkshopMod(mod: ModData) {
 	log.silly(JSON.stringify(mod, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2));
 }
 
-export async function hydrateWorkshopMod({
+export const hydrateWorkshopMod = Effect.fnUntraced(function* ({
 	keepUnknownWorkshopItem = false,
 	onProgress,
 	steamUGCDetails,
 	workshopID
-}: WorkshopModHydrationInput): Promise<ModData | null> {
+}: WorkshopModHydrationInput): Effect.fn.Return<ModData | null, unknown, SteamPersonaCache> {
 	const potentialMod = createWorkshopPotentialMod(workshopID);
-	await populateWorkshopModMetadata(potentialMod, steamUGCDetails);
+	yield* populateWorkshopModMetadata(potentialMod, steamUGCDetails);
 
 	const runtimeState = applyWorkshopRuntimeState(potentialMod, { logger: log });
 	if (runtimeState.installedPath) {
@@ -31,17 +33,17 @@ export async function hydrateWorkshopMod({
 			potentialMod.needsUpdate = potentialMod.needsUpdate || potentialMod.lastWorkshopUpdate > potentialMod.lastUpdate;
 		}
 
-		try {
-			const resolvedMod = await getModDetailsFromPath(potentialMod, runtimeState.installedPath, ModType.WORKSHOP);
-			if (resolvedMod) {
-				logWorkshopMod(resolvedMod);
-				return resolvedMod;
-			}
-		} catch (error) {
-			log.error(`Error parsing mod info for workshop:${workshopID}`);
-			log.error(error);
-		} finally {
-			onProgress?.(1);
+		const resolvedMod = yield* getModDetailsFromPath(potentialMod, runtimeState.installedPath, ModType.WORKSHOP).pipe(
+			Effect.catch((error) => {
+				log.error(`Error parsing mod info for workshop:${workshopID}`);
+				log.error(error);
+				return Effect.succeed<ModData | null>(null);
+			}),
+			Effect.ensuring(Effect.sync(() => onProgress?.(1)))
+		);
+		if (resolvedMod) {
+			logWorkshopMod(resolvedMod);
+			return resolvedMod;
 		}
 
 		if (keepUnknownWorkshopItem) {
@@ -62,4 +64,4 @@ export async function hydrateWorkshopMod({
 
 	log.warn(`${potentialMod.workshopID} is NOT a valid mod`);
 	return null;
-}
+});

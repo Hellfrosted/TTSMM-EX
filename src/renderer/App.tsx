@@ -195,7 +195,8 @@ function MenuBarStageView({
 export function AppShell() {
 	const location = useLocation();
 	const [previewPathname, setPreviewPathname] = useReducer((_current: string | null, next: string | null) => next, null);
-	const committedPathnameRef = useRef(location.pathname);
+	const currentPathname = location.pathname;
+	const committedPathnameRef = useRef(currentPathname);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
 	const updateAppState = useAppStateSelector((state) => state.updateState);
 	const launchingGame = useAppStateSelector((state) => state.launchingGame);
@@ -208,13 +209,13 @@ export function AppShell() {
 	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
 	const initializedConfigsRef = useRef(initializedConfigs);
 	initializedConfigsRef.current = initializedConfigs;
-	const initialRouteKind = getAppRouteKind(location.pathname);
+	const initialRouteKind = getAppRouteKind(currentPathname);
 	const [mountedStages, setMountedStages] = useState({
 		blockLookup: initialRouteKind === 'block-lookup',
 		collections: initialRouteKind === 'collections',
 		settings: initialRouteKind === 'settings'
 	});
-	const effectivePathname = previewPathname ?? location.pathname;
+	const effectivePathname = previewPathname ?? currentPathname;
 	const appShell = createAppShellViewModel({
 		activeCollection,
 		configErrorCount,
@@ -265,12 +266,12 @@ export function AppShell() {
 	}, []);
 
 	useEffect(() => {
-		if (committedPathnameRef.current === location.pathname) {
+		if (committedPathnameRef.current === currentPathname) {
 			return;
 		}
-		committedPathnameRef.current = location.pathname;
+		committedPathnameRef.current = currentPathname;
 		setPreviewPathname(null);
-	}, [location.pathname]);
+	}, [currentPathname]);
 
 	useEffect(() => {
 		if (appShell.isLoadingRoute) {
@@ -308,7 +309,7 @@ export function AppShell() {
 	return (
 		<div className="AppLayout">
 			<aside className={`AppSidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Workspace navigation">
-				<div className="AppBrand" aria-label="TTSMM-EX">
+				<div className="AppBrand">
 					<span className="AppBrandMark" aria-hidden="true">
 						TX
 					</span>

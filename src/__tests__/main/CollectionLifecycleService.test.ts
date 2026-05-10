@@ -1,5 +1,6 @@
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Effect } from 'effect';
 import {
 	createAndActivateCollection,
 	deleteActiveCollection,
@@ -22,15 +23,17 @@ describe('collection lifecycle service', () => {
 	it('creates and activates a new collection while preserving dirty active edits', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
-		const result = runCollectionLifecycle(tempDir, {
-			type: 'create',
-			request: {
-				config: createTestAppConfig(),
-				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-				name: 'fresh',
-				mods: ['local:new']
-			}
-		});
+		const result = Effect.runSync(
+			runCollectionLifecycle(tempDir, {
+				type: 'create',
+				request: {
+					config: createTestAppConfig(),
+					dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+					name: 'fresh',
+					mods: ['local:new']
+				}
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -46,15 +49,15 @@ describe('collection lifecycle service', () => {
 	it('rejects invalid and duplicate collection names before writing', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: [] });
 
-		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: '..\\escape' })).toMatchObject({
+		expect(Effect.runSync(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: '..\\escape' }))).toMatchObject({
 			ok: false,
 			code: 'invalid-name'
 		});
-		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'default' })).toMatchObject({
+		expect(Effect.runSync(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'default' }))).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
-		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'Default' })).toMatchObject({
+		expect(Effect.runSync(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'Default' }))).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
@@ -64,11 +67,13 @@ describe('collection lifecycle service', () => {
 	it('duplicates and activates the active collection with the dirty mod selection', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
-		const result = duplicateAndActivateCollection(tempDir, {
-			config: createTestAppConfig(),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			name: 'copy'
-		});
+		const result = Effect.runSync(
+			duplicateAndActivateCollection(tempDir, {
+				config: createTestAppConfig(),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'copy'
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'copy')).toEqual({ name: 'copy', mods: ['local:dirty'] });
@@ -81,16 +86,18 @@ describe('collection lifecycle service', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 		writeTestCollection(tempDir, { name: 'existing', mods: [] });
 
-		expect(renameActiveCollection(tempDir, { config: createTestAppConfig(), name: 'existing' })).toMatchObject({
+		expect(Effect.runSync(renameActiveCollection(tempDir, { config: createTestAppConfig(), name: 'existing' }))).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
 
-		const result = renameActiveCollection(tempDir, {
-			config: createTestAppConfig(),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			name: 'renamed'
-		});
+		const result = Effect.runSync(
+			renameActiveCollection(tempDir, {
+				config: createTestAppConfig(),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'renamed'
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toBeNull();
@@ -101,7 +108,7 @@ describe('collection lifecycle service', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: [] });
 		writeTestCollection(tempDir, { name: 'archived', mods: ['local:a'] });
 
-		const result = deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }) });
+		const result = Effect.runSync(deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }) }));
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toBeNull();
@@ -109,7 +116,9 @@ describe('collection lifecycle service', () => {
 			expect(result.activeCollection).toEqual({ name: 'archived', mods: ['local:a'] });
 		}
 
-		const fallbackResult = deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'archived' }) });
+		const fallbackResult = Effect.runSync(
+			deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'archived' }) })
+		);
 
 		expect(fallbackResult.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'archived')).toBeNull();
@@ -123,11 +132,13 @@ describe('collection lifecycle service', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 		writeTestCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
 
-		const result = switchActiveCollection(tempDir, {
-			config: createTestAppConfig({ activeCollection: 'default' }),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			name: 'alt'
-		});
+		const result = Effect.runSync(
+			switchActiveCollection(tempDir, {
+				config: createTestAppConfig({ activeCollection: 'default' }),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'alt'
+			})
+		);
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:dirty'] });
