@@ -7,9 +7,9 @@ const supportedIncrementTypes = new Set(['patch', 'minor', 'major']);
 
 const printUsage = () => {
 	console.log(`Usage:
-  pnpm run bump -- patch
-  pnpm run bump -- minor
-  pnpm run bump -- major`);
+  pnpm run version:bump -- patch
+  pnpm run version:bump -- minor
+  pnpm run version:bump -- major`);
 };
 
 const git = (args: string[]) => {

@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { releaseAppNodeModulesPath, releaseAppPath, repoRoot, srcNodeModulesPath } from './lib/paths';
 
@@ -11,6 +12,7 @@ const greenworksEntrypointPath = path.join(greenworksPath, 'greenworks.js');
 const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
 const smokeWorkerPath = path.join(repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts');
+const v8ExternalPointerTag = 'v8::kExternalPointerTypeTagDefault';
 
 export const resolveSteamworksSdkPath = () => {
 	if (process.env.STEAMWORKS_SDK_PATH) {
@@ -161,6 +163,91 @@ function patchGreenworksWorkshopWorkerSource() {
 	}
 }
 
+function resolveGreenworksNanPath() {
+	if (!fs.existsSync(greenworksPath)) {
+		return undefined;
+	}
+
+	const realGreenworksPackageJsonPath = path.join(fs.realpathSync.native(greenworksPath), 'package.json');
+	const requireFromGreenworks = createRequire(realGreenworksPackageJsonPath);
+	const nanPackageJsonPath = requireFromGreenworks.resolve('nan/package.json');
+	return path.dirname(nanPackageJsonPath);
+}
+
+function replaceRequiredFileContent(targetPath: string, patch: (source: string) => string) {
+	if (!fs.existsSync(targetPath)) {
+		throw new Error(`Expected greenworks dependency file does not exist: ${targetPath}`);
+	}
+
+	const source = fs.readFileSync(targetPath, 'utf8');
+	const patchedSource = patch(source);
+
+	if (patchedSource !== source) {
+		fs.writeFileSync(targetPath, patchedSource);
+	}
+}
+
+function replaceKnownSource(source: string, targetPath: string, search: string, replacement: string) {
+	if (source.includes(replacement)) {
+		return source;
+	}
+
+	if (!source.includes(search)) {
+		throw new Error(`Could not find expected greenworks dependency source in ${targetPath}: ${search}`);
+	}
+
+	return source.replaceAll(search, replacement);
+}
+
+function patchGreenworksNanForV8ExternalPointerTags() {
+	const nanPath = resolveGreenworksNanPath();
+	if (!nanPath) {
+		return;
+	}
+
+	const nanHeaderPath = path.join(nanPath, 'nan.h');
+	const nanImplementationPath = path.join(nanPath, 'nan_implementation_12_inl.h');
+	const nanCallbacksPath = path.join(nanPath, 'nan_callbacks_12_inl.h');
+
+	replaceRequiredFileContent(nanHeaderPath, (source) => {
+		const compatDefine = [
+			'#if defined(_MSC_VER) && !defined(__clang__) && !defined(__builtin_frame_address)',
+			'# define __builtin_frame_address(level) nullptr',
+			'#endif',
+			''
+		].join('\n');
+
+		if (source.includes('# define __builtin_frame_address(level) nullptr')) {
+			return source;
+		}
+
+		if (!source.includes('#include <node_version.h>\n\n')) {
+			throw new Error(`Could not find expected node_version include in ${nanHeaderPath}`);
+		}
+
+		return source.replace('#include <node_version.h>\n\n', `#include <node_version.h>\n\n${compatDefine}`);
+	});
+
+	replaceRequiredFileContent(nanImplementationPath, (source) => {
+		const patchedFactorySource = replaceKnownSource(
+			source,
+			nanImplementationPath,
+			'v8::External::New(v8::Isolate::GetCurrent(), value)',
+			`v8::External::New(v8::Isolate::GetCurrent(), value, ${v8ExternalPointerTag})`
+		);
+		return replaceKnownSource(
+			patchedFactorySource,
+			nanImplementationPath,
+			'v8::External::New(isolate, reinterpret_cast<void *>(callback))',
+			`v8::External::New(isolate, reinterpret_cast<void *>(callback), ${v8ExternalPointerTag})`
+		);
+	});
+
+	replaceRequiredFileContent(nanCallbacksPath, (source) =>
+		replaceKnownSource(source, nanCallbacksPath, '.As<v8::External>()->Value())', `.As<v8::External>()->Value(${v8ExternalPointerTag}))`)
+	);
+}
+
 function patchGreenworksPythonCommand() {
 	if (process.platform === 'win32' || !fs.existsSync(greenworksBindingGypPath)) {
 		return;
@@ -251,6 +338,7 @@ export function setupSteamworksNativeDeps(steamworksSdkPath: string) {
 	stageSteamworksSdk(steamworksSdkPath);
 	patchGreenworksWorkshopWorkerSource();
 	patchGreenworksPythonCommand();
-	run('pnpm run electron-rebuild', { STEAMWORKS_SDK_PATH: greenworksSdkPath }, releaseAppPath);
+	patchGreenworksNanForV8ExternalPointerTags();
+	run('pnpm run rebuild:electron', { STEAMWORKS_SDK_PATH: greenworksSdkPath }, releaseAppPath);
 	linkModules();
 }

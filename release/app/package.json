@@ -11,9 +11,9 @@
     "url": "https://github.com/Hellfrosted/terratech-steam-mod-loader"
   },
   "scripts": {
-    "electron-rebuild": "node --import=tsx ../../scripts/electron-rebuild.ts",
-    "link-modules": "node --import=tsx ../../scripts/link-modules.ts",
-    "postinstall": "pnpm run electron-rebuild && pnpm run link-modules"
+    "rebuild:electron": "node --import=tsx ../../scripts/electron-rebuild.ts",
+    "link:modules": "node --import=tsx ../../scripts/link-modules.ts",
+    "postinstall": "pnpm run rebuild:electron && pnpm run link:modules"
   },
   "license": "MIT",
   "dependencies": {

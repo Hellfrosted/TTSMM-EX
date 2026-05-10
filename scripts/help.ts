@@ -15,7 +15,7 @@ type PackageScripts = {
 };
 
 const ignoredDirectories = new Set(['.git', 'node_modules']);
-const ignoredRelativeDirectories = new Set(['release/build']);
+const ignoredRelativeDirectories = new Set(['release/build', 'release/package-app']);
 
 const collectPackageJsonPaths = (directoryPath: string): string[] => {
 	const packageJsonPaths: string[] = [];

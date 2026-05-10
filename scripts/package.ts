@@ -11,6 +11,7 @@ type PublishMode = 'never' | 'onTagOrDraft';
 const builderCliPath = path.join(repoRoot, 'node_modules', 'electron-builder', 'cli.js');
 const releaseAppPath = path.join(repoRoot, 'release', 'app');
 const packageAppPath = path.join(repoRoot, 'release', 'package-app');
+const releaseAppGreenworksPath = path.join(releaseAppPath, 'node_modules', 'greenworks');
 const supportedPublishModes = new Set<PublishMode>(['never', 'onTagOrDraft']);
 const supportedLinuxTargets = new Set(['deb', 'pacman']);
 
@@ -107,6 +108,26 @@ const ensureReleaseAppDependencies = () => {
 	runPackageManager(['--dir', 'release/app', 'install', '--ignore-workspace', '--ignore-scripts']);
 };
 
+const assertSteamworksNativeDepsReady = () => {
+	ensureReleaseAppDependencies();
+	if (!fs.existsSync(path.join(releaseAppGreenworksPath, 'package.json'))) {
+		return;
+	}
+
+	const steamApiHeaderPath = path.join(releaseAppGreenworksPath, 'deps', 'steamworks_sdk', 'public', 'steam', 'steam_api.h');
+	if (fs.existsSync(steamApiHeaderPath)) {
+		return;
+	}
+
+	throw new Error(
+		[
+			'Steamworks SDK headers are missing from release/app Greenworks.',
+			'Run "pnpm run setup:steamworks" after configuring STEAMWORKS_SDK_PATH or .steamworks-sdk-path, then run packaging again.',
+			`Missing: ${path.relative(repoRoot, steamApiHeaderPath)}`
+		].join('\n')
+	);
+};
+
 const stagePackageApp = () => {
 	ensureReleaseAppDependencies();
 	const sourceNodeModulesPath = path.join(releaseAppPath, 'node_modules');
@@ -133,6 +154,10 @@ for (let index = 0; index < cliArgs.length; index += 1) {
 	if (arg === '--help') {
 		printUsage();
 		process.exit(0);
+	}
+
+	if (arg === '--') {
+		continue;
 	}
 
 	if (arg === '--publish') {
@@ -189,8 +214,9 @@ if (requiredPlatform === 'linux') {
 	throw new Error(`Unsupported platform "${requiredPlatform}".`);
 }
 
+assertSteamworksNativeDepsReady();
 cleanReleaseArtifacts();
-runPackageManager(['run', 'build:native:block-lookup']);
+runPackageManager(['run', 'build:block-lookup']);
 runPackageManager(['run', 'build']);
 if (publishMode === 'never' && !requiredPlatform) {
 	stagePackageApp();

@@ -54,10 +54,10 @@ Run the production desktop entrypoint from source:
 
 ```bash
 steam &
-pnpm run start:desktop
+pnpm start
 ```
 
-`start:desktop` builds the Rust Block Lookup extractor, builds the Electron app, and launches the production desktop entrypoint.
+`pnpm start` builds the Rust Block Lookup extractor, builds the Electron app, and launches the production desktop entrypoint.
 
 For frontend development with the Vite dev server:
 

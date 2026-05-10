@@ -17,7 +17,7 @@ const FORK_APP_ID = 'com.hellfrosted.ttsmmex';
 const ELECTRON_NODE_MODE_HINT = [
 	'Electron main-process APIs are unavailable.',
 	'This usually means ELECTRON_RUN_AS_NODE leaked into the launch environment.',
-	'Start the app with pnpm run dev or pnpm run start:desktop, or unset ELECTRON_RUN_AS_NODE before launching Electron directly.'
+	'Start the app with pnpm run dev or pnpm start, or unset ELECTRON_RUN_AS_NODE before launching Electron directly.'
 ].join(' ');
 
 class ApplicationLogging {

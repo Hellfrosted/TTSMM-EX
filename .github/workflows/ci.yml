@@ -32,17 +32,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Install Electron binary
+        run: pnpm exec install-electron
+
       - name: Lint
         run: pnpm run lint
 
       - name: Check dead code
-        run: pnpm run deadcode
+        run: pnpm run check:dead-code
 
       - name: Typecheck
         run: pnpm run typecheck
 
       - name: Test
-        run: pnpm test
+        run: pnpm run test
 
       - name: Upload Vitest report
         if: always()
@@ -107,6 +110,7 @@ jobs:
             TMP = Join-Path $fastRoot 'temp'
             npm_config_cache = Join-Path $fastRoot 'npm-cache'
             ELECTRON_CACHE = Join-Path $fastRoot 'electron-cache'
+            electron_config_cache = Join-Path $fastRoot 'electron-cache'
             ELECTRON_BUILDER_CACHE = Join-Path $fastRoot 'electron-builder-cache'
             CARGO_HOME = Join-Path $fastRoot 'cargo-home'
             CARGO_TARGET_DIR = Join-Path $fastRoot 'cargo-target'
@@ -137,6 +141,9 @@ jobs:
         if: runner.os == 'Windows'
         run: pnpm install --frozen-lockfile --prefer-offline --store-dir "$env:PNPM_STORE_DIR"
 
+      - name: Install Electron binary
+        run: pnpm exec install-electron
+
       - name: Install app runtime dependencies
         if: runner.os != 'Windows'
         run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts
@@ -144,6 +151,16 @@ jobs:
       - name: Install app runtime dependencies
         if: runner.os == 'Windows'
         run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux native build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential xvfb libnspr4 libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libgbm1 libasound2t64 ||
+            sudo apt-get install -y build-essential xvfb libnspr4 libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libgbm1 libasound2
 
       - name: Cache Cargo build
         if: runner.os != 'Windows'
@@ -170,7 +187,7 @@ jobs:
             ${{ runner.os }}-cargo-block-lookup-
 
       - name: Build native Block Lookup extractor
-        run: pnpm run build:native:block-lookup
+        run: pnpm run build:block-lookup
 
       - name: Build app
         run: pnpm run build

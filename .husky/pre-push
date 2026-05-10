@@ -17,4 +17,4 @@ if [ "$should_verify" = "0" ]; then
 	exit 0
 fi
 
-CI=true pnpm run verify:push
+CI=true pnpm run validate

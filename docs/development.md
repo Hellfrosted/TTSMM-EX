@@ -81,22 +81,19 @@ The pacman target needs `bsdtar`.
 
 - `pnpm run help`: list root and `release/app` package scripts
 - `pnpm run dev`: development app
-- `pnpm run start:desktop`: build and launch the production desktop entrypoint
-- `pnpm run build:native:block-lookup`: build and stage the Rust Block Lookup extractor
+- `pnpm start`: build and launch the production desktop entrypoint
+- `pnpm run build:block-lookup`: build and stage the Rust Block Lookup extractor
 - `pnpm run lint`: Biome formatting and lint check
 - `pnpm run lint:fix`: Biome formatting and lint autofix
-- `pnpm run nano-staged`: run staged-file checks for the pre-commit hook
-- `pnpm run fallow`: Fallow suite check for dead code, duplication, complexity, cycles, and architecture issues
-- `pnpm run fallow:dead-code`: Fallow unused files, exports, dependencies, cycles, and boundaries check
-- `pnpm run fallow:dupes`: Fallow duplication check
-- `pnpm run fallow:health`: Fallow complexity and maintainability check
-- `pnpm run fallow:audit`: Fallow changed-file audit for PR-sized review
-- `pnpm run deadcode`: legacy alias for `pnpm run fallow`
+- `pnpm run check:staged`: run staged-file checks for the pre-commit hook
+- `pnpm run check:dead-code`: Fallow unused files, exports, dependencies, cycles, and boundaries check
+- `pnpm run check:dupes`: Fallow duplication check
+- `pnpm run check:health`: Fallow complexity and maintainability check
+- `pnpm run check:audit`: Fallow changed-file audit for PR-sized review
 - `pnpm run typecheck`: TypeScript build check
-- `pnpm test`: Vitest
+- `pnpm run test`: Vitest
 - `pnpm run build`: build main, preload, and renderer
-- `pnpm run validate`: lint, Fallow suite check, typecheck, tests, and build
-- `pnpm run verify:push`: pre-push gate for `main`; currently aliases `pnpm run validate`
+- `pnpm run validate`: lint, dead-code check, typecheck, tests, and build
 - `pnpm audit --audit-level=moderate`: dependency security audit
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `pnpm run setup:steamworks`: stage the SDK and rebuild native dependencies
@@ -104,21 +101,21 @@ The pacman target needs `bsdtar`.
 - `pnpm run smoke:ui`: build, then run the GUI smoke test with isolated user data
 - `pnpm run smoke:ui:built`: GUI smoke test against the existing `release/app/dist` build
 - `pnpm run smoke:ui:packaged`: packaged-app GUI smoke test with isolated user data
-- `pnpm run rebuild`: rebuild native Electron dependencies in `release/app`
+- `pnpm run rebuild:electron`: rebuild native Electron dependencies in `release/app`
 - `pnpm run package`: package for the current platform default target
 - `pnpm run package:linux`: build both Linux package formats
 - `pnpm run package:linux -- deb`: build the Debian package
 - `pnpm run package:linux -- pacman`: build the pacman package
 - `pnpm run publish`: package for tag or draft publishing
-- `pnpm run bump -- patch`: patch version bump
-- `pnpm run bump -- minor`: minor version bump
-- `pnpm run bump -- major`: major version bump
+- `pnpm run version:bump -- patch`: patch version bump
+- `pnpm run version:bump -- minor`: minor version bump
+- `pnpm run version:bump -- major`: major version bump
 
 ## Local Push Gate
 
-Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run verify:push` with `CI=true`. This catches the same lint, Fallow, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
+Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` with `CI=true`. This catches the same lint, dead-code, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
 
-For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run verify:push` before relying on the pushed commit.
+For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run validate` before relying on the pushed commit.
 
 ## Reference Links
 
