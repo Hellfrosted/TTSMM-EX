@@ -3,7 +3,7 @@
 	"main": "./release/app/dist/main/main.js",
 	"productName": "TerraTech Steam Mod Manager EX",
 	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"scripts": {
 		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && electron-vite dev",
 		"start": "npm run dev",
