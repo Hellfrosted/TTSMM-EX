@@ -85,6 +85,21 @@ function readString(value: unknown) {
 	return typeof value === 'string' ? value : undefined;
 }
 
+function readStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const strings = [
+		...new Set(
+			value
+				.map(readString)
+				.filter((entry): entry is string => !!entry?.trim())
+				.map((entry) => entry.trim())
+		)
+	];
+	return strings.length ? strings : undefined;
+}
+
 function readPositiveNumber(value: unknown) {
 	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
@@ -171,6 +186,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 	const spawnCommand = readString(indexRecord.spawnCommand);
 	const fallbackSpawnCommand = readString(indexRecord.fallbackSpawnCommand);
 	const previewBounds = normalizeBlockLookupPreviewBounds(indexRecord.previewBounds);
+	const previewAssetNames = readStringArray(indexRecord.previewAssetNames);
 	const renderedPreview = normalizeBlockLookupRenderedPreview(indexRecord.renderedPreview);
 
 	if (
@@ -198,6 +214,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 		sourceKind,
 		sourcePath,
 		previewBounds,
+		...(previewAssetNames ? { previewAssetNames } : {}),
 		...(renderedPreview ? { renderedPreview } : {}),
 		preferredAlias,
 		fallbackAlias,

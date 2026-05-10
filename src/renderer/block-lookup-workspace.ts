@@ -328,6 +328,13 @@ function createInitialBlockLookupIndexProgress(): BlockLookupIndexProgress {
 	};
 }
 
+function formatBlockLookupIndexProgressDetail(progress: BlockLookupIndexProgress): string {
+	if ((progress.phase === 'indexing-sources' || progress.phase === 'extracting-rendered-previews') && progress.total > 0) {
+		return `${progress.phaseLabel} (${progress.completed}/${progress.total} sources)`;
+	}
+	return progress.phaseLabel;
+}
+
 function createBlockLookupIndexRunProgressStatus(
 	forceRebuild: boolean,
 	progress = createInitialBlockLookupIndexProgress()
@@ -335,7 +342,7 @@ function createBlockLookupIndexRunProgressStatus(
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
 	return {
 		actionLabel,
-		detail: progress.phaseLabel,
+		detail: formatBlockLookupIndexProgressDetail(progress),
 		phase: 'running',
 		progress,
 		title: `${actionLabel} running`

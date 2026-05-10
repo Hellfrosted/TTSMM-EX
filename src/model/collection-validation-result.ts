@@ -145,6 +145,9 @@ export function getValidationIssueList(errors: CollectionErrors | undefined, mod
 					`Missing dependencies: ${modErrors.missingDependencies.map((descriptor) => getModDescriptorDisplayName(descriptor)).join(', ')}`
 				);
 			}
+			if (modErrors.unknownWorkshopDependencies) {
+				issues.push('Workshop dependency metadata unknown');
+			}
 			if (modErrors.incompatibleMods?.length) {
 				issues.push(
 					`Conflicts with: ${modErrors.incompatibleMods.map((conflictingUid) => getByUID(mods, conflictingUid)?.name || conflictingUid).join(', ')}`
@@ -180,6 +183,7 @@ function hasModErrors(errors: ModErrors) {
 		!!errors.notSubscribed ||
 		!!errors.notInstalled ||
 		!!errors.needsUpdate ||
+		!!errors.unknownWorkshopDependencies ||
 		!!errors.missingDependencies?.length ||
 		!!errors.incompatibleMods?.length
 	);
@@ -223,6 +227,9 @@ export function getCollectionStatusTags({ lastValidationStatus, record, selected
 		}
 		if (record.errors.missingDependencies?.length) {
 			stateTags.push({ text: 'Missing dependencies', tone: 'warning', rank: 2 });
+		}
+		if (record.errors.unknownWorkshopDependencies) {
+			stateTags.push({ text: 'Dependencies unknown', tone: 'warning', rank: 3 });
 		}
 		if (record.errors.notSubscribed) {
 			stateTags.push({ text: 'Not subscribed', tone: 'warning', rank: 4 });
@@ -296,7 +303,8 @@ export function createCollectionValidationResultPolicy(errors: CollectionErrors,
 
 	Object.values(effectiveErrors).forEach((modErrors) => {
 		hasBlockingErrors ||= !!modErrors.invalidId || !!modErrors.incompatibleMods?.length || !!modErrors.missingDependencies?.length;
-		hasWarnings ||= !!modErrors.notSubscribed || !!modErrors.notInstalled || !!modErrors.needsUpdate;
+		hasWarnings ||=
+			!!modErrors.notSubscribed || !!modErrors.notInstalled || !!modErrors.needsUpdate || !!modErrors.unknownWorkshopDependencies;
 	});
 
 	return {

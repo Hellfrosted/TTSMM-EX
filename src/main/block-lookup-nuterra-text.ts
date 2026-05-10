@@ -6,6 +6,8 @@ import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 const NAME_RE = /"Name"\s*:\s*"([^"]+)"/i;
 const ID_RE = /"ID"\s*:\s*(\d+)/i;
 const UNITY_NAME_RE = /"m_Name"\s*:\s*"([^"]+)"/i;
+const ICON_NAME_RE = /"IconName"\s*:\s*"([^"]+)"/i;
+const MESH_NAME_RE = /"MeshName"\s*:\s*"([^"]+)"/i;
 const BLOCK_EXTENTS_RE = /"BlockExtents"\s*:\s*\{([\s\S]*?)\}/i;
 const BUNDLE_SCAN_CONTEXT_CHARS = 8192;
 
@@ -14,6 +16,7 @@ export interface ExtractedTextBlock {
 	blockId: string;
 	internalName: string;
 	previewBounds?: BlockLookupPreviewBounds;
+	previewAssetNames?: string[];
 }
 
 export interface BlockLookupTextAsset {
@@ -63,6 +66,25 @@ function parseBlockLookupPreviewBounds(text: string): BlockLookupPreviewBounds |
 	return x && y && z ? { x, y, z } : undefined;
 }
 
+function createPreviewAssetNameCandidates(value: string | undefined): string[] {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return [];
+	}
+	const fileName = path.basename(trimmed.replace(/\\/g, '/'));
+	const stem = fileName ? fileName.slice(0, fileName.length - path.extname(fileName).length) : '';
+	return [...new Set([trimmed, fileName, stem].filter(Boolean))];
+}
+
+function parseBlockLookupPreviewAssetNames(text: string): string[] | undefined {
+	const names = [
+		...createPreviewAssetNameCandidates(ICON_NAME_RE.exec(text)?.[1]),
+		...createPreviewAssetNameCandidates(MESH_NAME_RE.exec(text)?.[1])
+	];
+	const uniqueNames = [...new Set(names)];
+	return uniqueNames.length ? uniqueNames : undefined;
+}
+
 function hasNamelessNuterraBlockShape(text: string): boolean {
 	return /"NuterraBlock"\s*:\s*\{/i.test(text);
 }
@@ -88,6 +110,7 @@ export function createBlockLookupRecord(
 		sourceKind: source.sourceKind,
 		sourcePath: source.sourcePath,
 		previewBounds: block.previewBounds,
+		...(block.previewAssetNames?.length ? { previewAssetNames: block.previewAssetNames } : {}),
 		preferredAlias: aliases.preferredAlias,
 		fallbackAlias: aliases.fallbackAlias,
 		spawnCommand: `SpawnBlock ${aliases.preferredAlias}`,
@@ -101,12 +124,14 @@ function parseNuterraBlockText(text: string, fallbackInternalName: string): Extr
 	if (!name) {
 		return null;
 	}
+	const previewAssetNames = parseBlockLookupPreviewAssetNames(text);
 
 	return {
 		blockName: name,
 		blockId: ID_RE.exec(text)?.[1] || '',
 		internalName: UNITY_NAME_RE.exec(text)?.[1]?.trim() || fallbackInternalName,
-		previewBounds: parseBlockLookupPreviewBounds(text)
+		previewBounds: parseBlockLookupPreviewBounds(text),
+		...(previewAssetNames ? { previewAssetNames } : {})
 	};
 }
 

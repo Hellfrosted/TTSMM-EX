@@ -1,7 +1,10 @@
-import type { AppConfig } from 'model/AppConfig';
+import { NLogLevel, type AppConfig } from 'model/AppConfig';
 import { ModErrorType } from 'model/CollectionValidation';
 import type { ModDataOverride } from 'model/Mod';
-import { DEFAULT_COLLECTIONS_PATH } from 'shared/app-route-policy';
+import { DEFAULT_COLLECTIONS_PATH, getStoredViewPath } from 'shared/app-route-policy';
+import { normalizeBlockLookupViewConfig } from 'shared/block-lookup-view-config';
+import { LogLevel } from 'shared/ipc';
+import { normalizeMainCollectionConfig } from 'shared/main-collection-view-config';
 
 export const DEFAULT_WORKSHOP_ID = BigInt(2790161231);
 
@@ -38,8 +41,23 @@ function normalizeIgnoredValidationErrors(value: unknown): AppConfig['ignoredVal
 	}
 
 	const convertedMap: AppConfig['ignoredValidationErrors'] = new Map();
-	Object.entries(value as Record<string, { [uid: string]: string[] }>).forEach(([key, ignoredErrors]) => {
-		convertedMap.set(parseInt(key, 10) as ModErrorType, ignoredErrors);
+	Object.entries(value as Record<string, unknown>).forEach(([key, ignoredErrors]) => {
+		const errorType = Number(key);
+		if (!Number.isInteger(errorType) || !Object.values(ModErrorType).includes(errorType)) {
+			return;
+		}
+		if (!ignoredErrors || typeof ignoredErrors !== 'object' || Array.isArray(ignoredErrors)) {
+			return;
+		}
+		const ignoredByUid = Object.fromEntries(
+			Object.entries(ignoredErrors as Record<string, unknown>)
+				.filter((entry): entry is [string, string[]] => typeof entry[0] === 'string' && Array.isArray(entry[1]))
+				.map(([uid, ignoredIds]) => [uid, ignoredIds.filter((ignoredId): ignoredId is string => typeof ignoredId === 'string')])
+				.filter(([, ignoredIds]) => ignoredIds.length > 0)
+		);
+		if (Object.keys(ignoredByUid).length > 0) {
+			convertedMap.set(errorType as ModErrorType, ignoredByUid);
+		}
 	});
 	return convertedMap;
 }
@@ -52,7 +70,53 @@ function normalizeUserOverrides(value: unknown): AppConfig['userOverrides'] {
 		return new Map();
 	}
 
-	return new Map(Object.entries(value as Record<string, ModDataOverride>));
+	const overrides = Object.entries(value as Record<string, unknown>)
+		.map(([uid, override]) => {
+			if (!override || typeof override !== 'object' || Array.isArray(override)) {
+				return undefined;
+			}
+			const overrideRecord = override as Record<string, unknown>;
+			const normalizedOverride: ModDataOverride = {
+				...(typeof overrideRecord.id === 'string' ? { id: overrideRecord.id } : {}),
+				...(Array.isArray(overrideRecord.tags) ? { tags: overrideRecord.tags.filter((tag): tag is string => typeof tag === 'string') } : {})
+			};
+			return Object.keys(normalizedOverride).length > 0 ? ([uid, normalizedOverride] as const) : undefined;
+		})
+		.filter((entry): entry is readonly [string, ModDataOverride] => !!entry);
+	return new Map(overrides);
+}
+
+function normalizeLogParams(value: unknown): AppConfig['logParams'] {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const entries = Object.entries(value as Record<string, unknown>).filter(
+		(entry): entry is [string, NLogLevel] => typeof entry[0] === 'string' && Object.values(NLogLevel).includes(entry[1] as NLogLevel)
+	);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function normalizeLogLevel(value: unknown): AppConfig['logLevel'] {
+	return Object.values(LogLevel).includes(value as LogLevel) ? (value as LogLevel) : undefined;
+}
+
+function normalizeViewConfigs(value: unknown): AppConfig['viewConfigs'] {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return {};
+	}
+	const viewConfigs = value as Record<string, unknown>;
+	const mainConfig =
+		viewConfigs.main && typeof viewConfigs.main === 'object' && !Array.isArray(viewConfigs.main)
+			? normalizeMainCollectionConfig(viewConfigs.main)
+			: undefined;
+	const blockLookupConfig =
+		viewConfigs.blockLookup && typeof viewConfigs.blockLookup === 'object' && !Array.isArray(viewConfigs.blockLookup)
+			? normalizeBlockLookupViewConfig(viewConfigs.blockLookup)
+			: undefined;
+	return {
+		...(mainConfig && Object.keys(mainConfig).length > 0 ? { main: mainConfig } : {}),
+		...(blockLookupConfig && Object.keys(blockLookupConfig).length > 0 ? { blockLookup: blockLookupConfig } : {})
+	} as AppConfig['viewConfigs'];
 }
 
 export function createDefaultAppConfig(platform: string): AppConfig {
@@ -87,15 +151,21 @@ export function normalizeAppConfig(value: Partial<AppConfig> | Record<string, un
 		...config,
 		closeOnLaunch: typeof config.closeOnLaunch === 'boolean' ? config.closeOnLaunch : defaults.closeOnLaunch,
 		language: typeof config.language === 'string' ? config.language : defaults.language,
+		localDir: typeof config.localDir === 'string' ? config.localDir : undefined,
 		gameExec: typeof config.gameExec === 'string' ? config.gameExec : defaults.gameExec,
 		workshopID: toWorkshopId(config.workshopID, defaults.workshopID),
+		activeCollection: typeof config.activeCollection === 'string' && config.activeCollection.trim() ? config.activeCollection : undefined,
+		extraParams: typeof config.extraParams === 'string' ? config.extraParams : undefined,
+		logParams: normalizeLogParams(config.logParams),
+		logLevel: normalizeLogLevel(config.logLevel),
+		pureVanilla: typeof config.pureVanilla === 'boolean' ? config.pureVanilla : undefined,
 		logsDir: typeof config.logsDir === 'string' ? config.logsDir : defaults.logsDir,
 		steamMaxConcurrency:
 			typeof config.steamMaxConcurrency === 'number' && Number.isInteger(config.steamMaxConcurrency) && config.steamMaxConcurrency > 0
 				? config.steamMaxConcurrency
 				: defaults.steamMaxConcurrency,
-		currentPath: typeof config.currentPath === 'string' ? config.currentPath : defaults.currentPath,
-		viewConfigs: config.viewConfigs && typeof config.viewConfigs === 'object' ? (config.viewConfigs as AppConfig['viewConfigs']) : {},
+		currentPath: typeof config.currentPath === 'string' ? getStoredViewPath(config.currentPath) : defaults.currentPath,
+		viewConfigs: normalizeViewConfigs(config.viewConfigs),
 		ignoredValidationErrors: normalizeIgnoredValidationErrors(config.ignoredValidationErrors),
 		userOverrides: normalizeUserOverrides(config.userOverrides),
 		treatNuterraSteamBetaAsEquivalent:

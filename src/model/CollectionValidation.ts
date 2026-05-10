@@ -11,6 +11,7 @@ export interface ModErrors {
 	notInstalled?: boolean;
 	needsUpdate?: boolean;
 	invalidId?: boolean;
+	unknownWorkshopDependencies?: boolean;
 	missingDependencies?: ModDescriptor[];
 	incompatibleMods?: string[];
 }

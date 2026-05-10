@@ -1,8 +1,11 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import log from 'electron-log';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
+
+const EXTRACTOR_SOURCE_BATCH_SIZE = 1;
 
 interface ExtractorFileResult {
 	sourcePath: string;
@@ -16,12 +19,13 @@ interface ExtractorOutput {
 	files: ExtractorFileResult[];
 }
 
-interface BlockLookupBundleTextAssetOptions {
+interface BlockLookupBundleExtractionOptions {
 	extractorPath?: string | null;
 	previewCacheDir?: string;
+	previewMatchNames?: readonly string[];
 }
 
-export interface BlockLookupBundleTextAssetExtractionOutcome {
+export interface BlockLookupBundleExtractionOutcome {
 	issues: string[];
 	previewAssets: BlockLookupBundlePreviewAsset[];
 	sourcePath: string;
@@ -101,7 +105,15 @@ function parseExtractorOutput(stdout: string): ExtractorOutput {
 	};
 }
 
-function runBundleTextAssetExtractor(extractorPath: string, sourcePaths: readonly string[], options: BlockLookupBundleTextAssetOptions) {
+interface BlockLookupBundleExtractionRunOptions extends BlockLookupBundleExtractionOptions {
+	previewMatchNamesFile?: string;
+}
+
+function runBlockLookupBundleExtractor(
+	extractorPath: string,
+	sourcePaths: readonly string[],
+	options: BlockLookupBundleExtractionRunOptions
+) {
 	return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
 		childProcess.execFile(
 			extractorPath,
@@ -110,7 +122,8 @@ function runBundleTextAssetExtractor(extractorPath: string, sourcePaths: readonl
 				encoding: 'utf8',
 				env: {
 					...process.env,
-					...(options.previewCacheDir ? { TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: options.previewCacheDir } : {})
+					...(options.previewCacheDir ? { TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: options.previewCacheDir } : {}),
+					...(options.previewMatchNamesFile ? { TTSMM_BLOCK_LOOKUP_PREVIEW_MATCH_NAMES_FILE: options.previewMatchNamesFile } : {})
 				},
 				maxBuffer: 64 * 1024 * 1024,
 				timeout: 120000,
@@ -130,22 +143,54 @@ function runBundleTextAssetExtractor(extractorPath: string, sourcePaths: readonl
 	});
 }
 
-export async function extractBundleTextAssetOutcomes(
+function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | undefined): { directory: string; filePath: string } | null {
+	const uniqueNames = [...new Set((previewMatchNames ?? []).map((name) => name.trim()).filter(Boolean))];
+	if (!uniqueNames.length) {
+		return null;
+	}
+	const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ttsmm-block-lookup-preview-match-'));
+	const filePath = path.join(directory, 'names.txt');
+	fs.writeFileSync(filePath, uniqueNames.join('\n'), 'utf8');
+	return { directory, filePath };
+}
+
+function createExtractorSourceBatches(sourcePaths: readonly string[]): string[][] {
+	const batches: string[][] = [];
+	for (let index = 0; index < sourcePaths.length; index += EXTRACTOR_SOURCE_BATCH_SIZE) {
+		batches.push(sourcePaths.slice(index, index + EXTRACTOR_SOURCE_BATCH_SIZE));
+	}
+	return batches;
+}
+
+export async function extractBlockLookupBundleOutcomes(
 	sourcePaths: readonly string[],
-	options: BlockLookupBundleTextAssetOptions = {}
-): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> {
+	options: BlockLookupBundleExtractionOptions = {}
+): Promise<Map<string, BlockLookupBundleExtractionOutcome>> {
 	const extractorPath = options.extractorPath === undefined ? findBlockLookupExtractorPath() : options.extractorPath;
 	if (!extractorPath) {
 		throw new Error('Block Lookup native extractor is unavailable.');
 	}
 
 	try {
-		const { stdout, stderr } = await runBundleTextAssetExtractor(extractorPath, sourcePaths, options);
-		if (stderr.trim()) {
-			log.warn(`Block Lookup native extractor stderr: ${stderr.trim()}`);
+		const previewMatchNamesFile = createPreviewMatchNamesFile(options.previewMatchNames);
+		const outputs: ExtractorOutput[] = [];
+		try {
+			for (const batch of createExtractorSourceBatches(sourcePaths)) {
+				const { stdout, stderr } = await runBlockLookupBundleExtractor(extractorPath, batch, {
+					...options,
+					...(previewMatchNamesFile ? { previewMatchNamesFile: previewMatchNamesFile.filePath } : {})
+				});
+				if (stderr.trim()) {
+					log.warn(`Block Lookup native extractor stderr: ${stderr.trim()}`);
+				}
+				outputs.push(parseExtractorOutput(stdout));
+			}
+		} finally {
+			if (previewMatchNamesFile) {
+				fs.rmSync(previewMatchNamesFile.directory, { force: true, recursive: true });
+			}
 		}
-		const output = parseExtractorOutput(stdout);
-		const results = new Map<string, BlockLookupBundleTextAssetExtractionOutcome>();
+		const results = new Map<string, BlockLookupBundleExtractionOutcome>();
 		sourcePaths.forEach((sourcePath) =>
 			results.set(sourcePath, {
 				issues: ['Block Lookup native extractor did not return a result for this source.'],
@@ -155,19 +200,21 @@ export async function extractBundleTextAssetOutcomes(
 				textAssets: []
 			})
 		);
-		output.files.forEach((file) => {
-			if (file.errors.length) {
-				log.warn(`Block Lookup native extractor reported issues for ${file.sourcePath}: ${file.errors.join('; ')}`);
-			}
-			const issues = file.errors;
-			results.set(file.sourcePath, {
-				issues,
-				previewAssets: file.previewAssets,
-				sourcePath: file.sourcePath,
-				status: issues.length ? 'issue' : 'success',
-				textAssets: file.textAssets
+		outputs
+			.flatMap((output) => output.files)
+			.forEach((file) => {
+				if (file.errors.length) {
+					log.warn(`Block Lookup native extractor reported issues for ${file.sourcePath}: ${file.errors.join('; ')}`);
+				}
+				const issues = file.errors;
+				results.set(file.sourcePath, {
+					issues,
+					previewAssets: file.previewAssets,
+					sourcePath: file.sourcePath,
+					status: issues.length ? 'issue' : 'success',
+					textAssets: file.textAssets
+				});
 			});
-		});
 		return results;
 	} catch (error) {
 		log.warn('Block Lookup native extractor failed.');
@@ -178,8 +225,8 @@ export async function extractBundleTextAssetOutcomes(
 
 export async function extractBundleTextAssets(
 	sourcePaths: readonly string[],
-	options: BlockLookupBundleTextAssetOptions = {}
+	options: BlockLookupBundleExtractionOptions = {}
 ): Promise<Map<string, BlockLookupTextAsset[]>> {
-	const outcomes = await extractBundleTextAssetOutcomes(sourcePaths, options);
+	const outcomes = await extractBlockLookupBundleOutcomes(sourcePaths, options);
 	return new Map([...outcomes].map(([sourcePath, outcome]) => [sourcePath, outcome.textAssets]));
 }

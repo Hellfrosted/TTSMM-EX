@@ -13,6 +13,7 @@ import {
 	getCollectionLifecycleDirtyDraft,
 	getCollectionValidationCompletionDecision,
 	getCollectionValidationPersistenceDecision,
+	getCollectionValidationRunCompletionEffects,
 	getLoadedModsValidationDecision,
 	getPendingDraftValidationDecision,
 	reduceCollectionWorkspaceWorkflow,
@@ -23,7 +24,7 @@ import {
 	type CollectionWorkspaceValidationResult,
 	type LaunchReadinessBlocker
 } from '../../renderer/collection-workspace-session';
-import { ModErrorType, type CollectionErrors, type ModCollection } from '../../model';
+import { CollectionManagerModalType, ModErrorType, type CollectionErrors, type ModCollection } from '../../model';
 
 const summary = {
 	affectedMods: 0,
@@ -532,6 +533,41 @@ describe('collection-workspace-session', () => {
 		).toEqual({
 			action: 'discard-stale-result'
 		});
+	});
+
+	it('plans validation run completion effects for stale results, failures, persistence, and launch continuation', () => {
+		const activeCollection = collection(['local:a']);
+		const successfulResult = validationResult(activeCollection);
+
+		expect(getCollectionValidationRunCompletionEffects({ type: 'missing-active-collection' }, true)).toEqual([
+			{ type: 'launch-empty-mod-list' }
+		]);
+		expect(
+			getCollectionValidationRunCompletionEffects(
+				{
+					type: 'recorded-and-ready-to-launch-current-draft',
+					launchCollection: activeCollection,
+					validationResult: successfulResult
+				},
+				true
+			)
+		).toEqual([{ type: 'launch-current-draft', launchCollection: activeCollection }]);
+		expect(
+			getCollectionValidationRunCompletionEffects(
+				{
+					type: 'recorded-failed-result',
+					modalType: CollectionManagerModalType.ERRORS_FOUND,
+					validationResult: validationResult(activeCollection, false)
+				},
+				true
+			)
+		).toEqual([{ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND }]);
+		expect(
+			getCollectionValidationRunCompletionEffects({ type: 'discarded-stale-result', validationResult: successfulResult }, true)
+		).toEqual([{ type: 'clear-launching-game' }]);
+		expect(
+			getCollectionValidationRunCompletionEffects({ type: 'recorded-current-result', validationResult: successfulResult }, false)
+		).toEqual([]);
 	});
 
 	it('sets enabled draft mods while forcing Mod Manager to stay enabled', () => {

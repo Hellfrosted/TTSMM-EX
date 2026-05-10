@@ -149,6 +149,118 @@ describe('config handlers', () => {
 		expect(config?.userOverrides).toBeInstanceOf(Map);
 	});
 
+	it('repairs malformed persisted config fields at the app config boundary', () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				activeCollection: '',
+				closeOnLaunch: 'yes',
+				currentPath: '/loading/mods',
+				gameExec: 42,
+				ignoredValidationErrors: {
+					[ModErrorType.INVALID_ID]: {
+						'local:broken': ['BrokenId', 123],
+						'local:empty': []
+					},
+					notAnErrorType: {
+						'local:ignored': ['Ignored']
+					}
+				},
+				localDir: 42,
+				logParams: {
+					Core: 'debug',
+					Bad: 'verbose'
+				},
+				logLevel: 'trace',
+				pureVanilla: 'false',
+				userOverrides: {
+					'local:override': {
+						id: 'OverrideId',
+						tags: ['utility', 7]
+					},
+					'local:empty': {}
+				},
+				viewConfigs: {
+					blockLookup: {
+						columnActiveConfig: {
+							blockName: false,
+							Legacy: false
+						},
+						columnOrder: ['Legacy', 'blockName', 'blockName', 'preview'],
+						columnWidthConfig: {
+							modTitle: 177,
+							Legacy: 999,
+							preview: null
+						},
+						smallRows: true
+					},
+					main: {
+						columnActiveConfig: {
+							Name: false,
+							ID: false,
+							Legacy: false
+						},
+						columnOrder: ['Legacy', 'ID', 'ID', 'Name'],
+						columnWidthConfig: {
+							Name: 288,
+							ID: 10,
+							'Workshop Update': 10,
+							Legacy: 999
+						},
+						detailsOverlayHeight: 99,
+						detailsOverlayWidth: 111,
+						smallRows: 'yes'
+					},
+					unknown: { ignored: true }
+				},
+				workshopID: '0'
+			}),
+			'utf8'
+		);
+
+		expect(readConfigFile(configPath, true)).toEqual(
+			expect.objectContaining({
+				activeCollection: undefined,
+				closeOnLaunch: false,
+				currentPath: '/collections/main',
+				gameExec: '',
+				ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:broken': ['BrokenId'] }]]),
+				localDir: undefined,
+				logParams: { Core: 'debug' },
+				logLevel: undefined,
+				pureVanilla: undefined,
+				userOverrides: new Map([['local:override', { id: 'OverrideId', tags: ['utility'] }]]),
+				viewConfigs: {
+					blockLookup: {
+						columnActiveConfig: {
+							blockName: false
+						},
+						columnOrder: ['blockName', 'preview'],
+						columnWidthConfig: {
+							modTitle: 177
+						},
+						smallRows: true
+					},
+					main: {
+						columnActiveConfig: {
+							ID: false
+						},
+						columnOrder: ['ID', 'Name'],
+						columnWidthConfig: {
+							ID: 50,
+							'Workshop Update': 154
+						},
+						detailsOverlayHeight: 220,
+						detailsOverlayWidth: 360
+					}
+				},
+				workshopID: BigInt(2790161231)
+			})
+		);
+	});
+
 	it('preserves explicit NuterraSteam compatibility opt-out when loading config files', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');

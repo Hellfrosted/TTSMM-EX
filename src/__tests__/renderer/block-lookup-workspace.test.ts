@@ -215,7 +215,7 @@ describe('block-lookup-workspace', () => {
 
 		expect(progressedState.indexRunStatus).toEqual({
 			actionLabel: 'Full rebuild',
-			detail: 'Extracting block records',
+			detail: 'Extracting block records (3/6 sources)',
 			phase: 'running',
 			progress,
 			title: 'Full rebuild running'

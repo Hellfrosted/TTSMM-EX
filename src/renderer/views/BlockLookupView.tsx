@@ -425,6 +425,7 @@ function getBlockLookupBusyState(buildingIndex: boolean): BlockLookupBusyState {
 
 function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndexRunStatus }) {
 	const Icon = status.phase === 'success' ? CheckCircle2 : status.phase === 'error' ? AlertTriangle : RefreshCw;
+	const progressActive = status.phase === 'running' && !!status.progress && status.progress.percent < 100;
 	return (
 		<div className={`BlockLookupIndexRunStatus BlockLookupIndexRunStatus--${status.phase}`} role="status" aria-live="polite">
 			<Icon className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
@@ -433,11 +434,12 @@ function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndex
 				<span>{status.detail}</span>
 			</div>
 			{status.progress ? (
-				<div className="BlockLookupIndexProgress">
+				<div className={`BlockLookupIndexProgress${progressActive ? ' BlockLookupIndexProgress--active' : ''}`}>
 					<div
 						className="BlockLookupIndexProgressTrack"
 						role="progressbar"
 						aria-label="Block Lookup index progress"
+						aria-busy={progressActive}
 						aria-valuemin={0}
 						aria-valuemax={100}
 						aria-valuenow={status.progress.percent}

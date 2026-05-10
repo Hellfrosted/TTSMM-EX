@@ -39,7 +39,11 @@ export function blockLookupColumnsToConfig(columns: BlockLookupColumnConfig[], s
 	}, {});
 	const columnWidthConfig = uniqueColumns.reduce<Record<string, number>>((config, column) => {
 		if (defaultColumnKeySet.has(column.key) && typeof column.width === 'number') {
-			config[column.key] = Math.max(column.minWidth, Math.round(column.width));
+			const width = Math.max(column.minWidth, Math.round(column.width));
+			const defaultColumn = defaultColumnByKey.get(column.key)!;
+			if (width !== defaultColumn.defaultWidth) {
+				config[column.key] = width;
+			}
 		}
 		return config;
 	}, {});

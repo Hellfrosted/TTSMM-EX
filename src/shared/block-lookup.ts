@@ -1,4 +1,4 @@
-export const BLOCK_LOOKUP_INDEX_VERSION = 4;
+export const BLOCK_LOOKUP_INDEX_VERSION = 6;
 export const BLOCK_LOOKUP_SEARCH_RESULT_LIMIT = 1000;
 export { TERRATECH_STEAM_APP_ID } from './terratech';
 
@@ -33,6 +33,7 @@ export interface BlockLookupRecord {
 	sourceKind: BlockLookupSourceKind;
 	sourcePath: string;
 	previewBounds?: BlockLookupPreviewBounds;
+	previewAssetNames?: string[];
 	renderedPreview?: BlockLookupRenderedPreview;
 	preferredAlias: string;
 	fallbackAlias: string;
@@ -79,6 +80,7 @@ export type BlockLookupIndexProgressPhase =
 	| 'planning'
 	| 'scanning-sources'
 	| 'indexing-sources'
+	| 'extracting-rendered-previews'
 	| 'finalizing'
 	| 'writing-index'
 	| 'complete';

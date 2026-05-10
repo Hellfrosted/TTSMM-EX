@@ -8,7 +8,8 @@ import {
 	extractNuterraBlocksFromText,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
-import { extractBundleTextAssetOutcomes, extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
+import { extractBlockLookupBundleOutcomes, extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
+import { loadBlockpediaVanillaPreviewAssets, parseBlockpediaPreviewEntries } from '../../main/block-lookup-blockpedia-previews';
 import { createBlockLookupBundleSourceExtractionAdapter } from '../../main/block-lookup-extraction';
 import { createBlockLookupIndexBuild } from '../../main/block-lookup-index-build';
 import { createBlockLookupRecordsFromTextAssets } from '../../main/block-lookup-nuterra-text';
@@ -32,6 +33,16 @@ afterEach(() => {
 	delete process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH;
 	vi.restoreAllMocks();
 });
+
+function createFetchResponse(body: string | Uint8Array, ok = true) {
+	const bytes = typeof body === 'string' ? Buffer.from(body) : Buffer.from(body);
+	return {
+		arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+		ok,
+		status: ok ? 200 : 500,
+		text: async () => bytes.toString('utf8')
+	};
+}
 
 function createTestBlockLookupRecord(overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
 	const blockName = overrides.blockName ?? 'Alpha Cannon';
@@ -65,7 +76,7 @@ describe('block lookup index', () => {
 
 	it('extracts Nuterra block metadata from text assets', () => {
 		const blocks = extractNuterraBlocksFromText(
-			'{"m_Name":"HE_Flak","Type":"NuterraBlock","Name":"Hawkeye Quad 20mm ORION","ID":10005,"BlockExtents":{"x":2,"y":1,"z":3}}',
+			'{"m_Name":"HE_Flak","Type":"NuterraBlock","Name":"Hawkeye Quad 20mm ORION","ID":10005,"IconName":"Textures/HE_Flak_Icon.png","MeshName":"Meshes/HE_Flak.obj","BlockExtents":{"x":2,"y":1,"z":3}}',
 			'fallback'
 		);
 
@@ -74,6 +85,14 @@ describe('block lookup index', () => {
 				blockName: 'Hawkeye Quad 20mm ORION',
 				blockId: '10005',
 				internalName: 'HE_Flak',
+				previewAssetNames: [
+					'Textures/HE_Flak_Icon.png',
+					'HE_Flak_Icon.png',
+					'HE_Flak_Icon',
+					'Meshes/HE_Flak.obj',
+					'HE_Flak.obj',
+					'HE_Flak'
+				],
 				previewBounds: { x: 2, y: 1, z: 3 }
 			}
 		]);
@@ -167,8 +186,11 @@ describe('block lookup index', () => {
 		fs.writeFileSync(assemblyPath, '');
 		fs.writeFileSync(path.join(exportDir, 'HE_Cab_prefab.json'), '{}', 'utf8');
 		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+			const command = Array.isArray(_args) ? String(_args[2] ?? '') : '';
+			expect(command).toContain('GetFields');
+			expect(command).toContain('ObsoleteAttribute');
 			if (typeof callback === 'function') {
-				callback(null, '["HE_Cab"]', '');
+				callback(null, '["HE_Cab","_deprecated_HE_Cab","Deprecated_HE_Cab","DeprecatedHECab"]', '');
 			}
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
@@ -193,6 +215,143 @@ describe('block lookup index', () => {
 				spawnCommand: 'SpawnBlock HE_Cab'
 			})
 		]);
+	});
+
+	it('parses official Blockpedia thumbnail rows into vanilla preview entries', () => {
+		const entries = parseBlockpediaPreviewEntries(`
+			<table>
+				<tr><th>Thumbnail</th><th>Corporation</th><th>Grade</th><th>Name</th></tr>
+				<tr>
+					<td><img data-original="https://terratechgame.com/wp-content/themes/generatepress-child/assets/images/blockpedia/GSO_Cab_211.jpg" width="128" height="128"></td>
+					<td>GSO</td>
+					<td>2</td>
+					<td>GSO Cosmonaut Wide Cab</td>
+				</tr>
+			</table>
+		`);
+
+		expect(entries).toEqual([
+			expect.objectContaining({
+				assetName: 'GSO_Cab_211 GSO Cosmonaut Wide Cab',
+				blockName: 'GSO Cosmonaut Wide Cab',
+				cacheRelativePath: expect.stringMatching(/^blockpedia\/GSO_Cab_211-[a-f0-9]{12}\.jpg$/),
+				corporation: 'GSO',
+				grade: '2',
+				height: 128,
+				width: 128
+			})
+		]);
+	});
+
+	it('caches Blockpedia vanilla previews once and reuses the manifest', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-blockpedia-cache-');
+		const previewCacheDir = path.join(tempDir, 'preview-cache');
+		const imageUrl = 'https://terratechgame.com/wp-content/themes/generatepress-child/assets/images/blockpedia/GSO_Cab_211.jpg';
+		const fetchImpl = vi.fn(async (url: string) => {
+			if (url === 'https://terratechgame.com/blockpedia/') {
+				return createFetchResponse(`
+					<tr>
+						<td><img data-original="${imageUrl}" width="128" height="128"></td>
+						<td>GSO</td><td>2</td><td>GSO Cosmonaut Wide Cab</td>
+					</tr>
+				`);
+			}
+			return createFetchResponse(new Uint8Array([1, 2, 3, 4]));
+		});
+
+		const firstLoad = await loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl });
+		const secondLoad = await loadBlockpediaVanillaPreviewAssets(previewCacheDir, { fetchImpl });
+
+		expect(firstLoad).toEqual([
+			expect.objectContaining({
+				assetName: 'GSO_Cab_211 GSO Cosmonaut Wide Cab',
+				cacheRelativePath: expect.stringMatching(/^blockpedia\/GSO_Cab_211-[a-f0-9]{12}\.jpg$/)
+			})
+		]);
+		expect(secondLoad).toEqual(firstLoad);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fs.existsSync(path.join(previewCacheDir, firstLoad[0].cacheRelativePath))).toBe(true);
+	});
+
+	it('uses cached Blockpedia thumbnails as the first vanilla preview source', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-vanilla-blockpedia-');
+		const previewCacheDir = path.join(tempDir, 'preview-cache');
+		const assemblyPath = path.join(tempDir, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll');
+		const blocksSharedPath = path.join(tempDir, 'TerraTechWin64_Data', 'StreamingAssets', 'blocks_shared');
+		fs.mkdirSync(path.dirname(assemblyPath), { recursive: true });
+		fs.mkdirSync(path.dirname(blocksSharedPath), { recursive: true });
+		fs.writeFileSync(assemblyPath, '');
+		fs.writeFileSync(blocksSharedPath, 'fake serialized asset');
+		process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH = path.join(tempDir, 'fake-extractor');
+		fs.writeFileSync(process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH, '');
+		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, _options, callback) => {
+			if (typeof callback === 'function') {
+				if (_file === 'powershell') {
+					callback(null, '["GSO_Cab_211"]', '');
+				} else {
+					callback(
+						null,
+						JSON.stringify({
+							version: 2,
+							files: (args as string[]).map((sourcePath) => ({
+								sourcePath,
+								previewAssets: [
+									{
+										assetName: 'GSO_Cab_211',
+										cacheRelativePath: 'mesh/local-gso-cab.png',
+										height: 96,
+										width: 96
+									}
+								],
+								textAssets: [],
+								errors: []
+							}))
+						}),
+						''
+					);
+				}
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+		const imageUrl = 'https://terratechgame.com/wp-content/themes/generatepress-child/assets/images/blockpedia/GSO_Cab_211.jpg';
+		vi.spyOn(globalThis, 'fetch').mockImplementation((async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url === 'https://terratechgame.com/blockpedia/') {
+				return createFetchResponse(`
+					<tr>
+						<td><img data-original="${imageUrl}" width="128" height="128"></td>
+						<td>GSO</td><td>2</td><td>GSO Cosmonaut Wide Cab</td>
+					</tr>
+				`) as Response;
+			}
+			return createFetchResponse(new Uint8Array([9, 8, 7, 6])) as Response;
+		}) as typeof fetch);
+		const stats = fs.statSync(assemblyPath);
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'TerraTech',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'vanilla',
+					sourcePath: assemblyPath,
+					workshopId: 'vanilla'
+				}
+			],
+			{},
+			{ previewCacheDir, renderedPreviewsEnabled: true }
+		);
+
+		const [record] = result.recordsBySourcePath.get(assemblyPath) ?? [];
+		expect(record).toMatchObject({
+			internalName: 'GSO_Cab_211',
+			renderedPreview: {
+				height: 128,
+				imageUrl: expect.stringMatching(/^image:\/\/block-preview\/blockpedia\/GSO_Cab_211-/),
+				width: 128
+			}
+		});
 	});
 
 	it('routes source extraction through source-kind adapters while preserving source order', async () => {
@@ -483,7 +642,7 @@ describe('block lookup index', () => {
 		expect([...result.recordsBySourcePath.values()].flat()).toEqual([expect.objectContaining({ blockName: 'Good Bundle Block' })]);
 	});
 
-	it('indexes bundle sources from normalized extraction outcomes', async () => {
+	it('indexes bundle sources from normalized Block Lookup bundle outcomes', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-outcomes-');
 		const emptyBundlePath = path.join(tempDir, 'EmptyBundle_bundle');
 		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
@@ -494,7 +653,7 @@ describe('block lookup index', () => {
 		const emptyStats = fs.statSync(emptyBundlePath);
 		const failedStats = fs.statSync(failedBundlePath);
 		const goodStats = fs.statSync(goodBundlePath);
-		const extractBundleTextAssetOutcomesAdapter = vi.fn(async () => {
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
 			return new Map([
 				[
 					emptyBundlePath,
@@ -564,13 +723,13 @@ describe('block lookup index', () => {
 			{
 				sourceExtractionAdapters: {
 					bundle: createBlockLookupBundleSourceExtractionAdapter({
-						extractBundleTextAssetOutcomes: extractBundleTextAssetOutcomesAdapter
+						extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter
 					})
 				}
 			}
 		);
 
-		expect(extractBundleTextAssetOutcomesAdapter).toHaveBeenCalledWith([emptyBundlePath, failedBundlePath, goodBundlePath]);
+		expect(extractBlockLookupBundleOutcomesAdapter).toHaveBeenCalledWith([emptyBundlePath, failedBundlePath, goodBundlePath]);
 		expect(result.recordsBySourcePath.get(emptyBundlePath)).toEqual([]);
 		expect(result.recordsBySourcePath.get(failedBundlePath)).toEqual([]);
 		expect(result.recordsBySourcePath.get(goodBundlePath)).toEqual([
@@ -587,7 +746,7 @@ describe('block lookup index', () => {
 		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
 		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
 		const stats = fs.statSync(bundlePath);
-		const extractBundleTextAssetOutcomesAdapter = vi.fn(async () => {
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
 			return new Map([
 				[
 					bundlePath,
@@ -628,7 +787,7 @@ describe('block lookup index', () => {
 			{
 				sourceExtractionAdapters: {
 					bundle: createBlockLookupBundleSourceExtractionAdapter({
-						extractBundleTextAssetOutcomes: extractBundleTextAssetOutcomesAdapter
+						extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter
 					})
 				}
 			},
@@ -643,6 +802,203 @@ describe('block lookup index', () => {
 		});
 		const renderedCacheRelativePath = decodeURIComponent(new URL(record.renderedPreview!.imageUrl).pathname.replace(/^\/+/, ''));
 		expect(fs.existsSync(path.join(previewCacheDir, renderedCacheRelativePath))).toBe(true);
+	});
+
+	it('matches extracted bundle previews through Nuterra IconName metadata', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-icon-previews-');
+		const previewCacheDir = path.join(tempDir, 'user-data', 'block-lookup-rendered-previews');
+		const cacheRelativePath = 'bundle/icon-preview.png';
+		const bundlePath = path.join(tempDir, 'GoodBundle_bundle');
+		fs.writeFileSync(bundlePath, 'good bundle', 'utf8');
+		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
+		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
+		const stats = fs.statSync(bundlePath);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					bundlePath,
+					{
+						issues: [],
+						previewAssets: [
+							{
+								assetName: 'HE_Jormungand_Railcannon',
+								cacheRelativePath,
+								height: 64,
+								width: 64
+							}
+						],
+						sourcePath: bundlePath,
+						status: 'success' as const,
+						textAssets: [
+							{
+								assetName: 'JormungandBlock',
+								text: '{"m_Name":"HE_Jormungand_Railgun","Type":"NuterraBlock","Name":"Hawkeye Jormungand 86 MJ Railcannon","ID":13,"IconName":"HE_Jormungand_Railcannon.png"}'
+							}
+						]
+					}
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Good Bundle',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'bundle',
+					sourcePath: bundlePath,
+					workshopId: 'good'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({
+						extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter
+					})
+				}
+			},
+			{ previewCacheDir, renderedPreviewsEnabled: true }
+		);
+
+		const [record] = result.recordsBySourcePath.get(bundlePath) ?? [];
+		expect(record.renderedPreview?.imageUrl).toBe('image://block-preview/bundle/icon-preview.png');
+	});
+
+	it('does not attach one matched preview asset to every record in a multi-block bundle', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-single-preview-');
+		const previewCacheDir = path.join(tempDir, 'user-data', 'block-lookup-rendered-previews');
+		const cacheRelativePath = 'bundle/alpha-preview.png';
+		const bundlePath = path.join(tempDir, 'MixedBundle_bundle');
+		fs.writeFileSync(bundlePath, 'mixed bundle', 'utf8');
+		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
+		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
+		const stats = fs.statSync(bundlePath);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					bundlePath,
+					{
+						issues: [],
+						previewAssets: [
+							{
+								assetName: 'Alpha_Block_preview',
+								cacheRelativePath,
+								height: 64,
+								width: 64
+							}
+						],
+						sourcePath: bundlePath,
+						status: 'success' as const,
+						textAssets: [
+							{
+								assetName: 'AlphaBlock',
+								text: '{"m_Name":"Alpha_Block","Type":"NuterraBlock","Name":"Alpha Block","ID":13}'
+							},
+							{
+								assetName: 'BetaBlock',
+								text: '{"m_Name":"Beta_Block","Type":"NuterraBlock","Name":"Beta Block","ID":14}'
+							}
+						]
+					}
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Mixed Bundle',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'bundle',
+					sourcePath: bundlePath,
+					workshopId: 'mixed'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({
+						extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter
+					})
+				}
+			},
+			{ previewCacheDir, renderedPreviewsEnabled: true }
+		);
+
+		const records = result.recordsBySourcePath.get(bundlePath) ?? [];
+		expect(records.find((record) => record.internalName === 'Alpha_Block')?.renderedPreview).toBeDefined();
+		expect(records.find((record) => record.internalName === 'Beta_Block')?.renderedPreview).toBeUndefined();
+	});
+
+	it('matches rendered previews when block and asset names use different token order', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-token-preview-');
+		const previewCacheDir = path.join(tempDir, 'user-data', 'block-lookup-rendered-previews');
+		const cacheRelativePath = 'bundle/reordered-preview.png';
+		const partialCacheRelativePath = 'bundle/partial-preview.png';
+		const bundlePath = path.join(tempDir, 'ReorderedBundle_bundle');
+		fs.writeFileSync(bundlePath, 'bundle', 'utf8');
+		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
+		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
+		fs.writeFileSync(path.join(previewCacheDir, partialCacheRelativePath), 'partial png bytes');
+		const stats = fs.statSync(bundlePath);
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					bundlePath,
+					{
+						issues: [],
+						previewAssets: [
+							{
+								assetName: 'LK_corner_outer_icon',
+								cacheRelativePath: partialCacheRelativePath,
+								height: 64,
+								width: 64
+							},
+							{
+								assetName: 'LK_outerCorner_battlement_icon',
+								cacheRelativePath,
+								height: 64,
+								width: 64
+							}
+						],
+						sourcePath: bundlePath,
+						status: 'success' as const,
+						textAssets: [
+							{
+								assetName: 'LKBattlement',
+								text: '{"m_Name":"LK_battlement_corner_outer","Type":"NuterraBlock","Name":"LK Outer Corner Battlement Block","ID":14}'
+							}
+						]
+					}
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Reordered Bundle',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'bundle',
+					sourcePath: bundlePath,
+					workshopId: 'reordered'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({
+						extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter
+					})
+				}
+			},
+			{ previewCacheDir, renderedPreviewsEnabled: true }
+		);
+
+		expect(result.recordsBySourcePath.get(bundlePath)?.[0].renderedPreview).toMatchObject({
+			imageUrl: expect.stringMatching(/reordered-preview\.png$/)
+		});
 	});
 
 	it('discovers JSON and bundle sources from loaded mod directories', () => {
@@ -906,6 +1262,177 @@ describe('block lookup index', () => {
 			updatedBlocks: 0
 		});
 		expect(secondBuild.index.records).toEqual(firstBuild.index.records);
+	});
+
+	it('reports source-indexing progress for non-preview builds', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-build-progress-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const firstModDir = path.join(workshopRoot, '111');
+		const secondModDir = path.join(workshopRoot, '222');
+		const firstBlockJsonDir = path.join(firstModDir, 'BlockJSON');
+		const secondBlockJsonDir = path.join(secondModDir, 'BlockJSON');
+		const firstBlockJsonPath = path.join(firstBlockJsonDir, 'FirstBlock.json');
+		const secondBlockJsonPath = path.join(secondBlockJsonDir, 'SecondBlock.json');
+		fs.mkdirSync(firstBlockJsonDir, { recursive: true });
+		fs.mkdirSync(secondBlockJsonDir, { recursive: true });
+		fs.writeFileSync(firstBlockJsonPath, 'a', 'utf8');
+		fs.writeFileSync(secondBlockJsonPath, 'bbbbbbbbb', 'utf8');
+		const progress: Array<{ completed: number; percent: number; phase: string; total: number }> = [];
+		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn(async (sources, _adapters, options) => {
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			for (const [index, source] of sources.entries()) {
+				recordsBySourcePath.set(source.sourcePath, [
+					createTestBlockLookupRecord({
+						blockId: String(index + 1),
+						blockName: `Progress Block ${index + 1}`,
+						internalName: `ProgressBlock${index + 1}`,
+						modTitle: source.modTitle,
+						sourcePath: source.sourcePath,
+						workshopId: source.workshopId
+					})
+				]);
+				options?.onIndexedSourceBatch?.(index + 1, sources.length);
+			}
+			return { recordsBySourcePath };
+		});
+
+		await createBlockLookupIndexBuild(
+			{
+				version: BLOCK_LOOKUP_INDEX_VERSION,
+				builtAt: '',
+				renderedPreviewsEnabled: false,
+				sources: [],
+				records: []
+			},
+			{
+				workshopRoot,
+				modSources: [
+					{
+						uid: 'workshop:111',
+						name: 'First Blocks',
+						path: firstModDir,
+						workshopID: '111'
+					},
+					{
+						uid: 'workshop:222',
+						name: 'Second Blocks',
+						path: secondModDir,
+						workshopID: '222'
+					}
+				]
+			},
+			{ indexBlockLookupSources: indexBlockLookupSourcesAdapter },
+			(nextProgress) => progress.push(nextProgress)
+		);
+
+		expect(indexBlockLookupSourcesAdapter).toHaveBeenCalledWith(
+			expect.any(Array),
+			{},
+			expect.objectContaining({
+				onIndexedSourceBatch: expect.any(Function),
+				renderedPreviewsEnabled: false
+			})
+		);
+		expect(progress.filter((entry) => entry.phase === 'indexing-sources').map((entry) => entry.percent)).toEqual([10, 17, 75, 75]);
+		expect(progress.map((entry) => entry.phase)).not.toContain('extracting-rendered-previews');
+	});
+
+	it('reports rendered-preview extraction progress for preview-enabled builds', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-build-preview-progress-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const firstModDir = path.join(workshopRoot, '111');
+		const secondModDir = path.join(workshopRoot, '222');
+		const firstBlockJsonDir = path.join(firstModDir, 'BlockJSON');
+		const secondBlockJsonDir = path.join(secondModDir, 'BlockJSON');
+		const firstBlockJsonPath = path.join(firstBlockJsonDir, 'FirstBlock.json');
+		const secondBlockJsonPath = path.join(secondBlockJsonDir, 'SecondBlock.json');
+		fs.mkdirSync(firstBlockJsonDir, { recursive: true });
+		fs.mkdirSync(secondBlockJsonDir, { recursive: true });
+		fs.writeFileSync(firstBlockJsonPath, 'a', 'utf8');
+		fs.writeFileSync(secondBlockJsonPath, 'bbbbbbbbb', 'utf8');
+		const progress: Array<{ completed: number; percent: number; phase: string; phaseLabel: string; total: number }> = [];
+		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn(async (sources, _adapters, options) => {
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			for (const [index, source] of sources.entries()) {
+				recordsBySourcePath.set(source.sourcePath, [
+					{
+						...createTestBlockLookupRecord({
+							blockId: String(index + 1),
+							blockName: `Preview Progress Block ${index + 1}`,
+							internalName: `PreviewProgressBlock${index + 1}`,
+							modTitle: source.modTitle,
+							sourcePath: source.sourcePath,
+							workshopId: source.workshopId
+						}),
+						...(index === 0
+							? {
+									renderedPreview: {
+										imageUrl: 'image://block-preview/progress/first.png',
+										width: 128,
+										height: 128
+									}
+								}
+							: {})
+					}
+				]);
+				options?.onIndexedSourceBatch?.(index + 1, sources.length);
+			}
+			return { recordsBySourcePath };
+		});
+
+		const build = await createBlockLookupIndexBuild(
+			{
+				version: BLOCK_LOOKUP_INDEX_VERSION,
+				builtAt: '',
+				renderedPreviewsEnabled: false,
+				sources: [],
+				records: []
+			},
+			{
+				workshopRoot,
+				renderedPreviewsEnabled: true,
+				modSources: [
+					{
+						uid: 'workshop:111',
+						name: 'First Blocks',
+						path: firstModDir,
+						workshopID: '111'
+					},
+					{
+						uid: 'workshop:222',
+						name: 'Second Blocks',
+						path: secondModDir,
+						workshopID: '222'
+					}
+				]
+			},
+			{ indexBlockLookupSources: indexBlockLookupSourcesAdapter },
+			(nextProgress) => progress.push(nextProgress),
+			{ previewCacheDir: path.join(tempDir, 'preview-cache') }
+		);
+
+		expect(indexBlockLookupSourcesAdapter).toHaveBeenCalledWith(
+			expect.any(Array),
+			{},
+			expect.objectContaining({
+				onIndexedSourceBatch: expect.any(Function),
+				previewCacheDir: path.join(tempDir, 'preview-cache'),
+				renderedPreviewsEnabled: true
+			})
+		);
+		expect(progress.filter((entry) => entry.phase === 'indexing-sources').map((entry) => entry.percent)).toEqual([10, 14, 45, 45]);
+		expect(progress.filter((entry) => entry.phase === 'extracting-rendered-previews')).toEqual([
+			expect.objectContaining({ completed: 0, percent: 45, phaseLabel: 'Extracting rendered block previews', total: 2 }),
+			expect.objectContaining({ completed: 1, percent: 48, phaseLabel: 'Extracting rendered block previews', total: 2 }),
+			expect.objectContaining({ completed: 2, percent: 75, phaseLabel: 'Extracting rendered block previews', total: 2 }),
+			expect.objectContaining({ completed: 2, percent: 75, phaseLabel: 'Extracting rendered block previews', total: 2 })
+		]);
+		expect(build.stats).toMatchObject({
+			blocks: 2,
+			renderedPreviews: 1,
+			renderedPreviewsEnabled: true,
+			unavailablePreviews: 1
+		});
 	});
 
 	it('dedupes the same mod block when it is present in both bundle and JSON sources', async () => {
@@ -1401,29 +1928,31 @@ describe('block lookup index', () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-contract-');
 		const firstBundlePath = path.join(tempDir, 'FirstBundle_bundle');
 		const secondBundlePath = path.join(tempDir, 'SecondBundle_bundle');
-		const stdout = JSON.stringify({
-			version: 2,
-			files: [
-				{
-					sourcePath: firstBundlePath,
-					previewAssets: [],
-					textAssets: [
-						{
-							assetName: 'FirstBundle',
-							text: '{"Type":"NuterraBlock","Name":"First Bundle Block","ID":21}'
-						}
-					],
-					errors: []
-				},
-				{
-					sourcePath: secondBundlePath,
-					previewAssets: [],
-					textAssets: [],
-					errors: ['No TextAssets contained NuterraBlock data']
-				}
-			]
-		});
-		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, _options, callback) => {
+			const sourcePaths = args as string[];
+			const stdout = JSON.stringify({
+				version: 2,
+				files: sourcePaths.map((sourcePath) =>
+					sourcePath === firstBundlePath
+						? {
+								sourcePath,
+								previewAssets: [],
+								textAssets: [
+									{
+										assetName: 'FirstBundle',
+										text: '{"Type":"NuterraBlock","Name":"First Bundle Block","ID":21}'
+									}
+								],
+								errors: []
+							}
+						: {
+								sourcePath,
+								previewAssets: [],
+								textAssets: [],
+								errors: ['No TextAssets contained NuterraBlock data']
+							}
+				)
+			});
 			if (typeof callback === 'function') {
 				callback(null, stdout, 'sidecar warning');
 			}
@@ -1434,15 +1963,16 @@ describe('block lookup index', () => {
 			extractorPath: '/fake/block-lookup-extractor'
 		});
 
-		expect(execFileSpy).toHaveBeenCalledWith(
+		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual([[firstBundlePath], [secondBundlePath]]);
+		expect(execFileSpy.mock.calls[0]).toEqual([
 			'/fake/block-lookup-extractor',
-			[firstBundlePath, secondBundlePath],
+			[firstBundlePath],
 			expect.objectContaining({
 				encoding: 'utf8',
 				windowsHide: true
 			}),
 			expect.any(Function)
-		);
+		]);
 		expect(textAssetsBySource.get(firstBundlePath)).toEqual([
 			{
 				assetName: 'FirstBundle',
@@ -1452,62 +1982,60 @@ describe('block lookup index', () => {
 		expect(textAssetsBySource.get(secondBundlePath)).toEqual([]);
 	});
 
-	it('normalizes native sidecar TextAsset extraction outcomes by source path', async () => {
+	it('normalizes native sidecar Block Lookup bundle outcomes by source path', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-outcomes-');
 		const assetBundlePath = path.join(tempDir, 'AssetBundle_bundle');
 		const emptyBundlePath = path.join(tempDir, 'EmptyBundle_bundle');
 		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
 		const previewCacheDir = path.join(tempDir, 'preview-cache');
-		const stdout = JSON.stringify({
-			version: 2,
-			files: [
-				{
-					sourcePath: assetBundlePath,
-					previewAssets: [],
-					textAssets: [
-						{
-							assetName: 'AssetBundle',
-							text: '{"Type":"NuterraBlock","Name":"Asset Bundle Block","ID":21}'
-						}
-					],
-					errors: []
-				},
-				{
-					sourcePath: emptyBundlePath,
-					previewAssets: [],
-					textAssets: [],
-					errors: []
-				},
-				{
-					sourcePath: failedBundlePath,
-					previewAssets: [],
-					textAssets: [],
-					errors: ['Unable to read bundle TextAssets']
-				}
-			]
-		});
-		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, _options, callback) => {
+			const sourcePaths = args as string[];
+			const stdout = JSON.stringify({
+				version: 2,
+				files: sourcePaths.map((sourcePath) => {
+					if (sourcePath === assetBundlePath) {
+						return {
+							sourcePath,
+							previewAssets: [],
+							textAssets: [
+								{
+									assetName: 'AssetBundle',
+									text: '{"Type":"NuterraBlock","Name":"Asset Bundle Block","ID":21}'
+								}
+							],
+							errors: []
+						};
+					}
+					return {
+						sourcePath,
+						previewAssets: [],
+						textAssets: [],
+						errors: sourcePath === failedBundlePath ? ['Unable to read bundle TextAssets'] : []
+					};
+				})
+			});
 			if (typeof callback === 'function') {
 				callback(null, stdout, '');
 			}
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
 
-		const outcomes = await extractBundleTextAssetOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
+		const outcomes = await extractBlockLookupBundleOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
 			extractorPath: '/fake/block-lookup-extractor',
 			previewCacheDir
 		});
 
-		expect(execFileSpy).toHaveBeenCalledWith(
+		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual([[assetBundlePath], [emptyBundlePath], [failedBundlePath]]);
+		expect(execFileSpy.mock.calls[0]).toEqual([
 			'/fake/block-lookup-extractor',
-			[assetBundlePath, emptyBundlePath, failedBundlePath],
+			[assetBundlePath],
 			expect.objectContaining({
 				env: expect.objectContaining({
 					TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: previewCacheDir
 				})
 			}),
 			expect.any(Function)
-		);
+		]);
 		expect(outcomes.get(assetBundlePath)).toEqual({
 			issues: [],
 			previewAssets: [],
@@ -1534,6 +2062,124 @@ describe('block lookup index', () => {
 			status: 'issue',
 			textAssets: []
 		});
+	});
+
+	it('rejects unsupported native sidecar JSON output shapes', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-unsupported-');
+		const bundlePath = path.join(tempDir, 'UnsupportedBundle_bundle');
+		const execFileSpy = vi
+			.spyOn(childProcess, 'execFile')
+			.mockImplementationOnce(((_file, _args, _options, callback) => {
+				if (typeof callback === 'function') {
+					callback(
+						null,
+						JSON.stringify({
+							version: 3,
+							files: []
+						}),
+						''
+					);
+				}
+				return {} as childProcess.ChildProcess;
+			}) as typeof childProcess.execFile)
+			.mockImplementationOnce(((_file, _args, _options, callback) => {
+				if (typeof callback === 'function') {
+					callback(
+						null,
+						JSON.stringify({
+							version: 2,
+							files: [
+								{
+									sourcePath: bundlePath,
+									textAssets: [],
+									errors: []
+								}
+							]
+						}),
+						''
+					);
+				}
+				return {} as childProcess.ChildProcess;
+			}) as typeof childProcess.execFile);
+
+		await expect(
+			extractBlockLookupBundleOutcomes([bundlePath], {
+				extractorPath: '/fake/block-lookup-extractor'
+			})
+		).rejects.toThrow('Block Lookup extractor returned an unsupported JSON shape');
+		await expect(
+			extractBlockLookupBundleOutcomes([bundlePath], {
+				extractorPath: '/fake/block-lookup-extractor'
+			})
+		).rejects.toThrow('Block Lookup extractor returned an unsupported JSON shape');
+		expect(execFileSpy).toHaveBeenCalledTimes(2);
+	});
+
+	it('passes preview match names to the native sidecar through a temporary file', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-preview-match-names-');
+		const bundlePath = path.join(tempDir, 'AssetBundle_bundle');
+		let previewMatchNamesFile = '';
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, options, callback) => {
+			const env = (options as childProcess.ExecFileOptions).env ?? {};
+			previewMatchNamesFile = String(env.TTSMM_BLOCK_LOOKUP_PREVIEW_MATCH_NAMES_FILE ?? '');
+			expect(fs.readFileSync(previewMatchNamesFile, 'utf8')).toBe('GSO_Cab_211\nGSO Cab');
+			const stdout = JSON.stringify({
+				version: 2,
+				files: (args as string[]).map((sourcePath) => ({
+					sourcePath,
+					previewAssets: [],
+					textAssets: [],
+					errors: []
+				}))
+			});
+			if (typeof callback === 'function') {
+				callback(null, stdout, '');
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+
+		await extractBlockLookupBundleOutcomes([bundlePath], {
+			extractorPath: '/fake/block-lookup-extractor',
+			previewMatchNames: ['GSO_Cab_211', 'GSO Cab', 'GSO_Cab_211']
+		});
+
+		expect(execFileSpy).toHaveBeenCalledTimes(1);
+		expect(previewMatchNamesFile).not.toBe('');
+		expect(fs.existsSync(previewMatchNamesFile)).toBe(false);
+	});
+
+	it('batches native sidecar extraction so preview metadata cannot overflow one stdout buffer', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-batches-');
+		const bundlePaths = Array.from({ length: 17 }, (_, index) => path.join(tempDir, `Bundle${index}_bundle`));
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, _options, callback) => {
+			const sourcePaths = args as string[];
+			const stdout = JSON.stringify({
+				version: 2,
+				files: sourcePaths.map((sourcePath) => ({
+					sourcePath,
+					previewAssets: [],
+					textAssets: [
+						{
+							assetName: path.basename(sourcePath),
+							text: '{"Type":"NuterraBlock","Name":"Batched Bundle Block","ID":21}'
+						}
+					],
+					errors: []
+				}))
+			});
+			if (typeof callback === 'function') {
+				callback(null, stdout, '');
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+
+		const outcomes = await extractBlockLookupBundleOutcomes(bundlePaths, {
+			extractorPath: '/fake/block-lookup-extractor'
+		});
+
+		expect(execFileSpy).toHaveBeenCalledTimes(17);
+		expect(execFileSpy.mock.calls.map((call) => call[1])).toEqual(bundlePaths.map((bundlePath) => [bundlePath]));
+		expect(outcomes).toHaveLength(17);
 	});
 
 	it('requires the sidecar for bundle text extraction', async () => {

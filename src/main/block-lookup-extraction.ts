@@ -4,13 +4,14 @@ import childProcess from 'node:child_process';
 import log from 'electron-log';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import {
-	extractBundleTextAssetOutcomes,
+	extractBlockLookupBundleOutcomes,
 	extractBundleTextAssets,
 	type BlockLookupBundlePreviewAsset,
-	type BlockLookupBundleTextAssetExtractionOutcome
+	type BlockLookupBundleExtractionOutcome
 } from './block-lookup-bundle-text-assets';
+import { loadBlockpediaVanillaPreviewAssets } from './block-lookup-blockpedia-previews';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
-import { createBlockLookupPreviewImageUrl } from './preview-protocol';
+import { assignRenderedBlockPreviewsToRecords } from './block-lookup-rendered-preview-assignment';
 import {
 	createBlockLookupRecord,
 	createBlockLookupRecordsFromTextAssets,
@@ -32,7 +33,7 @@ export type BlockLookupSourceExtractionAdapters = Partial<
 >;
 
 interface BlockLookupBundleSourceExtractionAdapterDependencies {
-	extractBundleTextAssetOutcomes?: typeof extractBundleTextAssetOutcomes;
+	extractBlockLookupBundleOutcomes?: typeof extractBlockLookupBundleOutcomes;
 	extractBundleTextAssets?: typeof extractBundleTextAssets;
 }
 
@@ -68,7 +69,9 @@ function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProces
 		`$asm = [Reflection.Assembly]::LoadFrom('${escapePowerShellSingleQuoted(assemblyPath)}')`,
 		"$t = $asm.GetType('BlockTypes')",
 		"if ($null -eq $t) { throw 'BlockTypes enum not found' }",
-		'[Enum]::GetNames($t) | ConvertTo-Json -Compress'
+		'$flags = [Reflection.BindingFlags]::Public -bor [Reflection.BindingFlags]::Static',
+		'$names = @($t.GetFields($flags) | Where-Object { -not [Attribute]::IsDefined($_, [ObsoleteAttribute]) } | ForEach-Object { $_.Name })',
+		'ConvertTo-Json -InputObject $names -Compress'
 	].join('; ');
 
 	return new Promise((resolve, reject) => {
@@ -79,7 +82,12 @@ function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProces
 			}
 
 			try {
-				const parsed = JSON.parse(stdout.trim());
+				const trimmedOutput = stdout.trim();
+				if (!trimmedOutput) {
+					resolve([]);
+					return;
+				}
+				const parsed = JSON.parse(trimmedOutput);
 				resolve(Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]);
 			} catch (parseError) {
 				reject(parseError);
@@ -88,90 +96,123 @@ function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProces
 	});
 }
 
+function isDeprecatedVanillaBlockIdentifier(value: string): boolean {
+	const identifier = value.trim().replace(/^_/, '');
+	return /^deprecated(?:$|[_\s-])/i.test(identifier) || /^Deprecated[A-Z]/.test(identifier) || /^deprecated[A-Z]/.test(identifier);
+}
+
 function createSingleSourceExtractionAdapter(
-	extractSourceRecords: (source: BlockLookupSourceRecord) => Promise<BlockLookupRecord[]> | BlockLookupRecord[]
+	extractSourceRecords: (
+		source: BlockLookupSourceRecord,
+		options?: BlockLookupSourceExtractionOptions
+	) => Promise<BlockLookupRecord[]> | BlockLookupRecord[]
 ): BlockLookupSourceExtractionAdapter {
 	return {
-		async extractRecords(sources) {
+		async extractRecords(sources, options) {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
-				recordsBySourcePath.set(source.sourcePath, await extractSourceRecords(source));
+				recordsBySourcePath.set(source.sourcePath, await extractSourceRecords(source, options));
 			}
 			return recordsBySourcePath;
 		}
 	};
 }
 
-function normalizePreviewAssetMatchKey(value: string): string {
-	return normalizedBlockLookupKey(value).replace(/(renderedpreview|thumbnail|preview|thumb|icon|texture|sprite)$/g, '');
+function getRecordPreviewMatchNameCandidates(records: readonly BlockLookupRecord[]): string[] {
+	return [
+		...new Set(
+			records
+				.flatMap((record) => [
+					record.internalName,
+					record.blockName,
+					record.preferredAlias.replace(/\(.*$/, ''),
+					...(record.previewAssetNames ?? [])
+				])
+				.map((value) => value.trim())
+				.filter(Boolean)
+		)
+	];
 }
 
-function getRecordPreviewMatchKeys(record: BlockLookupRecord): string[] {
-	return [record.internalName, record.blockName, record.preferredAlias.replace(/\(.*$/, '')]
-		.map(normalizePreviewAssetMatchKey)
-		.filter((key) => key.length > 0);
-}
-
-function findPreviewAssetForRecord(
-	record: BlockLookupRecord,
-	previewAssets: readonly BlockLookupBundlePreviewAsset[]
-): BlockLookupBundlePreviewAsset | undefined {
-	if (previewAssets.length === 1) {
-		return previewAssets[0];
-	}
-
-	const recordKeys = getRecordPreviewMatchKeys(record);
-	return previewAssets.find((asset) => {
-		const assetKey = normalizePreviewAssetMatchKey(asset.assetName);
-		return recordKeys.some((recordKey) => assetKey.includes(recordKey) || recordKey.includes(assetKey));
-	});
-}
-
-function createRenderedPreviewFromAsset(previewAsset: BlockLookupBundlePreviewAsset): BlockLookupRecord['renderedPreview'] {
-	const imageUrl = createBlockLookupPreviewImageUrl(previewAsset.cacheRelativePath);
-	if (!imageUrl) {
-		return undefined;
-	}
-
-	return {
-		imageUrl,
-		...(previewAsset.width ? { width: Math.round(previewAsset.width) } : {}),
-		...(previewAsset.height ? { height: Math.round(previewAsset.height) } : {})
-	};
-}
-
-function attachRenderedPreviewsToRecords(
+async function extractLocalVanillaPreviewAssets(
+	assemblyPath: string,
 	records: readonly BlockLookupRecord[],
-	previewAssets: readonly BlockLookupBundlePreviewAsset[],
 	options: BlockLookupSourceExtractionOptions | undefined
-): BlockLookupRecord[] {
-	if (!options?.renderedPreviewsEnabled || previewAssets.length === 0 || records.length === 0) {
-		return [...records];
+): Promise<BlockLookupBundlePreviewAsset[]> {
+	if (!options?.renderedPreviewsEnabled || !options.previewCacheDir) {
+		return [];
 	}
-
-	return records.map((record) => {
-		const previewAsset = findPreviewAssetForRecord(record, previewAssets);
-		const renderedPreview = previewAsset ? createRenderedPreviewFromAsset(previewAsset) : undefined;
-		return renderedPreview ? { ...record, renderedPreview } : record;
-	});
+	const dataRoot = path.resolve(assemblyPath, '..', '..');
+	if (!fs.existsSync(dataRoot)) {
+		return [];
+	}
+	const sourcePaths = [
+		path.join(dataRoot, 'StreamingAssets', 'blocks_shared'),
+		path.join(dataRoot, 'resources.assets'),
+		...fs
+			.readdirSync(dataRoot, { withFileTypes: true })
+			.filter((entry) => entry.isFile() && /^sharedassets\d+\.assets$/i.test(entry.name))
+			.map((entry) => path.join(dataRoot, entry.name))
+	].filter((sourcePath, index, allSourcePaths) => fs.existsSync(sourcePath) && allSourcePaths.indexOf(sourcePath) === index);
+	if (!sourcePaths.length) {
+		return [];
+	}
+	const previewMatchNames = getRecordPreviewMatchNameCandidates(records);
+	try {
+		const outcomes = await extractBlockLookupBundleOutcomes(sourcePaths, {
+			previewCacheDir: options.previewCacheDir,
+			previewMatchNames
+		});
+		return [...outcomes.values()].flatMap((outcome) => outcome.previewAssets);
+	} catch (error) {
+		log.warn(`Failed to extract vanilla block previews from ${dataRoot}`);
+		log.warn(error);
+		return [];
+	}
 }
 
-async function extractVanillaSourceRecords(source: BlockLookupSourceRecord): Promise<BlockLookupRecord[]> {
+async function extractVanillaPreviewAssets(
+	assemblyPath: string,
+	records: readonly BlockLookupRecord[],
+	options: BlockLookupSourceExtractionOptions | undefined
+): Promise<BlockLookupBundlePreviewAsset[]> {
+	if (!options?.renderedPreviewsEnabled || !options.previewCacheDir) {
+		return [];
+	}
+	const blockpediaPreviewAssets = await loadBlockpediaVanillaPreviewAssets(options.previewCacheDir);
+	const localPreviewAssets = await extractLocalVanillaPreviewAssets(assemblyPath, records, options);
+	return [...blockpediaPreviewAssets, ...localPreviewAssets];
+}
+
+async function extractVanillaSourceRecords(
+	source: BlockLookupSourceRecord,
+	options?: BlockLookupSourceExtractionOptions
+): Promise<BlockLookupRecord[]> {
 	try {
 		const exportMap = buildVanillaExportMap(source.sourcePath);
 		const enumNames = await loadVanillaEnumNames(source.sourcePath);
-		return enumNames.map((enumName) => {
+		const records = enumNames.flatMap((enumName) => {
 			const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
+			if (isDeprecatedVanillaBlockIdentifier(enumName) || isDeprecatedVanillaBlockIdentifier(displaySource)) {
+				return [];
+			}
 			const block: ExtractedTextBlock = {
 				blockName: humanizeBlockLookupIdentifier(displaySource),
 				blockId: '',
 				internalName: enumName
 			};
-			return createBlockLookupRecord(source, block, {
-				preferredAlias: enumName,
-				fallbackAlias: enumName
-			});
+			return [
+				createBlockLookupRecord(source, block, {
+					preferredAlias: enumName,
+					fallbackAlias: enumName
+				})
+			];
 		});
+		if (records.length === 0) {
+			return records;
+		}
+		const previewAssets = await extractVanillaPreviewAssets(source.sourcePath, records, options);
+		return assignRenderedBlockPreviewsToRecords(records, previewAssets, options);
 	} catch (error) {
 		log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
 		log.warn(error);
@@ -192,9 +233,7 @@ function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupR
 export function createBlockLookupBundleSourceExtractionAdapter(
 	dependencies: BlockLookupBundleSourceExtractionAdapterDependencies = {}
 ): BlockLookupSourceExtractionAdapter {
-	const createTextAssetOnlyOutcomes = async (
-		sourcePaths: readonly string[]
-	): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> => {
+	const createTextAssetOnlyOutcomes = async (sourcePaths: readonly string[]): Promise<Map<string, BlockLookupBundleExtractionOutcome>> => {
 		const textAssetsBySourcePath = await dependencies.extractBundleTextAssets!(sourcePaths);
 		return new Map(
 			[...textAssetsBySourcePath].map(([sourcePath, textAssets]) => [
@@ -212,16 +251,16 @@ export function createBlockLookupBundleSourceExtractionAdapter(
 	return {
 		async extractRecords(sources, options) {
 			const sourcePaths = sources.map((source) => source.sourcePath);
-			const textAssetOutcomesBySourcePath = dependencies.extractBundleTextAssetOutcomes
-				? await dependencies.extractBundleTextAssetOutcomes(sourcePaths)
+			const blockLookupOutcomesBySourcePath = dependencies.extractBlockLookupBundleOutcomes
+				? await dependencies.extractBlockLookupBundleOutcomes(sourcePaths)
 				: dependencies.extractBundleTextAssets
 					? await createTextAssetOnlyOutcomes(sourcePaths)
-					: await extractBundleTextAssetOutcomes(sourcePaths, { previewCacheDir: options?.previewCacheDir });
+					: await extractBlockLookupBundleOutcomes(sourcePaths, { previewCacheDir: options?.previewCacheDir });
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
-				const outcome = textAssetOutcomesBySourcePath.get(source.sourcePath);
+				const outcome = blockLookupOutcomesBySourcePath.get(source.sourcePath);
 				const records = createBlockLookupRecordsFromTextAssets(source, outcome?.textAssets ?? []);
-				recordsBySourcePath.set(source.sourcePath, attachRenderedPreviewsToRecords(records, outcome?.previewAssets ?? [], options));
+				recordsBySourcePath.set(source.sourcePath, assignRenderedBlockPreviewsToRecords(records, outcome?.previewAssets ?? [], options));
 			}
 			return recordsBySourcePath;
 		}

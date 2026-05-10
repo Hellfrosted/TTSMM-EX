@@ -1,4 +1,4 @@
-import { cloneCollection, type AppConfig, type CollectionErrors, type ModCollection } from 'model';
+import { CollectionManagerModalType, cloneCollection, type AppConfig, type CollectionErrors, type ModCollection } from 'model';
 import { getCollectionValidationKey, type ValidationIssueSummary } from './collection-validation-run';
 
 type CollectionValidationStatus = 'none' | 'validating' | 'passed' | 'failed' | 'stale';
@@ -159,6 +159,55 @@ interface CollectionValidationPersistenceDecision {
 	action: CollectionValidationPersistenceAction;
 	launchCollection?: ModCollection;
 }
+
+export type CollectionValidationRunOutcome =
+	| {
+			type: 'cancelled';
+	  }
+	| {
+			type: 'discarded-stale-result';
+			validationResult?: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'missing-active-collection';
+	  }
+	| {
+			type: 'persistence-failed';
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-and-ready-to-launch-current-draft';
+			launchCollection: ModCollection;
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-current-result';
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-failed-result';
+			modalType?: CollectionManagerModalType;
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'validation-run-failed';
+	  };
+
+export type CollectionValidationRunCompletionEffect =
+	| {
+			type: 'clear-launching-game';
+	  }
+	| {
+			type: 'launch-empty-mod-list';
+	  }
+	| {
+			launchCollection: ModCollection;
+			type: 'launch-current-draft';
+	  }
+	| {
+			modalType: CollectionManagerModalType;
+			type: 'open-validation-modal';
+	  };
 
 function hasSameEnabledMods(currentMods: string[], nextMods: string[]) {
 	return currentMods.length === nextMods.length && currentMods.every((uid, index) => uid === nextMods[index]);
@@ -431,6 +480,29 @@ export function getCollectionValidationPersistenceDecision(input: {
 	return {
 		action: 'record-current-result'
 	};
+}
+
+export function getCollectionValidationRunCompletionEffects(
+	outcome: CollectionValidationRunOutcome,
+	launchRequested: boolean
+): CollectionValidationRunCompletionEffect[] {
+	switch (outcome.type) {
+		case 'missing-active-collection':
+			return launchRequested ? [{ type: 'launch-empty-mod-list' }] : [];
+		case 'recorded-and-ready-to-launch-current-draft':
+			return [{ type: 'launch-current-draft', launchCollection: outcome.launchCollection }];
+		case 'recorded-failed-result':
+			if (outcome.modalType) {
+				return [{ type: 'open-validation-modal', modalType: outcome.modalType }];
+			}
+			return launchRequested ? [{ type: 'clear-launching-game' }] : [];
+		case 'cancelled':
+		case 'discarded-stale-result':
+		case 'persistence-failed':
+		case 'recorded-current-result':
+		case 'validation-run-failed':
+			return launchRequested ? [{ type: 'clear-launching-game' }] : [];
+	}
 }
 
 export function toggleCollectionDraftMod(input: {

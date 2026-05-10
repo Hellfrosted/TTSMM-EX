@@ -1,6 +1,7 @@
 import { type DisplayModData, type MainCollectionConfig, MainColumnTitles, getModDataDisplayId, getModDataDisplayName } from 'model';
 import { getAllCollectionTags } from 'renderer/collection-tags';
 import { getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
+import { getDefaultMainColumnWidth } from 'shared/main-collection-view-config';
 import { APP_FONT_FAMILY } from 'renderer/theme';
 import { formatDateStr } from 'util/Date';
 import {
@@ -13,6 +14,8 @@ import {
 	type VirtualTableColumnWidthLike
 } from 'renderer/virtual-table-geometry';
 
+export { getDefaultMainColumnWidth };
+
 export const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 export const COLUMN_MEASUREMENT_SAMPLE_SIZE = 120;
 export const COLUMN_AUTO_MEASURE_MAX_ROWS = 120;
@@ -22,19 +25,6 @@ const NAME_CELL_ICON_WIDTH = 18;
 export const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
 const mainColumnTitleSet = new Set<string>(ALL_MAIN_COLUMN_TITLES);
 const columnMeasurementCache = new Map<string, Record<string, number>>();
-
-const DEFAULT_MAIN_COLUMN_WIDTHS: Record<MainColumnTitles, number> = {
-	[MainColumnTitles.TYPE]: 56,
-	[MainColumnTitles.NAME]: 288,
-	[MainColumnTitles.AUTHORS]: 88,
-	[MainColumnTitles.STATE]: 64,
-	[MainColumnTitles.ID]: 96,
-	[MainColumnTitles.SIZE]: 64,
-	[MainColumnTitles.LAST_UPDATE]: 104,
-	[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 104,
-	[MainColumnTitles.DATE_ADDED]: 104,
-	[MainColumnTitles.TAGS]: 128
-};
 
 const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
 	[MainColumnTitles.AUTHORS]: 760,
@@ -79,10 +69,6 @@ interface RenderedColumnBodyCell {
 
 export function isMainColumnTitle(value: string): value is MainColumnTitles {
 	return mainColumnTitleSet.has(value);
-}
-
-export function getDefaultMainColumnWidth(columnTitle: MainColumnTitles) {
-	return DEFAULT_MAIN_COLUMN_WIDTHS[columnTitle];
 }
 
 export function getActiveMainColumnTitles(config: MainCollectionConfig | undefined) {

@@ -6,15 +6,18 @@ import {
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceWorkflowState,
 	getCollectionLaunchRequestDecision,
+	getCollectionValidationRunCompletionEffects,
 	reduceCollectionWorkspaceWorkflow,
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditWorkflow,
+	type CollectionValidationRunCompletionEffect,
+	type CollectionValidationRunOutcome,
 	type CollectionWorkspaceWorkflowEffect,
 	type CollectionWorkspaceWorkflowEvent,
 	type CollectionWorkspaceWorkflowState
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { type CollectionValidationRunOutcome, useCollectionValidation } from './useCollectionValidation';
+import { useCollectionValidation } from './useCollectionValidation';
 import { useCollections } from './useCollections';
 import { useModMetadata } from './useModMetadata';
 import type { NotificationType } from './useNotifications';
@@ -134,33 +137,26 @@ export function useCollectionWorkspaceSession({
 
 	const applyValidationRunOutcome = useCallback(
 		async (outcome: CollectionValidationRunOutcome, launchRequested: boolean) => {
-			switch (outcome.type) {
-				case 'missing-active-collection':
-					if (launchRequested) {
+			const runEffect = async (effect: CollectionValidationRunCompletionEffect) => {
+				switch (effect.type) {
+					case 'launch-empty-mod-list':
 						await launchMods([]);
+						break;
+					case 'launch-current-draft': {
+						const modDataList = getCollectionModDataList(mods, effect.launchCollection);
+						await launchMods(modDataList);
+						break;
 					}
-					break;
-				case 'recorded-and-ready-to-launch-current-draft': {
-					const modDataList = getCollectionModDataList(mods, outcome.launchCollection);
-					await launchMods(modDataList);
-					break;
+					case 'open-validation-modal':
+						setModalType(effect.modalType);
+						break;
+					case 'clear-launching-game':
+						updateState({ launchingGame: false });
+						break;
 				}
-				case 'recorded-failed-result':
-					if (outcome.modalType) {
-						setModalType(outcome.modalType);
-					} else if (launchRequested) {
-						updateState({ launchingGame: false });
-					}
-					break;
-				case 'cancelled':
-				case 'discarded-stale-result':
-				case 'persistence-failed':
-				case 'recorded-current-result':
-				case 'validation-run-failed':
-					if (launchRequested) {
-						updateState({ launchingGame: false });
-					}
-					break;
+			};
+			for (const effect of getCollectionValidationRunCompletionEffects(outcome, launchRequested)) {
+				await runEffect(effect);
 			}
 		},
 		[launchMods, mods, setModalType, updateState]

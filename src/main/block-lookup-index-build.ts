@@ -37,6 +37,7 @@ const BLOCK_LOOKUP_INDEX_PROGRESS_LABELS: Record<BlockLookupIndexProgressPhase, 
 	planning: 'Planning index build',
 	'scanning-sources': 'Scanning source changes',
 	'indexing-sources': 'Extracting block records',
+	'extracting-rendered-previews': 'Extracting rendered block previews',
 	finalizing: 'Finalizing indexed records',
 	'writing-index': 'Writing index cache',
 	complete: 'Index build complete'
@@ -65,6 +66,33 @@ function reportBlockLookupIndexProgress(
 	percent: number
 ) {
 	onProgress?.(createBlockLookupIndexProgress(phase, completed, total, percent));
+}
+
+function getBlockLookupSourceProgressWeight(source: BlockLookupIndexSource): number {
+	return Number.isFinite(source.size) && source.size > 0 ? source.size : 1;
+}
+
+function getBlockLookupSourceProgressPercent(
+	sources: readonly BlockLookupIndexSource[],
+	completed: number,
+	total: number,
+	startPercent: number,
+	endPercent: number
+): number {
+	if (completed <= 0 || sources.length === 0) {
+		return startPercent;
+	}
+	if (completed >= total && total > 0) {
+		return endPercent;
+	}
+	if (sources.length !== total) {
+		return startPercent + (completed / Math.max(1, total)) * (endPercent - startPercent);
+	}
+
+	const completedSources = sources.slice(0, Math.min(completed, sources.length));
+	const completedWeight = completedSources.reduce((sum, source) => sum + getBlockLookupSourceProgressWeight(source), 0);
+	const totalWeight = sources.reduce((sum, source) => sum + getBlockLookupSourceProgressWeight(source), 0);
+	return startPercent + (completedWeight / Math.max(1, totalWeight)) * (endPercent - startPercent);
 }
 
 function normalizeBlockLookupRecordIdentityPart(value: string): string {
@@ -165,15 +193,56 @@ export async function createBlockLookupIndexBuild(
 	const changedSources = indexPlan.tasks.filter((task) => !task.reusedRecords).map((task) => task.source);
 	reportBlockLookupIndexProgress(onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10);
 	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', 0, changedSources.length, 10);
+	if (renderedPreviewsEnabled) {
+		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', 0, changedSources.length, 45);
+	}
+	const sourceIndexingOptions =
+		renderedPreviewsEnabled || onProgress
+			? {
+					renderedPreviewsEnabled,
+					...(renderedPreviewsEnabled ? { previewCacheDir: options.previewCacheDir } : {}),
+					...(onProgress
+						? {
+								onIndexedSourceBatch: (completed: number, total: number) => {
+									reportBlockLookupIndexProgress(
+										onProgress,
+										'indexing-sources',
+										completed,
+										total,
+										getBlockLookupSourceProgressPercent(changedSources, completed, total, 10, renderedPreviewsEnabled ? 45 : 75)
+									);
+									if (renderedPreviewsEnabled) {
+										reportBlockLookupIndexProgress(
+											onProgress,
+											'extracting-rendered-previews',
+											completed,
+											total,
+											getBlockLookupSourceProgressPercent(changedSources, completed, total, 45, 75)
+										);
+									}
+								}
+							}
+						: {})
+				}
+			: undefined;
 	const indexedSources =
 		changedSources.length > 0
-			? renderedPreviewsEnabled
-				? await indexBlockLookupSourcesImpl(changedSources, {}, { renderedPreviewsEnabled, previewCacheDir: options.previewCacheDir })
+			? sourceIndexingOptions
+				? await indexBlockLookupSourcesImpl(changedSources, {}, sourceIndexingOptions)
 				: await indexBlockLookupSourcesImpl(changedSources)
 			: {
 					recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
 				};
-	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', changedSources.length, changedSources.length, 75);
+	reportBlockLookupIndexProgress(
+		onProgress,
+		'indexing-sources',
+		changedSources.length,
+		changedSources.length,
+		renderedPreviewsEnabled ? 45 : 75
+	);
+	if (renderedPreviewsEnabled) {
+		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', changedSources.length, changedSources.length, 75);
+	}
 
 	for (const [taskIndex, task] of indexPlan.tasks.entries()) {
 		if (task.reusedRecords) {

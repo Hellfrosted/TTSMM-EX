@@ -2,13 +2,7 @@ import { app } from 'electron';
 import type { IpcMain } from 'electron';
 
 import { ValidChannel } from '../../model';
-import {
-	createAndActivateCollection,
-	deleteActiveCollection,
-	duplicateAndActivateCollection,
-	renameActiveCollection,
-	switchActiveCollection
-} from '../collection-lifecycle-service';
+import { runCollectionLifecycle } from '../collection-lifecycle-service';
 import { saveExistingCollectionContent } from '../collection-content-save';
 import { listCollections, readCollectionFile } from '../collection-store';
 import {
@@ -49,38 +43,38 @@ export function registerCollectionHandlers(
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.CREATE_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {
-		return createAndActivateCollection(
-			getUserDataPath(),
-			parseCreateCollectionLifecycleRequest(ValidChannel.CREATE_COLLECTION_LIFECYCLE, request)
-		);
+		return runCollectionLifecycle(getUserDataPath(), {
+			type: 'create',
+			request: parseCreateCollectionLifecycleRequest(ValidChannel.CREATE_COLLECTION_LIFECYCLE, request)
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.DUPLICATE_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {
-		return duplicateAndActivateCollection(
-			getUserDataPath(),
-			parseDuplicateCollectionLifecycleRequest(ValidChannel.DUPLICATE_COLLECTION_LIFECYCLE, request)
-		);
+		return runCollectionLifecycle(getUserDataPath(), {
+			type: 'duplicate',
+			request: parseDuplicateCollectionLifecycleRequest(ValidChannel.DUPLICATE_COLLECTION_LIFECYCLE, request)
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.RENAME_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {
-		return renameActiveCollection(
-			getUserDataPath(),
-			parseRenameCollectionLifecycleRequest(ValidChannel.RENAME_COLLECTION_LIFECYCLE, request)
-		);
+		return runCollectionLifecycle(getUserDataPath(), {
+			type: 'rename',
+			request: parseRenameCollectionLifecycleRequest(ValidChannel.RENAME_COLLECTION_LIFECYCLE, request)
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.DELETE_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {
-		return deleteActiveCollection(
-			getUserDataPath(),
-			parseDeleteCollectionLifecycleRequest(ValidChannel.DELETE_COLLECTION_LIFECYCLE, request)
-		);
+		return runCollectionLifecycle(getUserDataPath(), {
+			type: 'delete',
+			request: parseDeleteCollectionLifecycleRequest(ValidChannel.DELETE_COLLECTION_LIFECYCLE, request)
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.SWITCH_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {
-		return switchActiveCollection(
-			getUserDataPath(),
-			parseSwitchCollectionLifecycleRequest(ValidChannel.SWITCH_COLLECTION_LIFECYCLE, request)
-		);
+		return runCollectionLifecycle(getUserDataPath(), {
+			type: 'switch',
+			request: parseSwitchCollectionLifecycleRequest(ValidChannel.SWITCH_COLLECTION_LIFECYCLE, request)
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.RESOLVE_STARTUP_COLLECTION, async (_event, request: unknown) => {

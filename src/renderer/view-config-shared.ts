@@ -1,14 +1,3 @@
-export function compactRecord<T>(record: Record<string, T>, validKeys: Set<string>, isValidValue: (value: T) => boolean) {
-	const compacted = Object.entries(record).reduce<Record<string, T>>((nextRecord, [key, value]) => {
-		if (validKeys.has(key) && isValidValue(value)) {
-			nextRecord[key] = value;
-		}
-		return nextRecord;
-	}, {});
-
-	return Object.keys(compacted).length > 0 ? compacted : undefined;
-}
-
 export function isFiniteNumber(value: unknown): value is number {
 	return typeof value === 'number' && Number.isFinite(value);
 }
@@ -29,16 +18,6 @@ export function normalizedOrder<T extends string>(configuredOrder: readonly stri
 	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
 	const configuredColumnSet = new Set(configuredColumns);
 	return [...configuredColumns, ...defaultOrder.filter((column) => !configuredColumnSet.has(column))];
-}
-
-export function compactOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
-	if (!configuredOrder) {
-		return undefined;
-	}
-
-	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
-
-	return configuredColumns.length > 0 ? configuredColumns : undefined;
 }
 
 export function defaultEquivalentOrder<T extends string>(order: readonly T[], defaultOrder: readonly T[]) {

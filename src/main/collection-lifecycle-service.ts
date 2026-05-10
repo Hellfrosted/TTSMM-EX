@@ -30,6 +30,28 @@ function validateNewCollectionName(userDataPath: string, name: string, currentNa
 	return undefined;
 }
 
+export type CollectionLifecycleCommand =
+	| {
+			request: CreateCollectionLifecycleRequest;
+			type: 'create';
+	  }
+	| {
+			request: DuplicateCollectionLifecycleRequest;
+			type: 'duplicate';
+	  }
+	| {
+			request: RenameCollectionLifecycleRequest;
+			type: 'rename';
+	  }
+	| {
+			request: DeleteCollectionLifecycleRequest;
+			type: 'delete';
+	  }
+	| {
+			request: SwitchCollectionLifecycleRequest;
+			type: 'switch';
+	  };
+
 export function createAndActivateCollection(userDataPath: string, request: CreateCollectionLifecycleRequest): CollectionLifecycleResult {
 	const nameFailure = validateNewCollectionName(userDataPath, request.name);
 	if (nameFailure) {
@@ -96,4 +118,19 @@ export function deleteActiveCollection(userDataPath: string, request: DeleteColl
 
 export function switchActiveCollection(userDataPath: string, request: SwitchCollectionLifecycleRequest): CollectionLifecycleResult {
 	return switchActiveCollectionTransition(userDataPath, request);
+}
+
+export function runCollectionLifecycle(userDataPath: string, command: CollectionLifecycleCommand): CollectionLifecycleResult {
+	switch (command.type) {
+		case 'create':
+			return createAndActivateCollection(userDataPath, command.request);
+		case 'duplicate':
+			return duplicateAndActivateCollection(userDataPath, command.request);
+		case 'rename':
+			return renameActiveCollection(userDataPath, command.request);
+		case 'delete':
+			return deleteActiveCollection(userDataPath, command.request);
+		case 'switch':
+			return switchActiveCollection(userDataPath, command.request);
+	}
 }

@@ -3,6 +3,7 @@ import { type CollectionErrors, type ModErrors } from './CollectionValidation';
 import { type ModCollection } from './ModCollection';
 import { type ModData, type ModDescriptor, ModType, getModDataId } from './Mod';
 import { getDependencies, getDescriptor, type SessionMods } from './SessionMods';
+import { getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
 
 type ElectronLogger = typeof Logger;
 
@@ -24,6 +25,9 @@ function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronL
 		}
 		if (!modData.installed) {
 			thisModErrors.notInstalled = true;
+		}
+		if (!getWorkshopDependencySnapshotState(modData).hasKnownSnapshot) {
+			thisModErrors.unknownWorkshopDependencies = true;
 		}
 	}
 	return thisModErrors;

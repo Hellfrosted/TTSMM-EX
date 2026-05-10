@@ -5,7 +5,7 @@ import {
 	type NuterraSteamBetaMatchingPolicy,
 	type NuterraSteamCompatibilityOptions
 } from './nuterrasteam-compatibility';
-import { getSteamDependencyName } from '../shared/workshop-dependency-snapshot';
+import { getSteamDependencyName, getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
 
 interface DependencyGraphSession {
 	dependencyGraph: ModDependencyGraph;
@@ -258,7 +258,9 @@ function applyDependencyEdges(
 		const myDescriptor = getModDependencyDescriptor(graph, mod);
 		const myDescriptorKey = myDescriptor ? getRegisteredDescriptorKey(graph, myDescriptor) : undefined;
 		if (myDescriptorKey) {
-			mod.steamDependencies?.forEach((workshopID) => {
+			const workshopDependencySnapshotState = getWorkshopDependencySnapshotState(mod);
+			const steamDependencies = workshopDependencySnapshotState.hasKnownSnapshot ? (mod.steamDependencies ?? []) : [];
+			steamDependencies.forEach((workshopID) => {
 				const dependencyName = getSteamDependencyName(mod.steamDependencyNames, workshopID);
 				const equivalentDependencyId = targetPolicy.getEquivalentDependencyIdForTarget({
 					workshopID,

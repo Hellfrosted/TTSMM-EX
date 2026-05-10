@@ -1171,12 +1171,27 @@ a:hover {
 }
 
 .BlockLookupIndexProgressTrack {
+	position: relative;
 	height: 6px;
 	min-width: 0;
 	overflow: hidden;
 	background: color-mix(in oklch, currentcolor 12%, transparent);
 	border: 1px solid color-mix(in oklch, currentcolor 28%, transparent);
 	border-radius: 999px;
+}
+
+.BlockLookupIndexProgressTrack::after {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent 0%, color-mix(in oklch, currentcolor 22%, transparent) 48%, transparent 100%);
+	content: "";
+	opacity: 0;
+	transform: translateX(-100%);
+}
+
+.BlockLookupIndexProgress--active .BlockLookupIndexProgressTrack::after {
+	animation: block-lookup-progress-sweep 1.1s ease-in-out infinite;
+	opacity: 1;
 }
 
 .BlockLookupIndexProgressFill {
@@ -1196,6 +1211,24 @@ a:hover {
 	line-height: var(--app-leading-ui);
 	text-align: end;
 	font-variant-numeric: tabular-nums;
+}
+
+@keyframes block-lookup-progress-sweep {
+	from {
+		transform: translateX(-100%);
+	}
+
+	to {
+		transform: translateX(100%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.BlockLookupIndexProgress--active .BlockLookupIndexProgressTrack::after {
+		animation: none;
+		opacity: 0.35;
+		transform: none;
+	}
 }
 
 .BlockLookupTablePane {

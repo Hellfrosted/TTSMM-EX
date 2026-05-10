@@ -7,6 +7,7 @@ import {
 	deleteActiveCollection,
 	duplicateAndActivateCollection,
 	renameActiveCollection,
+	runCollectionLifecycle,
 	switchActiveCollection
 } from '../../main/collection-lifecycle-service';
 import { readCollectionFile, updateCollectionFile } from '../../main/collection-store';
@@ -47,11 +48,14 @@ describe('collection lifecycle service', () => {
 	it('creates and activates a new collection while preserving dirty active edits', () => {
 		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
-		const result = createAndActivateCollection(tempDir, {
-			config: config(),
-			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-			name: 'fresh',
-			mods: ['local:new']
+		const result = runCollectionLifecycle(tempDir, {
+			type: 'create',
+			request: {
+				config: config(),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'fresh',
+				mods: ['local:new']
+			}
 		});
 
 		expect(result.ok).toBe(true);

@@ -13,6 +13,7 @@ import {
 	createCollectionWorkspaceValidationResult,
 	getCollectionValidationCompletionDecision,
 	getCollectionValidationPersistenceDecision,
+	type CollectionValidationRunOutcome,
 	type CollectionWorkspaceValidationResult
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -35,39 +36,6 @@ interface ValidationRequest {
 	config: AppConfig;
 	mods: CollectionWorkspaceAppState['mods'];
 }
-
-export type CollectionValidationRunOutcome =
-	| {
-			type: 'cancelled';
-	  }
-	| {
-			type: 'discarded-stale-result';
-			validationResult?: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'missing-active-collection';
-	  }
-	| {
-			type: 'persistence-failed';
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'recorded-and-ready-to-launch-current-draft';
-			launchCollection: ModCollection;
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'recorded-current-result';
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'recorded-failed-result';
-			modalType?: CollectionManagerModalType;
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'validation-run-failed';
-	  };
 
 function notifyValidationFailure(openNotification: UseCollectionValidationOptions['openNotification'], message: string) {
 	openNotification?.(

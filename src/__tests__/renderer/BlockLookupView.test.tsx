@@ -194,7 +194,7 @@ describe('BlockLookupView', () => {
 				renderedPreviewsEnabled: true
 			});
 		});
-		expect(screen.getByRole('button', { name: 'Save Settings' })).toBeDisabled();
+		expect(screen.queryByRole('button', { name: 'Save Settings' })).not.toBeInTheDocument();
 	});
 
 	it('shows only cached rendered preview references after the current index was built with rendered previews', async () => {
@@ -590,9 +590,11 @@ describe('BlockLookupView', () => {
 			});
 		});
 
-		expect(screen.getByText('Extracting block records')).toBeInTheDocument();
+		expect(screen.getByText('Extracting block records (3/6 sources)')).toBeInTheDocument();
 		const progressBar = screen.getByRole('progressbar', { name: 'Block Lookup index progress' });
+		expect(progressBar).toHaveAttribute('aria-busy', 'true');
 		expect(progressBar).toHaveAttribute('aria-valuenow', '50');
+		expect(progressBar.parentElement).toHaveClass('BlockLookupIndexProgress--active');
 		expect(screen.getByText('50%')).toBeInTheDocument();
 
 		act(() => {
@@ -788,7 +790,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
+							columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -799,7 +801,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
+								columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -836,7 +838,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
+							columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -847,7 +849,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
+								columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -876,7 +878,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['blockName', 'internalName', 'spawnCommand', 'modTitle', 'preview'],
+							columnOrder: ['preview', 'blockName', 'internalName', 'spawnCommand', 'modTitle'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -887,7 +889,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['blockName', 'internalName', 'spawnCommand', 'modTitle', 'preview'],
+								columnOrder: ['preview', 'blockName', 'internalName', 'spawnCommand', 'modTitle'],
 								columnWidthConfig: undefined
 							})
 						})

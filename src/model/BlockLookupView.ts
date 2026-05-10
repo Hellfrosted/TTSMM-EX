@@ -6,7 +6,7 @@ export enum BlockLookupColumnTitles {
 	MOD = 'Mod'
 }
 
-export const BLOCK_LOOKUP_COLUMN_KEYS = ['blockName', 'spawnCommand', 'internalName', 'modTitle', 'preview'] as const;
+export const BLOCK_LOOKUP_COLUMN_KEYS = ['preview', 'blockName', 'spawnCommand', 'internalName', 'modTitle'] as const;
 export type BlockLookupColumnKey = (typeof BLOCK_LOOKUP_COLUMN_KEYS)[number];
 export const BLOCK_LOOKUP_COLUMN_TITLES: Record<BlockLookupColumnKey, BlockLookupColumnTitles> = {
 	preview: BlockLookupColumnTitles.PREVIEW,

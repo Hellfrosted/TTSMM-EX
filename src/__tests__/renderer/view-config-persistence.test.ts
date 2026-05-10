@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { BlockLookupColumnTitles, MainColumnTitles, type BlockLookupViewConfig, type MainCollectionConfig } from '../../model';
+import {
+	BLOCK_LOOKUP_COLUMN_KEYS,
+	BLOCK_LOOKUP_COLUMN_TITLES,
+	BlockLookupColumnTitles,
+	MainColumnTitles,
+	type BlockLookupViewConfig,
+	type MainCollectionConfig
+} from '../../model';
 import { canSetMainColumnVisibility } from '../../renderer/main-column-visibility';
 import { moveMainCollectionColumn } from '../../renderer/main-view-config-columns';
 import { normalizeMainCollectionConfig } from '../../renderer/main-view-config-normalize';
 import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
 import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
+import { DEFAULT_BLOCK_LOOKUP_COLUMNS } from '../../renderer/block-lookup-column-definitions';
 import {
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
@@ -174,9 +182,9 @@ describe('view-config-persistence', () => {
 		expect(columns.map((column) => column.title)).toEqual([
 			BlockLookupColumnTitles.INTERNAL_NAME,
 			BlockLookupColumnTitles.BLOCK,
+			BlockLookupColumnTitles.PREVIEW,
 			BlockLookupColumnTitles.SPAWN_COMMAND,
-			BlockLookupColumnTitles.MOD,
-			BlockLookupColumnTitles.PREVIEW
+			BlockLookupColumnTitles.MOD
 		]);
 		expect(columns.find((column) => column.title === BlockLookupColumnTitles.BLOCK)).toMatchObject({
 			visible: false,
@@ -184,10 +192,26 @@ describe('view-config-persistence', () => {
 		});
 	});
 
+	it('derives default block lookup columns from canonical keys', () => {
+		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.key)).toEqual(BLOCK_LOOKUP_COLUMN_KEYS);
+		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.title)).toEqual(
+			BLOCK_LOOKUP_COLUMN_KEYS.map((key) => BLOCK_LOOKUP_COLUMN_TITLES[key])
+		);
+	});
+
 	it('omits default block lookup config fields', () => {
 		const columns = getConfiguredBlockLookupColumns();
 
 		expect(blockLookupColumnsToConfig(columns)).toEqual({});
+	});
+
+	it('omits default-equivalent block lookup widths', () => {
+		const columns = getConfiguredBlockLookupColumns().map((column) => ({
+			...column,
+			width: column.defaultWidth
+		}));
+
+		expect(blockLookupColumnsToConfig(columns).columnWidthConfig).toBeUndefined();
 	});
 
 	it('updates block lookup draft visibility without hiding the final visible column', () => {

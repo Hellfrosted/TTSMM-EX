@@ -234,6 +234,67 @@ describe('session mod descriptors', () => {
 		expect(errors[dependent.uid]?.missingDependencies?.[0]).toMatchObject({ workshopID: BigInt(11) });
 	});
 
+	it('preserves known-empty workshop dependency snapshots as valid empty dependency data', async () => {
+		const dependent = {
+			uid: `${ModType.WORKSHOP}:10`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(10),
+			id: 'DependentWorkshopMod',
+			name: 'Dependent Workshop Mod',
+			installed: true,
+			steamDependencies: [],
+			steamDependenciesFetchedAt: Date.now(),
+			subscribed: true
+		};
+		const session = new SessionMods('', [dependent]);
+
+		setupDescriptors(session, new Map());
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [dependent.uid]
+		});
+
+		expect(getDependencies(session, dependent)).toEqual([]);
+		expect(errors[dependent.uid]).toBeUndefined();
+	});
+
+	it.each([
+		{
+			label: 'unknown',
+			mod: {
+				steamDependencies: undefined,
+				steamDependenciesFetchedAt: Date.now()
+			}
+		},
+		{
+			label: 'never-checked',
+			mod: {}
+		}
+	])('preserves $label workshop dependency snapshots as unknown metadata', async ({ mod }) => {
+		const dependent = {
+			uid: `${ModType.WORKSHOP}:10`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(10),
+			id: 'DependentWorkshopMod',
+			name: 'Dependent Workshop Mod',
+			installed: true,
+			subscribed: true,
+			...mod
+		};
+		const session = new SessionMods('', [dependent]);
+
+		setupDescriptors(session, new Map());
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [dependent.uid]
+		});
+
+		expect(getDependencies(session, dependent)).toEqual([]);
+		expect(errors[dependent.uid]).toEqual({ unknownWorkshopDependencies: true });
+	});
+
 	it('uses workshop dependency names for unresolved workshop dependencies', () => {
 		const dependent = {
 			uid: `${ModType.WORKSHOP}:10`,

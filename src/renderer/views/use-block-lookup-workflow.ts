@@ -152,34 +152,51 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		};
 	}, [indexRunStatus]);
 
-	const handleSaveSettings = useCallback(async () => {
-		try {
-			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot, renderedPreviewsEnabled });
-			const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
-			dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-			setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
-			openNotification(
-				{
-					message: 'Block lookup path saved',
-					description: nextSettings.workshopRoot || 'Workshop root cleared.',
-					placement: 'topRight',
-					duration: 2
-				},
-				'success'
-			);
-		} catch (error) {
-			api.logger.error(error);
-			openNotification(
-				{
-					message: 'Could not save block lookup path',
-					description: formatErrorMessage(error),
-					placement: 'topRight',
-					duration: 3
-				},
-				'error'
-			);
+	const handleSaveSettings = useCallback(
+		async (notify = true) => {
+			try {
+				const nextSettings = await api.saveBlockLookupSettings({ workshopRoot, renderedPreviewsEnabled });
+				const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
+				dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
+				setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
+				if (notify) {
+					openNotification(
+						{
+							message: 'Block lookup path saved',
+							description: nextSettings.workshopRoot || 'Workshop root cleared.',
+							placement: 'topRight',
+							duration: 2
+						},
+						'success'
+					);
+				}
+			} catch (error) {
+				api.logger.error(error);
+				openNotification(
+					{
+						message: 'Could not save block lookup path',
+						description: formatErrorMessage(error),
+						placement: 'topRight',
+						duration: 3
+					},
+					'error'
+				);
+			}
+		},
+		[openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]
+	);
+
+	useEffect(() => {
+		if (settings.workshopRoot === workshopRoot) {
+			return undefined;
 		}
-	}, [openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]);
+		const timeoutId = window.setTimeout(() => {
+			void handleSaveSettings(false);
+		}, 600);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [handleSaveSettings, settings.workshopRoot, workshopRoot]);
 
 	const handleBrowseWorkshopRoot = useCallback(async () => {
 		const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
@@ -338,7 +355,6 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		handleBrowseWorkshopRoot,
 		handleBuildIndex,
 		indexRunStatus,
-		handleSaveSettings,
 		loadingResults,
 		modSources,
 		openNotification,
