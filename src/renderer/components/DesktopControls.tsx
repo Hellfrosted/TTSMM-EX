@@ -134,7 +134,7 @@ export function DesktopIconButton({ children, className, type = 'button', ...pro
 			{...props}
 			type={type}
 			className={joinClassNames(
-				'DesktopIconButton inline-flex h-[calc(var(--app-control-height)-8px)] min-h-0 w-[calc(var(--app-control-height)-8px)] cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
+				'DesktopIconButton inline-flex h-control min-h-control w-control min-w-control cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
 				desktopControlFocusClassName,
 				className
 			)}
@@ -174,7 +174,14 @@ export function DesktopSelect({ children, className, ...props }: SelectHTMLAttri
 }
 
 export function DesktopSwitch({ className, type = 'checkbox', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-	return <input {...props} type={type} className={joinClassNames('DesktopSwitch', desktopSwitchClassName, className)} />;
+	return (
+		<span className={joinClassNames(desktopSwitchClassName, className)}>
+			<input {...props} type={type} className="DesktopSwitchInput" />
+			<span className="DesktopSwitchTrack" aria-hidden="true">
+				<span className="DesktopSwitchThumb" />
+			</span>
+		</span>
+	);
 }
 
 interface DesktopDialogProps {

@@ -348,7 +348,7 @@ textarea {
 }
 
 .MainCollectionSizeMeter {
-	--main-collection-size-meter: 8%;
+	--main-collection-size-meter-scale: 0.08;
 	display: inline-grid;
 	grid-template-columns: minmax(52px, auto) minmax(34px, 1fr);
 	column-gap: 7px;
@@ -380,10 +380,159 @@ textarea {
 .MainCollectionSizeMeterFill {
 	position: absolute;
 	inset: 0 auto 0 0;
-	width: var(--main-collection-size-meter);
+	width: 100%;
 	border-radius: inherit;
 	background: color-mix(in srgb, var(--app-color-primary) 64%, var(--app-color-text-base));
-	transition: width var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+	transform: scaleX(var(--main-collection-size-meter-scale));
+	transform-origin: left center;
+	transition: transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+}
+
+.DesktopSwitchInput {
+	position: absolute;
+	left: 0;
+	z-index: 1;
+	width: 44px;
+	height: 44px;
+	margin: 0;
+	cursor: inherit;
+	opacity: 0;
+}
+
+.DesktopSwitchTrack {
+	position: relative;
+	width: 44px;
+	height: 24px;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 999px;
+	box-sizing: border-box;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.DesktopSwitchThumb {
+	position: absolute;
+	top: 50%;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	background: var(--app-color-text-muted);
+	border-radius: 999px;
+	transform: translateY(-50%);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.DesktopSwitchInput:checked + .DesktopSwitchTrack {
+	background: color-mix(in srgb, var(--app-color-primary) 28%, var(--app-color-surface-elevated));
+	border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+}
+
+.DesktopSwitchInput:checked + .DesktopSwitchTrack .DesktopSwitchThumb {
+	background: var(--app-color-primary);
+	transform: translate(20px, -50%);
+}
+
+.DesktopSwitchInput:focus-visible + .DesktopSwitchTrack {
+	box-shadow:
+		0 0 0 2px var(--app-color-background),
+		0 0 0 4px var(--app-color-focus-ring);
+}
+
+.DesktopSwitchInput:disabled {
+	cursor: not-allowed;
+}
+
+.DesktopSwitchInput:disabled + .DesktopSwitchTrack {
+	opacity: 0.55;
+}
+
+.DesktopCheckboxTarget {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--app-control-height);
+	height: var(--app-control-height);
+	cursor: pointer;
+	vertical-align: middle;
+}
+
+.DesktopCheckboxInput {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	width: var(--app-control-height);
+	height: var(--app-control-height);
+	margin: 0;
+	cursor: inherit;
+	opacity: 0;
+}
+
+.DesktopCheckboxBox {
+	position: relative;
+	width: 16px;
+	height: 16px;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 3px;
+	box-sizing: border-box;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.DesktopCheckboxBox::after {
+	position: absolute;
+	content: "";
+	opacity: 0;
+}
+
+.DesktopCheckboxInput:checked + .DesktopCheckboxBox,
+.DesktopCheckboxInput:indeterminate + .DesktopCheckboxBox {
+	background: var(--app-color-primary);
+	border-color: color-mix(in srgb, var(--app-color-primary) 72%, var(--app-color-border));
+}
+
+.DesktopCheckboxInput:checked + .DesktopCheckboxBox::after {
+	top: 1px;
+	left: 5px;
+	width: 4px;
+	height: 9px;
+	border: solid var(--app-color-text-base);
+	border-width: 0 2px 2px 0;
+	opacity: 1;
+	transform: rotate(45deg);
+}
+
+.DesktopCheckboxInput:indeterminate + .DesktopCheckboxBox::after {
+	top: 6px;
+	left: 3px;
+	width: 8px;
+	height: 2px;
+	background: var(--app-color-text-base);
+	opacity: 1;
+}
+
+.DesktopCheckboxInput:focus-visible + .DesktopCheckboxBox {
+	box-shadow:
+		0 0 0 2px var(--app-color-background),
+		0 0 0 4px var(--app-color-focus-ring);
+}
+
+.DesktopCheckboxInput:disabled {
+	cursor: not-allowed;
+}
+
+.DesktopCheckboxInput:disabled + .DesktopCheckboxBox {
+	opacity: 0.55;
 }
 
 .CollectionTableHeaderCell {
@@ -476,7 +625,7 @@ textarea {
 	display: flex;
 	align-items: center;
 	width: 100%;
-	min-height: 30px;
+	min-height: var(--app-control-height);
 	padding: 0 10px;
 	color: var(--app-color-text, oklch(94% 0.012 67));
 	font: inherit;
@@ -860,12 +1009,6 @@ a:hover {
 		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
-.DesktopSwitch,
-.DesktopSwitch::after {
-	transition-duration: var(--app-motion-duration-fast);
-	transition-timing-function: var(--app-motion-ease-emphasized);
-}
-
 .ToolbarMenuSurface {
 	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
 	transform-origin: top right;
@@ -1037,10 +1180,13 @@ a:hover {
 }
 
 .BlockLookupIndexProgressFill {
+	width: 100%;
 	height: 100%;
 	background: currentcolor;
 	border-radius: inherit;
-	transition: width 120ms ease-out;
+	transform: scaleX(var(--block-lookup-index-progress-scale));
+	transform-origin: left center;
+	transition: transform 120ms ease-out;
 }
 
 .BlockLookupIndexProgressValue {
@@ -1394,8 +1540,8 @@ a:hover {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 32px;
-	height: 32px;
+	width: var(--app-control-height);
+	height: var(--app-control-height);
 	padding: 0;
 	color: var(--app-color-text);
 	background: transparent;
@@ -1423,7 +1569,7 @@ a:hover {
 .ModDetailButton:focus-visible,
 .ModDetailTabButton:focus-visible,
 .ModDetailCollapseHeader:focus-visible,
-.ModDetailCheckbox:focus-visible,
+.DesktopCheckboxInput:focus-visible + .DesktopCheckboxBox,
 .CollectionDetailsOverlayResizeHandle:focus-visible {
 	outline: none;
 	box-shadow:
@@ -1511,7 +1657,7 @@ a:hover {
 
 .ModDetailButton {
 	align-self: flex-start;
-	min-height: 30px;
+	min-height: var(--app-control-height);
 	padding: 0 10px;
 	color: var(--app-color-text);
 	font: inherit;
@@ -1746,7 +1892,7 @@ a:hover {
 
 .ModDetailTabButton {
 	position: relative;
-	min-height: 34px;
+	min-height: var(--app-control-height);
 	padding: 0 12px;
 	color: var(--app-color-text-muted);
 	font: inherit;
@@ -1844,7 +1990,7 @@ a:hover {
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	min-height: 30px;
+	min-height: var(--app-control-height);
 	padding: 4px 8px;
 	color: var(--app-color-text);
 	font: inherit;
@@ -1929,20 +2075,13 @@ a:hover {
 }
 
 .ModDetailTableSelectionCell {
-	width: 34px;
+	width: 48px;
 	text-align: center;
 }
 
 .ModDetailTableEmpty {
 	color: var(--app-color-text-muted);
 	text-align: center;
-}
-
-.ModDetailCheckbox {
-	width: 16px;
-	height: 16px;
-	margin: 0;
-	accent-color: var(--app-color-primary);
 }
 
 .CollectionSettingsForm {
@@ -2254,13 +2393,6 @@ a:hover {
 	flex: 0 0 auto;
 }
 
-.MainCollectionSelectionCheckbox {
-	width: 16px;
-	height: 16px;
-	margin: 0;
-	accent-color: var(--app-color-primary);
-}
-
 .MainCollectionVirtualLoading {
 	position: absolute;
 	inset: 0;
@@ -2310,7 +2442,10 @@ a:hover {
 }
 
 .StartupProgressFill {
-	transition: width var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+	width: 100%;
+	transform: scaleX(var(--startup-progress-scale));
+	transform-origin: left center;
+	transition: transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
 }
 
 .StartupStatusIcon {
@@ -2758,14 +2893,13 @@ a:hover {
 		padding-bottom: 3px;
 	}
 
-	.MainCollectionSelectionCheckbox {
-		width: 24px;
-		height: 24px;
-	}
-
 	.MainCollectionVirtualRow.CompactModRow > .MainCollectionVirtualCell.CollectionRowModName {
 		padding-top: 3px;
 		padding-bottom: 3px;
+	}
+
+	.MainCollectionVirtualRow.CompactModRow .CollectionNameButton {
+		min-height: var(--app-control-height);
 	}
 
 	.MainCollectionVirtualRow.CompactModRow .MainCollectionTag {

@@ -22,6 +22,19 @@ function stubResizeObserver() {
 	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 }
 
+function stubCoarsePointer(matches = true) {
+	Object.defineProperty(window, 'matchMedia', {
+		configurable: true,
+		writable: true,
+		value: vi.fn((query: string) => ({
+			matches: query === '(pointer: coarse)' ? matches : false,
+			media: query,
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn()
+		}))
+	});
+}
+
 async function findResizeHandles(columnTitle: string) {
 	return screen.findAllByRole('slider', { name: `Resize ${columnTitle}` });
 }
@@ -39,6 +52,19 @@ function getRenderedNameOrder() {
 	return screen
 		.getAllByRole('button', { name: /^Open details for / })
 		.map((button) => button.getAttribute('aria-label')?.replace('Open details for ', '') || '');
+}
+
+function expectRenderedControlsToHaveAccessibleNames(container: HTMLElement) {
+	const controls = [
+		...container.querySelectorAll<HTMLElement>(
+			'button,input,select,textarea,[role="button"],[role="checkbox"],[role="switch"],[role="slider"]'
+		)
+	].filter((control) => !control.closest('[aria-hidden="true"]'));
+
+	expect(controls.length).toBeGreaterThan(0);
+	controls.forEach((control) => {
+		expect(control).toHaveAccessibleName();
+	});
 }
 
 function createDataTransfer() {
@@ -120,6 +146,31 @@ describe('MainCollectionView', () => {
 		render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByRole('checkbox', { name: 'Include HumanReadableModId in collection' })).toBeChecked();
+	});
+
+	it('keeps the collection table and rendered controls named for accessibility', async () => {
+		stubResizeObserver();
+
+		const { container } = render(<MainCollectionView {...createProps()} />);
+
+		expect(await screen.findByRole('table', { name: /Mod collection table/ })).toBeInTheDocument();
+		expectRenderedControlsToHaveAccessibleNames(container);
+	});
+
+	it('keeps compact rows at touch-sized geometry for coarse pointers', async () => {
+		stubResizeObserver();
+		stubCoarsePointer();
+
+		const rows = createRows(2);
+		render(
+			<MainCollectionView
+				{...createProps({ collection: { name: 'default', mods: [] }, config: { smallRows: true }, filteredRows: rows, rows })}
+			/>
+		);
+
+		const row = (await screen.findByText('Mod1')).closest('tr');
+		expect(row).toHaveClass('CompactModRow');
+		expect(row).toHaveStyle({ height: '48px' });
 	});
 
 	it('routes row actions through the table command object', async () => {

@@ -37,7 +37,7 @@ const toolbarMenuButtonClassName =
 const toolbarMenuClassName =
 	'ToolbarMenuSurface absolute right-0 top-[calc(100%+6px)] z-30 flex min-w-56 flex-col rounded-sm border border-border bg-surface-elevated p-1.5 shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]';
 const toolbarMenuItemClassName = joinClassNames(
-	'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
+	'flex min-h-control w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
 	desktopControlFocusClassName
 );
 

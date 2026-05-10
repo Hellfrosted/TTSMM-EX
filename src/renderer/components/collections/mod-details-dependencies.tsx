@@ -71,18 +71,21 @@ export function DetailCheckbox({
 	}, [indeterminate]);
 
 	return (
-		<input
-			ref={checkboxRef}
-			type="checkbox"
-			className="ModDetailCheckbox"
-			aria-label={ariaLabel}
-			aria-checked={indeterminate ? 'mixed' : checked}
-			checked={checked}
-			disabled={disabled}
-			onChange={(event) => {
-				onChange(event.target.checked);
-			}}
-		/>
+		<label className="DesktopCheckboxTarget">
+			<input
+				ref={checkboxRef}
+				type="checkbox"
+				className="DesktopCheckboxInput ModDetailCheckbox"
+				aria-label={ariaLabel}
+				aria-checked={indeterminate ? 'mixed' : checked}
+				checked={checked}
+				disabled={disabled}
+				onChange={(event) => {
+					onChange(event.target.checked);
+				}}
+			/>
+			<span className="DesktopCheckboxBox" aria-hidden="true" />
+		</label>
 	);
 }
 

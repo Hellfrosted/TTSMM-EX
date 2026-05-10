@@ -48,19 +48,22 @@ export function SelectionCheckbox({ 'aria-label': ariaLabel, checked, indetermin
 	}, [indeterminate]);
 
 	return (
-		<input
-			ref={inputRef}
-			type="checkbox"
-			className="MainCollectionSelectionCheckbox"
-			aria-label={ariaLabel}
-			checked={checked}
-			onClick={(event) => {
-				event.stopPropagation();
-			}}
-			onChange={(event) => {
-				onChange(event.target.checked);
-			}}
-		/>
+		<label className="DesktopCheckboxTarget MainCollectionSelectionCheckboxTarget">
+			<input
+				ref={inputRef}
+				type="checkbox"
+				className="DesktopCheckboxInput MainCollectionSelectionCheckbox"
+				aria-label={ariaLabel}
+				checked={checked}
+				onClick={(event) => {
+					event.stopPropagation();
+				}}
+				onChange={(event) => {
+					onChange(event.target.checked);
+				}}
+			/>
+			<span className="DesktopCheckboxBox" aria-hidden="true" />
+		</label>
 	);
 }
 
@@ -112,6 +115,7 @@ interface MainCollectionVirtualRowProps {
 	detailsOpen?: boolean;
 	measureElement?: (element: HTMLTableRowElement | null) => void;
 	record: DisplayModData;
+	rowHeight: number;
 	rowIndex: number;
 	selected: boolean;
 	small?: boolean;
@@ -130,6 +134,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 	highlighted,
 	measureElement,
 	record,
+	rowHeight,
 	rowIndex,
 	selected,
 	small,
@@ -164,7 +169,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 			className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}${highlighted ? ' is-selected' : ''}`}
 			dataIndex={rowIndex}
 			measureElement={measureElement}
-			rowHeight={small ? 34 : 48}
+			rowHeight={rowHeight}
 			start={start}
 			width={tableWidth}
 			aria-label={`Mod row for ${rowLabel}. Press Enter or Space to select the row.`}

@@ -27,9 +27,5 @@ export const desktopDangerButtonToneClassName =
 	'border-error-action bg-error-action enabled:hover:border-error-action-hover enabled:hover:bg-error-action-hover';
 
 export const desktopSwitchClassName = [
-	'relative h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface-elevated transition-[background-color,border-color] duration-140 ease-app-out motion-reduce:transition-none',
-	"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-140 after:ease-app-out after:content-[''] motion-reduce:after:transition-none",
-	'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
-	desktopDisabledOpacityClassName,
-	desktopControlFocusClassName
+	'DesktopSwitch relative inline-flex h-control w-control shrink-0 cursor-pointer items-center justify-start rounded-sm motion-reduce:[&_.DesktopSwitchThumb]:transition-none motion-reduce:[&_.DesktopSwitchTrack]:transition-none'
 ].join(' ');

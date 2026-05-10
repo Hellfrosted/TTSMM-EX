@@ -84,6 +84,32 @@ const SIZE_METER_MIN_BYTES = 10 * 1024;
 const MAIN_COLLECTION_VIRTUAL_OVERSCAN = 28;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
 
+function useCoarsePointer() {
+	const [coarsePointer, setCoarsePointer] = useState(() =>
+		typeof window.matchMedia === 'function' ? window.matchMedia('(pointer: coarse)').matches : false
+	);
+
+	useEffect(() => {
+		if (typeof window.matchMedia !== 'function') {
+			return;
+		}
+
+		const query = window.matchMedia('(pointer: coarse)');
+		const update = () => {
+			setCoarsePointer(query.matches);
+		};
+
+		update();
+		query.addEventListener?.('change', update);
+
+		return () => {
+			query.removeEventListener?.('change', update);
+		};
+	}, []);
+
+	return coarsePointer;
+}
+
 interface MainTableMeasurementState {
 	autoColumnWidths: Record<string, number>;
 	availableTableWidth: number;
@@ -156,7 +182,7 @@ function getSizeMeterStyle(size: number): CSSProperties {
 		(Math.log(clampedSize) - Math.log(SIZE_METER_MIN_BYTES)) / (Math.log(SIZE_COLOR_MAX_BYTES) - Math.log(SIZE_METER_MIN_BYTES) || 1);
 
 	return {
-		'--main-collection-size-meter': `${Math.max(8, Math.round(clampNumber(progress, 0, 1) * 100))}%`
+		'--main-collection-size-meter-scale': Math.max(0.08, clampNumber(progress, 0, 1))
 	} as CSSProperties;
 }
 
@@ -800,6 +826,8 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 	);
 	const mainConfig = config as MainCollectionConfig | undefined;
 	const small = mainConfig?.smallRows;
+	const coarsePointer = useCoarsePointer();
+	const estimatedRowHeight = small && !coarsePointer ? 34 : 48;
 	const columnActiveConfig = mainConfig?.columnActiveConfig;
 	const columnWidthConfig = mainConfig?.columnWidthConfig;
 	const deferredRows = useDeferredValue(filteredRows);
@@ -1034,7 +1062,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 	const rowVirtualizer = useVirtualizer({
 		count: sortedRows.length,
 		getScrollElement: () => scrollParentRef.current,
-		estimateSize: () => (small ? 34 : 48),
+		estimateSize: () => estimatedRowHeight,
 		overscan: MAIN_COLLECTION_VIRTUAL_OVERSCAN,
 		isScrollingResetDelay: VIRTUAL_SCROLLING_RESET_DELAY_MS,
 		useFlushSync: false,
@@ -1043,7 +1071,6 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 			width: typeof width === 'number' ? width : 1024
 		}
 	});
-	const estimatedRowHeight = small ? 34 : 48;
 	const virtualRows = rowVirtualizer.getVirtualItems();
 	const renderedVirtualRows =
 		virtualRows.length > 0
@@ -1227,6 +1254,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		setRowSelected,
 		setSortState,
 		emptyState,
+		estimatedRowHeight,
 		needsHorizontalScroll,
 		navigateRowsByKeyboard,
 		small,
@@ -1257,6 +1285,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setRowSelected,
 		setSortState,
 		emptyState,
+		estimatedRowHeight,
 		needsHorizontalScroll,
 		navigateRowsByKeyboard,
 		small,
@@ -1283,6 +1312,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					tabIndex={-1}
 				>
 					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX }}>
+						<caption className="sr-only">Mod collection table. Use column headers to sort, resize, hide, or show table columns.</caption>
 						<colgroup>
 							<col style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }} />
 							{columns.map((column) => {
@@ -1325,6 +1355,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 										detailsOpen={detailsOpen}
 										highlighted={highlightedRowUid === record.uid}
 										record={record}
+										rowHeight={estimatedRowHeight}
 										rowIndex={virtualRow.index}
 										selected={selected}
 										small={small}

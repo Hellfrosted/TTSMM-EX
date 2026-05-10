@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ComponentType, HTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ComponentType, CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { Check, LoaderCircle, X } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { DesktopButton } from '../DesktopControls';
@@ -176,8 +176,8 @@ export function StartupProgressBar({ label = 'Startup progress', percent, showIn
 				aria-valuenow={clampedPercent}
 			>
 				<div
-					className={`StartupProgressFill absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out motion-reduce:transition-none ${valueToneClassName}`}
-					style={{ width: `${clampedPercent}%` }}
+					className={`StartupProgressFill absolute inset-y-0 left-0 rounded-[inherit] motion-reduce:transition-none ${valueToneClassName}`}
+					style={{ '--startup-progress-scale': clampedPercent / 100 } as CSSProperties}
 				/>
 			</div>
 			{showInfo ? <span className="min-w-[4ch] text-right font-[650] text-text-muted tabular-nums">{clampedPercent}%</span> : null}

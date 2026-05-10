@@ -805,7 +805,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 										setLoggingOverridesOpen(event.currentTarget.open);
 									}}
 								>
-									<summary className="min-h-9.5 cursor-pointer select-none py-2.25 font-[650] leading-tight text-text marker:text-text-muted focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+									<summary className="min-h-control cursor-pointer select-none py-2.25 font-[650] leading-tight text-text marker:text-text-muted focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background">
 										Logging Overrides
 									</summary>
 									<div className="pt-3">

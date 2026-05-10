@@ -9,6 +9,7 @@ import {
 	type Key,
 	type KeyboardEvent,
 	type MouseEvent,
+	type CSSProperties,
 	type ReactNode,
 	type SetStateAction
 } from 'react';
@@ -83,7 +84,7 @@ const blockLookupActionGroupClassName =
 	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:w-full max-[760px]:[&>button]:flex-1';
 const blockLookupIndexActionGroupClassName =
 	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[1120px]:col-span-2 max-[1120px]:w-full max-[1120px]:[&>button]:flex-1 max-[760px]:col-span-1';
-const blockLookupColumnMoveButtonClassName = 'h-(--app-compact-icon-button-size) w-(--app-compact-icon-button-size) shrink-0';
+const blockLookupColumnMoveButtonClassName = 'shrink-0';
 const blockLookupIndexSourceClassName =
 	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto_auto] items-center gap-x-2.5 gap-y-2 max-[1120px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
 const BLOCK_LOOKUP_VIRTUAL_OVERSCAN = 24;
@@ -441,7 +442,10 @@ function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndex
 						aria-valuemax={100}
 						aria-valuenow={status.progress.percent}
 					>
-						<div className="BlockLookupIndexProgressFill" style={{ width: `${status.progress.percent}%` }} />
+						<div
+							className="BlockLookupIndexProgressFill"
+							style={{ '--block-lookup-index-progress-scale': status.progress.percent / 100 } as CSSProperties}
+						/>
 					</div>
 					<span className="BlockLookupIndexProgressValue">{status.progress.percent}%</span>
 				</div>
@@ -512,7 +516,7 @@ function BlockLookupDetailField({
 				{copyLabel && hasValue ? (
 					<DesktopIconButton
 						aria-label={copyLabel}
-						className="h-(--app-compact-icon-button-size) w-(--app-compact-icon-button-size) shrink-0"
+						className="shrink-0"
 						title={copyLabel}
 						onClick={() => {
 							onCopy?.(value, copySuccessMessage);
@@ -533,7 +537,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		handleAutoDetectWorkshopRoot,
 		handleBrowseWorkshopRoot,
 		handleBuildIndex,
-		handleSaveSettings,
 		indexRunStatus,
 		loadingResults,
 		modSources,
@@ -555,7 +558,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		setSelectedFilterMods,
 		setWorkshopRoot,
 		syncSelectionCopyOrder,
-		settings,
 		stats,
 		workshopRoot
 	} = useBlockLookupWorkflow({ appState });
@@ -1060,9 +1062,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								Browse
 							</BlockLookupButton>
 							<BlockLookupButton onClick={handleAutoDetectWorkshopRoot}>Auto Detect</BlockLookupButton>
-							<BlockLookupButton disabled={settings.workshopRoot === workshopRoot} onClick={handleSaveSettings}>
-								Save Settings
-							</BlockLookupButton>
 							<BlockLookupButton
 								icon={<Database size={16} aria-hidden="true" />}
 								onClick={() => {
