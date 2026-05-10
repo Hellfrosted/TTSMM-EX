@@ -1,8 +1,4 @@
-import type { AppConfig, ModCollection, ModDataOverride } from 'model';
-
-export function copyCollectionsMap(collections: Map<string, ModCollection>) {
-	return new Map<string, ModCollection>(collections);
-}
+import type { AppConfig, ModDataOverride } from 'model';
 
 function cloneUserOverride(override: ModDataOverride): ModDataOverride {
 	return {

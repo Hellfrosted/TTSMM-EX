@@ -34,9 +34,11 @@ interface VirtualTableRowProps {
 	className: string;
 	dataIndex: number;
 	measureElement: (element: HTMLTableRowElement | null) => void;
-	onActivate?: () => void;
+	keyboardShortcuts?: string;
+	onActivate?: (event: MouseEvent<HTMLTableRowElement> | KeyboardEvent<HTMLTableRowElement>) => void;
 	onContextMenu?: () => void;
 	onDoubleClick?: () => void;
+	onKeyDown?: (event: KeyboardEvent<HTMLTableRowElement>) => void;
 	rowHeight?: number;
 	start: number;
 	tabIndex?: number;
@@ -48,9 +50,11 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 	className,
 	dataIndex,
 	measureElement,
+	keyboardShortcuts,
 	onActivate,
 	onContextMenu,
 	onDoubleClick,
+	onKeyDown,
 	rowHeight,
 	start,
 	tabIndex = 0,
@@ -62,16 +66,21 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 			return;
 		}
 
-		onActivate?.();
+		onActivate?.(event);
 	};
 
-	const activateFromKeyboard = (event: KeyboardEvent<HTMLTableRowElement>) => {
+	const handleKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
+		onKeyDown?.(event);
+		if (event.defaultPrevented) {
+			return;
+		}
+
 		if (event.key !== 'Enter' && event.key !== ' ') {
 			return;
 		}
 
 		event.preventDefault();
-		onActivate?.();
+		onActivate?.(event);
 	};
 
 	return (
@@ -81,13 +90,13 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 			data-index={dataIndex}
 			className={className}
 			style={{ height: rowHeight, transform: `translateY(${start}px)`, width }}
-			aria-keyshortcuts={onActivate ? 'Enter Space' : undefined}
+			aria-keyshortcuts={keyboardShortcuts ?? (onActivate ? 'Enter Space' : undefined)}
 			aria-roledescription={onActivate ? 'selectable row' : undefined}
 			tabIndex={tabIndex}
 			onClick={activateFromClick}
 			onContextMenu={onContextMenu}
 			onDoubleClick={onDoubleClick}
-			onKeyDown={activateFromKeyboard}
+			onKeyDown={handleKeyDown}
 		>
 			{children}
 		</tr>

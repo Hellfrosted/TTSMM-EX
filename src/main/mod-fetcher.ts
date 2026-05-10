@@ -2,13 +2,12 @@ import { ModData, type NuterraSteamCompatibilityOptions } from '../model';
 
 import type { SteamUGCDetails } from './steamworks';
 import { clearPreviewAllowlist } from './preview-protocol';
-import { isSteamworksBypassEnabled } from './steamworks-runtime';
 import { ModInventoryProgress } from './mod-inventory-progress';
 import { scanLocalMods } from './mod-local-scan';
 import { getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import { hydrateWorkshopMod } from './mod-workshop-hydration';
 import { fetchWorkshopInventory, filterSettledModResults } from './mod-workshop-inventory';
-import { fetchWorkshopDependencyLookup } from './workshop-dependencies';
+import { createWorkshopDependencySnapshot, resolveWorkshopDependencyNames } from './workshop-dependencies';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -17,7 +16,6 @@ interface ProgressSender {
 }
 
 interface ModFetcherOptions {
-	skipWorkshopSteamworks?: boolean;
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
@@ -26,7 +24,6 @@ interface ModInventoryContext {
 	knownWorkshopMods: Set<bigint>;
 	platform: NodeJS.Platform;
 	progress: ModInventoryProgress;
-	skipWorkshopSteamworks: boolean;
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
@@ -42,7 +39,6 @@ export function createModInventoryContext(
 		knownWorkshopMods: new Set(knownWorkshopMods),
 		platform,
 		progress: new ModInventoryProgress(progressSender),
-		skipWorkshopSteamworks: options.skipWorkshopSteamworks ?? isSteamworksBypassEnabled(),
 		treatNuterraSteamBetaAsEquivalent: options.treatNuterraSteamBetaAsEquivalent
 	};
 }
@@ -76,8 +72,16 @@ async function buildWorkshopMod(
 }
 
 async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
+	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
 	const modResponses = await Promise.allSettled<ModData | null>(
-		steamDetails.map((steamUGCDetails: SteamUGCDetails) => buildWorkshopMod(context, steamUGCDetails.publishedFileId, steamUGCDetails))
+		steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
+			const mod = await buildWorkshopMod(context, steamUGCDetails.publishedFileId, steamUGCDetails);
+			const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
+			if (mod && dependencySnapshot) {
+				Object.assign(mod, dependencySnapshot);
+			}
+			return mod;
+		})
 	);
 	return filterSettledModResults(modResponses);
 }
@@ -96,8 +100,6 @@ function fetchWorkshopMods(context: ModInventoryContext): Promise<ModData[]> {
 		options: getNuterraSteamCompatibilityOptions(context),
 		platform: context.platform,
 		progress: context.progress,
-		refreshWorkshopDependencies: fetchWorkshopDependencyLookup,
-		skipWorkshopSteamworks: context.skipWorkshopSteamworks,
 		updateModLoadingProgress: (size) => updateModLoadingProgress(context, size)
 	});
 }
@@ -121,8 +123,6 @@ export default class ModFetcher {
 
 	platform: NodeJS.Platform;
 
-	skipWorkshopSteamworks: boolean;
-
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 
 	progress: ModInventoryProgress;
@@ -139,7 +139,6 @@ export default class ModFetcher {
 		this.knownWorkshopMods = context.knownWorkshopMods;
 		this.progressSender = progressSender;
 		this.platform = context.platform;
-		this.skipWorkshopSteamworks = context.skipWorkshopSteamworks;
 		this.treatNuterraSteamBetaAsEquivalent = context.treatNuterraSteamBetaAsEquivalent;
 		this.progress = context.progress;
 	}
@@ -150,7 +149,6 @@ export default class ModFetcher {
 			knownWorkshopMods: this.knownWorkshopMods,
 			platform: this.platform,
 			progress: this.progress,
-			skipWorkshopSteamworks: this.skipWorkshopSteamworks,
 			treatNuterraSteamBetaAsEquivalent: this.treatNuterraSteamBetaAsEquivalent
 		};
 	}
@@ -173,8 +171,16 @@ export default class ModFetcher {
 	}
 
 	async processSteamModResults(steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
+		const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
 		const modResponses = await Promise.allSettled<ModData | null>(
-			steamDetails.map((steamUGCDetails: SteamUGCDetails) => this.buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails))
+			steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
+				const mod = await this.buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails);
+				const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
+				if (mod && dependencySnapshot) {
+					Object.assign(mod, dependencySnapshot);
+				}
+				return mod;
+			})
 		);
 		return filterSettledModResults(modResponses);
 	}
@@ -188,8 +194,6 @@ export default class ModFetcher {
 			options: getNuterraSteamCompatibilityOptions(this.createContext()),
 			platform: this.platform,
 			progress: this.progress,
-			refreshWorkshopDependencies: fetchWorkshopDependencyLookup,
-			skipWorkshopSteamworks: this.skipWorkshopSteamworks,
 			updateModLoadingProgress: (size) => this.updateModLoadingProgress(size)
 		});
 	}

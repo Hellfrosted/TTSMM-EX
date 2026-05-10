@@ -24,12 +24,11 @@ node_modules
 # OSX
 .DS_Store
 
-release/greenworks
-release/app/greenworks
-release/app/bin
-release/app/dist
-release/package-app
-release/build
+release/*
+!release/app/
+release/app/*
+!release/app/package.json
+!release/app/pnpm-lock.yaml
 output/
 .erb/dll
 .erb/.tmp

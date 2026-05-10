@@ -4,26 +4,11 @@ import type { SteamworksReadiness, SteamworksStatus } from 'shared/ipc';
 import Steamworks from './steamworks';
 
 interface SteamworksRuntimeOptions {
-	env?: NodeJS.ProcessEnv;
 	steamworks?: Pick<typeof Steamworks, 'init'>;
 	logger?: Pick<typeof log, 'error' | 'warn'>;
 }
 
-export const STEAMWORKS_BYPASS_ENV = 'TTSMM_BYPASS_STEAMWORKS';
-
-function isTruthyEnv(value: string | undefined): boolean {
-	return value === '1' || value?.toLowerCase() === 'true';
-}
-
-export function isSteamworksBypassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-	return isTruthyEnv(env[STEAMWORKS_BYPASS_ENV]);
-}
-
-export function classifySteamworksReadiness(inited: boolean, error?: string, bypassed = false): SteamworksReadiness {
-	if (bypassed) {
-		return { kind: 'bypassed', retryable: false };
-	}
-
+export function classifySteamworksReadiness(inited: boolean, error?: string): SteamworksReadiness {
 	if (inited) {
 		return { kind: 'ready', retryable: false };
 	}
@@ -54,36 +39,20 @@ export function classifySteamworksReadiness(inited: boolean, error?: string, byp
 }
 
 export class SteamworksRuntime {
-	private readonly bypassEnabled: boolean;
-
 	private readonly steamworks: Pick<typeof Steamworks, 'init'>;
 
 	private readonly logger?: Pick<typeof log, 'error' | 'warn'>;
-
-	private warnedAboutBypass = false;
 
 	private steamworksInited = false;
 
 	private steamworksError: string | undefined;
 
-	constructor({ env = process.env, steamworks = Steamworks, logger }: SteamworksRuntimeOptions = {}) {
-		this.bypassEnabled = isSteamworksBypassEnabled(env);
+	constructor({ steamworks = Steamworks, logger }: SteamworksRuntimeOptions = {}) {
 		this.steamworks = steamworks;
 		this.logger = logger;
 	}
 
 	getStatus(): SteamworksStatus {
-		if (this.bypassEnabled) {
-			if (!this.warnedAboutBypass) {
-				this.logger?.warn('Steamworks is bypassed for this development run. Workshop metadata and Steam actions are disabled.');
-				this.warnedAboutBypass = true;
-			}
-			return {
-				inited: true,
-				readiness: classifySteamworksReadiness(true, undefined, true)
-			};
-		}
-
 		return {
 			inited: this.steamworksInited,
 			error: this.steamworksError,
@@ -92,10 +61,6 @@ export class SteamworksRuntime {
 	}
 
 	tryInit(): SteamworksStatus {
-		if (this.bypassEnabled) {
-			return this.getStatus();
-		}
-
 		try {
 			this.steamworksInited = this.steamworks.init();
 			this.steamworksError = undefined;

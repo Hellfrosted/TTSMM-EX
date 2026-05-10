@@ -561,7 +561,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 								</SettingsField>
 								<SettingsField
 									id="treatNuterraSteamBetaAsEquivalent"
-									label="Match NuterraSteam Beta"
+									label="Match NuterraSteam and NuterraSteam Beta"
 									tooltip="Treat NuterraSteam and NuterraSteam Beta as the same dependency target during collection validation."
 								>
 									<SettingsSwitch

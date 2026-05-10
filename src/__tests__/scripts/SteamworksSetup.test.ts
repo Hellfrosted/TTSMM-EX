@@ -100,7 +100,7 @@ describe('steamworks setup scripts', () => {
 
 		const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 		const execSync = vi.fn((command: string, options?: { cwd?: string; env?: NodeJS.ProcessEnv; encoding?: string }) => {
-			if (command === 'pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts') {
+			if (command === 'pnpm --dir release/app install --ignore-workspace --ignore-scripts') {
 				createGreenworksSkeleton(greenworksPath, 'char *PreviewTypeToString(EItemPreviewType type) {');
 				return Buffer.from('');
 			}
@@ -121,9 +121,7 @@ describe('steamworks setup scripts', () => {
 		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
 		setupSteamworksNativeDeps(sdkPath);
 
-		expect(execSync.mock.calls.map(([command]) => command)).toContain(
-			'pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts'
-		);
+		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm --dir release/app install --ignore-workspace --ignore-scripts');
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('ps -ax -o pid= -o command=');
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm run electron-rebuild');
 		expect(execSync.mock.calls.some(([command]) => command.includes('powershell'))).toBe(false);
@@ -162,7 +160,7 @@ describe('steamworks setup scripts', () => {
 		const source = fs.readFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), 'utf8');
 		expect(source).toContain('const char *PreviewTypeToString(EItemPreviewType type) {');
 		expect(source).not.toContain('const const char *PreviewTypeToString(EItemPreviewType type) {');
-		expect(execSync.mock.calls.some(([command]) => command.includes('install --ignore-scripts'))).toBe(false);
+		expect(execSync.mock.calls.some(([command]) => command.includes('--dir release/app install'))).toBe(false);
 	});
 
 	it('recreates a dangling src node_modules link during setup staging', async () => {

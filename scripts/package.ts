@@ -4,10 +4,10 @@ import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import { cleanReleaseArtifacts } from './lib/release';
 import { repoRoot } from './lib/paths';
+import { runPackageManager } from './lib/package-manager';
 
 type PublishMode = 'never' | 'onTagOrDraft';
 
-const packageManagerExecPath = process.env.npm_execpath;
 const builderCliPath = path.join(repoRoot, 'node_modules', 'electron-builder', 'cli.js');
 const releaseAppPath = path.join(repoRoot, 'release', 'app');
 const packageAppPath = path.join(repoRoot, 'release', 'package-app');
@@ -21,17 +21,6 @@ const printUsage = () => {
   pnpm run package:linux
   pnpm run package:linux -- deb
   pnpm run package:linux -- pacman`);
-};
-
-const runPackageManager = (args: string[], cwd = repoRoot) => {
-	if (!packageManagerExecPath) {
-		throw new Error('The package-manager exec path is not set. Run this script via "pnpm run".');
-	}
-
-	execFileSync(process.execPath, [packageManagerExecPath, ...args], {
-		cwd,
-		stdio: 'inherit'
-	});
 };
 
 const runElectronBuilder = (args: string[]) => {
@@ -56,6 +45,23 @@ const copyFile = (sourcePath: string, targetPath: string) => {
 };
 
 const copyGreenworksRuntime = (sourcePath: string, targetPath: string) => {
+	const requiredRuntimeFiles = [
+		'greenworks.js',
+		path.join('lib', 'greenworks-win64.node'),
+		path.join('lib', 'steam_api64.dll'),
+		path.join('lib', 'sdkencryptedappticket64.dll')
+	];
+	const missingRuntimeFiles = requiredRuntimeFiles.filter((runtimeFile) => !fs.existsSync(path.join(sourcePath, runtimeFile)));
+	if (missingRuntimeFiles.length > 0) {
+		throw new Error(
+			[
+				'Greenworks runtime files are missing from release/app.',
+				'Run "pnpm run setup:steamworks" after configuring STEAMWORKS_SDK_PATH or .steamworks-sdk-path, then run packaging again.',
+				...missingRuntimeFiles.map((runtimeFile) => `- ${path.join('node_modules', 'greenworks', runtimeFile)}`)
+			].join('\n')
+		);
+	}
+
 	removeIfExists(targetPath);
 	const packageJson = JSON.parse(fs.readFileSync(path.join(sourcePath, 'package.json'), 'utf8')) as {
 		dependencies?: Record<string, string>;
@@ -93,18 +99,25 @@ const sanitizePackageAppLock = () => {
 	fs.writeFileSync(packageLockPath, `${JSON.stringify(packageLock, null, 2)}\n`);
 };
 
+const ensureReleaseAppDependencies = () => {
+	if (fs.existsSync(path.join(releaseAppPath, 'node_modules'))) {
+		return;
+	}
+
+	runPackageManager(['--dir', 'release/app', 'install', '--ignore-workspace', '--ignore-scripts']);
+};
+
 const stagePackageApp = () => {
-	const sourceNodeModulesPath = fs.realpathSync(path.join(releaseAppPath, 'node_modules'));
+	ensureReleaseAppDependencies();
+	const sourceNodeModulesPath = path.join(releaseAppPath, 'node_modules');
 	const targetNodeModulesPath = path.join(packageAppPath, 'node_modules');
 
 	removeIfExists(packageAppPath);
 	copyFile(path.join(releaseAppPath, 'package.json'), path.join(packageAppPath, 'package.json'));
+	copyFile(path.join(releaseAppPath, 'pnpm-lock.yaml'), path.join(packageAppPath, 'pnpm-lock.yaml'));
 	linkDirectory(path.join(releaseAppPath, 'dist'), path.join(packageAppPath, 'dist'));
 	fs.cpSync(path.join(releaseAppPath, 'bin'), path.join(packageAppPath, 'bin'), { recursive: true });
-	fs.cpSync(sourceNodeModulesPath, targetNodeModulesPath, {
-		filter: (sourcePath) => !new Set(['greenworks', 'nan']).has(path.relative(sourceNodeModulesPath, sourcePath).split(path.sep)[0]),
-		recursive: true
-	});
+	runPackageManager(['--dir', 'release/package-app', 'install', '--prod', '--ignore-workspace', '--ignore-scripts']);
 	copyGreenworksRuntime(path.join(sourceNodeModulesPath, 'greenworks'), path.join(targetNodeModulesPath, 'greenworks'));
 	sanitizePackageAppLock();
 };

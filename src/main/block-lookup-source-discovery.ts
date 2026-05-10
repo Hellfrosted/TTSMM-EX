@@ -3,7 +3,7 @@ import path from 'path';
 import type { BlockLookupBuildRequest, BlockLookupModSource, BlockLookupSourceKind } from 'shared/block-lookup';
 import { TERRATECH_STEAM_APP_ID } from 'shared/block-lookup';
 import { expandUserPath, normalizePathValue } from './path-utils';
-import { findSteamLibraryPaths } from './steam-library-discovery';
+import Steamworks from './steamworks';
 
 const JSON_SUFFIXES = new Set(['.json']);
 const IGNORE_SUFFIXES = new Set(['.png', '.jpg', '.jpeg', '.gif', '.txt', '.xml', '.meta', '.ini', '.md', '.tdc']);
@@ -64,6 +64,14 @@ function deriveWorkshopRootFromPath(value: string | null | undefined): string | 
 	return match?.[1] ? path.normalize(match[1]) : null;
 }
 
+function parseWorkshopId(value: string | null | undefined): bigint | null {
+	if (!value?.trim() || !/^\d+$/.test(value.trim())) {
+		return null;
+	}
+
+	return BigInt(value.trim());
+}
+
 function findGameRootFromGameExec(gameExec: string | null | undefined): string | null {
 	const normalized = expandUserPath(gameExec);
 	if (!normalized) {
@@ -83,19 +91,39 @@ function findGameRootFromGameExec(gameExec: string | null | undefined): string |
 	);
 }
 
-function deriveWorkshopRootFromGameExec(gameExec: string | null | undefined): string | null {
-	const gameRoot = findGameRootFromGameExec(gameExec);
-	if (!gameRoot) {
+function deriveWorkshopRootFromSteamAppInstallDir(appInstallDir: string | null | undefined): string | null {
+	const normalized = normalizePathValue(appInstallDir);
+	if (!normalized) {
 		return null;
 	}
 
-	const match = gameRoot.match(/^(.*?)[\\/]steamapps[\\/]common[\\/]TerraTech$/i);
+	const match = normalized.match(/^(.*?)[\\/]steamapps[\\/]common[\\/]TerraTech$/i);
 	if (!match?.[1]) {
 		return null;
 	}
 
 	const workshopRoot = path.join(match[1], 'steamapps', 'workshop', 'content', TERRATECH_STEAM_APP_ID);
-	return fs.existsSync(workshopRoot) ? path.normalize(workshopRoot) : null;
+	return looksLikeWorkshopRoot(workshopRoot) ? path.normalize(workshopRoot) : null;
+}
+
+function deriveWorkshopRootFromGameExec(gameExec: string | null | undefined): string | null {
+	const gameRoot = findGameRootFromGameExec(gameExec);
+	return deriveWorkshopRootFromSteamAppInstallDir(gameRoot);
+}
+
+function deriveWorkshopRootFromSteamWorkshopId(workshopId: bigint): string | null {
+	let installInfo: ReturnType<typeof Steamworks.ugcGetItemInstallInfo>;
+	try {
+		installInfo = Steamworks.ugcGetItemInstallInfo(workshopId);
+	} catch {
+		return null;
+	}
+	if (!installInfo?.folder) {
+		return null;
+	}
+
+	const workshopRoot = deriveWorkshopRootFromPath(installInfo.folder);
+	return looksLikeWorkshopRoot(workshopRoot) ? workshopRoot : null;
 }
 
 export function autoDetectBlockLookupWorkshopRoot(
@@ -107,22 +135,47 @@ export function autoDetectBlockLookupWorkshopRoot(
 	}
 
 	for (const modSource of request.modSources || []) {
-		const root = deriveWorkshopRootFromPath(modSource.path);
-		if (looksLikeWorkshopRoot(root)) {
+		const pathRoot = deriveWorkshopRootFromPath(modSource.path);
+		if (looksLikeWorkshopRoot(pathRoot)) {
+			return pathRoot;
+		}
+
+		const workshopId = parseWorkshopId(modSource.workshopID) ?? parseWorkshopId(modSource.uid.replace(/^workshop:/i, ''));
+		if (!workshopId) {
+			continue;
+		}
+
+		const root = deriveWorkshopRootFromSteamWorkshopId(workshopId);
+		if (root) {
 			return root;
 		}
 	}
 
-	const gameExecRoot = deriveWorkshopRootFromGameExec(request.gameExec);
-	if (looksLikeWorkshopRoot(gameExecRoot)) {
-		return gameExecRoot;
+	try {
+		for (const workshopId of Steamworks.getSubscribedItems()) {
+			const root = deriveWorkshopRootFromSteamWorkshopId(workshopId);
+			if (root) {
+				return root;
+			}
+		}
+	} catch {
+		// Steamworks probing is opportunistic; callers can still fall back to configured paths.
 	}
 
-	for (const libraryPath of findSteamLibraryPaths({ includeWindowsDriveCandidates: true })) {
-		const root = path.join(libraryPath, 'steamapps', 'workshop', 'content', TERRATECH_STEAM_APP_ID);
-		if (looksLikeWorkshopRoot(root)) {
-			return path.normalize(root);
-		}
+	let appInstallDir = '';
+	try {
+		appInstallDir = Steamworks.getAppInstallDir(Number(TERRATECH_STEAM_APP_ID));
+	} catch {
+		appInstallDir = '';
+	}
+	const steamAppInstallRoot = deriveWorkshopRootFromSteamAppInstallDir(appInstallDir);
+	if (steamAppInstallRoot) {
+		return steamAppInstallRoot;
+	}
+
+	const gameExecRoot = deriveWorkshopRootFromGameExec(request.gameExec);
+	if (gameExecRoot) {
+		return gameExecRoot;
 	}
 
 	return null;
@@ -233,7 +286,9 @@ export function collectBlockLookupSources(request: BlockLookupBuildRequest): { s
 		}
 	});
 
-	const workshopRoot = autoDetectBlockLookupWorkshopRoot(request) || normalizeWorkshopRoot(request.workshopRoot) || '';
+	const configuredRoot = normalizeWorkshopRoot(request.workshopRoot);
+	const workshopRoot =
+		(looksLikeWorkshopRoot(configuredRoot) ? configuredRoot : autoDetectBlockLookupWorkshopRoot(request)) || configuredRoot || '';
 	if (looksLikeWorkshopRoot(workshopRoot)) {
 		for (const entry of fs.readdirSync(workshopRoot, { withFileTypes: true })) {
 			if (entry.isDirectory()) {

@@ -172,12 +172,10 @@ export function getBlockLookupSortValue(record: BlockLookupRecord, sortKey: Bloc
 			return record.spawnCommand;
 		case 'blockName':
 			return record.blockName;
+		case 'internalName':
+			return record.internalName;
 		case 'modTitle':
 			return record.modTitle;
-		case 'blockId':
-			return record.blockId;
-		case 'sourceKind':
-			return record.sourceKind;
 		default:
 			return '';
 	}

@@ -19,14 +19,13 @@ const BLOCK_LOOKUP_HEADER_MENU_ESTIMATED_HEIGHT = 180;
 const BLOCK_LOOKUP_HEADER_MENU_VIEWPORT_PADDING = 8;
 export const BLOCK_LOOKUP_TABLE_PADDING_WIDTH = 32;
 
-const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = ['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind'];
+const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = ['spawnCommand', 'blockName', 'internalName', 'modTitle'];
 const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['spawnCommand', 'blockName']);
 const BLOCK_LOOKUP_FILL_WEIGHTS: Partial<Record<BlockLookupColumnKey, number>> = {
 	spawnCommand: 1.5,
 	blockName: 1,
-	modTitle: 1,
-	blockId: 1,
-	sourceKind: 1
+	internalName: 1,
+	modTitle: 1
 };
 
 export function isBlockLookupColumnKey(value: string): value is BlockLookupColumnKey {

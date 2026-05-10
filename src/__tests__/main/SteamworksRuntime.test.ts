@@ -1,45 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-	STEAMWORKS_BYPASS_ENV,
-	SteamworksRuntime,
-	classifySteamworksReadiness,
-	isSteamworksBypassEnabled
-} from '../../main/steamworks-runtime';
+import { SteamworksRuntime, classifySteamworksReadiness } from '../../main/steamworks-runtime';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../../main/workshop-actions';
 import { ModType } from '../../model';
 
 describe('SteamworksRuntime', () => {
-	it('only bypasses Steamworks when explicitly requested', () => {
-		expect(isSteamworksBypassEnabled({})).toBe(false);
-		expect(isSteamworksBypassEnabled({ [STEAMWORKS_BYPASS_ENV]: '1' })).toBe(true);
-		expect(isSteamworksBypassEnabled({ [STEAMWORKS_BYPASS_ENV]: 'true' })).toBe(true);
-		expect(isSteamworksBypassEnabled({ [STEAMWORKS_BYPASS_ENV]: '0' })).toBe(false);
-	});
-
-	it('reports initialized without loading the native Steamworks module when bypassed', () => {
-		const logger = {
-			warn: vi.fn(),
-			error: vi.fn()
-		};
-		const steamworks = {
-			init: vi.fn(() => {
-				throw new Error('native module should not be loaded');
-			})
-		};
-		const runtime = new SteamworksRuntime({
-			env: { [STEAMWORKS_BYPASS_ENV]: '1' },
-			steamworks: steamworks as never,
-			logger: logger as never
-		});
-
-		expect(runtime.tryInit()).toEqual({ inited: true, readiness: { kind: 'bypassed', retryable: false } });
-		expect(runtime.getStatus()).toEqual({ inited: true, readiness: { kind: 'bypassed', retryable: false } });
-		expect(steamworks.init).not.toHaveBeenCalled();
-		expect(logger.warn).toHaveBeenCalledTimes(1);
-		expect(logger.error).not.toHaveBeenCalled();
-	});
-
 	it('reports native initialization errors when Steamworks cannot load', () => {
 		const logger = {
 			warn: vi.fn(),
@@ -68,7 +33,6 @@ describe('SteamworksRuntime', () => {
 
 	it('classifies stable readiness outcomes from native initialization results', () => {
 		expect(classifySteamworksReadiness(true)).toEqual({ kind: 'ready', retryable: false });
-		expect(classifySteamworksReadiness(true, undefined, true)).toEqual({ kind: 'bypassed', retryable: false });
 		expect(classifySteamworksReadiness(false, 'Error: greenworks unavailable')).toEqual({
 			kind: 'native-module-unavailable',
 			retryable: true
@@ -96,7 +60,7 @@ describe('SteamworksRuntime', () => {
 		});
 
 		await expect(
-			runSteamworksAction({ inited: true, readiness: { kind: 'bypassed', retryable: false } }, 'Failed action', action, logger)
+			runSteamworksAction({ inited: false, readiness: { kind: 'steam-not-running', retryable: true } }, 'Failed action', action, logger)
 		).resolves.toBe(false);
 		expect(action).not.toHaveBeenCalled();
 

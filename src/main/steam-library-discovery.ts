@@ -16,7 +16,7 @@ interface SteamLibraryDiscoveryOptions {
 	registrySteamPath?: string | null;
 }
 
-export function getWindowsSteamPathFromRegistry(execFileSync: typeof childProcess.execFileSync = childProcess.execFileSync): string | null {
+function getWindowsSteamPathFromRegistry(execFileSync: typeof childProcess.execFileSync = childProcess.execFileSync): string | null {
 	try {
 		const output = execFileSync('reg', ['query', 'HKCU\\Software\\Valve\\Steam', '/v', 'SteamPath'], {
 			encoding: 'utf8'
@@ -28,7 +28,7 @@ export function getWindowsSteamPathFromRegistry(execFileSync: typeof childProces
 	}
 }
 
-export function getCommonSteamLocationCandidates({
+function getCommonSteamLocationCandidates({
 	env = process.env,
 	execFileSync = childProcess.execFileSync,
 	existsSync = fs.existsSync,

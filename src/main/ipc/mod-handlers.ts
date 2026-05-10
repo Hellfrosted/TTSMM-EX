@@ -2,6 +2,7 @@ import { shell, Menu } from 'electron';
 import type { IpcMain, MenuItemConstructorOptions, WebContents } from 'electron';
 import log from 'electron-log';
 import type { SteamworksStatus } from 'shared/ipc';
+import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 
 import { ModData, ModType, SessionMods, ValidChannel, createModUid, parseWorkshopModUid } from '../../model';
 import { openExternalUrl } from '../external-links';
@@ -10,7 +11,7 @@ import { scanModInventory } from '../mod-inventory-scan';
 import { expandUserPath } from '../path-utils';
 import Steamworks from '../steamworks';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../workshop-actions';
-import { clearWorkshopDependencyLookupCache, fetchWorkshopDependencyLookup } from '../workshop-dependencies';
+import { fetchWorkshopDependencySnapshot } from '../workshop-dependencies';
 import { registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
 import { parseModContextMenuPayload, parseReadModMetadataPayload, parseWorkshopIdPayload } from './mod-validation';
 
@@ -62,11 +63,7 @@ function createUnsubscribeModHandler(steamworks = Steamworks, getSteamStatus?: (
 	};
 }
 
-export function createReadModMetadataHandler(
-	clearDependencyLookupCache = clearWorkshopDependencyLookupCache,
-	getSteamStatus?: () => SteamworksStatus,
-	scanInventory: ScanModInventory = scanModInventory
-) {
+export function createReadModMetadataHandler(scanInventory: ScanModInventory = scanModInventory) {
 	return async (
 		event: { sender: WebContents },
 		localDir: string | undefined,
@@ -79,7 +76,6 @@ export function createReadModMetadataHandler(
 			allKnownMods,
 			options?.treatNuterraSteamBetaAsEquivalent
 		);
-		clearDependencyLookupCache();
 		const resolvedLocalDir = expandUserPath(validatedPayload.localDir) ?? undefined;
 
 		const knownWorkshopMods: bigint[] = [];
@@ -97,7 +93,6 @@ export function createReadModMetadataHandler(
 				knownWorkshopMods,
 				localPath: resolvedLocalDir,
 				progressSender: event.sender,
-				skipWorkshopSteamworks: getSteamStatus ? getSteamStatus().readiness.kind !== 'ready' : undefined,
 				treatNuterraSteamBetaAsEquivalent: validatedPayload.treatNuterraSteamBetaAsEquivalent
 			});
 			return new SessionMods(resolvedLocalDir, modsList);
@@ -230,20 +225,24 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 
 export function createFetchWorkshopDependenciesHandler(
 	mainWindowProvider: MainWindowProvider,
-	workshopDependencyLookup = fetchWorkshopDependencyLookup
+	workshopDependencySnapshot = fetchWorkshopDependencySnapshot
 ) {
-	return async (_event: unknown, workshopID: bigint): Promise<boolean> => {
+	return async (_event: unknown, workshopID: bigint): Promise<WorkshopDependencyRefreshResult> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, workshopID);
-		const dependencyLookup = await workshopDependencyLookup(validatedWorkshopID);
-		if (!dependencyLookup) {
-			return false;
+		const dependencySnapshot = await workshopDependencySnapshot(validatedWorkshopID);
+		if (dependencySnapshot.status === 'failed') {
+			return { status: 'failed' };
 		}
 
 		mainWindowProvider
 			.getWebContents()
-			?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, validatedWorkshopID), dependencyLookup);
+			?.send(
+				ValidChannel.MOD_METADATA_UPDATE,
+				createModUid(ModType.WORKSHOP, validatedWorkshopID),
+				dependencySnapshot.status === 'updated' ? dependencySnapshot.snapshot : { steamDependenciesFetchedAt: dependencySnapshot.checkedAt }
+			);
 
-		return true;
+		return { status: dependencySnapshot.status };
 	};
 }
 
@@ -278,7 +277,7 @@ export function registerModHandlers(
 		return downloadMod(event, workshopID);
 	});
 
-	const readModMetadata = createReadModMetadataHandler(clearWorkshopDependencyLookupCache, getSteamStatus);
+	const readModMetadata = createReadModMetadataHandler();
 	registerValidatedIpcHandler(
 		ipcMain,
 		ValidChannel.READ_MOD_METADATA,

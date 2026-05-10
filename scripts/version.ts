@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { releaseAppPath, repoRoot } from './lib/paths';
+import { capturePackageManager, runPackageManager } from './lib/package-manager';
 
-const packageManagerExecPath = process.env.npm_execpath;
 const supportedIncrementTypes = new Set(['patch', 'minor', 'major']);
 
 const printUsage = () => {
@@ -10,28 +10,6 @@ const printUsage = () => {
   pnpm run bump -- patch
   pnpm run bump -- minor
   pnpm run bump -- major`);
-};
-
-const runPackageManager = (args: string[], cwd = repoRoot) => {
-	if (!packageManagerExecPath) {
-		throw new Error('The package-manager exec path is not set. Run this script via "pnpm run".');
-	}
-
-	execFileSync(process.execPath, [packageManagerExecPath, ...args], {
-		cwd,
-		stdio: 'inherit'
-	});
-};
-
-const capturePackageManager = (args: string[], cwd = repoRoot) => {
-	if (!packageManagerExecPath) {
-		throw new Error('The package-manager exec path is not set. Run this script via "pnpm run".');
-	}
-
-	return execFileSync(process.execPath, [packageManagerExecPath, ...args], {
-		cwd,
-		encoding: 'utf8'
-	}).trim();
 };
 
 const git = (args: string[]) => {

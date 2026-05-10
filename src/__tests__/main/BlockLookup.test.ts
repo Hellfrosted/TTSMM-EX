@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	buildBlockLookupAliases,
 	buildBlockLookupIndex,
@@ -16,9 +16,16 @@ import { createBlockLookupRecordsFromTextAssets } from '../../main/block-lookup-
 import { searchBlockLookupRecords } from '../../main/block-lookup-search';
 import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
+import Steamworks from '../../main/steamworks';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
+
+beforeEach(() => {
+	vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
+	vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+	vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -423,17 +430,166 @@ describe('block lookup indexer facade', () => {
 		fs.mkdirSync(modDir, { recursive: true });
 
 		const indexModule = createBlockLookupIndexModule(userDataPath);
+		vi.mocked(Steamworks.ugcGetItemInstallInfo).mockReturnValue({
+			folder: modDir,
+			sizeOnDisk: '1',
+			timestamp: 0
+		});
 
 		expect(
 			indexModule.autoDetectWorkshopRoot({
 				modSources: [
 					{
 						uid: 'workshop:12345',
+						workshopID: '12345'
+					}
+				]
+			})
+		).toBe(path.normalize(workshopRoot));
+	});
+
+	it('auto-detects workshop roots through subscribed Steamworks items', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-subscribed-autodetect-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '222');
+		fs.mkdirSync(modDir, { recursive: true });
+		vi.mocked(Steamworks.getSubscribedItems).mockReturnValue([BigInt(222)]);
+		vi.mocked(Steamworks.ugcGetItemInstallInfo).mockReturnValue({
+			folder: modDir,
+			sizeOnDisk: '1',
+			timestamp: 0
+		});
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(indexModule.autoDetectWorkshopRoot({ modSources: [] })).toBe(path.normalize(workshopRoot));
+	});
+
+	it('keeps configured workshop roots ahead of Steamworks autodetection', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-configured-root-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const configuredRoot = path.join(tempDir, 'ConfiguredLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const detectedRoot = path.join(tempDir, 'DetectedLibrary', 'steamapps', 'workshop', 'content', '285920');
+		fs.mkdirSync(path.join(configuredRoot, '111'), { recursive: true });
+		fs.mkdirSync(path.join(detectedRoot, '222'), { recursive: true });
+		vi.mocked(Steamworks.getSubscribedItems).mockReturnValue([BigInt(222)]);
+		vi.mocked(Steamworks.ugcGetItemInstallInfo).mockReturnValue({
+			folder: path.join(detectedRoot, '222'),
+			sizeOnDisk: '1',
+			timestamp: 0
+		});
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(indexModule.autoDetectWorkshopRoot({ workshopRoot: configuredRoot })).toBe(path.normalize(configuredRoot));
+		expect(collectBlockLookupSources({ workshopRoot: configuredRoot, modSources: [], forceRebuild: true }).workshopRoot).toBe(
+			path.normalize(configuredRoot)
+		);
+	});
+
+	it('falls back to configured workshop roots when Steamworks autodetection throws', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-steamworks-throws-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		fs.mkdirSync(path.join(workshopRoot, '12345'), { recursive: true });
+		vi.mocked(Steamworks.ugcGetItemInstallInfo).mockImplementation(() => {
+			throw new Error('Steamworks unavailable');
+		});
+		vi.mocked(Steamworks.getSubscribedItems).mockImplementation(() => {
+			throw new Error('Steamworks unavailable');
+		});
+		vi.mocked(Steamworks.getAppInstallDir).mockImplementation(() => {
+			throw new Error('Steamworks unavailable');
+		});
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+		expect(indexModule.autoDetectWorkshopRoot({ modSources: [{ uid: 'workshop:12345', workshopID: '12345' }] })).toBeNull();
+		expect(
+			collectBlockLookupSources({
+				workshopRoot,
+				modSources: [{ uid: 'workshop:12345', workshopID: '12345' }],
+				forceRebuild: true
+			}).workshopRoot
+		).toBe(path.normalize(workshopRoot));
+	});
+
+	it('falls back to loaded workshop mod paths when Steamworks install info is unavailable', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-mod-path-fallback-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		fs.mkdirSync(modDir, { recursive: true });
+		vi.mocked(Steamworks.ugcGetItemInstallInfo).mockReturnValue(undefined);
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(
+			indexModule.autoDetectWorkshopRoot({
+				modSources: [
+					{
+						uid: 'workshop:12345',
+						path: modDir,
+						workshopID: '12345'
+					}
+				]
+			})
+		).toBe(path.normalize(workshopRoot));
+	});
+
+	it('auto-detects loaded workshop mod paths without workshop ids', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-mod-path-only-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		fs.mkdirSync(modDir, { recursive: true });
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(
+			indexModule.autoDetectWorkshopRoot({
+				modSources: [
+					{
+						uid: 'local-reference',
 						path: modDir
 					}
 				]
 			})
 		).toBe(path.normalize(workshopRoot));
+	});
+
+	it('uses autodetection before stale configured workshop roots while collecting sources', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-stale-root-');
+		const detectedRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const staleRoot = path.join(tempDir, 'MissingLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(detectedRoot, '12345');
+		fs.mkdirSync(modDir, { recursive: true });
+
+		expect(
+			collectBlockLookupSources({
+				workshopRoot: staleRoot,
+				modSources: [{ uid: 'loaded-workshop-mod', path: modDir }],
+				forceRebuild: true
+			}).workshopRoot
+		).toBe(path.normalize(detectedRoot));
+	});
+
+	it('falls back to deriving workshop roots from the TerraTech executable path', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-game-exec-root-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const gameRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'common', 'TerraTech');
+		const gameExec = path.join(gameRoot, 'TerraTechWin64.exe');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		fs.mkdirSync(path.join(gameRoot, 'TerraTechWin64_Data', 'Managed'), { recursive: true });
+		fs.writeFileSync(path.join(gameRoot, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll'), '');
+		fs.writeFileSync(gameExec, '');
+		fs.mkdirSync(path.join(workshopRoot, '12345'), { recursive: true });
+		vi.mocked(Steamworks.getSubscribedItems).mockReturnValue([]);
+		vi.mocked(Steamworks.getAppInstallDir).mockReturnValue('');
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(indexModule.autoDetectWorkshopRoot({ gameExec, modSources: [] })).toBe(path.normalize(workshopRoot));
 	});
 
 	it('delegates settings, stats, and search to one user data boundary', () => {

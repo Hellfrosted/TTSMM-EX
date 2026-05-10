@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods, setupDescriptors } from '../../model';
 import ModDetailsFooter from '../../renderer/components/collections/ModDetailsFooter';
-import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from '../../shared/workshop-dependency-lookup';
+import { WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS } from '../../shared/workshop-dependency-snapshot';
 import { createAppState } from './test-utils';
 
 function renderFooter(props: React.ComponentProps<typeof ModDetailsFooter>) {
@@ -182,7 +182,7 @@ describe('ModDetailsFooter', () => {
 			mods,
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
-		const fetchWorkshopDependencies = vi.fn(async () => false);
+		const fetchWorkshopDependencies = vi.fn(async () => ({ status: 'failed' as const }));
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
 		setupDescriptors(mods, appState.config.userOverrides);
@@ -239,9 +239,9 @@ describe('ModDetailsFooter', () => {
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
 		const fetchWorkshopDependencies = vi
-			.fn(async () => false)
-			.mockResolvedValueOnce(false)
-			.mockResolvedValueOnce(true);
+			.fn(async () => ({ status: 'failed' as const }))
+			.mockResolvedValueOnce({ status: 'failed' as const })
+			.mockResolvedValueOnce({ status: 'updated' as const });
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
 		setupDescriptors(mods, appState.config.userOverrides);
@@ -283,6 +283,113 @@ describe('ModDetailsFooter', () => {
 		});
 	});
 
+	it('keeps missing workshop dependency metadata as a neutral empty state', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'RetryMod',
+			name: 'Retry Mod',
+			subscribed: true,
+			installed: true
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => ({ status: 'unknown' as const }));
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides);
+		const [currentRecord] = mods.foundMods;
+
+		const footerProps = {
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		} satisfies React.ComponentProps<typeof ModDetailsFooter>;
+		const { rerender } = renderFooter(footerProps);
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+			expect(screen.queryByText('Workshop dependency refresh failed')).not.toBeInTheDocument();
+			expect(screen.getByText('No Workshop dependencies are known for this mod.')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
+		});
+
+		rerender(<ModDetailsFooter {...footerProps} currentRecord={{ ...currentRecord, steamDependenciesFetchedAt: Date.now() }} />);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+		expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps stale known dependencies visible when Steamworks returns unknown metadata', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'RetryMod',
+			name: 'Retry Mod',
+			subscribed: true,
+			installed: true,
+			steamDependencies: [BigInt(11)],
+			steamDependenciesFetchedAt: Date.now() - WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS - 1
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => ({ status: 'unknown' as const }));
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		});
+
+		await waitFor(() => {
+			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
+			expect(
+				screen.getByText('Showing previously known Workshop dependencies. Steamworks did not provide a newer dependency list.')
+			).toBeInTheDocument();
+			expect(screen.getByText('11')).toBeInTheDocument();
+			expect(screen.queryByText('Workshop dependency refresh failed')).not.toBeInTheDocument();
+		});
+	});
+
 	it('refreshes stale workshop dependency snapshots when opening the dependencies tab', async () => {
 		const workshopMod = {
 			uid: 'workshop:77',
@@ -293,14 +400,14 @@ describe('ModDetailsFooter', () => {
 			subscribed: true,
 			installed: true,
 			steamDependencies: [BigInt(11)],
-			steamDependenciesFetchedAt: Date.now() - WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS - 1
+			steamDependenciesFetchedAt: Date.now() - WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS - 1
 		};
 		const mods = new SessionMods('', [workshopMod]);
 		const appState = createAppState({
 			mods,
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
-		const fetchWorkshopDependencies = vi.fn(async () => true);
+		const fetchWorkshopDependencies = vi.fn(async () => ({ status: 'updated' as const }));
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
 		setupDescriptors(mods, appState.config.userOverrides);

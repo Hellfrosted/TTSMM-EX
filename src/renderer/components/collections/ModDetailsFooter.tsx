@@ -18,7 +18,7 @@ import {
 	CollectionManagerModalType,
 	getCollectionStatusTags
 } from 'model';
-import { isWorkshopDependencyLookupStale } from 'shared/workshop-dependency-lookup';
+import { isWorkshopDependencySnapshotStale } from 'shared/workshop-dependency-snapshot';
 import { formatDateStr } from 'util/Date';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
@@ -222,6 +222,8 @@ interface ModDetailsFooterProps {
 interface DependencyLookupState {
 	loadingDependencies: boolean;
 	dependencyLookupError?: string;
+	dependencyLookupNotice?: string;
+	manualLookupRequest: number;
 }
 
 type DependencyLookupAction =
@@ -230,6 +232,7 @@ type DependencyLookupAction =
 	| { type: 'lookup-cancelled' }
 	| { type: 'lookup-started' }
 	| { type: 'lookup-succeeded' }
+	| { type: 'lookup-unknown'; message?: string }
 	| { type: 'lookup-failed'; message: string }
 	| { type: 'retry-requested' };
 
@@ -238,15 +241,23 @@ function dependencyLookupReducer(state: DependencyLookupState, action: Dependenc
 		case 'lookup-started':
 			return { ...state, loadingDependencies: true };
 		case 'lookup-succeeded':
-			return { loadingDependencies: false };
+			return { ...state, loadingDependencies: false, dependencyLookupError: undefined, dependencyLookupNotice: undefined };
+		case 'lookup-unknown':
+			return { ...state, loadingDependencies: false, dependencyLookupError: undefined, dependencyLookupNotice: action.message };
 		case 'lookup-failed':
-			return { loadingDependencies: false, dependencyLookupError: action.message };
+			return { ...state, loadingDependencies: false, dependencyLookupError: action.message, dependencyLookupNotice: undefined };
 		case 'lookup-cancelled':
 			return { ...state, loadingDependencies: false };
 		case 'record-changed':
 		case 'tab-left':
+			return { ...state, dependencyLookupError: undefined, dependencyLookupNotice: undefined };
 		case 'retry-requested':
-			return { ...state, dependencyLookupError: undefined };
+			return {
+				...state,
+				dependencyLookupError: undefined,
+				dependencyLookupNotice: undefined,
+				manualLookupRequest: state.manualLookupRequest + 1
+			};
 		default:
 			return state;
 	}
@@ -384,10 +395,13 @@ function useModDetailsFooterContent({
 	lastValidationStatus
 }: ModDetailsFooterProps) {
 	const requestedDependencyLookupUidRef = useRef<string | null>(null);
+	const handledManualDependencyLookupRequestRef = useRef(0);
 	const dependencyLookupErrorUidRef = useRef(currentRecord.uid);
-	const [{ dependencyLookupError, loadingDependencies }, dispatchDependencyLookup] = useReducer(dependencyLookupReducer, {
-		loadingDependencies: false
-	});
+	const [{ dependencyLookupError, dependencyLookupNotice, loadingDependencies, manualLookupRequest }, dispatchDependencyLookup] =
+		useReducer(dependencyLookupReducer, {
+			loadingDependencies: false,
+			manualLookupRequest: 0
+		});
 	const { activeCollection, config: appConfig, updateState: updateAppState } = appState;
 	const currentRecordUid = currentRecord.uid;
 	const currentRecordType = currentRecord.type;
@@ -420,14 +434,16 @@ function useModDetailsFooterContent({
 	}, [activeTabKey]);
 
 	useEffect(() => {
+		const dependencySnapshotMissing = currentRecordSteamDependencies === undefined && currentRecordSteamDependenciesFetchedAt === undefined;
 		const shouldRefreshWorkshopDependencies =
-			currentRecordSteamDependencies === undefined || isWorkshopDependencyLookupStale(currentRecordSteamDependenciesFetchedAt);
+			dependencySnapshotMissing || isWorkshopDependencySnapshotStale(currentRecordSteamDependenciesFetchedAt);
+		const shouldRunManualLookup = manualLookupRequest !== handledManualDependencyLookupRequestRef.current;
 
 		if (
 			activeTabKey !== 'dependencies' ||
 			currentRecordType !== ModType.WORKSHOP ||
 			currentRecordWorkshopID === undefined ||
-			!shouldRefreshWorkshopDependencies ||
+			(!shouldRefreshWorkshopDependencies && !shouldRunManualLookup) ||
 			requestedDependencyLookupUidRef.current === currentRecordUid ||
 			!!dependencyLookupError
 		) {
@@ -443,13 +459,26 @@ function useModDetailsFooterContent({
 			const message =
 				'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
 			requestedDependencyLookupUidRef.current = currentRecordUid;
+			handledManualDependencyLookupRequestRef.current = manualLookupRequest;
 			dispatchDependencyLookup({ type: 'lookup-started' });
 			try {
-				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
-				if (!loaded) {
+				const result = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
+				if (result.status === 'failed') {
 					api.logger.warn(message);
 					if (!cancelled) {
 						dispatchDependencyLookup({ type: 'lookup-failed', message });
+					}
+					return;
+				}
+				if (result.status === 'unknown') {
+					if (!cancelled) {
+						dispatchDependencyLookup({
+							type: 'lookup-unknown',
+							message:
+								currentRecordSteamDependencies && currentRecordSteamDependencies.length > 0
+									? 'Showing previously known Workshop dependencies. Steamworks did not provide a newer dependency list.'
+									: undefined
+						});
 					}
 					return;
 				}
@@ -486,7 +515,8 @@ function useModDetailsFooterContent({
 		currentRecordWorkshopID,
 		currentRecordSteamDependencies,
 		currentRecordSteamDependenciesFetchedAt,
-		dependencyLookupError
+		dependencyLookupError,
+		manualLookupRequest
 	]);
 
 	const getIgnoredRenderer = useCallback(
@@ -891,6 +921,7 @@ function useModDetailsFooterContent({
 				conflictingDependencyRowSelection={conflictingDependencyRowSelection}
 				conflictingModData={conflictingModData}
 				dependencyLookupError={dependencyLookupError}
+				dependencyLookupNotice={dependencyLookupNotice}
 				dependentDependencyColumns={dependentDependencyColumns}
 				dependentDependencyRowSelection={dependentDependencyRowSelection}
 				dependentModData={dependentModData}
@@ -899,6 +930,7 @@ function useModDetailsFooterContent({
 					dispatchDependencyLookup({ type: 'retry-requested' });
 				}}
 				requiredDependencyColumns={requiredDependencyColumns}
+				requiredEmptyText={currentRecordType === ModType.WORKSHOP ? 'No Workshop dependencies are known for this mod.' : undefined}
 				requiredDependencyRowSelection={requiredDependencyRowSelection}
 				requiredModData={requiredModData}
 			/>

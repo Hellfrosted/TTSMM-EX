@@ -5,13 +5,11 @@ import {
 	createFetchWorkshopDependenciesHandler,
 	createReadModMetadataHandler,
 	registerModHandlers,
-	createSteamworksInitHandler,
 	createSubscribeModHandler
 } from '../../main/ipc/mod-handlers';
 import Steamworks from '../../main/steamworks';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
 import { getModDetailsFromPath } from '../../main/mod-fetcher';
-import { SteamworksRuntime } from '../../main/steamworks-runtime';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 
@@ -120,22 +118,55 @@ describe('mod handlers', () => {
 			getWebContents: () => ({ send })
 		};
 		const dependencyLookup = vi.fn(async () => ({
-			steamDependencies: [BigInt(11)],
-			steamDependencyNames: {
-				'11': 'Harmony (2.2.2)'
+			status: 'updated' as const,
+			snapshot: {
+				steamDependencies: [BigInt(11)],
+				steamDependencyNames: {
+					'11': 'Harmony (2.2.2)'
+				},
+				steamDependenciesFetchedAt: 1777777777777
 			}
 		}));
 
 		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
 
-		expect(result).toBe(true);
+		expect(result).toEqual({ status: 'updated' });
 		expect(dependencyLookup).toHaveBeenCalledWith(BigInt(10));
 		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:10', {
 			steamDependencies: [BigInt(11)],
 			steamDependencyNames: {
 				'11': 'Harmony (2.2.2)'
-			}
+			},
+			steamDependenciesFetchedAt: 1777777777777
 		});
+	});
+
+	it('publishes unknown workshop dependency lookups as timestamp-only metadata updates', async () => {
+		const send = vi.fn();
+		const mainWindowProvider = {
+			getWebContents: () => ({ send })
+		};
+		const dependencyLookup = vi.fn(async () => ({ status: 'unknown' as const, checkedAt: 1777777777777 }));
+
+		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
+
+		expect(result).toEqual({ status: 'unknown' });
+		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:10', {
+			steamDependenciesFetchedAt: 1777777777777
+		});
+	});
+
+	it('does not publish metadata updates when workshop dependency lookups fail', async () => {
+		const send = vi.fn();
+		const mainWindowProvider = {
+			getWebContents: () => ({ send })
+		};
+		const dependencyLookup = vi.fn(async () => ({ status: 'failed' as const }));
+
+		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
+
+		expect(result).toEqual({ status: 'failed' });
+		expect(send).not.toHaveBeenCalled();
 	});
 
 	it('rejects malformed workshop dependency payloads before lookup', async () => {
@@ -155,68 +186,25 @@ describe('mod handlers', () => {
 	it('rejects mod metadata requests when scanning mods fails', async () => {
 		const scanInventory = vi.fn().mockRejectedValueOnce(new Error('scan failed'));
 
-		await expect(
-			createReadModMetadataHandler(undefined, undefined, scanInventory)({ sender: {} as never }, 'C:\\mods', [])
-		).rejects.toThrow('scan failed');
+		await expect(createReadModMetadataHandler(scanInventory)({ sender: {} as never }, 'C:\\mods', [])).rejects.toThrow('scan failed');
 	});
 
-	it('rejects malformed mod metadata payloads before clearing caches', async () => {
-		const clearDependencyLookupCache = vi.fn();
+	it('rejects malformed mod metadata payloads before scanning inventory', async () => {
+		const scanInventory = vi.fn();
 
-		await expect(
-			createReadModMetadataHandler(clearDependencyLookupCache)({ sender: {} as never }, 'C:\\mods', 'workshop:42' as never)
-		).rejects.toThrow(`Invalid IPC payload for ${ValidChannel.READ_MOD_METADATA}`);
+		await expect(createReadModMetadataHandler(scanInventory)({ sender: {} as never }, 'C:\\mods', 'workshop:42' as never)).rejects.toThrow(
+			`Invalid IPC payload for ${ValidChannel.READ_MOD_METADATA}`
+		);
 
-		expect(clearDependencyLookupCache).not.toHaveBeenCalled();
+		expect(scanInventory).not.toHaveBeenCalled();
 	});
 
-	it('clears cached workshop dependency lookups before rescanning mod metadata', async () => {
-		const clearDependencyLookupCache = vi.fn();
+	it('scans mod metadata after validating metadata requests', async () => {
 		const scanInventory = vi.fn().mockResolvedValueOnce([]);
 
-		await createReadModMetadataHandler(clearDependencyLookupCache, undefined, scanInventory)({ sender: {} as never }, 'C:\\mods', []);
+		await createReadModMetadataHandler(scanInventory)({ sender: {} as never }, 'C:\\mods', []);
 
-		expect(clearDependencyLookupCache).toHaveBeenCalledTimes(1);
 		expect(scanInventory).toHaveBeenCalledTimes(1);
-	});
-
-	it('returns ready without initializing Steamworks when the development bypass is enabled', async () => {
-		const init = vi.fn(() => {
-			throw new Error('greenworks unavailable');
-		});
-		const logger = {
-			error: vi.fn(),
-			warn: vi.fn()
-		};
-		const runtime = new SteamworksRuntime({
-			env: { TTSMM_BYPASS_STEAMWORKS: '1' },
-			steamworks: { init } as never,
-			logger: logger as never
-		});
-
-		const result = await createSteamworksInitHandler(
-			() => runtime.getStatus(),
-			() => runtime.tryInit()
-		)();
-
-		expect(result).toEqual({ inited: true, readiness: { kind: 'bypassed', retryable: false } });
-		expect(init).not.toHaveBeenCalled();
-		expect(logger.warn).toHaveBeenCalledTimes(1);
-		expect(logger.error).not.toHaveBeenCalled();
-	});
-
-	it('skips native Steam actions when readiness is bypassed', async () => {
-		const steamworks = {
-			ugcSubscribe: vi.fn()
-		};
-
-		const result = await createSubscribeModHandler(steamworks as never, () => ({
-			inited: true,
-			readiness: { kind: 'bypassed', retryable: false }
-		}))({} as never, BigInt(42));
-
-		expect(result).toBe(false);
-		expect(steamworks.ugcSubscribe).not.toHaveBeenCalled();
 	});
 
 	it('preserves Steam metadata when refreshing workshop state from the context menu', async () => {

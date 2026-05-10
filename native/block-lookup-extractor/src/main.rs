@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::BufReader;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -32,6 +33,8 @@ struct ExtractorOutput {
 }
 
 fn main() {
+    panic::set_hook(Box::new(|_| {}));
+
     let paths = env::args().skip(1).collect::<Vec<_>>();
     let output = ExtractorOutput {
         version: 1,
@@ -51,19 +54,52 @@ fn main() {
 }
 
 fn extract_file(source_path: &str) -> ExtractedBundleFile {
+    extract_file_with_parser(source_path, extract_text_assets)
+}
+
+fn extract_file_with_parser<F>(source_path: &str, parser: F) -> ExtractedBundleFile
+where
+    F: FnOnce(&Path) -> Result<Vec<ExtractedTextAsset>>,
+{
     let path = PathBuf::from(source_path);
-    match extract_text_assets(&path) {
-        Ok(text_assets) => ExtractedBundleFile {
+    match panic::catch_unwind(AssertUnwindSafe(|| parser(&path))) {
+        Ok(Ok(text_assets)) => ExtractedBundleFile {
             source_path: source_path.to_owned(),
             text_assets,
             errors: Vec::new(),
         },
-        Err(error) => ExtractedBundleFile {
+        Ok(Err(error)) => ExtractedBundleFile {
             source_path: source_path.to_owned(),
             text_assets: extract_embedded_text_fallback(&path),
-            errors: vec![error.to_string()],
+            errors: vec![format_error_chain(&error)],
+        },
+        Err(payload) => ExtractedBundleFile {
+            source_path: source_path.to_owned(),
+            text_assets: extract_embedded_text_fallback(&path),
+            errors: vec![format!(
+                "panic while parsing Unity bundle: {}",
+                panic_payload_message(payload.as_ref())
+            )],
         },
     }
+}
+
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        return (*message).to_owned();
+    }
+    if let Some(message) = payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+    "unknown panic payload".to_owned()
+}
+
+fn format_error_chain(error: &anyhow::Error) -> String {
+    error
+        .chain()
+        .map(|cause| cause.to_string())
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn extract_text_assets(path: &Path) -> Result<Vec<ExtractedTextAsset>> {
@@ -143,4 +179,53 @@ fn extract_embedded_text_fallback(path: &Path) -> Vec<ExtractedTextAsset> {
     }
 
     text_assets
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn falls_back_to_embedded_text_when_parser_panics() {
+        let previous_hook = panic::take_hook();
+        panic::set_hook(Box::new(|_| {}));
+
+        let source_path = env::temp_dir().join(format!(
+            "ttsmm-extractor-panic-{}-{}.bundle",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time should be after Unix epoch")
+                .as_nanos()
+        ));
+        fs::write(
+            &source_path,
+            br#"UnityFS{"m_Name":"Synthetic_Block","Type":"NuterraBlock","Name":"Synthetic Block","ID":42}"#,
+        )
+        .expect("write synthetic bundle");
+
+        let result = extract_file_with_parser(
+            source_path
+                .to_str()
+                .expect("temp path should be valid UTF-8"),
+            |_| -> Result<Vec<ExtractedTextAsset>> {
+                panic!("synthetic parser panic");
+            },
+        );
+
+        fs::remove_file(&source_path).expect("remove synthetic bundle");
+        panic::set_hook(previous_hook);
+
+        assert_eq!(
+            result.source_path,
+            source_path
+                .to_str()
+                .expect("temp path should be valid UTF-8")
+        );
+        assert_eq!(result.text_assets.len(), 1);
+        assert!(result.text_assets[0].text.contains("Synthetic Block"));
+        assert_eq!(result.errors.len(), 1);
+        assert!(result.errors[0].contains("synthetic parser panic"));
+    }
 }

@@ -8,6 +8,8 @@ import {
 	useRef,
 	useState,
 	type Key,
+	type KeyboardEvent,
+	type MouseEvent,
 	type ReactNode,
 	type SetStateAction
 } from 'react';
@@ -207,6 +209,60 @@ function BlockLookupNumberInput({ disabled, max, min, onChange, placeholder, ste
 	);
 }
 
+function BlockLookupModHeaderFilter({
+	availableMods,
+	onSelectedModsChange,
+	selectedMods
+}: {
+	availableMods: string[];
+	onSelectedModsChange: (mods: string[]) => void;
+	selectedMods: string[];
+}) {
+	const selectedModSet = new Set(selectedMods);
+	const unselectedMods = availableMods.filter((mod) => !selectedModSet.has(mod));
+	const selectedLabel = selectedMods.length > 0 ? `${selectedMods.length} active` : 'Filter';
+
+	return (
+		<select
+			className="MainCollectionTagHeaderFilter BlockLookupModHeaderFilter"
+			aria-label="Filter Mod column"
+			value=""
+			disabled={selectedMods.length === 0 && unselectedMods.length === 0}
+			onClick={(event) => {
+				event.stopPropagation();
+			}}
+			onMouseDown={(event) => {
+				event.stopPropagation();
+			}}
+			onChange={(event) => {
+				const selectedValue = event.target.value;
+				if (selectedValue === 'clear:') {
+					onSelectedModsChange([]);
+				} else if (selectedValue.startsWith('add:')) {
+					onSelectedModsChange([...selectedMods, selectedValue.slice('add:'.length)]);
+				} else if (selectedValue.startsWith('remove:')) {
+					const mod = selectedValue.slice('remove:'.length);
+					onSelectedModsChange(selectedMods.filter((selectedMod) => selectedMod !== mod));
+				}
+				event.currentTarget.value = '';
+			}}
+		>
+			<option value="">{selectedLabel}</option>
+			{selectedMods.length > 0 ? <option value="clear:">Clear mod filters</option> : null}
+			{selectedMods.map((mod) => (
+				<option key={`remove:${mod}`} value={`remove:${mod}`}>
+					Remove {mod}
+				</option>
+			))}
+			{unselectedMods.map((mod) => (
+				<option key={`add:${mod}`} value={`add:${mod}`}>
+					{mod}
+				</option>
+			))}
+		</select>
+	);
+}
+
 function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLookupTableOptionsModalProps) {
 	return (
 		<DesktopDialog
@@ -231,27 +287,12 @@ function renderBlockLookupCell(columnKey: BlockLookupColumnKey, record: BlockLoo
 			return <span className="BlockLookupCommand">{record.spawnCommand}</span>;
 		case 'blockName':
 			return record.blockName;
+		case 'internalName':
+			return record.internalName || <span className="BlockLookupMutedText">Not declared</span>;
 		case 'modTitle':
 			return record.modTitle;
-		case 'blockId':
-			return record.blockId || <span className="BlockLookupMutedText">Not declared</span>;
-		case 'sourceKind':
-			return <span className="BlockLookupTag">{getBlockLookupSourceKindLabel(record.sourceKind)}</span>;
 		default:
 			return '';
-	}
-}
-
-function getBlockLookupSourceKindLabel(sourceKind: BlockLookupRecord['sourceKind']) {
-	switch (sourceKind) {
-		case 'vanilla':
-			return 'Vanilla';
-		case 'json':
-			return 'JSON';
-		case 'bundle':
-			return 'Bundle';
-		default:
-			return sourceKind;
 	}
 }
 
@@ -265,6 +306,33 @@ function getBlockLookupEmptyText(stats: BlockLookupIndexStats | null, query: str
 	}
 
 	return 'No indexed blocks found.';
+}
+
+function getAvailableBlockLookupModFilters(rows: BlockLookupRecord[]) {
+	return Array.from(new Set(rows.map((record) => record.modTitle).filter((modTitle) => modTitle.trim()))).sort((left, right) =>
+		left.localeCompare(right)
+	);
+}
+
+function filterBlockLookupRowsByMods(rows: BlockLookupRecord[], selectedMods: string[]) {
+	if (selectedMods.length === 0) {
+		return rows;
+	}
+
+	const selectedModSet = new Set(selectedMods);
+	return rows.filter((record) => selectedModSet.has(record.modTitle));
+}
+
+function getBlockLookupRowRange(sortedRowKeys: string[], anchorRowKey: string | undefined, targetRowKey: string) {
+	const anchorIndex = anchorRowKey ? sortedRowKeys.indexOf(anchorRowKey) : -1;
+	const targetIndex = sortedRowKeys.indexOf(targetRowKey);
+	if (anchorIndex === -1 || targetIndex === -1) {
+		return [targetRowKey];
+	}
+
+	const start = Math.min(anchorIndex, targetIndex);
+	const end = Math.max(anchorIndex, targetIndex);
+	return sortedRowKeys.slice(start, end + 1);
 }
 
 function useCoarsePointer() {
@@ -346,7 +414,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		query,
 		refreshResults,
 		rows,
-		selectedRecord,
 		selectedRowKey,
 		setQuery,
 		setSelectedRowKey,
@@ -383,6 +450,9 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		savingTableOptions,
 		tableOptionsOpen
 	} = localState;
+	const [selectedFilterMods, setSelectedFilterMods] = useState<string[]>([]);
+	const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+	const [selectionAnchorRowKey, setSelectionAnchorRowKey] = useState<string | undefined>();
 	const setDraftColumnConfig = useCallback((updater: SetStateAction<BlockLookupColumnConfig[]>) => {
 		dispatchLocalState({ type: 'draft-column-config-changed', updater });
 	}, []);
@@ -420,13 +490,53 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const setSortDirection = useBlockLookupStore((state) => state.setSortDirection);
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const tableScrollRef = useRef<HTMLDivElement | null>(null);
+	const availableModFilters = useMemo(() => getAvailableBlockLookupModFilters(rows), [rows]);
+	const filteredRows = useMemo(() => filterBlockLookupRowsByMods(rows, selectedFilterMods), [rows, selectedFilterMods]);
+	const visibleRowKeys = useMemo(() => filteredRows.map((record) => getBlockLookupRecordKey(record)), [filteredRows]);
+	const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys]);
+	const selectedRecord = useMemo(
+		() => filteredRows.find((record) => getBlockLookupRecordKey(record) === selectedRowKey),
+		[filteredRows, selectedRowKey]
+	);
 	const sortedRows = useMemo(() => {
-		return measurePerf('blockLookup.table.sortRows', () => sortBlockLookupRecords(rows, sortKey, sortDirection), {
-			rows: rows.length,
+		return measurePerf('blockLookup.table.sortRows', () => sortBlockLookupRecords(filteredRows, sortKey, sortDirection), {
+			rows: filteredRows.length,
 			sortKey,
 			sortDirection
 		});
-	}, [rows, sortDirection, sortKey]);
+	}, [filteredRows, sortDirection, sortKey]);
+	const sortedRowKeys = useMemo(() => sortedRows.map((record) => getBlockLookupRecordKey(record)), [sortedRows]);
+	const sortedRowKeySet = useMemo(() => new Set(sortedRowKeys), [sortedRowKeys]);
+	const selectedRowKeySet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
+	const selectedRecordsInCopyOrder = useMemo(
+		() => sortedRows.filter((record) => selectedRowKeySet.has(getBlockLookupRecordKey(record))),
+		[selectedRowKeySet, sortedRows]
+	);
+
+	useEffect(() => {
+		setSelectedRowKeys((currentKeys) => {
+			const retainedKeys = currentKeys.filter((key) => visibleRowKeySet.has(key));
+			if (retainedKeys.length > 0) {
+				return retainedKeys;
+			}
+			return visibleRowKeys[0] ? [visibleRowKeys[0]] : [];
+		});
+		setSelectionAnchorRowKey((currentKey) => {
+			if (currentKey && visibleRowKeySet.has(currentKey)) {
+				return currentKey;
+			}
+			return visibleRowKeys[0];
+		});
+	}, [visibleRowKeys, visibleRowKeySet]);
+
+	useEffect(() => {
+		setSelectedRowKey((currentKey) => {
+			if (currentKey && selectedRowKeySet.has(currentKey)) {
+				return currentKey;
+			}
+			return selectedRowKeys[0] ?? visibleRowKeys[0];
+		});
+	}, [selectedRowKeys, selectedRowKeySet, setSelectedRowKey, visibleRowKeys]);
 
 	useEffect(() => {
 		columnConfigRef.current = columnConfig;
@@ -465,11 +575,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	}, []);
 
 	const handleCopySelected = useCallback(async () => {
-		if (!selectedRecord) {
+		if (selectedRecordsInCopyOrder.length === 0) {
 			openNotification(
 				{
 					message: 'No block selected',
-					description: 'Select a block command before copying.',
+					description: 'Select one or more block commands before copying.',
 					placement: 'topRight',
 					duration: 2
 				},
@@ -479,11 +589,12 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		}
 
 		try {
-			await copyToClipboard(selectedRecord.spawnCommand);
+			const commands = selectedRecordsInCopyOrder.map((record) => record.spawnCommand);
+			await copyToClipboard(commands.join('\n'));
 			openNotification(
 				{
-					message: 'SpawnBlock command copied',
-					description: selectedRecord.spawnCommand,
+					message: `SpawnBlock command${commands.length === 1 ? '' : 's'} copied`,
+					description: commands.length === 1 ? commands[0] : `${commands.length} commands copied.`,
 					placement: 'topRight',
 					duration: 1.5
 				},
@@ -500,7 +611,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 				'error'
 			);
 		}
-	}, [openNotification, selectedRecord]);
+	}, [openNotification, selectedRecordsInCopyOrder]);
 
 	const handleCopyAll = useCallback(async () => {
 		if (sortedRows.length === 0) {
@@ -539,6 +650,71 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 			);
 		}
 	}, [openNotification, sortedRows]);
+
+	const selectAllVisibleRows = useCallback(() => {
+		if (sortedRowKeys.length === 0) {
+			setSelectedRowKeys([]);
+			setSelectionAnchorRowKey(undefined);
+			setSelectedRowKey(undefined);
+			return;
+		}
+
+		setSelectedRowKeys(sortedRowKeys);
+		setSelectionAnchorRowKey(sortedRowKeys[0]);
+		setSelectedRowKey((currentKey) => (currentKey && sortedRowKeySet.has(currentKey) ? currentKey : sortedRowKeys[0]));
+	}, [setSelectedRowKey, sortedRowKeySet, sortedRowKeys]);
+
+	const selectBlockLookupRow = useCallback(
+		(rowKey: string, event: MouseEvent<HTMLTableRowElement> | KeyboardEvent<HTMLTableRowElement>) => {
+			const shouldSelectRange = event.shiftKey;
+			const shouldToggleSelection = event.ctrlKey || event.metaKey;
+			if (shouldSelectRange) {
+				const anchorKey =
+					selectionAnchorRowKey && sortedRowKeySet.has(selectionAnchorRowKey)
+						? selectionAnchorRowKey
+						: selectedRowKey && sortedRowKeySet.has(selectedRowKey)
+							? selectedRowKey
+							: rowKey;
+				const rangeKeys = getBlockLookupRowRange(sortedRowKeys, anchorKey, rowKey);
+				setSelectedRowKeys(rangeKeys);
+				setSelectionAnchorRowKey(anchorKey);
+				setSelectedRowKey(rowKey);
+				return;
+			}
+
+			if (shouldToggleSelection) {
+				const selected = selectedRowKeySet.has(rowKey);
+				const nextKeys = selected ? selectedRowKeys.filter((key) => key !== rowKey) : [...selectedRowKeys, rowKey];
+				setSelectedRowKeys(nextKeys);
+				setSelectionAnchorRowKey(rowKey);
+				setSelectedRowKey(selected ? (nextKeys[0] ?? sortedRowKeys.find((key) => key !== rowKey)) : rowKey);
+				return;
+			}
+
+			setSelectedRowKeys([rowKey]);
+			setSelectionAnchorRowKey(rowKey);
+			setSelectedRowKey(rowKey);
+		},
+		[selectedRowKey, selectedRowKeys, selectedRowKeySet, selectionAnchorRowKey, setSelectedRowKey, sortedRowKeys, sortedRowKeySet]
+	);
+
+	const handleBlockLookupRowKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLTableRowElement>) => {
+			if (!event.ctrlKey && !event.metaKey) {
+				return;
+			}
+
+			const key = event.key.toLowerCase();
+			if (key === 'c') {
+				event.preventDefault();
+				void handleCopySelected();
+			} else if (key === 'a') {
+				event.preventDefault();
+				selectAllVisibleRows();
+			}
+		},
+		[handleCopySelected, selectAllVisibleRows]
+	);
 
 	const openTableOptions = useCallback(() => {
 		const draft = createBlockLookupTableOptionsDraft(blockLookupConfig);
@@ -763,7 +939,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							</div>
 						</div>
 						<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.92rem] text-text-muted" aria-live="polite">
-							<span>{formatBlockLookupIndexStatus(stats, rows.length, query)}</span>
+							<span>{formatBlockLookupIndexStatus(stats, filteredRows.length, query)}</span>
 							<span aria-hidden="true">/</span>
 							<span>
 								{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
@@ -802,6 +978,14 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 													const sorted = blockColumnKey && sortKey === blockColumnKey;
 													const draggable = !!blockColumnKey;
 													const canHideColumn = !!blockColumnKey && persistedVisibleColumnCount > 1;
+													const modHeaderFilter =
+														blockColumnKey === 'modTitle' ? (
+															<BlockLookupModHeaderFilter
+																availableMods={availableModFilters}
+																selectedMods={selectedFilterMods}
+																onSelectedModsChange={setSelectedFilterMods}
+															/>
+														) : null;
 													const contextMenuItems = blockColumnKey
 														? [
 																{
@@ -925,28 +1109,35 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 															}}
 														>
 															{blockColumnKey ? (
-																<button
-																	type="button"
-																	className="BlockLookupVirtualHeaderButton"
-																	draggable={false}
-																	onClick={() => {
-																		markPerfInteraction('blockLookup.sort', {
-																			column: blockColumnKey,
-																			rows: sortedRows.length
-																		});
-																		setSortDirection((currentDirection) =>
-																			getNextBlockLookupSortDirection(sortKey, currentDirection, blockColumnKey)
-																		);
-																		setSortKey(blockColumnKey);
-																	}}
+																<div
+																	className={`BlockLookupColumnHeaderContent${
+																		modHeaderFilter ? ' BlockLookupColumnHeaderContent--withFilter' : ''
+																	}`}
 																>
-																	<span className="BlockLookupTableHeaderLabel">
-																		{flexRender(header.column.columnDef.header, header.getContext())}
-																	</span>
-																	<span className="BlockLookupVirtualSortIndicator" aria-hidden="true">
-																		{sorted ? (sortDirection === 'ascend' ? '▲' : '▼') : null}
-																	</span>
-																</button>
+																	<button
+																		type="button"
+																		className="BlockLookupVirtualHeaderButton"
+																		draggable={false}
+																		onClick={() => {
+																			markPerfInteraction('blockLookup.sort', {
+																				column: blockColumnKey,
+																				rows: sortedRows.length
+																			});
+																			setSortDirection((currentDirection) =>
+																				getNextBlockLookupSortDirection(sortKey, currentDirection, blockColumnKey)
+																			);
+																			setSortKey(blockColumnKey);
+																		}}
+																	>
+																		<span className="BlockLookupTableHeaderLabel">
+																			{flexRender(header.column.columnDef.header, header.getContext())}
+																		</span>
+																		<span className="BlockLookupVirtualSortIndicator" aria-hidden="true">
+																			{sorted ? (sortDirection === 'ascend' ? '▲' : '▼') : null}
+																		</span>
+																	</button>
+																	{modHeaderFilter}
+																</div>
 															) : null}
 														</BlockLookupHeaderCell>
 													);
@@ -961,6 +1152,8 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 											if (!row) {
 												return null;
 											}
+											const rowKey = row.id;
+											const rowSelected = selectedRowKeySet.has(rowKey);
 
 											return (
 												<VirtualTableRow
@@ -968,24 +1161,28 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 													measureElement={rowVirtualizer.measureElement}
 													dataIndex={virtualRow.index}
 													className={`BlockLookupVirtualRow${blockLookupConfig?.smallRows ? ' CompactBlockLookupRow' : ''}${
-														selectedRowKey === row.id ? ' is-selected' : ''
+														rowSelected ? ' is-selected' : ''
 													}`}
 													rowHeight={estimatedRowHeight}
 													start={virtualRow.start}
 													width={tableScrollX}
 													aria-label={`Block lookup row for ${row.original.spawnCommand}. Press Enter or Space to select the row.`}
-													aria-selected={selectedRowKey === row.id}
-													onActivate={() => {
+													aria-selected={rowSelected}
+													keyboardShortcuts="Enter Space Control+C Control+A"
+													onKeyDown={handleBlockLookupRowKeyDown}
+													onActivate={(event) => {
 														markPerfInteraction('blockLookup.rowSelect', {
-															row: row.id
+															row: rowKey
 														});
-														setSelectedRowKey(row.id);
+														selectBlockLookupRow(rowKey, event);
 													}}
 													onDoubleClick={() => {
 														markPerfInteraction('blockLookup.rowDoubleClickCopy', {
-															row: row.id
+															row: rowKey
 														});
-														setSelectedRowKey(row.id);
+														setSelectedRowKeys([rowKey]);
+														setSelectionAnchorRowKey(rowKey);
+														setSelectedRowKey(rowKey);
 														void copyToClipboard(row.original.spawnCommand).catch((error) => {
 															openNotification(
 																{

@@ -39,7 +39,7 @@ export function cloneModData(mod: ModData): ModData {
 	};
 }
 
-export function cloneSessionMods(session: SessionMods): SessionMods {
+function cloneSessionMods(session: SessionMods): SessionMods {
 	return new SessionMods(
 		session.localPath,
 		session.foundMods.map((mod) => cloneModData(mod))
@@ -49,15 +49,6 @@ export function cloneSessionMods(session: SessionMods): SessionMods {
 export function hydrateSessionMods(session: SessionMods, overrides: Map<string, ModDataOverride>, options: ModDependencyGraphOptions = {}) {
 	setupModDependencyGraph(session, overrides, options);
 	return session;
-}
-
-export function createSessionMods(
-	localPath: string | undefined,
-	foundMods: ModData[],
-	overrides: Map<string, ModDataOverride> = new Map(),
-	options: ModDependencyGraphOptions = {}
-) {
-	return hydrateSessionMods(new SessionMods(localPath, foundMods), overrides, options);
 }
 
 export function updateSessionModMetadata(

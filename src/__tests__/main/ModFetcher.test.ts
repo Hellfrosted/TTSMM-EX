@@ -53,59 +53,6 @@ describe('ModFetcher', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('loads local mods without querying Steam Workshop when Steamworks is bypassed', async () => {
-		const tempDir = createTempDir('ttsmm-local-only-');
-		const modDir = path.join(tempDir, 'LocalPack');
-		try {
-			fs.mkdirSync(modDir, { recursive: true });
-			fs.writeFileSync(path.join(modDir, 'LocalBundle_bundle'), 'bundle');
-
-			const isAppInstalled = vi.spyOn(Steamworks, 'isAppInstalled').mockImplementation(() => {
-				throw new Error('Steam install check should have been skipped');
-			});
-			const getAppInstallDir = vi.spyOn(Steamworks, 'getAppInstallDir').mockImplementation(() => {
-				throw new Error('Steam install dir check should have been skipped');
-			});
-			const getSubscribedItems = vi.spyOn(Steamworks, 'getSubscribedItems').mockImplementation(() => {
-				throw new Error('workshop scan should have been skipped');
-			});
-			const getUGCDetails = vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation(() => {
-				throw new Error('workshop details should have been skipped');
-			});
-			const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation(() => {
-				throw new Error('workshop user items should have been skipped');
-			});
-			const ugcGetItemState = vi.spyOn(Steamworks, 'ugcGetItemState').mockImplementation(() => {
-				throw new Error('workshop item state should have been skipped');
-			});
-			const ugcGetItemInstallInfo = vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockImplementation(() => {
-				throw new Error('workshop install info should have been skipped');
-			});
-			const sender = { send: vi.fn() };
-			const fetcher = new ModFetcher(sender, tempDir, [BigInt(42)], 'linux', { skipWorkshopSteamworks: true });
-
-			await expect(fetcher.fetchMods()).resolves.toEqual([
-				expect.objectContaining({
-					uid: 'local:LocalBundle',
-					id: 'LocalBundle',
-					name: 'LocalBundle',
-					path: modDir
-				})
-			]);
-
-			expect(getSubscribedItems).not.toHaveBeenCalled();
-			expect(getUGCDetails).not.toHaveBeenCalled();
-			expect(ugcGetUserItems).not.toHaveBeenCalled();
-			expect(isAppInstalled).not.toHaveBeenCalled();
-			expect(getAppInstallDir).not.toHaveBeenCalled();
-			expect(ugcGetItemState).not.toHaveBeenCalled();
-			expect(ugcGetItemInstallInfo).not.toHaveBeenCalled();
-			expect(sender.send).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 1, 'Finished loading mods');
-		} finally {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
 	it('scans local mods through the local adapter', async () => {
 		const tempDir = createTempDir('ttsmm-local-adapter-');
 		const modDir = path.join(tempDir, 'AdapterPack');
@@ -139,15 +86,18 @@ describe('ModFetcher', () => {
 		fs.mkdirSync(modDir);
 		fs.writeFileSync(path.join(modDir, 'FacadeBundle_bundle'), '');
 		const progressSender = { send: vi.fn() };
+		vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			props.success_callback({ items: [], totalItems: 0, numReturned: 0 });
+			return true;
+		});
 
 		try {
 			await expect(
 				scanModInventory({
-					knownWorkshopMods: [BigInt(42)],
+					knownWorkshopMods: [],
 					localPath: tempDir,
 					platform: 'win32',
-					progressSender,
-					skipWorkshopSteamworks: true
+					progressSender
 				})
 			).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadeBundle' })]);
 		} finally {
@@ -214,6 +164,125 @@ describe('ModFetcher', () => {
 			})
 		);
 		expect(onProgress).toHaveBeenCalledWith(1);
+	});
+
+	it('keeps missing Steamworks children as unknown dependency metadata', async () => {
+		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
+		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
+		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+
+		await expect(
+			fetcher.processSteamModResults([
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Unknown Dependencies',
+					tags: ['Mods'],
+					tagsDisplayNames: ['Mods'],
+					children: undefined
+				})
+			])
+		).resolves.toEqual([
+			expect.not.objectContaining({
+				steamDependencies: expect.any(Array),
+				steamDependenciesFetchedAt: expect.any(Number)
+			})
+		]);
+	});
+
+	it('resolves workshop dependency names through Steamworks child details', async () => {
+		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
+		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
+		vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation((workshopIDs, success) => {
+			success(
+				workshopIDs.map((workshopID) =>
+					createWorkshopDetails({
+						publishedFileId: BigInt(workshopID),
+						title: `Dependency ${workshopID}`
+					})
+				)
+			);
+		});
+		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+
+		await expect(
+			fetcher.processSteamModResults([
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Parent',
+					tags: ['Mods'],
+					tagsDisplayNames: ['Mods'],
+					children: [BigInt(11)]
+				})
+			])
+		).resolves.toEqual([
+			expect.objectContaining({
+				steamDependencies: [BigInt(11)],
+				steamDependencyNames: {
+					'11': 'Dependency 11'
+				},
+				steamDependenciesFetchedAt: expect.any(Number)
+			})
+		]);
+	});
+
+	it('resolves dependency names for top-level subscribed workshop items', async () => {
+		vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			props.success_callback(
+				props.options?.page_num === 1
+					? {
+							items: [
+								createWorkshopDetails({
+									publishedFileId: BigInt(77),
+									title: 'Parent',
+									tags: ['Mods'],
+									tagsDisplayNames: ['Mods'],
+									children: [BigInt(11)]
+								})
+							],
+							totalItems: 1,
+							numReturned: 1
+						}
+					: {
+							items: [],
+							totalItems: 1,
+							numReturned: 0
+						}
+			);
+		});
+		vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation((workshopIDs, success) => {
+			success(
+				workshopIDs.map((workshopID) =>
+					createWorkshopDetails({
+						publishedFileId: BigInt(workshopID),
+						title: `Dependency ${workshopID}`
+					})
+				)
+			);
+		});
+		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
+		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
+		vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
+		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+
+		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([
+			expect.objectContaining({
+				workshopID: BigInt(77),
+				steamDependencies: [BigInt(11)],
+				steamDependencyNames: {
+					'11': 'Dependency 11'
+				},
+				steamDependenciesFetchedAt: expect.any(Number)
+			})
+		]);
 	});
 
 	it('keeps the workshop platform guard behind the paging adapter', () => {
@@ -423,6 +492,16 @@ describe('ModFetcher', () => {
 			vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue(process.cwd());
 			const getSubscribedItems = vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([validWorkshopID, invalidWorkshopID]);
 			const getUGCDetails = vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation((ids, successCallback) => {
+				if (ids.length === 1 && ids[0] === '789') {
+					successCallback([
+						createWorkshopDetails({
+							publishedFileId: BigInt(789),
+							title: 'Dependency 789'
+						})
+					]);
+					return;
+				}
+
 				expect(ids).toEqual([validWorkshopID.toString(), invalidWorkshopID.toString()]);
 				successCallback([
 					createWorkshopDetails({
@@ -475,16 +554,19 @@ describe('ModFetcher', () => {
 				expect.objectContaining({
 					uid: `workshop:${validWorkshopID}`,
 					workshopID: validWorkshopID,
-						name: 'Green Tech Expansion',
-						id: 'GreenTech',
-						tags: ['Mods', 'Blocks'],
-						steamDependencies: [BigInt(789)],
-						authors: ['Test Author']
-					})
-				]);
+					name: 'Green Tech Expansion',
+					id: 'GreenTech',
+					tags: ['Mods', 'Blocks'],
+					steamDependencies: [BigInt(789)],
+					steamDependencyNames: {
+						'789': 'Dependency 789'
+					},
+					authors: ['Test Author']
+				})
+			]);
 
 			expect(getSubscribedItems).toHaveBeenCalledTimes(1);
-			expect(getUGCDetails).toHaveBeenCalledTimes(1);
+			expect(getUGCDetails).toHaveBeenCalledTimes(2);
 			expect(ugcGetUserItems).not.toHaveBeenCalled();
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });

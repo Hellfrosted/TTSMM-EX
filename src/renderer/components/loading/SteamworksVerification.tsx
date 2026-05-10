@@ -24,11 +24,6 @@ import {
 
 function describeSteamworksReadiness(kind: SteamworksReadinessKind) {
 	switch (kind) {
-		case 'bypassed':
-			return {
-				title: 'Steamworks is bypassed for this development run.',
-				detail: 'Workshop metadata and Steam actions are disabled until the app is launched without TTSMM_BYPASS_STEAMWORKS.'
-			};
 		case 'steam-not-running':
 			return {
 				title: 'Steam is not available right now.',
@@ -37,8 +32,7 @@ function describeSteamworksReadiness(kind: SteamworksReadinessKind) {
 		case 'wrong-app-id':
 			return {
 				title: 'Steam rejected this app ID for the signed-in account.',
-				detail:
-					'Sign in with an account that owns TerraTech, or launch with TTSMM_BYPASS_STEAMWORKS=1 for local UI work without Workshop access.'
+				detail: 'Sign in with an account that owns TerraTech, then retry the Steamworks check.'
 			};
 		case 'native-module-unavailable':
 			return {

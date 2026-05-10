@@ -24,6 +24,7 @@ import type { CollectionContentSaveRequest, CollectionContentSaveResult } from '
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import type { ElectronApi, ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
+import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 import { createGameLaunchCommand, parseExtraLaunchParams } from './game-launch-command';
 
 export { parseExtraLaunchParams };
@@ -222,7 +223,7 @@ class API {
 		return this.invokeElectron('readModMetadata', localDir, [...allKnownMods], options);
 	}
 
-	fetchWorkshopDependencies(workshopID: bigint): Promise<boolean> {
+	fetchWorkshopDependencies(workshopID: bigint): Promise<WorkshopDependencyRefreshResult> {
 		return this.invokeElectron('fetchWorkshopDependencies', workshopID);
 	}
 

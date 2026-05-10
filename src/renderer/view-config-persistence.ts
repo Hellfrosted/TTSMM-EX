@@ -34,9 +34,8 @@ interface BlockLookupDraftColumnState {
 export const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
 	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, defaultWidth: 320, minWidth: 140 },
 	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, defaultWidth: 200, minWidth: 96 },
-	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, defaultWidth: 176, minWidth: 96 },
-	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, defaultWidth: 96, minWidth: 72 },
-	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, defaultWidth: 104, minWidth: 72 }
+	{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, defaultWidth: 220, minWidth: 136 },
+	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, defaultWidth: 176, minWidth: 96 }
 ];
 
 function cloneBlockLookupColumnConfig(columns: BlockLookupColumnConfig[]) {

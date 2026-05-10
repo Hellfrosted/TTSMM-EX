@@ -1,5 +1,4 @@
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
-import { isWorkshopDependencyLookupStale } from '../shared/workshop-dependency-lookup';
 import { collectMissingWorkshopDependencies } from './mod-workshop-dependencies';
 
 export class WorkshopInventoryResolver {
@@ -49,19 +48,6 @@ export class WorkshopInventoryResolver {
 			this.pendingWorkshopMods.add(workshopID);
 		});
 		return missingDependencies;
-	}
-
-	getDependencyRefreshCandidates(mods: Iterable<ModData>, now = Date.now()): Set<bigint> {
-		const refreshCandidates = new Set<bigint>();
-		for (const mod of mods) {
-			if (mod.workshopID === undefined) {
-				continue;
-			}
-			if (isWorkshopDependencyLookupStale(mod.steamDependenciesFetchedAt, now)) {
-				refreshCandidates.add(mod.workshopID);
-			}
-		}
-		return refreshCandidates;
 	}
 
 	getPendingWorkshopMods(): Set<bigint> {

@@ -236,26 +236,26 @@ export function registerGameHandlers(ipcMain: IpcMain) {
 		return isGameRunning();
 	});
 
-		registerValidatedIpcHandler(
-			ipcMain,
-			ValidChannel.LAUNCH_GAME,
-			async (_event, gameExec: unknown, workshopID: unknown, closeOnLaunch: unknown, args: unknown) => {
-				const payload = parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args);
-				return launchGameProcess(payload.gameExec, payload.workshopID, payload.closeOnLaunch, payload.args);
-			}
-		);
+	registerValidatedIpcHandler(
+		ipcMain,
+		ValidChannel.LAUNCH_GAME,
+		async (_event, gameExec: unknown, workshopID: unknown, closeOnLaunch: unknown, args: unknown) => {
+			const payload = parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args);
+			return launchGameProcess(payload.gameExec, payload.workshopID, payload.closeOnLaunch, payload.args);
+		}
+	);
 
-		registerValidatedIpcHandler(ipcMain, ValidChannel.PATH_EXISTS, async (_event, targetPath: unknown, expectedType?: unknown) => {
-			const payload = parsePathExistsPayload(ValidChannel.PATH_EXISTS, targetPath, expectedType);
-			return pathExists(payload.targetPath, payload.expectedType);
-		});
+	registerValidatedIpcHandler(ipcMain, ValidChannel.PATH_EXISTS, async (_event, targetPath: unknown, expectedType?: unknown) => {
+		const payload = parsePathExistsPayload(ValidChannel.PATH_EXISTS, targetPath, expectedType);
+		return pathExists(payload.targetPath, payload.expectedType);
+	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.DISCOVER_GAME_EXEC, async () => {
 		return discoverGameExecutablePath();
 	});
 
-		registerValidatedIpcHandler(ipcMain, ValidChannel.SELECT_PATH, async (_event, directory: unknown, title: unknown) => {
-			const payload = parseSelectPathPayload(ValidChannel.SELECT_PATH, directory, title);
-			return selectPath(payload.directory, payload.title);
-		});
-	}
+	registerValidatedIpcHandler(ipcMain, ValidChannel.SELECT_PATH, async (_event, directory: unknown, title: unknown) => {
+		const payload = parseSelectPathPayload(ValidChannel.SELECT_PATH, directory, title);
+		return selectPath(payload.directory, payload.title);
+	});
+}

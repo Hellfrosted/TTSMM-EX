@@ -21,6 +21,7 @@ import type {
 	BlockLookupSettings
 } from './block-lookup';
 import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
+import type { WorkshopDependencyRefreshResult } from './workshop-dependency-snapshot';
 
 export type ElectronLogFunctions = {
 	info: (message: unknown) => void;
@@ -84,7 +85,7 @@ export interface ElectronApi {
 		allKnownMods: string[],
 		options?: { treatNuterraSteamBetaAsEquivalent?: boolean }
 	) => Promise<SessionMods>;
-	fetchWorkshopDependencies: (workshopID: bigint) => Promise<boolean>;
+	fetchWorkshopDependencies: (workshopID: bigint) => Promise<WorkshopDependencyRefreshResult>;
 	steamworksInited: () => Promise<SteamworksStatus>;
 	downloadMod: (workshopID: bigint) => Promise<boolean>;
 	subscribeMod: (workshopID: bigint) => Promise<boolean>;

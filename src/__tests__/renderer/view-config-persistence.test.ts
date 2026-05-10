@@ -144,17 +144,16 @@ describe('view-config-persistence', () => {
 				[BlockLookupColumnTitles.BLOCK]: 10,
 				Legacy: 999
 			},
-			columnOrder: ['Legacy', BlockLookupColumnTitles.SOURCE, BlockLookupColumnTitles.SOURCE, BlockLookupColumnTitles.BLOCK]
+			columnOrder: ['Legacy', 'Source', 'Block ID', BlockLookupColumnTitles.INTERNAL_NAME, BlockLookupColumnTitles.BLOCK]
 		};
 
 		const columns = getConfiguredBlockLookupColumns(config);
 
 		expect(columns.map((column) => column.title)).toEqual([
-			BlockLookupColumnTitles.SOURCE,
+			BlockLookupColumnTitles.INTERNAL_NAME,
 			BlockLookupColumnTitles.BLOCK,
 			BlockLookupColumnTitles.SPAWN_COMMAND,
-			BlockLookupColumnTitles.MOD,
-			BlockLookupColumnTitles.BLOCK_ID
+			BlockLookupColumnTitles.MOD
 		]);
 		expect(columns.find((column) => column.title === BlockLookupColumnTitles.BLOCK)).toMatchObject({
 			visible: false,

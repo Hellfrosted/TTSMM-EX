@@ -55,7 +55,7 @@ export interface ModDataOverride {
 	tags?: string[];
 }
 
-export interface ParsedModUid {
+interface ParsedModUid {
 	id: string;
 	type: string;
 }
@@ -91,7 +91,7 @@ interface ModDependencyKeySource {
 	workshopID?: bigint;
 }
 
-export function getModDependencyIgnoreKey(source: ModDependencyKeySource): string | undefined {
+function getModDependencyIgnoreKey(source: ModDependencyKeySource): string | undefined {
 	const modID = source.modID ?? source.id ?? undefined;
 	if (modID) {
 		return modID;

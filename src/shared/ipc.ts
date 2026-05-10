@@ -56,13 +56,7 @@ export enum LogLevel {
 	SILLY = 'silly'
 }
 
-export type SteamworksReadinessKind =
-	| 'ready'
-	| 'bypassed'
-	| 'native-module-unavailable'
-	| 'steam-not-running'
-	| 'wrong-app-id'
-	| 'unknown-failure';
+export type SteamworksReadinessKind = 'ready' | 'native-module-unavailable' | 'steam-not-running' | 'wrong-app-id' | 'unknown-failure';
 
 export interface SteamworksReadiness {
 	kind: SteamworksReadinessKind;

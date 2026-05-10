@@ -112,16 +112,15 @@ describe('BlockLookupView', () => {
 			[
 				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
 				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, defaultWidth: 220, minWidth: 120 },
-				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 },
-				{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, width: 110, defaultWidth: 110, minWidth: 90 },
-				{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, width: 130, defaultWidth: 130, minWidth: 90 }
+				{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, width: 220, defaultWidth: 220, minWidth: 136 },
+				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 }
 			],
-			640
+			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'internalName']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(
-			640
+			560
 		);
 	});
 
@@ -181,6 +180,156 @@ describe('BlockLookupView', () => {
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Beta_Shield(Test_Blocks)');
+		});
+	});
+
+	it('copies selected block lookup rows with Ctrl+C in visible table order', async () => {
+		stubResizeObserver();
+		const records = [
+			TEST_RECORD,
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findAllByText('Gamma Wheel');
+		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
+		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
+		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		expect(alphaRow).not.toBeNull();
+		expect(betaRow).not.toBeNull();
+		expect(gammaRow).not.toBeNull();
+
+		fireEvent.click(gammaRow!, { ctrlKey: true });
+		fireEvent.keyDown(gammaRow!, { key: 'c', ctrlKey: true });
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)\nSpawnBlock Gamma_Wheel(Test_Blocks)');
+		});
+		expect(betaRow).toHaveAttribute('aria-selected', 'false');
+		expect(alphaRow).toHaveAttribute('aria-selected', 'true');
+		expect(gammaRow).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('selects a block lookup row range with Shift+click', async () => {
+		stubResizeObserver();
+		const records = [
+			TEST_RECORD,
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findAllByText('Gamma Wheel');
+		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
+		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		expect(betaRow).not.toBeNull();
+		expect(gammaRow).not.toBeNull();
+
+		fireEvent.click(gammaRow!, { shiftKey: true });
+		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(
+				'SpawnBlock Alpha_Cannon(Test_Blocks)\nSpawnBlock Beta_Shield(Test_Blocks)\nSpawnBlock Gamma_Wheel(Test_Blocks)'
+			);
+		});
+		expect(betaRow).toHaveAttribute('aria-selected', 'true');
+		expect(gammaRow).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('selects all visible block lookup rows with Ctrl+A', async () => {
+		stubResizeObserver();
+		const records = [
+			TEST_RECORD,
+			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findAllByText('Beta Shield');
+		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
+		expect(betaRow).not.toBeNull();
+
+		fireEvent.keyDown(betaRow!, { key: 'a', ctrlKey: true });
+		fireEvent.keyDown(betaRow!, { key: 'c', ctrlKey: true });
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)\nSpawnBlock Beta_Shield(Test_Blocks)');
+		});
+	});
+
+	it('filters block lookup rows by mod from the Mod column header', async () => {
+		stubResizeObserver();
+		const records = [
+			{ ...TEST_RECORD, modTitle: 'Alpha Pack', spawnCommand: 'SpawnBlock Alpha_Cannon(Alpha_Pack)' },
+			createBlockLookupRecord(2, {
+				blockName: 'Beta Shield',
+				modTitle: 'Beta Pack',
+				spawnCommand: 'SpawnBlock Beta_Shield(Beta_Pack)'
+			})
+		];
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		const modFilter = await screen.findByRole('combobox', { name: 'Filter Mod column' });
+		fireEvent.change(modFilter, { target: { value: 'add:Beta Pack' } });
+		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith('SpawnBlock Beta_Shield(Beta_Pack)');
+		});
+		expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('Alpha_Cannon'));
+		expect(modFilter).toHaveDisplayValue('1 active');
+
+		fireEvent.change(modFilter, { target: { value: 'clear:' } });
+		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('SpawnBlock Alpha_Cannon(Alpha_Pack)'));
+			expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('SpawnBlock Beta_Shield(Beta_Pack)'));
 		});
 	});
 
@@ -291,6 +440,39 @@ describe('BlockLookupView', () => {
 		});
 	});
 
+	it('loads all indexed rows for the blank lookup instead of applying the search result cap', async () => {
+		stubResizeObserver();
+		const records = Array.from({ length: 1005 }, (_value, index) => createBlockLookupRecord(index + 1));
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
+		vi.mocked(window.electron.searchBlockLookup).mockImplementation(async (request) => {
+			const matchingRows = request.query.trim()
+				? records.filter((record) => record.spawnCommand.toLowerCase().includes(request.query.toLowerCase()))
+				: records;
+			return {
+				rows: request.limit ? matchingRows.slice(0, request.limit) : matchingRows,
+				stats: { ...TEST_STATS, blocks: records.length }
+			};
+		});
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		renderBlockLookupView();
+
+		await screen.findByText('1005 indexed blocks from 1 source');
+		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(expect.stringContaining('SpawnBlock Block_1005(Test_Blocks)'));
+		});
+		expect(window.electron.searchBlockLookup).toHaveBeenCalledWith({ query: '', limit: undefined });
+	});
+
 	it('uses fixed row geometry for virtualized block rows', async () => {
 		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
@@ -342,7 +524,7 @@ describe('BlockLookupView', () => {
 		stubResizeObserver();
 		const records = [
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
-			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', blockId: '' })
+			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', internalName: '' })
 		];
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
 			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
@@ -392,7 +574,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -403,7 +585,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -442,7 +624,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -453,7 +635,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -484,7 +666,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+							columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -495,7 +677,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Block', 'SpawnBlock Command', 'Mod', 'Block ID', 'Source'],
+								columnOrder: ['Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
 								columnWidthConfig: undefined
 							})
 						})

@@ -31,7 +31,10 @@ export function createGameLaunchCommand(input: {
 	let passedWorkshopID: string | null = workshopIDText;
 
 	let addMods = true;
-	if (actualMods.length === 0 || (actualMods.length === 1 && actualMods[0] === `[${createModUid(ModType.WORKSHOP, MOD_MANAGER_WORKSHOP_ID)}]`)) {
+	if (
+		actualMods.length === 0 ||
+		(actualMods.length === 1 && actualMods[0] === `[${createModUid(ModType.WORKSHOP, MOD_MANAGER_WORKSHOP_ID)}]`)
+	) {
 		if (input.pureVanilla) {
 			passedWorkshopID = null;
 			addMods = false;

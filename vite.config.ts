@@ -32,12 +32,7 @@ function getRendererManualChunk(id: string) {
 		return 'vendor-react';
 	}
 
-	if (
-		matchesNodeModulePackage(id, 'axios') ||
-		matchesNodeModulePackage(id, 'async-mutex') ||
-		matchesNodeModulePackage(id, 'dateformat') ||
-		matchesNodeModulePackage(id, 'node-html-parser')
-	) {
+	if (matchesNodeModulePackage(id, 'async-mutex') || matchesNodeModulePackage(id, 'dateformat')) {
 		return 'vendor-data';
 	}
 

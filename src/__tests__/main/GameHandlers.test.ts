@@ -58,12 +58,8 @@ describe('game handlers', () => {
 		expect(() => parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, 'game.exe', BigInt(42), true, [1])).toThrow(
 			'Invalid IPC payload for launch-game'
 		);
-		expect(() => parsePathExistsPayload(ValidChannel.PATH_EXISTS, '/tmp/game.exe', 'file')).toThrow(
-			'Invalid IPC payload for path-exists'
-		);
-		expect(() => parseSelectPathPayload(ValidChannel.SELECT_PATH, 'yes', 'Choose folder')).toThrow(
-			'Invalid IPC payload for select-path'
-		);
+		expect(() => parsePathExistsPayload(ValidChannel.PATH_EXISTS, '/tmp/game.exe', 'file')).toThrow('Invalid IPC payload for path-exists');
+		expect(() => parseSelectPathPayload(ValidChannel.SELECT_PATH, 'yes', 'Choose folder')).toThrow('Invalid IPC payload for select-path');
 	});
 
 	it('expands home-relative paths when checking existence', () => {

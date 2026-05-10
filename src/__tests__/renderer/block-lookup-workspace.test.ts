@@ -173,16 +173,16 @@ describe('block-lookup-workspace', () => {
 		]);
 	});
 
-	it('sorts numeric block IDs numerically and falls back to stable record keys for ties', () => {
+	it('sorts internal block names and falls back to stable record keys for ties', () => {
 		const rows = [
-			blockRecord(10, { blockId: '10' }),
-			blockRecord(2, { blockId: '2', sourcePath: '/z' }),
-			blockRecord(3, { blockId: '2', sourcePath: '/a' })
+			blockRecord(10, { internalName: 'Wheel 10' }),
+			blockRecord(2, { internalName: 'Wheel 2', sourcePath: '/z' }),
+			blockRecord(3, { internalName: 'Wheel 2', sourcePath: '/a' })
 		];
 
-		const sortedRows = sortBlockLookupRecords(rows, 'blockId', 'ascend');
+		const sortedRows = sortBlockLookupRecords(rows, 'internalName', 'ascend');
 
 		expect(sortedRows.map((record) => record.sourcePath)).toEqual(['/a', '/z', '/vanilla']);
-		expect(sortedRows.map((record) => record.blockId)).toEqual(['2', '2', '10']);
+		expect(sortedRows.map((record) => record.internalName)).toEqual(['Wheel 2', 'Wheel 2', 'Wheel 10']);
 	});
 });

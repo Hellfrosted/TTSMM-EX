@@ -8,7 +8,7 @@ import type { SteamworksReadinessKind, SteamworksStatus } from '../../shared/ipc
 
 function steamworksStatus(kind: SteamworksReadinessKind, error?: string): SteamworksStatus {
 	return {
-		inited: kind === 'ready' || kind === 'bypassed',
+		inited: kind === 'ready',
 		error,
 		readiness: {
 			kind,
@@ -127,11 +127,6 @@ describe('SteamworksVerification', () => {
 			status: steamworksStatus('steam-not-running', 'Error: steam unavailable'),
 			expectedTitle: 'Steam is not available right now.',
 			expectedDetail: 'Start Steam, sign in, then retry the Steamworks check.'
-		},
-		{
-			status: steamworksStatus('bypassed'),
-			expectedTitle: 'Steamworks is bypassed for this development run.',
-			expectedDetail: /Workshop metadata and Steam actions are disabled/
 		},
 		{
 			status: steamworksStatus(

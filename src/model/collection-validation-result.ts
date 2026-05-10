@@ -21,7 +21,7 @@ interface ValidationIssueListItem {
 	uid: string;
 }
 
-export type CollectionStatusTagTone = 'danger' | 'neutral' | 'success' | 'warning';
+type CollectionStatusTagTone = 'danger' | 'neutral' | 'success' | 'warning';
 
 export interface CollectionStatusTag {
 	rank: number;

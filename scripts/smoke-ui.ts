@@ -5,7 +5,6 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { repoRoot, releaseAppDistPath, releaseBuildPath } from './lib/paths';
 
-const STEAMWORKS_BYPASS_ENV = 'TTSMM_BYPASS_STEAMWORKS';
 const USER_DATA_DIR_OVERRIDE_ENV = 'TTSMM_EX_USER_DATA_DIR';
 const UI_SMOKE_ENV = 'TTSMM_EX_UI_SMOKE';
 const UI_SMOKE_OUTPUT_ENV = 'TTSMM_EX_UI_SMOKE_OUTPUT';
@@ -100,7 +99,6 @@ for (const key of Object.keys(env)) {
 	}
 }
 env.NODE_ENV = 'production';
-env[STEAMWORKS_BYPASS_ENV] = '1';
 env.TTSMM_EX_DISABLE_AUTO_UPDATES = '1';
 env[UI_SMOKE_ENV] = '1';
 env[USER_DATA_DIR_OVERRIDE_ENV] = userDataPath;

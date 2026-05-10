@@ -26,19 +26,6 @@ From WSL in the shared Windows checkout, run source setup through the helper:
 ./scripts/wsl-pnpm run setup:steamworks
 ```
 
-For local UI work without Steamworks access:
-
-```bash
-TTSMM_BYPASS_STEAMWORKS=1 ./scripts/wsl-pnpm run start:desktop
-```
-
-PowerShell equivalent:
-
-```powershell
-$env:TTSMM_BYPASS_STEAMWORKS = '1'
-pnpm run start:desktop
-```
-
 ## Packaging Details
 
 Windows packaging:
@@ -107,9 +94,9 @@ The pacman target needs `bsdtar`.
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `pnpm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `pnpm run smoke:steamworks`: Electron-side Steamworks smoke test
-- `pnpm run smoke:ui`: build, then run the GUI smoke test with isolated user data and Steamworks bypass
+- `pnpm run smoke:ui`: build, then run the GUI smoke test with isolated user data
 - `pnpm run smoke:ui:built`: GUI smoke test against the existing `release/app/dist` build
-- `pnpm run smoke:ui:packaged`: packaged-app GUI smoke test with isolated user data and Steamworks bypass
+- `pnpm run smoke:ui:packaged`: packaged-app GUI smoke test with isolated user data
 - `pnpm run rebuild`: rebuild native Electron dependencies in `release/app`
 - `pnpm run package`: package for the current platform default target
 - `pnpm run package:linux`: build both Linux package formats

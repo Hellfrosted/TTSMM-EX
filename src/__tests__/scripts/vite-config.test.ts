@@ -128,7 +128,7 @@ describe('vite config', () => {
 			expect(isExternal('node:path')).toBe(true);
 			expect(isExternal('ps-list')).toBe(true);
 			expect(isExternal('greenworks')).toBe(true);
-			expect(isExternal('axios')).toBe(false);
+			expect(isExternal('async-mutex')).toBe(false);
 			expect(isExternal('@tanstack/react-query')).toBe(false);
 		}
 	});
@@ -144,7 +144,7 @@ describe('vite config', () => {
 		expect(normalizePath(rendererConfig.build?.rollupOptions?.input)).toContain('/src/renderer/index.html');
 		expect(manualChunks('/repo/node_modules/react/index.js', manualChunkMeta)).toBe('vendor-react');
 		expect(manualChunks('/repo/node_modules/react-router-dom/dist/index.js', manualChunkMeta)).toBe('vendor-react');
-		expect(manualChunks('/repo/node_modules/axios/index.js', manualChunkMeta)).toBe('vendor-data');
+		expect(manualChunks('/repo/node_modules/async-mutex/index.js', manualChunkMeta)).toBe('vendor-data');
 		expect(manualChunks('/repo/src/renderer/App.tsx', manualChunkMeta)).toBeUndefined();
 	});
 

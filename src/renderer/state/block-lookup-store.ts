@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'modTitle' | 'blockId' | 'sourceKind';
+export type BlockLookupColumnKey = 'spawnCommand' | 'blockName' | 'internalName' | 'modTitle';
 export type BlockLookupSortKey = 'relevance' | BlockLookupColumnKey;
 export type BlockLookupSortDirection = 'ascend' | 'descend';
 

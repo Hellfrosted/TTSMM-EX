@@ -23,24 +23,24 @@ export const queryKeys = {
 	mods: {
 		root: () => ['mods'] as const,
 		metadataRoot: () => [...queryKeys.mods.root(), 'metadata'] as const,
-			metadataScan: (
-				localDir: string | undefined,
-				knownModIds: readonly string[],
-				forceReload: boolean,
-				attempt: number,
-				treatNuterraSteamBetaAsEquivalent: boolean,
-				userOverridesKey: readonly unknown[]
-			) =>
-				[
-					...queryKeys.mods.metadataRoot(),
-					localDir ?? null,
-					knownModIds,
-					forceReload,
-					attempt,
-					treatNuterraSteamBetaAsEquivalent,
-					userOverridesKey
-				] as const
-		},
+		metadataScan: (
+			localDir: string | undefined,
+			knownModIds: readonly string[],
+			forceReload: boolean,
+			attempt: number,
+			treatNuterraSteamBetaAsEquivalent: boolean,
+			userOverridesKey: readonly unknown[]
+		) =>
+			[
+				...queryKeys.mods.metadataRoot(),
+				localDir ?? null,
+				knownModIds,
+				forceReload,
+				attempt,
+				treatNuterraSteamBetaAsEquivalent,
+				userOverridesKey
+			] as const
+	},
 	game: {
 		root: () => ['game'] as const,
 		running: (requestId: number) => [...queryKeys.game.root(), 'running', requestId] as const

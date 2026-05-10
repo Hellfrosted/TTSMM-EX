@@ -65,15 +65,14 @@ describe('block-lookup-table-layout', () => {
 				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
 				createColumn({ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, width: 220, defaultWidth: 220, minWidth: 120 }),
 				createColumn({ key: 'modTitle', title: BlockLookupColumnTitles.MOD, width: 200, defaultWidth: 200, minWidth: 120 }),
-				createColumn({ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, width: 110, defaultWidth: 110, minWidth: 90 }),
-				createColumn({ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, width: 130, defaultWidth: 130, minWidth: 90 })
+				createColumn({ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, width: 220, defaultWidth: 220, minWidth: 136 })
 			],
-			640
+			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'modTitle', 'blockId', 'sourceKind']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['spawnCommand', 'blockName', 'internalName']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + resolveBlockLookupColumnWidth(column), 32)).toBeLessThanOrEqual(
-			640
+			560
 		);
 	});
 
@@ -99,9 +98,8 @@ describe('block-lookup-table-layout', () => {
 	it('centers block lookup cells except block names', () => {
 		expect(getBlockLookupCellAlignment('spawnCommand')).toBe('center');
 		expect(getBlockLookupCellAlignment('blockName')).toBe('left');
+		expect(getBlockLookupCellAlignment('internalName')).toBe('center');
 		expect(getBlockLookupCellAlignment('modTitle')).toBe('center');
-		expect(getBlockLookupCellAlignment('blockId')).toBe('center');
-		expect(getBlockLookupCellAlignment('sourceKind')).toBe('center');
 	});
 
 	it('cycles sort direction for table columns', () => {

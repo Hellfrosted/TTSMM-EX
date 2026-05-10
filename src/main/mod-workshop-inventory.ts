@@ -6,13 +6,12 @@ import type { ModInventoryProgress } from './mod-inventory-progress';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
 import { WorkshopInventoryResolver } from './workshop-inventory-resolution';
-import type { WorkshopDependencyLookup } from './workshop-dependencies';
+import { createWorkshopDependencySnapshot, resolveWorkshopDependencyNames } from './workshop-dependencies';
 
 interface WorkshopDependencyExpansionAdapters {
 	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Promise<ModData[]>;
 	knownWorkshopMods: Set<bigint>;
 	options?: NuterraSteamCompatibilityOptions;
-	refreshWorkshopDependencies?: (workshopID: bigint) => Promise<WorkshopDependencyLookup | null>;
 	updateModLoadingProgress: (size: number) => void;
 }
 
@@ -26,8 +25,6 @@ interface WorkshopInventoryInput extends LinuxWorkshopInventoryInput {
 	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Promise<ModData[]>;
 	options?: NuterraSteamCompatibilityOptions;
 	platform: NodeJS.Platform;
-	refreshWorkshopDependencies?: (workshopID: bigint) => Promise<WorkshopDependencyLookup | null>;
-	skipWorkshopSteamworks: boolean;
 	updateModLoadingProgress: (size: number) => void;
 }
 
@@ -70,7 +67,6 @@ export async function resolveWorkshopDependencyChunk(
 			modDetails.forEach((mod: ModData) => {
 				log.silly(`Got results for workshop mod ${mod.name} (${mod.uid})`);
 			});
-			await refreshWorkshopDependencySnapshots(modDetails, resolver, adapters.refreshWorkshopDependencies);
 			resolver.addResolvedMods(modDetails);
 
 			resolver.collectMissingDependencies(modDetails).forEach((missingDependency) => modDependencies.add(missingDependency));
@@ -81,38 +77,6 @@ export async function resolveWorkshopDependencyChunk(
 	}
 
 	return modDependencies;
-}
-
-async function refreshWorkshopDependencySnapshots(
-	mods: Iterable<ModData>,
-	resolver: WorkshopInventoryResolver,
-	refreshWorkshopDependencies?: (workshopID: bigint) => Promise<WorkshopDependencyLookup | null>
-) {
-	if (!refreshWorkshopDependencies) {
-		return;
-	}
-
-	const modList = [...mods];
-	const refreshCandidates = resolver.getDependencyRefreshCandidates(modList);
-	for (const workshopID of refreshCandidates) {
-		try {
-			const dependencyLookup = await refreshWorkshopDependencies(workshopID);
-			if (!dependencyLookup) {
-				log.warn(`Workshop dependency lookup for ${workshopID} returned no dependency data.`);
-				continue;
-			}
-			const mod = resolver.workshopMap.get(workshopID) ?? modList.find((candidate) => candidate.workshopID === workshopID);
-			if (!mod) {
-				continue;
-			}
-			mod.steamDependencies = dependencyLookup.steamDependencies;
-			mod.steamDependencyNames = dependencyLookup.steamDependencyNames;
-			mod.steamDependenciesFetchedAt = dependencyLookup.steamDependenciesFetchedAt;
-		} catch (error) {
-			log.warn(`Failed to refresh Workshop dependency snapshot for ${workshopID}.`);
-			log.warn(error);
-		}
-	}
 }
 
 async function fetchLinuxWorkshopInventory({
@@ -127,21 +91,38 @@ async function fetchLinuxWorkshopInventory({
 	log.debug(`All subscribed items: [${allSubscribedItems}]`);
 	progress.workshopMods = workshopIDs.size;
 	const workshopDetailsMap = await getWorkshopDetailsMap(workshopIDs);
+	const workshopDetails = [...workshopDetailsMap.values()];
 
-	const modResponses = await Promise.allSettled<ModData | null>(
-		[...workshopIDs].map((workshopID) => {
-			return buildWorkshopMod(workshopID, workshopDetailsMap.get(workshopID), explicitKnownWorkshopMods.has(workshopID));
-		})
+	const modsWithDetails = await buildWorkshopMods(workshopDetails, buildWorkshopMod, (workshopID) =>
+		explicitKnownWorkshopMods.has(workshopID)
 	);
-	return filterSettledModResults(modResponses);
+	const missingDetailResponses = await Promise.allSettled<ModData | null>(
+		[...workshopIDs]
+			.filter((workshopID) => !workshopDetailsMap.has(workshopID))
+			.map((workshopID) => buildWorkshopMod(workshopID, undefined, explicitKnownWorkshopMods.has(workshopID)))
+	);
+	return [...modsWithDetails, ...filterSettledModResults(missingDetailResponses)];
 }
 
 async function buildWorkshopMods(
 	steamDetails: SteamUGCDetails[],
-	buildWorkshopMod: LinuxWorkshopInventoryInput['buildWorkshopMod']
+	buildWorkshopMod: LinuxWorkshopInventoryInput['buildWorkshopMod'],
+	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false
 ): Promise<ModData[]> {
+	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
 	const modResponses = await Promise.allSettled<ModData | null>(
-		steamDetails.map((steamUGCDetails) => buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails))
+		steamDetails.map(async (steamUGCDetails) => {
+			const mod = await buildWorkshopMod(
+				steamUGCDetails.publishedFileId,
+				steamUGCDetails,
+				keepUnknownWorkshopItem(steamUGCDetails.publishedFileId)
+			);
+			const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
+			if (mod && dependencySnapshot) {
+				Object.assign(mod, dependencySnapshot);
+			}
+			return mod;
+		})
 	);
 	return filterSettledModResults(modResponses);
 }
@@ -153,15 +134,8 @@ export async function fetchWorkshopInventory({
 	options,
 	platform,
 	progress,
-	refreshWorkshopDependencies,
-	skipWorkshopSteamworks,
 	updateModLoadingProgress
 }: WorkshopInventoryInput): Promise<ModData[]> {
-	if (skipWorkshopSteamworks) {
-		log.warn('Skipping Steam Workshop scan because Steamworks is bypassed for this run.');
-		return [];
-	}
-
 	if (shouldSkipWorkshopFetch(platform)) {
 		return [];
 	}
@@ -196,7 +170,6 @@ export async function fetchWorkshopInventory({
 		pageNum += 1;
 	}
 
-	await refreshWorkshopDependencySnapshots(resolver.workshopMap.values(), resolver, refreshWorkshopDependencies);
 	resolver.queueMissingDependencies(resolver.workshopMap.values());
 
 	if (resolver.workshopMap.size !== numProcessedWorkshop) {
@@ -220,7 +193,6 @@ export async function fetchWorkshopInventory({
 				getDetailsForWorkshopModList,
 				knownWorkshopMods: resolver.pendingWorkshopMods,
 				options,
-				refreshWorkshopDependencies,
 				updateModLoadingProgress
 			}
 		);

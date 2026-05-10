@@ -1,96 +1,196 @@
-import axios from 'axios';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
-	fetchWorkshopDependencyLookup,
-	parseWorkshopDependencyLookup,
-	clearWorkshopDependencyLookupCache
+	createWorkshopDependencySnapshot,
+	fetchWorkshopDependencySnapshot,
+	resolveWorkshopDependencyNames
 } from '../../main/workshop-dependencies';
-import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from '../../shared/workshop-dependency-lookup';
+import { EResult, UGCItemVisibility, type SteamUGCDetails } from '../../main/steamworks/types';
 
-vi.mock('axios', () => ({
-	default: {
-		get: vi.fn()
-	}
-}));
+function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
+	return {
+		acceptForUse: true,
+		banned: false,
+		tagsTruncated: false,
+		fileType: 0,
+		result: 1,
+		visibility: UGCItemVisibility.Public,
+		score: 1,
+		file: '',
+		fileName: '',
+		fileSize: 1024,
+		previewURL: '',
+		previewFile: '',
+		previewFileSize: 0,
+		steamIDOwner: 'owner-1',
+		consumerAppID: 285920,
+		creatorAppID: 285920,
+		description: '',
+		URL: '',
+		timeAddedToUserList: 0,
+		timeCreated: 0,
+		timeUpdated: 0,
+		votesDown: 0,
+		votesUp: 0,
+		metadata: '',
+		tags: [],
+		tagsDisplayNames: [],
+		children: [],
+		...overrides
+	};
+}
 
-describe('workshop dependency parsing', () => {
-	afterEach(() => {
-		clearWorkshopDependencyLookupCache();
-		vi.useRealTimers();
-		vi.clearAllMocks();
+describe('workshop dependency snapshots', () => {
+	it('creates a known dependency snapshot from Steamworks children', () => {
+		const dependencyNames = new Map([[BigInt(11), 'Harmony (2.2.2)']]);
+
+		expect(
+			createWorkshopDependencySnapshot(
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Parent',
+					children: [BigInt(11), BigInt(22)]
+				}),
+				dependencyNames,
+				new Date('2026-05-03T12:00:00Z').getTime()
+			)
+		).toEqual({
+			steamDependencies: [BigInt(11), BigInt(22)],
+			steamDependencyNames: {
+				'11': 'Harmony (2.2.2)'
+			},
+			steamDependenciesFetchedAt: new Date('2026-05-03T12:00:00Z').getTime()
+		});
 	});
 
-	it('extracts required item ids and names from workshop html', () => {
-		const html = `
-			<div class="rightSectionTopTitle">Required items</div>
-			<div class="requiredItemsContainer" id="RequiredItems">
-				<a href="https://steamcommunity.com/workshop/filedetails/?id=2790966966" target="_blank">
-					<div class="requiredItem">NuterraSteam (Beta)</div>
-				</a>
-				<a href="https://steamcommunity.com/workshop/filedetails/?id=2571814511" target="_blank">
-					<div class="requiredItem">Harmony (2.2.2)</div>
-				</a>
-			</div>
-		`;
+	it('keeps missing Steamworks children as an unknown dependency snapshot', () => {
+		expect(
+			createWorkshopDependencySnapshot(
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Parent',
+					children: undefined
+				})
+			)
+		).toBeNull();
+	});
 
-		expect(parseWorkshopDependencyLookup(html)).toEqual({
-			steamDependencies: [BigInt(2790966966), BigInt(2571814511)],
-			steamDependencyNames: {
-				'2571814511': 'Harmony (2.2.2)',
-				'2790966966': 'NuterraSteam (Beta)'
+	it('does not create dependency snapshots from failed Steamworks details', () => {
+		expect(
+			createWorkshopDependencySnapshot(
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Parent',
+					children: [BigInt(11)],
+					result: EResult.k_EResultFail
+				})
+			)
+		).toBeNull();
+	});
+
+	it('resolves dependency names from Steamworks child details', async () => {
+		const getDetails = vi.fn(async (workshopIDs: bigint[]) => {
+			expect(workshopIDs).toEqual([BigInt(11), BigInt(22)]);
+			return [
+				createWorkshopDetails({ publishedFileId: BigInt(11), title: 'Harmony (2.2.2)' }),
+				createWorkshopDetails({ publishedFileId: BigInt(22), title: 'NuterraSteam' })
+			];
+		});
+
+		await expect(
+			resolveWorkshopDependencyNames(
+				[
+					createWorkshopDetails({
+						publishedFileId: BigInt(77),
+						title: 'Parent',
+						children: [BigInt(11), BigInt(22), BigInt(11)]
+					})
+				],
+				getDetails
+			)
+		).resolves.toEqual(
+			new Map([
+				[BigInt(11), 'Harmony (2.2.2)'],
+				[BigInt(22), 'NuterraSteam']
+			])
+		);
+	});
+
+	it('ignores failed dependency details when resolving dependency names', async () => {
+		const getDetails = vi.fn(async () => [
+			createWorkshopDetails({ publishedFileId: BigInt(11), title: 'Unavailable Dependency', result: EResult.k_EResultFail }),
+			createWorkshopDetails({ publishedFileId: BigInt(22), title: 'NuterraSteam' })
+		]);
+
+		await expect(
+			resolveWorkshopDependencyNames(
+				[
+					createWorkshopDetails({
+						publishedFileId: BigInt(77),
+						title: 'Parent',
+						children: [BigInt(11), BigInt(22)]
+					})
+				],
+				getDetails
+			)
+		).resolves.toEqual(new Map([[BigInt(22), 'NuterraSteam']]));
+	});
+
+	it('fetches explicit dependency snapshots through Steamworks details only', async () => {
+		const getDetails = vi
+			.fn()
+			.mockResolvedValueOnce([
+				createWorkshopDetails({
+					publishedFileId: BigInt(77),
+					title: 'Parent',
+					children: [BigInt(11)]
+				})
+			])
+			.mockResolvedValueOnce([createWorkshopDetails({ publishedFileId: BigInt(11), title: 'Harmony (2.2.2)' })]);
+
+		await expect(fetchWorkshopDependencySnapshot(BigInt(77), getDetails)).resolves.toEqual({
+			status: 'updated',
+			snapshot: {
+				steamDependencies: [BigInt(11)],
+				steamDependencyNames: {
+					'11': 'Harmony (2.2.2)'
+				},
+				steamDependenciesFetchedAt: expect.any(Number)
 			}
 		});
+		expect(getDetails).toHaveBeenNthCalledWith(1, [BigInt(77)]);
+		expect(getDetails).toHaveBeenNthCalledWith(2, [BigInt(11)]);
 	});
 
-	it('returns an empty dependency list when the workshop page has no required items section', () => {
-		expect(parseWorkshopDependencyLookup('<html><body><div>No dependencies here</div></body></html>')).toEqual({
-			steamDependencies: []
+	it('returns unknown when Steamworks omits dependency children', async () => {
+		const getDetails = vi.fn().mockResolvedValueOnce([
+			createWorkshopDetails({
+				publishedFileId: BigInt(77),
+				title: 'Parent',
+				children: undefined
+			})
+		]);
+
+		await expect(fetchWorkshopDependencySnapshot(BigInt(77), getDetails, 1777777777777)).resolves.toEqual({
+			status: 'unknown',
+			checkedAt: 1777777777777
 		});
 	});
 
-	it('refreshes cached dependency lookups after the ttl expires', async () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date('2026-04-14T12:00:00Z'));
-		vi.mocked(axios.get)
-			.mockResolvedValueOnce({
-				data: `
-					<div id="RequiredItems">
-						<a href="/workshop/filedetails/?id=11">Harmony</a>
-					</div>
-				`
-			} as never)
-			.mockResolvedValueOnce({
-				data: `
-					<div id="RequiredItems">
-						<a href="/workshop/filedetails/?id=22">NuterraSteam</a>
-					</div>
-				`
-			} as never);
+	it('returns failed when Steamworks details are unavailable', async () => {
+		const getDetails = vi.fn().mockRejectedValueOnce(new Error('Steamworks unavailable'));
 
-		const firstLookup = await fetchWorkshopDependencyLookup(BigInt(77));
-		const cachedLookup = await fetchWorkshopDependencyLookup(BigInt(77));
+		await expect(fetchWorkshopDependencySnapshot(BigInt(77), getDetails)).resolves.toEqual({ status: 'failed' });
+	});
 
-		expect(axios.get).toHaveBeenCalledTimes(1);
-		expect(firstLookup).toEqual({
-			steamDependencies: [BigInt(11)],
-			steamDependencyNames: {
-				'11': 'Harmony'
-			},
-			steamDependenciesFetchedAt: new Date('2026-04-14T12:00:00Z').getTime()
-		});
-		expect(cachedLookup).toEqual(firstLookup);
+	it('returns failed when Steamworks returns a non-success item result', async () => {
+		const getDetails = vi.fn().mockResolvedValueOnce([
+			createWorkshopDetails({
+				publishedFileId: BigInt(77),
+				title: 'Parent',
+				result: EResult.k_EResultFail
+			})
+		]);
 
-		vi.setSystemTime(new Date('2026-04-14T12:00:00Z').getTime() + WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS + 1);
-
-		const refreshedLookup = await fetchWorkshopDependencyLookup(BigInt(77));
-
-		expect(axios.get).toHaveBeenCalledTimes(2);
-		expect(refreshedLookup).toEqual({
-			steamDependencies: [BigInt(22)],
-			steamDependencyNames: {
-				'22': 'NuterraSteam'
-			},
-			steamDependenciesFetchedAt: new Date('2026-04-14T12:00:00Z').getTime() + WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS + 1
-		});
+		await expect(fetchWorkshopDependencySnapshot(BigInt(77), getDetails)).resolves.toEqual({ status: 'failed' });
 	});
 });

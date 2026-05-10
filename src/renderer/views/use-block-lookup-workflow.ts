@@ -22,6 +22,14 @@ import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
 
 const MAX_SEARCH_RESULTS = 1000;
 
+function createBlockLookupSearchRequest(query: string) {
+	const trimmedQuery = query.trim();
+	return {
+		query,
+		limit: trimmedQuery ? MAX_SEARCH_RESULTS : undefined
+	};
+}
+
 type BlockLookupWorkflowAppState = Pick<AppState, 'config' | 'mods'>;
 
 interface BlockLookupWorkflowOptions {
@@ -57,10 +65,10 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			searchRequestIdRef.current = requestId;
 			dispatchSessionEvent({ type: 'search-started' });
 			try {
-				const request = { query: nextQuery, limit: MAX_SEARCH_RESULTS };
+				const request = createBlockLookupSearchRequest(nextQuery);
 				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(queryClient, request), {
 					queryLength: nextQuery.length,
-					limit: MAX_SEARCH_RESULTS
+					limit: request.limit
 				});
 				if (requestId !== searchRequestIdRef.current) {
 					return;

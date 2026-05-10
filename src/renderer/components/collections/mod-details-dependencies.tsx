@@ -37,12 +37,14 @@ interface ModDetailsDependenciesPaneProps {
 	conflictingDependencyRowSelection: DetailRowSelection;
 	conflictingModData: DisplayModData[];
 	dependencyLookupError?: string;
+	dependencyLookupNotice?: string;
 	dependentDependencyColumns: DetailColumn[];
 	dependentDependencyRowSelection: DetailRowSelection;
 	dependentModData: DisplayModData[];
 	loadingDependencies: boolean;
 	onRetryDependencyLookup: () => void;
 	requiredDependencyColumns: DetailColumn[];
+	requiredEmptyText?: string;
 	requiredDependencyRowSelection: DetailRowSelection;
 	requiredModData: DisplayModData[];
 }
@@ -138,11 +140,13 @@ function DependencyCollapse({
 function DetailTable({
 	columns,
 	dataSource,
+	emptyText = 'No data',
 	loading,
 	rowSelection
 }: {
 	columns: DetailColumn[];
 	dataSource: DisplayModData[];
+	emptyText?: string;
 	loading?: boolean;
 	rowSelection?: DetailRowSelection;
 }) {
@@ -211,7 +215,7 @@ function DetailTable({
 					{!loading && visibleRows.length === 0 ? (
 						<tr>
 							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
-								No data
+								{emptyText}
 							</td>
 						</tr>
 					) : null}
@@ -259,15 +263,20 @@ export function ModDetailsDependenciesPane({
 	conflictingDependencyRowSelection,
 	conflictingModData,
 	dependencyLookupError,
+	dependencyLookupNotice,
 	dependentDependencyColumns,
 	dependentDependencyRowSelection,
 	dependentModData,
 	loadingDependencies,
 	onRetryDependencyLookup,
 	requiredDependencyColumns,
+	requiredEmptyText,
 	requiredDependencyRowSelection,
 	requiredModData
 }: ModDetailsDependenciesPaneProps) {
+	const showNeutralDependencyCheck =
+		!loadingDependencies && !dependencyLookupError && !dependencyLookupNotice && !!requiredEmptyText && requiredModData.length === 0;
+
 	return (
 		<div className="ModDetailDependenciesPane">
 			{dependencyLookupError ? (
@@ -276,6 +285,17 @@ export function ModDetailsDependenciesPane({
 						{dependencyLookupError}
 					</StatusCallout>
 					<DependencyActionButton onClick={onRetryDependencyLookup}>Retry Workshop Dependency Lookup</DependencyActionButton>
+				</div>
+			) : null}
+			{dependencyLookupNotice ? (
+				<div className="ModDetailDependencyNotice">
+					<span>{dependencyLookupNotice}</span>
+					<DependencyActionButton onClick={onRetryDependencyLookup}>Check again</DependencyActionButton>
+				</div>
+			) : null}
+			{showNeutralDependencyCheck ? (
+				<div className="ModDetailDependencyNotice">
+					<DependencyActionButton onClick={onRetryDependencyLookup}>Check again</DependencyActionButton>
 				</div>
 			) : null}
 			<DependencyCollapse
@@ -289,6 +309,7 @@ export function ModDetailsDependenciesPane({
 							<DetailTable
 								loading={loadingDependencies}
 								dataSource={requiredModData}
+								emptyText={requiredEmptyText}
 								rowSelection={requiredDependencyRowSelection}
 								columns={requiredDependencyColumns}
 							/>

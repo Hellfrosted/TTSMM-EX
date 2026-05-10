@@ -1,25 +1,19 @@
-import { createRoot } from 'react-dom/client';
-
 import './App.tailwind.css';
 import './App.global.css';
 
-import { AppRouter } from './routes';
+const zodGlobal = globalThis as typeof globalThis & {
+	__zod_globalConfig?: {
+		jitless?: boolean;
+	};
+};
 
-const rootElement = document.getElementById('root');
+zodGlobal.__zod_globalConfig = {
+	...zodGlobal.__zod_globalConfig,
+	jitless: true
+};
 
-if (!rootElement) {
-	throw new Error('Root element not found');
-}
-
-if (typeof BigInt !== 'undefined' && typeof (BigInt.prototype as { toJSON?: () => string }).toJSON !== 'function') {
-	// React's development render instrumentation stringifies props/state and will throw on bigint without a toJSON hook.
-	Object.defineProperty(BigInt.prototype, 'toJSON', {
-		value() {
-			return this.toString();
-		},
-		configurable: true,
-		writable: true
+void import('./renderer-entry').catch((error) => {
+	window.setTimeout(() => {
+		throw error;
 	});
-}
-
-createRoot(rootElement).render(<AppRouter />);
+});

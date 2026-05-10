@@ -1,131 +1,109 @@
-import axios from 'axios';
 import log from 'electron-log';
-import { parse } from 'node-html-parser';
-import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from 'shared/workshop-dependency-lookup';
+import { chunkWorkshopIds, getRawWorkshopDetailsForList } from './mod-workshop-metadata';
+import type { SteamUGCDetails } from './steamworks';
+import { EResult } from './steamworks/types';
 
-export interface WorkshopDependencyLookup {
+interface WorkshopDependencySnapshot {
 	steamDependencies: bigint[];
 	steamDependencyNames?: Record<string, string>;
-	steamDependenciesFetchedAt?: number;
+	steamDependenciesFetchedAt: number;
 }
 
-interface WorkshopDependencyLookupCacheEntry {
-	lookup: Promise<WorkshopDependencyLookup | null>;
-	expiresAt: number;
+type WorkshopDependencySnapshotLookupResult =
+	| { status: 'updated'; snapshot: WorkshopDependencySnapshot }
+	| { status: 'unknown'; checkedAt: number }
+	| { status: 'failed' };
+
+type GetRawWorkshopDetailsForList = (workshopIDs: bigint[]) => Promise<SteamUGCDetails[]>;
+
+function getKnownDependencyIds(steamDetails: Iterable<SteamUGCDetails>): bigint[] {
+	const dependencyIDs = new Set<bigint>();
+	for (const detail of steamDetails) {
+		detail.children?.forEach((dependencyID) => dependencyIDs.add(dependencyID));
+	}
+	return [...dependencyIDs];
 }
 
-const MAX_WORKSHOP_DEPENDENCY_LOOKUP_CACHE_SIZE = 200;
-const workshopDependencyLookupCache = new Map<string, WorkshopDependencyLookupCacheEntry>();
-
-function pruneWorkshopDependencyLookupCache(now = Date.now()) {
-	for (const [cacheKey, cacheEntry] of workshopDependencyLookupCache.entries()) {
-		if (cacheEntry.expiresAt <= now) {
-			workshopDependencyLookupCache.delete(cacheKey);
+function createDependencyNameMap(dependencyDetails: Iterable<SteamUGCDetails>): Map<bigint, string> {
+	const dependencyNames = new Map<bigint, string>();
+	for (const detail of dependencyDetails) {
+		if (detail.result !== EResult.k_EResultOK) {
+			continue;
+		}
+		const title = detail.title.trim();
+		if (title.length > 0) {
+			dependencyNames.set(detail.publishedFileId, title);
 		}
 	}
-
-	while (workshopDependencyLookupCache.size > MAX_WORKSHOP_DEPENDENCY_LOOKUP_CACHE_SIZE) {
-		const oldestCacheKey = workshopDependencyLookupCache.keys().next().value;
-		if (oldestCacheKey === undefined) {
-			break;
-		}
-
-		workshopDependencyLookupCache.delete(oldestCacheKey);
-	}
+	return dependencyNames;
 }
 
-export function clearWorkshopDependencyLookupCache() {
-	workshopDependencyLookupCache.clear();
-}
-
-export function parseWorkshopDependencyLookup(html: string): WorkshopDependencyLookup {
-	const root = parse(html);
-	const requiredItemsContainer = root.querySelector('#RequiredItems');
-	if (!requiredItemsContainer) {
-		return { steamDependencies: [] };
+export function createWorkshopDependencySnapshot(
+	steamUGCDetails: SteamUGCDetails,
+	dependencyNames: Map<bigint, string> = new Map(),
+	now = Date.now()
+): WorkshopDependencySnapshot | null {
+	if (steamUGCDetails.result !== EResult.k_EResultOK || steamUGCDetails.children === undefined) {
+		return null;
 	}
 
-	const steamDependencies: bigint[] = [];
-	const steamDependencyNames: Record<string, string> = {};
-	const seenDependencies = new Set<string>();
-
-	requiredItemsContainer.querySelectorAll('a[href*="filedetails/?id="]').forEach((requiredItemLink) => {
-		const href = requiredItemLink.getAttribute('href');
-		if (!href) {
-			return;
-		}
-
-		let dependencyID: string | null = null;
-		try {
-			dependencyID = new URL(href, 'https://steamcommunity.com').searchParams.get('id');
-		} catch {
-			log.warn(`Failed to parse workshop dependency link "${href}"`);
-			return;
-		}
-
-		if (!dependencyID || seenDependencies.has(dependencyID)) {
-			return;
-		}
-
-		try {
-			steamDependencies.push(BigInt(dependencyID));
-		} catch {
-			log.warn(`Failed to parse workshop dependency id "${dependencyID}"`);
-			return;
-		}
-
-		seenDependencies.add(dependencyID);
-		const dependencyName = requiredItemLink.text.trim().replace(/\s+/g, ' ');
-		if (dependencyName.length > 0) {
-			steamDependencyNames[dependencyID] = dependencyName;
-		}
-	});
+	const steamDependencyNames = Object.fromEntries(
+		steamUGCDetails.children
+			.map((dependencyID) => [dependencyID.toString(), dependencyNames.get(dependencyID)] as const)
+			.filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
+	);
 
 	return {
-		steamDependencies,
-		steamDependencyNames: Object.keys(steamDependencyNames).length > 0 ? steamDependencyNames : undefined
+		steamDependencies: steamUGCDetails.children,
+		steamDependencyNames: Object.keys(steamDependencyNames).length > 0 ? steamDependencyNames : undefined,
+		steamDependenciesFetchedAt: now
 	};
 }
 
-export async function fetchWorkshopDependencyLookup(workshopID: bigint): Promise<WorkshopDependencyLookup | null> {
-	const cacheKey = workshopID.toString();
-	const now = Date.now();
-	pruneWorkshopDependencyLookupCache(now);
-
-	const existingLookup = workshopDependencyLookupCache.get(cacheKey);
-	if (existingLookup && existingLookup.expiresAt > now) {
-		return existingLookup.lookup;
+export async function resolveWorkshopDependencyNames(
+	steamDetails: Iterable<SteamUGCDetails>,
+	getDetailsForWorkshopModList: GetRawWorkshopDetailsForList = getRawWorkshopDetailsForList
+): Promise<Map<bigint, string>> {
+	const dependencyIDs = getKnownDependencyIds(steamDetails);
+	if (dependencyIDs.length === 0) {
+		return new Map();
 	}
 
-	workshopDependencyLookupCache.delete(cacheKey);
+	try {
+		const dependencyDetails: SteamUGCDetails[] = [];
+		for (const dependencyChunk of chunkWorkshopIds(dependencyIDs)) {
+			dependencyDetails.push(...(await getDetailsForWorkshopModList(dependencyChunk)));
+		}
+		return createDependencyNameMap(dependencyDetails);
+	} catch (error) {
+		log.warn(`Failed to resolve Workshop dependency names for ${dependencyIDs.length} dependencies.`);
+		log.warn(error);
+		return new Map();
+	}
+}
 
-	const pendingLookup = axios
-		.get<string>(`https://steamcommunity.com/sharedfiles/filedetails/?id=${cacheKey}`, {
-			responseType: 'text',
-			timeout: 10000,
-			headers: {
-				'Accept-Language': 'en-US,en;q=0.9',
-				'User-Agent': 'Mozilla/5.0'
-			}
-		})
-		.then((response) => {
-			return {
-				...parseWorkshopDependencyLookup(response.data),
-				steamDependenciesFetchedAt: Date.now()
-			};
-		})
-		.catch((error) => {
-			log.warn(`Failed to fetch workshop dependencies for ${cacheKey}`);
-			log.warn(error);
-			workshopDependencyLookupCache.delete(cacheKey);
-			return null;
-		});
+export async function fetchWorkshopDependencySnapshot(
+	workshopID: bigint,
+	getDetailsForWorkshopModList: GetRawWorkshopDetailsForList = getRawWorkshopDetailsForList,
+	now = Date.now()
+): Promise<WorkshopDependencySnapshotLookupResult> {
+	let steamUGCDetails: SteamUGCDetails | undefined;
+	try {
+		[steamUGCDetails] = await getDetailsForWorkshopModList([workshopID]);
+	} catch (error) {
+		log.warn(`Failed to fetch Workshop dependency snapshot for ${workshopID}.`);
+		log.warn(error);
+		return { status: 'failed' };
+	}
 
-	workshopDependencyLookupCache.set(cacheKey, {
-		lookup: pendingLookup,
-		expiresAt: now + WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS
-	});
-	pruneWorkshopDependencyLookupCache(now);
+	if (!steamUGCDetails) {
+		return { status: 'failed' };
+	}
 
-	return pendingLookup;
+	const dependencyNames = await resolveWorkshopDependencyNames([steamUGCDetails], getDetailsForWorkshopModList);
+	const snapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames, now);
+	if (!snapshot) {
+		return steamUGCDetails.result === EResult.k_EResultOK ? { status: 'unknown', checkedAt: now } : { status: 'failed' };
+	}
+	return { status: 'updated', snapshot };
 }

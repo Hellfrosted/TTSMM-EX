@@ -97,21 +97,21 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 
 		void queryClient
 			.fetchQuery(
-					modMetadataQueryOptions({
-						localDir: config.localDir,
-						knownMods: allKnownMods,
-						forceReload: !!forceReloadMods,
-						attempt: retryCount,
-						userOverrides: config.userOverrides,
-						treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
-					})
-				)
-				.then((mods) => {
-					if (loadRequestIdRef.current !== requestId) {
-						return mods;
-					}
-					updateAppState({
-						mods,
+				modMetadataQueryOptions({
+					localDir: config.localDir,
+					knownMods: allKnownMods,
+					forceReload: !!forceReloadMods,
+					attempt: retryCount,
+					userOverrides: config.userOverrides,
+					treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
+				})
+			)
+			.then((mods) => {
+				if (loadRequestIdRef.current !== requestId) {
+					return mods;
+				}
+				updateAppState({
+					mods,
 					firstModLoad: true,
 					loadingMods: false,
 					forceReloadMods: false

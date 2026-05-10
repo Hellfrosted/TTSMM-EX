@@ -121,7 +121,7 @@ function pathExistsOrIsDanglingLink(targetPath: string) {
 
 function ensureGreenworksPresent() {
 	if (!fs.existsSync(greenworksPath)) {
-		run('pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts');
+		run('pnpm --dir release/app install --ignore-workspace --ignore-scripts');
 	}
 }
 

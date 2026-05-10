@@ -10,13 +10,11 @@ interface ModInventoryScanRequest {
 	localPath?: string;
 	platform?: NodeJS.Platform;
 	progressSender: ProgressSender;
-	skipWorkshopSteamworks?: boolean;
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
 export function scanModInventory(request: ModInventoryScanRequest): Promise<ModData[]> {
 	const context = createModInventoryContext(request.progressSender, request.localPath, request.knownWorkshopMods, request.platform, {
-		skipWorkshopSteamworks: request.skipWorkshopSteamworks,
 		treatNuterraSteamBetaAsEquivalent: request.treatNuterraSteamBetaAsEquivalent
 	});
 	return fetchModInventory(context);
