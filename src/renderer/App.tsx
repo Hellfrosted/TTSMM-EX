@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -63,7 +63,7 @@ export function AppViewStage({ active, children, name, overflow = 'hidden' }: Ap
 	);
 }
 
-function CollectionsStageView() {
+const CollectionsStageView = memo(function CollectionsStageView() {
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
 	const allCollections = useAppStateSelector((state) => state.allCollections);
@@ -89,9 +89,9 @@ function CollectionsStageView() {
 		[activeCollection, allCollectionNames, allCollections, config, forceReloadMods, launchingGame, loadingMods, mods, updateState]
 	);
 	return <CollectionViewLazy appState={appState} />;
-}
+});
 
-function SettingsStageView() {
+const SettingsStageView = memo(function SettingsStageView() {
 	const config = useAppStateSelector((state) => state.config);
 	const configErrors = useAppStateSelector((state) => state.configErrors);
 	const madeConfigEdits = useAppStateSelector((state) => state.madeConfigEdits);
@@ -109,9 +109,9 @@ function SettingsStageView() {
 		[config, configErrors, madeConfigEdits, savingConfig, updateState]
 	);
 	return <SettingsViewLazy appState={appState} />;
-}
+});
 
-function BlockLookupStageView() {
+const BlockLookupStageView = memo(function BlockLookupStageView() {
 	const config = useAppStateSelector((state) => state.config);
 	const mods = useAppStateSelector((state) => state.mods);
 	const updateState = useAppStateSelector((state) => state.updateState);
@@ -125,7 +125,7 @@ function BlockLookupStageView() {
 		[config, mods, updateState]
 	);
 	return <BlockLookupViewLazy appState={appState} />;
-}
+});
 
 function LoadingStageOutlet() {
 	return <Outlet />;
@@ -136,15 +136,24 @@ function preloadWorkspaceRoutes() {
 	void loadBlockLookupView();
 }
 
-function MenuBarStageView({ disableNavigation }: { disableNavigation: boolean }) {
+function MenuBarStageView({
+	disableNavigation,
+	onWorkspacePreview
+}: {
+	disableNavigation: boolean;
+	onWorkspacePreview: (path: string) => void;
+}) {
 	const config = useAppStateSelector((state) => state.config);
-	const firstModLoad = useAppStateSelector((state) => Boolean(state.firstModLoad));
 	const updateState = useAppStateSelector((state) => state.updateState);
-	return <MenuBarLazy config={config} disableNavigation={disableNavigation} firstModLoad={firstModLoad} updateState={updateState} />;
+	return (
+		<MenuBarLazy config={config} disableNavigation={disableNavigation} onWorkspacePreview={onWorkspacePreview} updateState={updateState} />
+	);
 }
 
 function AppShell() {
 	const location = useLocation();
+	const [previewPathname, setPreviewPathname] = useState<string | null>(null);
+	const committedPathnameRef = useRef(location.pathname);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
 	const updateAppState = useAppStateSelector((state) => state.updateState);
 	const launchingGame = useAppStateSelector((state) => state.launchingGame);
@@ -160,13 +169,14 @@ function AppShell() {
 		collections: initialRouteKind === 'collections',
 		settings: initialRouteKind === 'settings'
 	});
+	const effectivePathname = previewPathname ?? location.pathname;
 	const appShell = createAppShellViewModel({
 		activeCollection,
 		configErrorCount,
 		launchingGame: !!launchingGame,
 		loadingMods: !!loadingMods,
 		madeConfigEdits: !!madeConfigEdits,
-		pathname: location.pathname,
+		pathname: effectivePathname,
 		savingConfig: !!savingConfig
 	});
 	const navigateToSteamworks = useEffectEvent(() => {
@@ -175,6 +185,11 @@ function AppShell() {
 	const startForcedModReload = useEffectEvent(() => {
 		updateAppState({ loadingMods: true, forceReloadMods: true });
 	});
+	const previewWorkspaceNavigation = useCallback((pathname: string) => {
+		if (getAppRouteKind(pathname) !== 'loading') {
+			setPreviewPathname(pathname);
+		}
+	}, []);
 
 	useEffect(() => {
 		if (window.electron.uiSmokeMode) {
@@ -194,6 +209,14 @@ function AppShell() {
 			unsubscribeReloadSteamworks();
 		};
 	}, []);
+
+	useEffect(() => {
+		if (committedPathnameRef.current === location.pathname) {
+			return;
+		}
+		committedPathnameRef.current = location.pathname;
+		setPreviewPathname(null);
+	}, [location.pathname]);
 
 	useEffect(() => {
 		if (appShell.isLoadingRoute) {
@@ -233,7 +256,7 @@ function AppShell() {
 			<aside className={`AppSidebar MenuBar${sidebarCollapsed ? ' is-collapsed' : ''}`}>
 				<div className="logo" />
 				<Suspense fallback={null}>
-					<MenuBarStageView disableNavigation={appShell.disableNavigation} />
+					<MenuBarStageView disableNavigation={appShell.disableNavigation} onWorkspacePreview={previewWorkspaceNavigation} />
 				</Suspense>
 				<button
 					type="button"
@@ -244,7 +267,9 @@ function AppShell() {
 						updateAppState({ sidebarCollapsed: !sidebarCollapsed });
 					}}
 				>
-					{sidebarCollapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
+					<span className="MenuCollapseButtonIcon" key={sidebarCollapsed ? 'collapsed' : 'expanded'} aria-hidden="true">
+						{sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+					</span>
 				</button>
 			</aside>
 			<div className="AppViewHost">

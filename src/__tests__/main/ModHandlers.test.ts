@@ -1,3 +1,4 @@
+import type { MenuItemConstructorOptions } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createContextMenuTemplate,
@@ -26,6 +27,13 @@ vi.mock('../../main/mod-fetcher', async () => {
 		})
 	};
 });
+
+function getSubmenuItems(item: MenuItemConstructorOptions | undefined): MenuItemConstructorOptions[] {
+	if (!item || !Array.isArray(item.submenu)) {
+		throw new Error('Expected menu item to have a submenu');
+	}
+	return item.submenu;
+}
 
 describe('mod handlers', () => {
 	afterEach(() => {
@@ -151,7 +159,11 @@ describe('mod handlers', () => {
 		const result = await createFetchWorkshopDependenciesHandler(mainWindowProvider as never, dependencyLookup)({} as never, BigInt(10));
 
 		expect(result).toEqual({ status: 'unknown' });
-		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:10', {
+		expect(send).toHaveBeenCalledOnce();
+		expect(send.mock.calls[0]).toEqual([ValidChannel.MOD_METADATA_UPDATE, 'workshop:10', expect.any(Object)]);
+		expect(send.mock.calls[0]?.[2]).toStrictEqual({
+			steamDependencies: undefined,
+			steamDependencyNames: undefined,
 			steamDependenciesFetchedAt: 1777777777777
 		});
 	});
@@ -181,6 +193,81 @@ describe('mod handlers', () => {
 
 		expect(dependencyLookup).not.toHaveBeenCalled();
 		expect(mainWindowProvider.getWebContents).not.toHaveBeenCalled();
+	});
+
+	it('nests workshop subscription actions under the Steam Subscription submenu', () => {
+		const mainWindowProvider = {
+			getWebContents: () => null
+		};
+
+		const subscribedTemplate = createContextMenuTemplate(
+			{
+				uid: 'workshop:42',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(42),
+				id: 'HumanReadableModId',
+				name: 'Steam Title',
+				subscribed: true
+			},
+			mainWindowProvider
+		);
+		const unsubscribedTemplate = createContextMenuTemplate(
+			{
+				uid: 'workshop:43',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(43),
+				id: 'OtherModId',
+				name: 'Other Steam Title',
+				subscribed: false
+			},
+			mainWindowProvider
+		);
+
+		expect(subscribedTemplate.find((item) => item.label === 'Unsubscribe')).toBeUndefined();
+		expect(unsubscribedTemplate.find((item) => item.label === 'Subscribe')).toBeUndefined();
+
+		const subscribedItems = getSubmenuItems(subscribedTemplate.find((item) => item.label === 'Steam Subscription'));
+		const unsubscribedItems = getSubmenuItems(unsubscribedTemplate.find((item) => item.label === 'Steam Subscription'));
+
+		expect(subscribedItems.map((item) => item.label)).toEqual(['Unsubscribe']);
+		expect(unsubscribedItems.map((item) => item.label)).toEqual(['Subscribe']);
+	});
+
+	it('unsubscribes from the nested Steam Subscription action', async () => {
+		const send = vi.fn();
+		const mainWindowProvider = {
+			getWebContents: () => ({ send })
+		};
+		vi.spyOn(Steamworks, 'ugcUnsubscribe').mockImplementation((_workshopID, success) => {
+			success(EResult.k_EResultOK);
+			return true;
+		});
+		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(0);
+		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+
+		const template = createContextMenuTemplate(
+			{
+				uid: 'workshop:42',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(42),
+				id: 'HumanReadableModId',
+				name: 'Steam Title',
+				subscribed: true
+			},
+			mainWindowProvider as never
+		);
+
+		const subscriptionItems = getSubmenuItems(template.find((item) => item.label === 'Steam Subscription'));
+		const unsubscribeAction = subscriptionItems.find((item) => item.label === 'Unsubscribe');
+		expect(unsubscribeAction?.click).toBeTypeOf('function');
+
+		unsubscribeAction?.click?.({} as never, {} as never, {} as never);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(Steamworks.ugcUnsubscribe).toHaveBeenCalledWith(BigInt(42), expect.any(Function), expect.any(Function));
+		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:42', { subscribed: false });
 	});
 
 	it('rejects mod metadata requests when scanning mods fails', async () => {

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
-import { useAppDispatch, useAppStateSelector, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
+import { useAppStateSelector } from 'renderer/state/app-state';
 import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,
@@ -18,8 +18,9 @@ import {
 	StartupTitle
 } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
-import { configQueryOptions } from 'renderer/async-cache';
+import { applyAuthoritativeCollectionStateToCache, configQueryOptions } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
+import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
@@ -126,7 +127,6 @@ function reduceConfigLoadingState(state: ConfigLoadingState, action: ConfigLoadi
 
 export default function ConfigLoading() {
 	const queryClient = useQueryClient();
-	const appDispatch = useAppDispatch();
 	const config = useAppStateSelector((state) => state.config);
 	const configErrors = useAppStateSelector((state) => state.configErrors);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
@@ -212,12 +212,12 @@ export default function ConfigLoading() {
 			const response = await queryClient.fetchQuery(configQueryOptions());
 			if (response) {
 				const discoveredConfig = await populateDiscoveredGameExec(response as AppConfig, true);
-				appDispatch(setAppConfig(discoveredConfig));
+				updateAppState({ config: discoveredConfig });
 				await validateConfig(discoveredConfig);
 			} else {
 				api.logger.info('No config present - using default config');
 				const discoveredConfig = await populateDiscoveredGameExec(DEFAULT_CONFIG, false);
-				appDispatch(setAppConfig(discoveredConfig));
+				updateAppState({ config: discoveredConfig });
 				await validateConfig(discoveredConfig);
 			}
 		} catch (error) {
@@ -233,13 +233,6 @@ export default function ConfigLoading() {
 	const haltBootOnPersistenceFailure = useEffectEvent((message: string) => {
 		api.logger.warn(message);
 		dispatchLoading({ type: 'boot-persistence-failed', message });
-	});
-
-	const proceedToNext = useEffectEvent((baseConfig?: AppConfig) => {
-		const resolvedConfig = baseConfig || config;
-		const navigation = resolveStartupNavigation(resolvedConfig, configErrors);
-		updateAppState({ config: navigation.config, loadingMods: navigation.loadingMods });
-		navigateApp(navigation.path);
 	});
 
 	useEffect(() => {
@@ -262,18 +255,35 @@ export default function ConfigLoading() {
 					return;
 				}
 
-				const nextCollections = new Map(result.collections.map((collection) => [collection.name, collection]));
 				dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
-				appDispatch(setCollectionsState(nextCollections, new Set(result.collectionNames), result.activeCollection));
-				appDispatch(setAppConfig(result.config));
-				proceedToNext(result.config);
+				const navigation = resolveStartupNavigation(result.config, configErrors);
+				const authoritativeResult = {
+					...result,
+					config: navigation.config
+				};
+				applyAuthoritativeCollectionState(authoritativeResult, {
+					syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
+					updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
+				});
+				navigateApp(navigation.path);
 			} catch (error) {
 				api.logger.error(error);
 				haltBootOnPersistenceFailure(String(error));
 				return;
 			}
 		})();
-	}, [config, bootResolved, bootPersistenceError, configLoadError, appDispatch, loadingConfig, updatingSteamMod]);
+	}, [
+		config,
+		configErrors,
+		bootResolved,
+		bootPersistenceError,
+		configLoadError,
+		loadingConfig,
+		navigateApp,
+		queryClient,
+		updateAppState,
+		updatingSteamMod
+	]);
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
 	const bootError = configLoadError || bootPersistenceError || userDataPathError;

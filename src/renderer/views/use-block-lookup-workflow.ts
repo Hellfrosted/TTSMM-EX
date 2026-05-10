@@ -4,31 +4,21 @@ import type { AppState } from 'model';
 import api from 'renderer/Api';
 import {
 	collectBlockLookupModSources,
+	createBlockLookupBootstrapCacheProjection,
 	createBlockLookupBuildRequest,
-	createBlockLookupSearchState,
+	createBlockLookupSearchRequest,
 	createBlockLookupWorkspaceSessionState,
-	getBlockLookupRecordKey,
 	reduceBlockLookupWorkspaceSession
 } from 'renderer/block-lookup-workspace';
 import {
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
+	invalidateBlockLookupSearchQueries,
 	setBlockLookupBootstrapQueryData,
 	useBuildBlockLookupIndexMutation
 } from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { measurePerfAsync } from 'renderer/perf';
-import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
-
-const MAX_SEARCH_RESULTS = 1000;
-
-function createBlockLookupSearchRequest(query: string) {
-	const trimmedQuery = query.trim();
-	return {
-		query,
-		limit: trimmedQuery ? MAX_SEARCH_RESULTS : undefined
-	};
-}
 
 type BlockLookupWorkflowAppState = Pick<AppState, 'config' | 'mods'>;
 
@@ -40,18 +30,25 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const { openNotification } = useNotifications();
 	const queryClient = useQueryClient();
 	const [sessionState, dispatchSessionEvent] = useReducer(reduceBlockLookupWorkspaceSession, createBlockLookupWorkspaceSessionState());
-	const { loadingResults, rows, settings, stats, workshopRoot } = sessionState;
-	const query = useBlockLookupStore((state) => state.query);
-	const setQuery = useBlockLookupStore((state) => state.setQuery);
-	const buildingIndex = useBlockLookupStore((state) => state.buildingIndex);
-	const setBuildingIndex = useBlockLookupStore((state) => state.setBuildingIndex);
-	const selectedRowKey = useBlockLookupStore((state) => state.selectedRowKey);
-	const setSelectedRowKey = useBlockLookupStore((state) => state.setSelectedRowKey);
+	const {
+		availableModFilters,
+		buildingIndex,
+		filteredRows,
+		loadingResults,
+		query,
+		selectedFilterMods,
+		selectedRecord,
+		selectedRowKey,
+		selectedRowKeys,
+		selectedRowKeysInCopyOrder,
+		settings,
+		stats,
+		workshopRoot
+	} = sessionState;
 	const { config: appConfig, mods } = appState;
 	const { gameExec } = appConfig;
 	const searchRequestIdRef = useRef(0);
 	const modSources = useMemo(() => collectBlockLookupModSources({ mods }), [mods]);
-	const selectedRecord = useMemo(() => rows.find((record) => getBlockLookupRecordKey(record) === selectedRowKey), [rows, selectedRowKey]);
 
 	const buildRequest = useCallback(
 		(forceRebuild = false) => createBlockLookupBuildRequest({ gameExec }, workshopRoot, modSources, forceRebuild),
@@ -63,19 +60,18 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		async (nextQuery: string) => {
 			const requestId = searchRequestIdRef.current + 1;
 			searchRequestIdRef.current = requestId;
-			dispatchSessionEvent({ type: 'search-started' });
+			dispatchSessionEvent({ type: 'search-started', requestId });
 			try {
 				const request = createBlockLookupSearchRequest(nextQuery);
 				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(queryClient, request), {
 					queryLength: nextQuery.length,
 					limit: request.limit
 				});
+				dispatchSessionEvent({ type: 'search-completed', requestId, result });
+			} catch (error) {
 				if (requestId !== searchRequestIdRef.current) {
 					return;
 				}
-				dispatchSessionEvent({ type: 'search-completed', result });
-				setSelectedRowKey((current) => createBlockLookupSearchState(result, current).selectedRowKey);
-			} catch (error) {
 				api.logger.error(error);
 				openNotification(
 					{
@@ -88,11 +84,11 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 			} finally {
 				if (requestId === searchRequestIdRef.current) {
-					dispatchSessionEvent({ type: 'search-finished' });
+					dispatchSessionEvent({ type: 'search-finished', requestId });
 				}
 			}
 		},
-		[openNotification, queryClient, setSelectedRowKey]
+		[openNotification, queryClient]
 	);
 
 	useEffect(() => {
@@ -129,7 +125,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
 			const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
 			dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-			setBlockLookupBootstrapQueryData(queryClient, [settingsState.settings, settingsState.stats]);
+			setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
 			openNotification(
 				{
 					message: 'Block lookup path saved',
@@ -192,14 +188,17 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 
 	const handleBuildIndex = useCallback(
 		async (forceRebuild = false) => {
-			setBuildingIndex(true);
+			dispatchSessionEvent({ type: 'build-index-started' });
 			try {
 				const request = buildRequest(forceRebuild);
 				const result = await measurePerfAsync('blockLookup.buildIndex.ipc', () => buildIndexMutation.mutateAsync(request), {
 					forceRebuild,
 					modSources: modSources.length
 				});
+				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', result });
 				dispatchSessionEvent({ type: 'build-index-completed', result });
+				setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(buildState));
+				await invalidateBlockLookupSearchQueries(queryClient);
 				await refreshResults(query);
 				openNotification(
 					{
@@ -222,13 +221,42 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					'error'
 				);
 			} finally {
-				setBuildingIndex(false);
+				dispatchSessionEvent({ type: 'build-index-finished' });
 			}
 		},
-		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults, setBuildingIndex]
+		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, queryClient, refreshResults, sessionState]
 	);
 
+	const selectAllVisibleRows = useCallback((orderedRowKeys: string[]) => {
+		dispatchSessionEvent({ type: 'selection-all-requested', orderedRowKeys });
+	}, []);
+
+	const selectBlockLookupRow = useCallback((rowKey: string, selection: { range: boolean; toggle: boolean }, orderedRowKeys: string[]) => {
+		dispatchSessionEvent({ type: 'selection-row-requested', rowKey, orderedRowKeys, range: selection.range, toggle: selection.toggle });
+	}, []);
+
+	const selectSingleBlockLookupRow = useCallback((rowKey?: string) => {
+		dispatchSessionEvent({ type: 'selection-single-requested', rowKey });
+	}, []);
+
+	const setQuery = useCallback((nextQuery: string) => {
+		dispatchSessionEvent({ type: 'query-changed', query: nextQuery });
+	}, []);
+
+	const setSelectedFilterMods = useCallback((selectedMods: string[]) => {
+		dispatchSessionEvent({ type: 'selected-filter-mods-changed', selectedMods });
+	}, []);
+
+	const setWorkshopRoot = useCallback((nextWorkshopRoot: string) => {
+		dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: nextWorkshopRoot });
+	}, []);
+
+	const syncSelectionCopyOrder = useCallback((orderedRowKeys: string[]) => {
+		dispatchSessionEvent({ type: 'selection-copy-order-changed', orderedRowKeys });
+	}, []);
+
 	return {
+		availableModFilters,
 		buildingIndex,
 		handleAutoDetectWorkshopRoot,
 		handleBrowseWorkshopRoot,
@@ -239,14 +267,19 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		openNotification,
 		query,
 		refreshResults,
-		rows,
+		rows: filteredRows,
+		selectAllVisibleRows,
+		selectBlockLookupRow,
+		selectSingleBlockLookupRow,
 		selectedRecord,
+		selectedFilterMods,
 		selectedRowKey,
+		selectedRowKeys,
+		selectedRowKeysInCopyOrder,
 		setQuery,
-		setSelectedRowKey,
-		setWorkshopRoot: (nextWorkshopRoot: string) => {
-			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: nextWorkshopRoot });
-		},
+		setSelectedFilterMods,
+		setWorkshopRoot,
+		syncSelectionCopyOrder,
 		settings,
 		stats,
 		workshopRoot

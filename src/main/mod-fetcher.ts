@@ -7,7 +7,7 @@ import { scanLocalMods } from './mod-local-scan';
 import { getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import { hydrateWorkshopMod } from './mod-workshop-hydration';
 import { fetchWorkshopInventory, filterSettledModResults } from './mod-workshop-inventory';
-import { createWorkshopDependencySnapshot, resolveWorkshopDependencyNames } from './workshop-dependencies';
+import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
 
 export { getModDetailsFromPath } from './mod-local-scan';
 
@@ -15,11 +15,11 @@ interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
 }
 
-interface ModFetcherOptions {
+export interface ModFetcherOptions {
 	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
-interface ModInventoryContext {
+export interface ModInventoryContext {
 	localPath?: string;
 	knownWorkshopMods: Set<bigint>;
 	platform: NodeJS.Platform;
@@ -57,7 +57,7 @@ function getNuterraSteamCompatibilityOptions(context: ModInventoryContext): Nute
 	};
 }
 
-async function buildWorkshopMod(
+export async function buildWorkshopMod(
 	context: ModInventoryContext,
 	workshopID: bigint,
 	steamUGCDetails?: SteamUGCDetails,
@@ -71,14 +71,14 @@ async function buildWorkshopMod(
 	});
 }
 
-async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
-	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
+export async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
+	const dependencySnapshots = await ingestWorkshopDependencySnapshotBatch(steamDetails);
 	const modResponses = await Promise.allSettled<ModData | null>(
 		steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
 			const mod = await buildWorkshopMod(context, steamUGCDetails.publishedFileId, steamUGCDetails);
-			const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
+			const dependencySnapshot = dependencySnapshots.get(steamUGCDetails.publishedFileId);
 			if (mod && dependencySnapshot) {
-				Object.assign(mod, dependencySnapshot);
+				applyWorkshopDependencySnapshotResult(mod, dependencySnapshot);
 			}
 			return mod;
 		})
@@ -86,12 +86,12 @@ async function processSteamModResults(context: ModInventoryContext, steamDetails
 	return filterSettledModResults(modResponses);
 }
 
-async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {
+export async function getDetailsForWorkshopModList(context: ModInventoryContext, workshopIDs: bigint[]): Promise<ModData[]> {
 	const steamDetails = await getRawWorkshopDetailsForList(workshopIDs);
 	return processSteamModResults(context, steamDetails);
 }
 
-function fetchWorkshopMods(context: ModInventoryContext): Promise<ModData[]> {
+export function fetchWorkshopMods(context: ModInventoryContext): Promise<ModData[]> {
 	return fetchWorkshopInventory({
 		buildWorkshopMod: (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
 			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem),
@@ -112,99 +112,4 @@ export async function fetchModInventory(context: ModInventoryContext): Promise<M
 
 	context.progress.finish();
 	return allMods;
-}
-
-export default class ModFetcher {
-	localPath?: string;
-
-	knownWorkshopMods: Set<bigint>;
-
-	progressSender: ProgressSender;
-
-	platform: NodeJS.Platform;
-
-	treatNuterraSteamBetaAsEquivalent?: boolean;
-
-	progress: ModInventoryProgress;
-
-	constructor(
-		progressSender: ProgressSender,
-		localPath: string | undefined,
-		knownWorkshopMods: bigint[],
-		platform: NodeJS.Platform = process.platform,
-		options: ModFetcherOptions = {}
-	) {
-		const context = createModInventoryContext(progressSender, localPath, knownWorkshopMods, platform, options);
-		this.localPath = context.localPath;
-		this.knownWorkshopMods = context.knownWorkshopMods;
-		this.progressSender = progressSender;
-		this.platform = context.platform;
-		this.treatNuterraSteamBetaAsEquivalent = context.treatNuterraSteamBetaAsEquivalent;
-		this.progress = context.progress;
-	}
-
-	private createContext(): ModInventoryContext {
-		return {
-			localPath: this.localPath,
-			knownWorkshopMods: this.knownWorkshopMods,
-			platform: this.platform,
-			progress: this.progress,
-			treatNuterraSteamBetaAsEquivalent: this.treatNuterraSteamBetaAsEquivalent
-		};
-	}
-
-	updateModLoadingProgress(size: number) {
-		updateModLoadingProgress(this.createContext(), size);
-	}
-
-	async fetchLocalMods(): Promise<ModData[]> {
-		return fetchLocalMods(this.createContext());
-	}
-
-	async getDetailsForWorkshopModList(workshopIDs: bigint[]): Promise<ModData[]> {
-		const steamDetails = await getRawWorkshopDetailsForList(workshopIDs);
-		return this.processSteamModResults(steamDetails);
-	}
-
-	async buildWorkshopMod(workshopID: bigint, steamUGCDetails?: SteamUGCDetails, keepUnknownWorkshopItem = false): Promise<ModData | null> {
-		return buildWorkshopMod(this.createContext(), workshopID, steamUGCDetails, keepUnknownWorkshopItem);
-	}
-
-	async processSteamModResults(steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
-		const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
-		const modResponses = await Promise.allSettled<ModData | null>(
-			steamDetails.map(async (steamUGCDetails: SteamUGCDetails) => {
-				const mod = await this.buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails);
-				const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
-				if (mod && dependencySnapshot) {
-					Object.assign(mod, dependencySnapshot);
-				}
-				return mod;
-			})
-		);
-		return filterSettledModResults(modResponses);
-	}
-
-	async fetchWorkshopMods(): Promise<ModData[]> {
-		return fetchWorkshopInventory({
-			buildWorkshopMod: (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
-				this.buildWorkshopMod(workshopID, steamUGCDetails, keepUnknownWorkshopItem),
-			getDetailsForWorkshopModList: (workshopIDs) => this.getDetailsForWorkshopModList(workshopIDs),
-			knownWorkshopMods: this.knownWorkshopMods,
-			options: getNuterraSteamCompatibilityOptions(this.createContext()),
-			platform: this.platform,
-			progress: this.progress,
-			updateModLoadingProgress: (size) => this.updateModLoadingProgress(size)
-		});
-	}
-
-	async fetchMods(): Promise<ModData[]> {
-		clearPreviewAllowlist();
-
-		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(), this.fetchWorkshopMods()]);
-		const allMods: ModData[] = filterSettledModResults(modResponses).flat();
-
-		this.progress.finish();
-		return allMods;
-	}
 }

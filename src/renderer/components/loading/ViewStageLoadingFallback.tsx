@@ -12,10 +12,8 @@ export default function ViewStageLoadingFallback({ title, detail, compact = fals
 		compact ? 'p-3' : 'p-6'
 	].join(' ');
 	const cardClassName = [
-		'w-full rounded-md border border-border',
-		compact
-			? 'bg-surface-alt px-4 py-3.5 shadow-none'
-			: 'max-w-[520px] bg-surface px-5 py-[18px] shadow-[0_12px_28px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]'
+		'w-full rounded-sm border border-border',
+		compact ? 'bg-surface-alt px-4 py-3.5 shadow-none' : 'max-w-[520px] bg-surface px-5 py-[18px] shadow-none'
 	].join(' ');
 
 	return (

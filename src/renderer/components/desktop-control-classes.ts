@@ -9,10 +9,10 @@ export const desktopInputFocusClassName =
 	'focus:border-primary focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus:ring-offset-2 focus:ring-offset-background';
 
 export const desktopButtonBaseClassName =
-	'box-border inline-flex min-h-control min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border px-3.5 font-[650] text-text transition-[background-color,border-color,color,opacity] duration-140 ease-out motion-reduce:transition-none';
+	'box-border inline-flex min-h-control min-w-0 cursor-pointer items-center justify-center gap-2 rounded-sm border px-3.5 font-[650] text-text transition-[background-color,border-color,color,opacity] duration-140 ease-out motion-reduce:transition-none';
 
 export const desktopInputClassName =
-	'box-border min-h-control w-full rounded-md border border-border bg-surface-elevated px-[11px] text-text outline-none';
+	'box-border min-h-control w-full rounded-sm border border-border bg-surface-elevated px-[11px] text-text outline-none';
 
 export const desktopDisabledClassName = 'disabled:cursor-not-allowed disabled:bg-surface disabled:text-text-muted';
 

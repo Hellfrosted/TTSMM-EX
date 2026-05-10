@@ -3,6 +3,11 @@ import path from 'node:path';
 import childProcess from 'node:child_process';
 import log from 'electron-log';
 import type { BlockLookupRecord } from 'shared/block-lookup';
+import {
+	extractBundleTextAssetOutcomes,
+	extractBundleTextAssets,
+	type BlockLookupBundleTextAssetExtractionOutcome
+} from './block-lookup-bundle-text-assets';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 import {
 	createBlockLookupRecord,
@@ -10,9 +15,21 @@ import {
 	humanizeBlockLookupIdentifier,
 	normalizedBlockLookupKey,
 	readBlockLookupSourceTextAsset,
-	type BlockLookupTextAsset,
 	type ExtractedTextBlock
 } from './block-lookup-nuterra-text';
+
+export interface BlockLookupSourceExtractionAdapter {
+	extractRecords(sources: readonly BlockLookupSourceRecord[]): Promise<Map<string, BlockLookupRecord[]>>;
+}
+
+export type BlockLookupSourceExtractionAdapters = Partial<
+	Record<BlockLookupSourceRecord['sourceKind'], BlockLookupSourceExtractionAdapter>
+>;
+
+interface BlockLookupBundleSourceExtractionAdapterDependencies {
+	extractBundleTextAssetOutcomes?: typeof extractBundleTextAssetOutcomes;
+	extractBundleTextAssets?: typeof extractBundleTextAssets;
+}
 
 function buildVanillaExportMap(assemblyPath: string): Map<string, string> {
 	const gameRoot = path.resolve(assemblyPath, '..', '..', '..');
@@ -61,37 +78,44 @@ function loadVanillaEnumNames(assemblyPath: string, execFile: typeof childProces
 	});
 }
 
-export async function extractRecordsFromSource(
-	source: BlockLookupSourceRecord,
-	extractedBundleTextAssets?: BlockLookupTextAsset[]
-): Promise<BlockLookupRecord[]> {
-	if (source.sourceKind === 'vanilla') {
-		try {
-			const exportMap = buildVanillaExportMap(source.sourcePath);
-			const enumNames = await loadVanillaEnumNames(source.sourcePath);
-			return enumNames.map((enumName) => {
-				const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
-				const block: ExtractedTextBlock = {
-					blockName: humanizeBlockLookupIdentifier(displaySource),
-					blockId: '',
-					internalName: enumName
-				};
-				return createBlockLookupRecord(source, block, {
-					preferredAlias: enumName,
-					fallbackAlias: enumName
-				});
-			});
-		} catch (error) {
-			log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
-			log.warn(error);
-			return [];
+function createSingleSourceExtractionAdapter(
+	extractSourceRecords: (source: BlockLookupSourceRecord) => Promise<BlockLookupRecord[]> | BlockLookupRecord[]
+): BlockLookupSourceExtractionAdapter {
+	return {
+		async extractRecords(sources) {
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			for (const source of sources) {
+				recordsBySourcePath.set(source.sourcePath, await extractSourceRecords(source));
+			}
+			return recordsBySourcePath;
 		}
-	}
+	};
+}
 
-	if (source.sourceKind === 'bundle' && extractedBundleTextAssets) {
-		return createBlockLookupRecordsFromTextAssets(source, extractedBundleTextAssets);
+async function extractVanillaSourceRecords(source: BlockLookupSourceRecord): Promise<BlockLookupRecord[]> {
+	try {
+		const exportMap = buildVanillaExportMap(source.sourcePath);
+		const enumNames = await loadVanillaEnumNames(source.sourcePath);
+		return enumNames.map((enumName) => {
+			const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
+			const block: ExtractedTextBlock = {
+				blockName: humanizeBlockLookupIdentifier(displaySource),
+				blockId: '',
+				internalName: enumName
+			};
+			return createBlockLookupRecord(source, block, {
+				preferredAlias: enumName,
+				fallbackAlias: enumName
+			});
+		});
+	} catch (error) {
+		log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
+		log.warn(error);
+		return [];
 	}
+}
 
+function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupRecord[] {
 	try {
 		return createBlockLookupRecordsFromTextAssets(source, [readBlockLookupSourceTextAsset(source.sourcePath)]);
 	} catch (error) {
@@ -99,4 +123,80 @@ export async function extractRecordsFromSource(
 		log.warn(error);
 		return [];
 	}
+}
+
+export function createBlockLookupBundleSourceExtractionAdapter(
+	dependencies: BlockLookupBundleSourceExtractionAdapterDependencies = {}
+): BlockLookupSourceExtractionAdapter {
+	const extractBundleTextAssetOutcomesImpl =
+		dependencies.extractBundleTextAssetOutcomes ??
+		(async (sourcePaths: readonly string[]): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> => {
+			const textAssetsBySourcePath = await (dependencies.extractBundleTextAssets ?? extractBundleTextAssets)(sourcePaths);
+			return new Map(
+				[...textAssetsBySourcePath].map(([sourcePath, textAssets]) => [
+					sourcePath,
+					{
+						issues: [],
+						sourcePath,
+						status: 'success',
+						textAssets
+					}
+				])
+			);
+		});
+	return {
+		async extractRecords(sources) {
+			const textAssetOutcomesBySourcePath = await extractBundleTextAssetOutcomesImpl(sources.map((source) => source.sourcePath));
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			for (const source of sources) {
+				const outcome = textAssetOutcomesBySourcePath.get(source.sourcePath);
+				recordsBySourcePath.set(source.sourcePath, createBlockLookupRecordsFromTextAssets(source, outcome?.textAssets ?? []));
+			}
+			return recordsBySourcePath;
+		}
+	};
+}
+
+function createDefaultSourceExtractionAdapters(): Required<BlockLookupSourceExtractionAdapters> {
+	return {
+		bundle: createBlockLookupBundleSourceExtractionAdapter(),
+		json: createSingleSourceExtractionAdapter(extractJsonSourceRecords),
+		vanilla: createSingleSourceExtractionAdapter(extractVanillaSourceRecords)
+	};
+}
+
+export function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtractionAdapters = {}) {
+	const sourceAdapters = {
+		...createDefaultSourceExtractionAdapters(),
+		...adapters
+	};
+
+	return {
+		async extractRecords(sources: readonly BlockLookupSourceRecord[]): Promise<Map<string, BlockLookupRecord[]>> {
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			const sourcesByKind = new Map<BlockLookupSourceRecord['sourceKind'], BlockLookupSourceRecord[]>();
+			for (const source of sources) {
+				const kindSources = sourcesByKind.get(source.sourceKind) ?? [];
+				kindSources.push(source);
+				sourcesByKind.set(source.sourceKind, kindSources);
+			}
+
+			for (const [sourceKind, kindSources] of sourcesByKind) {
+				const adapter = sourceAdapters[sourceKind];
+				const extractedRecords = await adapter.extractRecords(kindSources);
+				for (const source of kindSources) {
+					recordsBySourcePath.set(source.sourcePath, extractedRecords.get(source.sourcePath) ?? []);
+				}
+			}
+
+			return recordsBySourcePath;
+		}
+	};
+}
+
+export async function extractRecordsFromSources(
+	sources: readonly BlockLookupSourceRecord[],
+	adapters: BlockLookupSourceExtractionAdapters = {}
+): Promise<Map<string, BlockLookupRecord[]>> {
+	return createBlockLookupSourceExtractionRouter(adapters).extractRecords(sources);
 }

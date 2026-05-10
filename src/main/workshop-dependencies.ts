@@ -1,24 +1,27 @@
 import log from 'electron-log';
+import type {
+	KnownWorkshopDependencySnapshotMetadata,
+	WorkshopDependencySnapshotLookupResult,
+	WorkshopDependencySnapshotMetadata
+} from 'shared/workshop-dependency-snapshot';
+import { getWorkshopDependencySnapshotMetadataUpdate } from 'shared/workshop-dependency-snapshot';
 import { chunkWorkshopIds, getRawWorkshopDetailsForList } from './mod-workshop-metadata';
 import type { SteamUGCDetails } from './steamworks';
 import { EResult } from './steamworks/types';
 
-interface WorkshopDependencySnapshot {
-	steamDependencies: bigint[];
-	steamDependencyNames?: Record<string, string>;
-	steamDependenciesFetchedAt: number;
-}
-
-type WorkshopDependencySnapshotLookupResult =
-	| { status: 'updated'; snapshot: WorkshopDependencySnapshot }
-	| { status: 'unknown'; checkedAt: number }
-	| { status: 'failed' };
-
 type GetRawWorkshopDetailsForList = (workshopIDs: bigint[]) => Promise<SteamUGCDetails[]>;
+
+interface WorkshopDependencySnapshotBatchOptions {
+	getDetailsForWorkshopModList?: GetRawWorkshopDetailsForList;
+	now?: number;
+}
 
 function getKnownDependencyIds(steamDetails: Iterable<SteamUGCDetails>): bigint[] {
 	const dependencyIDs = new Set<bigint>();
 	for (const detail of steamDetails) {
+		if (detail.result !== EResult.k_EResultOK) {
+			continue;
+		}
 		detail.children?.forEach((dependencyID) => dependencyIDs.add(dependencyID));
 	}
 	return [...dependencyIDs];
@@ -42,7 +45,7 @@ export function createWorkshopDependencySnapshot(
 	steamUGCDetails: SteamUGCDetails,
 	dependencyNames: Map<bigint, string> = new Map(),
 	now = Date.now()
-): WorkshopDependencySnapshot | null {
+): KnownWorkshopDependencySnapshotMetadata | null {
 	if (steamUGCDetails.result !== EResult.k_EResultOK || steamUGCDetails.children === undefined) {
 		return null;
 	}
@@ -58,6 +61,40 @@ export function createWorkshopDependencySnapshot(
 		steamDependencyNames: Object.keys(steamDependencyNames).length > 0 ? steamDependencyNames : undefined,
 		steamDependenciesFetchedAt: now
 	};
+}
+
+export function createWorkshopDependencySnapshotMetadata(
+	steamUGCDetails: SteamUGCDetails,
+	dependencyNames: Map<bigint, string> = new Map(),
+	now = Date.now()
+): WorkshopDependencySnapshotMetadata | undefined {
+	const snapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames, now);
+	if (snapshot) {
+		return snapshot;
+	}
+
+	if (steamUGCDetails.result === EResult.k_EResultOK) {
+		return {
+			steamDependencies: undefined,
+			steamDependencyNames: undefined,
+			steamDependenciesFetchedAt: now
+		};
+	}
+
+	return undefined;
+}
+
+function createWorkshopDependencySnapshotLookupResult(
+	steamUGCDetails: SteamUGCDetails,
+	dependencyNames: Map<bigint, string>,
+	now: number
+): WorkshopDependencySnapshotLookupResult {
+	const snapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames, now);
+	if (snapshot) {
+		return { status: 'updated', snapshot };
+	}
+
+	return steamUGCDetails.result === EResult.k_EResultOK ? { status: 'unknown', checkedAt: now } : { status: 'failed' };
 }
 
 export async function resolveWorkshopDependencyNames(
@@ -82,6 +119,31 @@ export async function resolveWorkshopDependencyNames(
 	}
 }
 
+export async function ingestWorkshopDependencySnapshotBatch(
+	steamDetails: SteamUGCDetails[],
+	options: WorkshopDependencySnapshotBatchOptions = {}
+): Promise<Map<bigint, WorkshopDependencySnapshotLookupResult>> {
+	const { getDetailsForWorkshopModList = getRawWorkshopDetailsForList, now = Date.now() } = options;
+	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails, getDetailsForWorkshopModList);
+	const snapshots = new Map<bigint, WorkshopDependencySnapshotLookupResult>();
+
+	for (const steamUGCDetails of steamDetails) {
+		snapshots.set(steamUGCDetails.publishedFileId, createWorkshopDependencySnapshotLookupResult(steamUGCDetails, dependencyNames, now));
+	}
+
+	return snapshots;
+}
+
+export function applyWorkshopDependencySnapshotResult(
+	mod: WorkshopDependencySnapshotMetadata,
+	result: WorkshopDependencySnapshotLookupResult
+): void {
+	const metadataUpdate = getWorkshopDependencySnapshotMetadataUpdate(result);
+	if (metadataUpdate) {
+		Object.assign(mod, metadataUpdate);
+	}
+}
+
 export async function fetchWorkshopDependencySnapshot(
 	workshopID: bigint,
 	getDetailsForWorkshopModList: GetRawWorkshopDetailsForList = getRawWorkshopDetailsForList,
@@ -100,10 +162,6 @@ export async function fetchWorkshopDependencySnapshot(
 		return { status: 'failed' };
 	}
 
-	const dependencyNames = await resolveWorkshopDependencyNames([steamUGCDetails], getDetailsForWorkshopModList);
-	const snapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames, now);
-	if (!snapshot) {
-		return steamUGCDetails.result === EResult.k_EResultOK ? { status: 'unknown', checkedAt: now } : { status: 'failed' };
-	}
-	return { status: 'updated', snapshot };
+	const snapshots = await ingestWorkshopDependencySnapshotBatch([steamUGCDetails], { getDetailsForWorkshopModList, now });
+	return snapshots.get(workshopID) ?? { status: 'failed' };
 }

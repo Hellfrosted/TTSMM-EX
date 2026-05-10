@@ -52,7 +52,7 @@ export function StartupScreen({ children }: { children: ReactNode }) {
 
 export function StartupCard({ children, className, wide = false, ...props }: StartupCardProps) {
 	const cardClassName = [
-		'w-full rounded-md border border-border bg-surface px-5 py-[22px] shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)] xl:p-7',
+		'StartupCard w-full rounded-sm border border-border bg-surface px-5 py-[22px] shadow-none xl:p-7',
 		wide ? 'max-w-[760px]' : 'max-w-[680px] xl:pb-6',
 		className
 	]
@@ -121,7 +121,11 @@ export function StartupIntro({ children, className, ...props }: HTMLAttributes<H
 }
 
 export function StartupStatusCard({ children, className, error = false, ...props }: StartupStatusCardProps) {
-	const statusClassName = ['rounded-md border bg-surface-alt px-4 py-3.5', error ? 'border-error' : 'border-border', className]
+	const statusClassName = [
+		'StartupStatusCard rounded-sm border bg-surface-alt px-4 py-3.5',
+		error ? 'border-error' : 'border-border',
+		className
+	]
 		.filter(Boolean)
 		.join(' ');
 	return (
@@ -165,14 +169,14 @@ export function StartupProgressBar({ percent, showInfo = true, status = 'active'
 	return (
 		<div className="mt-4 flex w-full items-center gap-3">
 			<div
-				className="relative h-2.5 flex-auto overflow-hidden rounded-full bg-border"
+				className="relative h-2.5 flex-auto overflow-hidden rounded-[3px] bg-border"
 				role="progressbar"
 				aria-valuemin={0}
 				aria-valuemax={100}
 				aria-valuenow={clampedPercent}
 			>
 				<div
-					className={`absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out ${valueToneClassName}`}
+					className={`StartupProgressFill absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out ${valueToneClassName}`}
 					style={{ width: `${clampedPercent}%` }}
 				/>
 			</div>
@@ -186,7 +190,7 @@ export function StartupStatusIcon({ size = 32, status }: StartupStatusIconProps)
 	const toneClassName =
 		status === 'loading' ? 'animate-[spin_900ms_linear_infinite] text-primary' : status === 'error' ? 'text-error' : 'text-success';
 
-	return <Icon className={`block shrink-0 ${toneClassName}`} size={size} aria-hidden="true" />;
+	return <Icon className={`StartupStatusIcon block shrink-0 ${toneClassName}`} size={size} aria-hidden="true" />;
 }
 
 export function StartupButton({ children, className, ...props }: StartupButtonProps) {
@@ -208,7 +212,7 @@ export function StartupActions({ children, className, ...props }: StartupActions
 
 export function StartupErrorText({ children, className, ...props }: StartupErrorTextProps) {
 	const errorClassName = [
-		'block max-w-full rounded-md border px-3 py-2.5 text-error [overflow-wrap:anywhere]',
+		'block max-w-full rounded-sm border px-3 py-2.5 text-error [overflow-wrap:anywhere]',
 		getStatusSurfaceClassName('error'),
 		className
 	]

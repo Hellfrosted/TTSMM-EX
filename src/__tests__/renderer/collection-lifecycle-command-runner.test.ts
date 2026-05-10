@@ -122,9 +122,16 @@ describe('collection-lifecycle-command-runner', () => {
 				hasUnsavedDraft: true
 			}
 		});
+		vi.mocked(harness.runQueuedCollectionWrite).mockImplementationOnce(async (operation) => {
+			expect(client.switchCollectionLifecycle).not.toHaveBeenCalled();
+			const result = await operation();
+			expect(client.switchCollectionLifecycle).toHaveBeenCalledOnce();
+			return result;
+		});
 
 		await harness.runner.run({ kind: 'switch', name: 'alt' });
 
+		expect(harness.runQueuedCollectionWrite).toHaveBeenCalledOnce();
 		expect(client.switchCollectionLifecycle).toHaveBeenCalledWith({
 			config: expect.objectContaining({ activeCollection: 'default' }),
 			dirtyCollection: defaultCollection,
@@ -216,6 +223,28 @@ describe('collection-lifecycle-command-runner', () => {
 			},
 			'error'
 		);
+	});
+
+	it('reports unexpected switch errors without applying returned state', async () => {
+		const client = createClient();
+		const error = new Error('switch failed unexpectedly');
+		vi.mocked(client.switchCollectionLifecycle).mockRejectedValueOnce(error);
+		const harness = createRunnerHarness({ client });
+
+		await harness.runner.run({ kind: 'switch', name: 'alt' });
+
+		expect(harness.updateState).not.toHaveBeenCalled();
+		expect(harness.logger.error).toHaveBeenCalledWith(error);
+		expect(harness.openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Collection action failed',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(harness.setSavingCollection).toHaveBeenNthCalledWith(1, true);
+		expect(harness.setSavingCollection).toHaveBeenLastCalledWith(false);
 	});
 
 	it('skips switching to the already Active Collection', async () => {

@@ -133,17 +133,16 @@ function collectionOverlaySizeStyle(size: number): CSSProperties {
 }
 
 const collectionContentStageBaseClassName =
-	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden contain-[layout_paint_style] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
+	'CollectionContentStage absolute inset-0 flex min-h-0 min-w-0 overflow-hidden contain-[layout_paint_style] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
 const collectionContentStageActiveClassName = 'opacity-100 visible';
 const collectionContentStageInactiveClassName = 'opacity-0 invisible';
 const collectionOverlayLayoutBaseClassName = 'relative flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden';
-const collectionOverlayPaneBaseClassName =
-	'CollectionDetailsOverlayPane absolute z-20 flex min-h-0 min-w-0 overflow-hidden bg-surface shadow-[0_18px_44px_color-mix(in_srgb,var(--app-color-background)_68%,transparent)]';
+const collectionOverlayPaneBaseClassName = 'CollectionDetailsOverlayPane absolute z-20 flex min-h-0 min-w-0 overflow-hidden bg-surface';
 const collectionOverlayPaneActiveClassName = 'opacity-100 translate-x-0 translate-y-0';
 const collectionOverlayPaneSideClassName =
-	'bottom-0 right-0 top-0 w-(--collection-details-overlay-size) animate-[detailsOverlaySideIn_120ms_ease-out] border-l border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
+	'CollectionDetailsOverlayPane--side bottom-0 right-0 top-0 w-(--collection-details-overlay-size) border-l border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
 const collectionOverlayPaneBottomClassName =
-	'bottom-0 left-0 right-0 h-(--collection-details-overlay-size) animate-[detailsOverlayBottomIn_120ms_ease-out] border-t border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
+	'CollectionDetailsOverlayPane--bottom bottom-0 left-0 right-0 h-(--collection-details-overlay-size) border-t border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
 
 type HalfDetailsLayout = 'bottom' | 'side';
 const MIN_SIDE_BY_SIDE_WIDTH = 1120;
@@ -550,6 +549,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		isCollectionModalOpen,
 		launchCommandState,
 		launchDisabledReason,
+		launchReady: collectionWorkspaceSession.launchReadiness.ready,
 		launchGame,
 		launchGameWithErrors,
 		modalType,
@@ -960,6 +960,7 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 		isCollectionModalOpen,
 		launchCommandState,
 		launchDisabledReason,
+		launchReady,
 		launchGame,
 		launchGameWithErrors,
 		modalType,
@@ -997,6 +998,7 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 					launchingGame={appState.launchingGame}
 					launchGameDisabled={launchCommandState.disabled}
 					launchGameDisabledReason={launchDisabledReason}
+					launchReady={launchReady}
 					onReloadModListCallback={handleReloadModList}
 					validateCollectionCallback={handleValidateCollection}
 					launchGameCallback={() => {

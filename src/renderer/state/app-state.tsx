@@ -2,7 +2,6 @@ import { createContext, use, useEffect, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { AppConfig } from 'model/AppConfig';
 import type { AppState, AppStateUpdate } from 'model/AppState';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
@@ -29,18 +28,6 @@ type AppAction =
 			payload: AppStateUpdate;
 	  }
 	| {
-			type: 'set-config';
-			payload: AppConfig;
-	  }
-	| {
-			type: 'set-collections';
-			payload: {
-				allCollections: Map<string, ModCollection>;
-				allCollectionNames: Set<string>;
-				activeCollection?: ModCollection;
-			};
-	  }
-	| {
 			type: 'set-active-collection';
 			payload?: ModCollection;
 	  }
@@ -52,24 +39,6 @@ type AppAction =
 export const mergeAppState = (payload: AppStateUpdate): AppAction => ({
 	type: 'merge',
 	payload
-});
-
-export const setAppConfig = (payload: AppConfig): AppAction => ({
-	type: 'set-config',
-	payload
-});
-
-export const setCollectionsState = (
-	allCollections: Map<string, ModCollection>,
-	allCollectionNames: Set<string>,
-	activeCollection?: ModCollection
-): AppAction => ({
-	type: 'set-collections',
-	payload: {
-		allCollections,
-		allCollectionNames,
-		activeCollection
-	}
 });
 
 export const setActiveCollection = (payload?: ModCollection): AppAction => ({
@@ -145,21 +114,6 @@ export function appReducer(state: AppStateData, action: AppAction): AppStateData
 	switch (action.type) {
 		case 'merge':
 			return mergeStateIfChanged(state, action.payload);
-		case 'set-config':
-			if (state.config === action.payload) {
-				return state;
-			}
-			return {
-				...state,
-				config: action.payload
-			};
-		case 'set-collections':
-			return {
-				...state,
-				allCollections: action.payload.allCollections,
-				allCollectionNames: action.payload.allCollectionNames,
-				activeCollection: action.payload.activeCollection
-			};
 		case 'set-active-collection':
 			if (state.activeCollection === action.payload) {
 				return state;
@@ -226,8 +180,4 @@ function useAppStateStore() {
 
 export function useAppStateSelector<T>(selector: (state: AppState) => T) {
 	return useStore(useAppStateStore(), selector);
-}
-
-export function useAppDispatch() {
-	return useStore(useAppStateStore(), (state) => state.dispatch);
 }

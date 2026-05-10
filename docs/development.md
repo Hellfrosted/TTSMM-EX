@@ -90,6 +90,7 @@ The pacman target needs `bsdtar`.
 - `pnpm test`: Vitest
 - `pnpm run build`: build main, preload, and renderer
 - `pnpm run validate`: lint, Knip dead-code check, typecheck, tests, and build
+- `pnpm run verify:push`: pre-push gate for `main`; currently aliases `pnpm run validate`
 - `pnpm audit --audit-level=moderate`: dependency security audit
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `pnpm run setup:steamworks`: stage the SDK and rebuild native dependencies
@@ -106,6 +107,12 @@ The pacman target needs `bsdtar`.
 - `pnpm run bump -- patch`: patch version bump
 - `pnpm run bump -- minor`: minor version bump
 - `pnpm run bump -- major`: major version bump
+
+## Local Push Gate
+
+Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run verify:push` with `CI=true`. This catches the same lint, Knip, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
+
+For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run verify:push` before relying on the pushed commit.
 
 ## Reference Links
 

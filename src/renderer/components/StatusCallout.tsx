@@ -9,7 +9,7 @@ interface StatusCalloutProps extends HTMLAttributes<HTMLDivElement> {
 
 export default function StatusCallout({ children, className, heading, tone = 'default', ...props }: StatusCalloutProps) {
 	const toneClassName = getStatusSurfaceClassName(tone, 'border-border bg-surface-alt');
-	const calloutClassName = ['box-border w-full rounded-md border px-3.5 py-3', toneClassName, className].filter(Boolean).join(' ');
+	const calloutClassName = ['box-border w-full rounded-sm border px-3.5 py-3', toneClassName, className].filter(Boolean).join(' ');
 
 	return (
 		<div {...props} className={calloutClassName}>

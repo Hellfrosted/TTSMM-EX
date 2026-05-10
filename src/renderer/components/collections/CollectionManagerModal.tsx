@@ -574,13 +574,13 @@ function CollectionManagerModal({
 							metadata.
 						</p>
 						<div className="grid grid-cols-2 gap-4 max-[620px]:grid-cols-1">
-							<div className="h-full rounded-md border border-border bg-surface-alt px-4.5 py-4">
+							<div className="h-full rounded-sm border border-border bg-surface-alt px-4.5 py-4">
 								<label className="flex flex-col gap-2" htmlFor="collection-override-id">
 									<span className="font-[650] text-text">Override ID</span>
 									<CollectionTextInput id="collection-override-id" {...overrideForm.register('overrideId')} />
 								</label>
 							</div>
-							<div className="h-full rounded-md border border-border bg-surface-alt px-4.5 py-4">
+							<div className="h-full rounded-sm border border-border bg-surface-alt px-4.5 py-4">
 								<label className="flex flex-col gap-2" htmlFor="collection-current-user-tags">
 									<span className="font-[650] text-text">Current User Tags</span>
 									<CollectionTextInput id="collection-current-user-tags" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />

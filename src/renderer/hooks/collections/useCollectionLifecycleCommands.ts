@@ -2,9 +2,9 @@ import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ModCollection, type NotificationProps } from 'model';
 import api from 'renderer/Api';
-import { applyCollectionLifecycleResultToCache } from 'renderer/async-cache';
+import { applyAuthoritativeCollectionStateToCache } from 'renderer/async-cache';
 import { runCollectionContentSave } from 'renderer/collection-content-save';
-import type { CollectionContentSaveCompletion } from 'renderer/collection-workspace-session';
+import { applyCollectionContentSaveResult, type CollectionContentSaveCompletion } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { createCollectionLifecycleCommandRunner } from 'renderer/collection-lifecycle-command-runner';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
@@ -21,6 +21,10 @@ interface UseCollectionLifecycleCommandsOptions {
 	runQueuedCollectionWrite: <T>(operation: () => Promise<T>) => Promise<T>;
 	setMadeEdits: (madeEdits: boolean) => void;
 	setSavingCollection: (savingCollection: boolean) => void;
+}
+
+export interface CollectionContentSaveCommandOptions {
+	showSuccessNotification?: boolean;
 }
 
 export function useCollectionLifecycleCommands({
@@ -41,7 +45,7 @@ export function useCollectionLifecycleCommands({
 		() =>
 			createCollectionLifecycleCommandRunner({
 				applyLifecycleResult: (result) => {
-					applyCollectionLifecycleResultToCache(queryClient, result);
+					applyAuthoritativeCollectionStateToCache(queryClient, result);
 				},
 				client: api,
 				getState: () => ({
@@ -106,28 +110,31 @@ export function useCollectionLifecycleCommands({
 	);
 
 	const saveCollection = useCallback(
-		async (collection: ModCollection, pureSave: boolean) => {
+		async (collection: ModCollection, pureSave: boolean, options: CollectionContentSaveCommandOptions = {}) => {
+			let writeAccepted = false;
 			await runQueuedCollectionWrite(async () => {
 				setSavingCollection(true);
 				try {
 					const saveOutcome = await runCollectionContentSave({
 						collection,
-						hasUnsavedDraft: madeEdits,
 						logger: api.logger,
 						persistCollectionFile,
 						pureSave,
-						showSuccessNotification: true
+						showSuccessNotification: options.showSuccessNotification ?? true
 					});
+					writeAccepted = saveOutcome.writeAccepted;
 					if (saveOutcome.notification) {
 						openNotification(saveOutcome.notification.props, saveOutcome.notification.type);
 					}
 					if (onCollectionContentSaveCompleted) {
-						onCollectionContentSaveCompleted({
-							pureSave,
-							writeAccepted: saveOutcome.writeAccepted
-						});
-					} else if (saveOutcome.nextHasUnsavedDraft !== madeEdits) {
-						setMadeEdits(saveOutcome.nextHasUnsavedDraft);
+						onCollectionContentSaveCompleted(saveOutcome.completion);
+					}
+					const completionState = applyCollectionContentSaveResult({
+						hasUnsavedDraft: madeEdits,
+						...saveOutcome.completion
+					});
+					if (completionState.hasUnsavedDraft !== madeEdits) {
+						setMadeEdits(completionState.hasUnsavedDraft);
 					}
 				} catch (error) {
 					api.logger.error(error);
@@ -135,6 +142,7 @@ export function useCollectionLifecycleCommands({
 					setSavingCollection(false);
 				}
 			});
+			return writeAccepted;
 		},
 		[
 			madeEdits,

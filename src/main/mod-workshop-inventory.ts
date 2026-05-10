@@ -6,7 +6,7 @@ import type { ModInventoryProgress } from './mod-inventory-progress';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
 import { WorkshopInventoryResolver } from './workshop-inventory-resolution';
-import { createWorkshopDependencySnapshot, resolveWorkshopDependencyNames } from './workshop-dependencies';
+import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
 
 interface WorkshopDependencyExpansionAdapters {
 	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Promise<ModData[]>;
@@ -109,7 +109,7 @@ async function buildWorkshopMods(
 	buildWorkshopMod: LinuxWorkshopInventoryInput['buildWorkshopMod'],
 	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false
 ): Promise<ModData[]> {
-	const dependencyNames = await resolveWorkshopDependencyNames(steamDetails);
+	const dependencySnapshots = await ingestWorkshopDependencySnapshotBatch(steamDetails);
 	const modResponses = await Promise.allSettled<ModData | null>(
 		steamDetails.map(async (steamUGCDetails) => {
 			const mod = await buildWorkshopMod(
@@ -117,9 +117,9 @@ async function buildWorkshopMods(
 				steamUGCDetails,
 				keepUnknownWorkshopItem(steamUGCDetails.publishedFileId)
 			);
-			const dependencySnapshot = createWorkshopDependencySnapshot(steamUGCDetails, dependencyNames);
+			const dependencySnapshot = dependencySnapshots.get(steamUGCDetails.publishedFileId);
 			if (mod && dependencySnapshot) {
-				Object.assign(mod, dependencySnapshot);
+				applyWorkshopDependencySnapshotResult(mod, dependencySnapshot);
 			}
 			return mod;
 		})

@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - windows-latest
+          - windows-2025
           - ubuntu-latest
 
     steps:
@@ -58,6 +58,59 @@ jobs:
         with:
           run_install: false
 
+      - name: Set up Windows ReFS Dev Drive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vhdPath = 'D:\ttsmm-ex-ci-dev-drive.vhdx'
+          $driveLetter = 'R'
+          $driveRoot = "${driveLetter}:\"
+
+          if (Test-Path $driveRoot) {
+            throw "Drive $driveRoot already exists."
+          }
+
+          New-VHD -Path $vhdPath -SizeBytes 32GB -Dynamic |
+            Mount-VHD -PassThru |
+            Initialize-Disk -PartitionStyle GPT -PassThru |
+            New-Partition -DriveLetter $driveLetter -UseMaximumSize |
+            Out-Null
+
+          $formatParams = @{
+            DriveLetter = $driveLetter
+            FileSystem = 'ReFS'
+            NewFileSystemLabel = 'TTSMMEXDevDrive'
+            Confirm = $false
+          }
+
+          if ((Get-Command Format-Volume).Parameters.ContainsKey('DevDrive')) {
+            $formatParams.DevDrive = $true
+          }
+
+          Format-Volume @formatParams | Out-Null
+
+          $fastRoot = Join-Path $driveRoot 'ttsmm-ex-ci'
+          $paths = @{
+            TEMP = Join-Path $fastRoot 'temp'
+            TMP = Join-Path $fastRoot 'temp'
+            npm_config_cache = Join-Path $fastRoot 'npm-cache'
+            ELECTRON_CACHE = Join-Path $fastRoot 'electron-cache'
+            ELECTRON_BUILDER_CACHE = Join-Path $fastRoot 'electron-builder-cache'
+            CARGO_HOME = Join-Path $fastRoot 'cargo-home'
+            CARGO_TARGET_DIR = Join-Path $fastRoot 'cargo-target'
+            PNPM_STORE_DIR = Join-Path $fastRoot 'pnpm-store'
+          }
+
+          foreach ($path in $paths.Values) {
+            New-Item -ItemType Directory -Force -Path $path | Out-Null
+          }
+
+          foreach ($entry in $paths.GetEnumerator()) {
+            "$($entry.Key)=$($entry.Value)" >> $env:GITHUB_ENV
+          }
+
+          pnpm config set store-dir $paths.PNPM_STORE_DIR --global
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -65,18 +118,41 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        if: runner.os != 'Windows'
         run: pnpm install --frozen-lockfile
 
+      - name: Install dependencies
+        if: runner.os == 'Windows'
+        run: pnpm install --frozen-lockfile --store-dir "$env:PNPM_STORE_DIR"
+
       - name: Install app runtime dependencies
+        if: runner.os != 'Windows'
         run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --ignore-scripts
 
+      - name: Install app runtime dependencies
+        if: runner.os == 'Windows'
+        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
+
       - name: Cache Cargo build
+        if: runner.os != 'Windows'
         uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/git
             ~/.cargo/registry
             native/block-lookup-extractor/target
+          key: ${{ runner.os }}-cargo-block-lookup-${{ hashFiles('native/block-lookup-extractor/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-block-lookup-
+
+      - name: Cache Cargo build
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: |
+            R:\ttsmm-ex-ci\cargo-home\git
+            R:\ttsmm-ex-ci\cargo-home\registry
+            R:\ttsmm-ex-ci\cargo-target
           key: ${{ runner.os }}-cargo-block-lookup-${{ hashFiles('native/block-lookup-extractor/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-block-lookup-

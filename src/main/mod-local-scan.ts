@@ -5,6 +5,8 @@ import { ModData, ModType } from '../model';
 import { registerPreviewImage } from './preview-protocol';
 import type { ModInventoryProgress } from './mod-inventory-progress';
 
+export const MAX_TTSMM_METADATA_BYTES = 1024 * 1024;
+
 function isWorkshopPlaceholderName(name: string | undefined): boolean {
 	return !!name && /^Workshop item \d+$/i.test(name.trim());
 }
@@ -49,6 +51,55 @@ function applyTtsmmMetadata(potentialMod: ModData, metadata: unknown) {
 	if (explicitIDDependencies) {
 		potentialMod.explicitIDDependencies = explicitIDDependencies;
 	}
+}
+
+function readTtsmmMetadataFile(metadataPath: string): string | null {
+	let metadataFd: number;
+	try {
+		metadataFd = fs.openSync(metadataPath, 'r');
+	} catch (error) {
+		log.warn(`Skipping unreadable ttsmm metadata at ${metadataPath}`);
+		log.warn(error);
+		return null;
+	}
+
+	try {
+		const stats = fs.fstatSync(metadataFd);
+		if (!stats.isFile()) {
+			log.warn(`Skipping non-file ttsmm metadata at ${metadataPath}`);
+			return null;
+		}
+		if (stats.size > MAX_TTSMM_METADATA_BYTES) {
+			log.warn(`Skipping oversized ttsmm metadata at ${metadataPath}`);
+			return null;
+		}
+
+		const buffer = Buffer.alloc(stats.size);
+		let bytesRead = 0;
+		while (bytesRead < buffer.length) {
+			const readCount = fs.readSync(metadataFd, buffer, bytesRead, buffer.length - bytesRead, bytesRead);
+			if (readCount === 0) {
+				break;
+			}
+			bytesRead += readCount;
+		}
+		return buffer.subarray(0, bytesRead).toString('utf8');
+	} catch (error) {
+		log.warn(`Skipping unreadable ttsmm metadata at ${metadataPath}`);
+		log.warn(error);
+		return null;
+	} finally {
+		fs.closeSync(metadataFd);
+	}
+}
+
+function applyTtsmmMetadataFile(potentialMod: ModData, metadataPath: string) {
+	const metadataText = readTtsmmMetadataFile(metadataPath);
+	if (metadataText === null) {
+		return;
+	}
+
+	applyTtsmmMetadata(potentialMod, JSON.parse(metadataText));
 }
 
 export function createLocalPotentialMod(localPath: string, subDir: string): ModData {
@@ -100,7 +151,7 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 							} else if (file.name.match(/^(.*)\.dll$/)) {
 								potentialMod.hasCode = true;
 							} else if (file.name === 'ttsmm.json') {
-								applyTtsmmMetadata(potentialMod, JSON.parse(fs.readFileSync(path.join(modPath, file.name), 'utf8')));
+								applyTtsmmMetadataFile(potentialMod, path.join(modPath, file.name));
 							} else {
 								const matches = file.name.match(/^(.*)_bundle$/);
 								if (matches && matches.length > 1) {

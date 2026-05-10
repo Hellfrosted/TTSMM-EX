@@ -1,6 +1,7 @@
 import { startTransition } from 'react';
 import { type AppConfig, type ModCollection, type NotificationProps } from 'model';
 import type { AppStateUpdate } from 'model/AppState';
+import { applyAuthoritativeCollectionState, getAuthoritativeCollectionStateUpdate } from 'renderer/authoritative-collection-state';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 import { validateCollectionName } from 'shared/collection-name';
@@ -80,14 +81,6 @@ interface CollectionLifecycleCommandRunnerOptions {
 	updateState: CollectionWorkspaceAppState['updateState'];
 }
 
-function collectionsToMap(collections: ModCollection[]) {
-	return new Map(collections.map((collection) => [collection.name, collection]));
-}
-
-function namesToSet(collectionNames: string[]) {
-	return new Set(collectionNames);
-}
-
 function commandRequiresCollectionName(
 	intent: CollectionLifecycleCommandIntent
 ): intent is Extract<CollectionLifecycleCommandIntent, { name: string }> {
@@ -161,12 +154,7 @@ export function getCollectionLifecycleSuccessNotification(
 }
 
 export function getCollectionLifecycleStateUpdate(result: CollectionLifecycleSuccessResult): AppStateUpdate {
-	return {
-		allCollections: collectionsToMap(result.collections),
-		allCollectionNames: namesToSet(result.collectionNames),
-		activeCollection: result.activeCollection,
-		config: result.config
-	};
+	return getAuthoritativeCollectionStateUpdate(result);
 }
 
 function invokeLifecycleCommand(
@@ -248,9 +236,11 @@ export function createCollectionLifecycleCommandRunner({
 					}
 
 					startTransition(() => {
-						updateState(getCollectionLifecycleStateUpdate(result));
+						applyAuthoritativeCollectionState(result, {
+							syncCache: applyLifecycleResult,
+							updateState
+						});
 					});
-					applyLifecycleResult?.(result);
 					if (onLifecycleResultApplied) {
 						onLifecycleResultApplied();
 					} else {

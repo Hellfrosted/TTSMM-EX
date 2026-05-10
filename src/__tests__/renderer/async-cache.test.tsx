@@ -135,6 +135,31 @@ describe('renderer async cache', () => {
 		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
 	});
 
+	it('removes stale cached collection details when no collection list is cached', () => {
+		const queryClient = createTestQueryClient();
+		const defaultCollection = { name: 'default', mods: ['local:old'] };
+		const renamedCollection = { name: 'renamed', mods: ['local:new'] };
+		const nextConfig: AppConfig = {
+			...DEFAULT_CONFIG,
+			activeCollection: 'renamed',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		};
+		queryClient.setQueryData(queryKeys.collections.detail('default'), defaultCollection);
+
+		applyCollectionLifecycleResultToCache(queryClient, {
+			ok: true,
+			activeCollection: renamedCollection,
+			collections: [renamedCollection],
+			collectionNames: ['renamed'],
+			config: nextConfig
+		});
+
+		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
+		expect(queryClient.getQueryData(queryKeys.collections.detail('renamed'))).toBe(renamedCollection);
+	});
+
 	it('does not refetch observed collection queries after exact collection writes', async () => {
 		const queryClient = createTestQueryClient();
 		const storedCollection = { name: 'fresh', mods: ['local:old'] };
@@ -197,7 +222,7 @@ describe('renderer async cache', () => {
 		expect(window.electron.searchBlockLookup).toHaveBeenCalledWith({ query: 'cab', limit: 50 });
 	});
 
-	it('updates Block Lookup bootstrap cache and invalidates searches after index builds', async () => {
+	it('runs Block Lookup index builds without owning session cache transitions', async () => {
 		const queryClient = createTestQueryClient();
 		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
 		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' };
@@ -211,7 +236,7 @@ describe('renderer async cache', () => {
 		});
 
 		expect(window.electron.buildBlockLookupIndex).toHaveBeenCalledWith({ workshopRoot: settings.workshopRoot, forceRebuild: true });
-		expect(queryClient.getQueryData(blockLookupBootstrapQueryOptions().queryKey)).toEqual([settings, stats]);
-		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.blockLookup.searchRoot() });
+		expect(queryClient.getQueryData(blockLookupBootstrapQueryOptions().queryKey)).toBeUndefined();
+		expect(invalidateQueries).not.toHaveBeenCalled();
 	});
 });

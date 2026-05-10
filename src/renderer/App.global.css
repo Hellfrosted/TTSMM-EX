@@ -12,6 +12,13 @@ html {
 .AppRoot {
 	height: 100%;
 	width: 100%;
+	--app-motion-duration-instant: 120ms;
+	--app-motion-duration-fast: 160ms;
+	--app-motion-duration-standard: 220ms;
+	--app-motion-duration-surface: 240ms;
+	--app-motion-ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+	--app-motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+	--app-motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body {
@@ -74,6 +81,22 @@ body {
 	border: 0;
 	border-top: 1px solid var(--app-color-border);
 	cursor: pointer;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.MenuCollapseButtonIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	animation: appIconSwapIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	transform-origin: center;
+}
+
+.MenuCollapseButton:active .MenuCollapseButtonIcon {
+	transform: translateY(1px);
 }
 
 .MenuCollapseButton svg {
@@ -88,7 +111,7 @@ body {
 	outline: none;
 	box-shadow:
 		inset 0 0 0 2px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%),
-		inset 0 0 0 4px color-mix(in srgb, var(--app-color-background) 92%, black);
+		inset 0 0 0 4px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider));
 }
 
 .AppLayout > * {
@@ -117,17 +140,22 @@ body {
 	visibility: hidden;
 	pointer-events: none;
 	contain: layout paint style;
+	transform: translateY(4px) scale(0.998);
+	will-change: opacity, transform;
 	transition:
-		opacity 140ms ease,
-		visibility 0s linear 140ms;
+		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized),
+		visibility 0s linear var(--app-motion-duration-standard);
 }
 
 .AppViewStage.is-active {
 	opacity: 1;
 	visibility: visible;
 	pointer-events: auto;
+	transform: translateY(0) scale(1);
 	transition:
-		opacity 140ms ease,
+		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized),
 		visibility 0s;
 }
 
@@ -143,14 +171,14 @@ body {
 	background-color: transparent;
 	min-height: 44px;
 	padding: 8px 12px;
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	border: none;
 	appearance: none;
 	font-size: 1.3rem;
 	box-shadow: none;
 	transition:
-		background-color 120ms ease,
-		color 120ms ease;
+		background-color var(--app-motion-duration-instant) var(--app-motion-ease-out),
+		color var(--app-motion-duration-instant) var(--app-motion-ease-out);
 	cursor: pointer;
 }
 
@@ -162,7 +190,7 @@ body {
 	outline: none;
 	background-color: color-mix(in srgb, var(--app-color-primary) 18%, transparent);
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
@@ -192,10 +220,10 @@ body {
 	width: 20px;
 	height: 20px;
 	margin-left: 6px;
-	color: color-mix(in srgb, var(--app-color-primary) 82%, white);
+	color: color-mix(in oklch, var(--app-color-primary) 82%, var(--app-color-text-base));
 	background: color-mix(in srgb, var(--app-color-primary) 16%, transparent);
 	border: 1px solid color-mix(in srgb, var(--app-color-primary) 46%, transparent);
-	border-radius: 4px;
+	border-radius: var(--app-radius-sm);
 	vertical-align: middle;
 }
 
@@ -250,7 +278,7 @@ body {
 	font-weight: 600;
 	line-height: 20px;
 	border: 1px solid var(--app-color-border);
-	border-radius: 4px;
+	border-radius: var(--app-radius-sm);
 	background: var(--app-color-surface-elevated);
 	white-space: nowrap;
 	overflow: hidden;
@@ -284,7 +312,7 @@ body {
 	width: 100%;
 	height: 4px;
 	overflow: hidden;
-	border-radius: 999px;
+	border-radius: 2px;
 	background: color-mix(in srgb, var(--app-color-text-base) 10%, transparent);
 }
 
@@ -294,6 +322,7 @@ body {
 	width: var(--main-collection-size-meter);
 	border-radius: inherit;
 	background: color-mix(in srgb, var(--app-color-primary) 64%, var(--app-color-text-base));
+	transition: width var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
 }
 
 .CollectionTableHeaderCell {
@@ -350,14 +379,14 @@ body {
 	opacity: 0;
 	transform: translateX(-50%);
 	transition:
-		background-color 120ms ease,
-		opacity 120ms ease;
+		background-color var(--app-motion-duration-instant) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .CollectionTableResizeHandle:focus-visible {
-	border-radius: 8px;
+	border-radius: var(--app-radius-sm);
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
@@ -374,10 +403,12 @@ body {
 	color: var(--app-color-text, #f2ede6);
 	background: var(--app-color-surface-elevated, #20252b);
 	border: 1px solid var(--app-color-border, #2b323a);
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	box-shadow:
 		0 0 0 1px color-mix(in srgb, var(--app-color-background, #131517) 74%, transparent),
-		0 14px 32px color-mix(in srgb, var(--app-color-background, #131517) 72%, transparent);
+		0 8px 18px color-mix(in srgb, var(--app-color-background, #131517) 76%, transparent);
+	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	transform-origin: top center;
 }
 
 .MainCollectionHeaderMenuItem {
@@ -392,8 +423,12 @@ body {
 	text-align: left;
 	background: transparent;
 	border: 0;
-	border-radius: 4px;
+	border-radius: var(--app-radius-sm);
 	cursor: pointer;
+	transition:
+		background-color var(--app-motion-duration-instant) var(--app-motion-ease-out),
+		color var(--app-motion-duration-instant) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .MainCollectionHeaderMenuItem:hover:not(:disabled),
@@ -472,10 +507,18 @@ a:hover {
 	padding: 0 12px;
 	color: var(--app-color-text-muted);
 	background: transparent;
-	border: 0;
-	border-radius: 8px;
+	border: 1px solid transparent;
+	border-radius: var(--app-radius-sm);
 	cursor: pointer;
 	box-sizing: border-box;
+	transform: translateY(0);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .MenuBarNavButton:hover:not(:disabled),
@@ -486,13 +529,13 @@ a:hover {
 
 .MenuBarNavItem.is-selected .MenuBarNavButton {
 	background: color-mix(in srgb, var(--app-color-primary) 16%, var(--app-color-surface-elevated));
-	box-shadow: inset 3px 0 0 var(--app-color-primary);
+	border-color: color-mix(in srgb, var(--app-color-primary) 70%, var(--app-color-border));
 }
 
 .MenuBarNavButton:focus-visible {
 	outline: none;
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
@@ -501,11 +544,24 @@ a:hover {
 	cursor: not-allowed;
 }
 
+.MenuBarNavButton:active:not(:disabled) {
+	transform: translateY(1px);
+}
+
 .MenuBarNavIcon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 20px;
+	transform: scale(1);
+	transition:
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+}
+
+.MenuBarNavButton:hover:not(:disabled) .MenuBarNavIcon,
+.MenuBarNavItem.is-selected .MenuBarNavIcon {
+	transform: scale(1.05);
 }
 
 .MenuBarNavLabel {
@@ -518,6 +574,9 @@ a:hover {
 	letter-spacing: 0;
 	text-transform: uppercase;
 	white-space: nowrap;
+	transition:
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .AppSidebar.is-collapsed #MenuBar .MenuBarNavButton {
@@ -558,6 +617,79 @@ a:hover {
 	}
 }
 
+.DesktopButton,
+.DesktopIconButton {
+	transform: translateY(0);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-instant) var(--app-motion-ease-out);
+}
+
+.DesktopButton:enabled:active,
+.DesktopIconButton:enabled:active {
+	transform: translateY(1px);
+}
+
+.DesktopButtonIcon,
+.DesktopIconButton svg {
+	transition:
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	transform-origin: center;
+}
+
+.DesktopButton:enabled:hover .DesktopButtonIcon {
+	transform: translateY(-1px);
+}
+
+.DesktopButton[data-ready-pulse="true"] {
+	animation: launchReadyPulse 620ms var(--app-motion-ease-emphasized);
+}
+
+.ToolbarMenuButton[aria-expanded="true"] .DesktopButtonIcon {
+	transform: rotate(180deg);
+}
+
+.DesktopButtonSpinner {
+	animation-duration: 700ms;
+}
+
+.DesktopInput,
+.DesktopSelect {
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.DesktopSwitch,
+.DesktopSwitch::after {
+	transition-duration: var(--app-motion-duration-fast);
+	transition-timing-function: var(--app-motion-ease-emphasized);
+}
+
+.ToolbarMenuSurface {
+	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	transform-origin: top right;
+	will-change: opacity, transform;
+}
+
+.DesktopDialogOverlay {
+	animation: appDialogOverlayIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.DesktopDialogPanel {
+	animation: appDialogPanelIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
+	transform-origin: center;
+	will-change: opacity, transform;
+}
+
 .MainFooter {
 	flex: 0 0 auto;
 	display: flex;
@@ -574,13 +706,13 @@ a:hover {
 
 ::-webkit-scrollbar-track {
 	background: color-mix(in srgb, var(--app-color-text-base) 6%, transparent); /* color of the tracking area */
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	border-color: color-mix(in srgb, var(--app-color-background) 82%, var(--app-color-text-base));
 }
 
 ::-webkit-scrollbar-thumb {
 	background-color: color-mix(in srgb, var(--app-color-text-base) 26%, transparent); /* color of the scroll thumb */
-	border-radius: 6px; /* roundness of the scroll thumb */
+	border-radius: var(--app-radius-sm); /* roundness of the scroll thumb */
 }
 
 .CollectionTypeIndicator {
@@ -591,7 +723,7 @@ a:hover {
 }
 
 .BlockLookupViewLayout {
-	--workspace-table-inset-x: 16px;
+	--workspace-table-inset-x: 8px;
 	--app-compact-icon-button-size: 36px;
 	flex: 1 1 auto;
 	display: flex;
@@ -604,14 +736,14 @@ a:hover {
 }
 
 .CollectionViewLayout {
-	--workspace-table-inset-x: 16px;
+	--workspace-table-inset-x: 8px;
 }
 
 .BlockLookupTablePane {
 	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
-	padding: 12px var(--workspace-table-inset-x) 0;
+	padding: 8px var(--workspace-table-inset-x) 0;
 	overflow: hidden;
 }
 
@@ -715,9 +847,9 @@ a:hover {
 
 .BlockLookupVirtualHeaderButton:focus-visible {
 	outline: none;
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
@@ -744,6 +876,7 @@ a:hover {
 	min-width: max-content;
 	background: var(--app-color-surface);
 	overflow: hidden;
+	transition: background-color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .BlockLookupVirtualRow:hover {
@@ -765,6 +898,10 @@ a:hover {
 	border-bottom: 1px solid var(--app-color-border);
 	box-sizing: border-box;
 	overflow: hidden;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .BlockLookupVirtualRow > .BlockLookupVirtualCell--align-left {
@@ -821,6 +958,7 @@ a:hover {
 
 .BlockLookupVirtualLoading {
 	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
+	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .BlockLookupTableHeaderCell {
@@ -862,7 +1000,7 @@ a:hover {
 	color: var(--app-color-text);
 	background: var(--app-color-surface-elevated);
 	border: 1px solid var(--app-color-border);
-	border-radius: 4px;
+	border-radius: var(--app-radius-sm);
 	font-size: 12px;
 	font-weight: 650;
 	line-height: 18px;
@@ -900,13 +1038,23 @@ a:hover {
 	color: var(--app-color-text);
 	background: transparent;
 	border: 1px solid transparent;
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	cursor: pointer;
+	transform: translateY(0);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .ModDetailIconButton:hover {
 	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
 	border-color: var(--app-color-border);
+}
+
+.ModDetailIconButton:active {
+	transform: translateY(1px);
 }
 
 .ModDetailIconButton:focus-visible,
@@ -917,15 +1065,24 @@ a:hover {
 .CollectionDetailsOverlayResizeHandle:focus-visible {
 	outline: none;
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
 .CollectionDetailsOverlayPane {
 	pointer-events: auto;
+	will-change: opacity, transform;
 	transition:
-		opacity 120ms ease,
-		transform 120ms ease;
+		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+}
+
+.CollectionDetailsOverlayPane--side {
+	animation: detailsOverlaySideIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
+}
+
+.CollectionDetailsOverlayPane--bottom {
+	animation: detailsOverlayBottomIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
 }
 
 .CollectionDetailsOverlayPane > .ModDetailFooter {
@@ -964,8 +1121,8 @@ a:hover {
 	background: var(--app-color-primary);
 	opacity: 0.42;
 	transition:
-		background-color 120ms ease,
-		opacity 120ms ease;
+		background-color var(--app-motion-duration-instant) var(--app-motion-ease-out),
+		opacity var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .CollectionDetailsOverlayResizeHandle--side::after {
@@ -999,12 +1156,22 @@ a:hover {
 	font-weight: 650;
 	background: var(--app-color-surface-elevated);
 	border: 1px solid var(--app-color-border);
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	cursor: pointer;
+	transform: translateY(0);
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-instant) var(--app-motion-ease-out);
 }
 
 .ModDetailButton:hover {
 	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.ModDetailButton:active {
+	transform: translateY(1px);
 }
 
 .ModDetailTag {
@@ -1019,7 +1186,7 @@ a:hover {
 	font-weight: 600;
 	line-height: 20px;
 	border: 1px solid var(--app-color-border);
-	border-radius: 4px;
+	border-radius: var(--app-radius-sm);
 	background: var(--app-color-surface-elevated);
 	white-space: nowrap;
 	box-sizing: border-box;
@@ -1086,7 +1253,7 @@ a:hover {
 	padding: 10px;
 	background: var(--app-color-surface-elevated);
 	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
+	border-radius: var(--app-radius-sm);
 	box-sizing: border-box;
 }
 
@@ -1094,7 +1261,7 @@ a:hover {
 	display: block;
 	width: 100%;
 	height: auto;
-	border-radius: 5px;
+	border-radius: var(--app-radius-sm);
 	object-fit: contain;
 }
 
@@ -1111,7 +1278,7 @@ a:hover {
 	h1,
 	h2,
 	h3 {
-		color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+		color: color-mix(in oklch, var(--app-color-primary) 76%, var(--app-color-text-base));
 		font-family: var(--app-font-body);
 		font-weight: 650;
 		line-height: 1.25;
@@ -1146,7 +1313,7 @@ a:hover {
 	}
 
 	a {
-		color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+		color: color-mix(in oklch, var(--app-color-primary) 76%, var(--app-color-text-base));
 		text-decoration: underline;
 		margin: 0;
 	}
@@ -1156,8 +1323,8 @@ a:hover {
 		margin: 12px 0;
 		padding: 12px 16px;
 		background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
-		border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--app-color-primary) 76%, white) 32%, transparent);
-		border-radius: 6px;
+		border: 1px solid color-mix(in oklch, color-mix(in oklch, var(--app-color-primary) 76%, var(--app-color-text-base)) 32%, transparent);
+		border-radius: var(--app-radius-sm);
 	}
 
 	code {
@@ -1213,8 +1380,11 @@ a:hover {
 	font-weight: 650;
 	background: transparent;
 	border: 0;
-	border-radius: 6px 6px 0 0;
+	border-radius: var(--app-radius-sm) var(--app-radius-sm) 0 0;
 	cursor: pointer;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .ModDetailTabButton:hover {
@@ -1234,6 +1404,8 @@ a:hover {
 	bottom: -1px;
 	height: 2px;
 	background: var(--app-color-primary);
+	animation: appTabRuleIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	transform-origin: left center;
 }
 
 .ModDetailTabsPanel {
@@ -1245,7 +1417,7 @@ a:hover {
 }
 
 .ModDetailTabsPanel {
-	animation: detailTabFade 140ms ease;
+	animation: detailTabFade var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .ModDetailDescriptions {
@@ -1305,6 +1477,9 @@ a:hover {
 	background: var(--app-color-surface-elevated);
 	border: 0;
 	cursor: pointer;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .ModDetailCollapseHeader:hover {
@@ -1510,7 +1685,7 @@ a:hover {
 
 .MainCollectionTableRoot {
 	box-sizing: border-box;
-	padding: 12px var(--workspace-table-inset-x) 0;
+	padding: 8px var(--workspace-table-inset-x) 0;
 }
 
 .MainCollectionVirtualScroll {
@@ -1596,7 +1771,7 @@ a:hover {
 	font-weight: 600;
 	background: var(--app-color-surface);
 	border: 1px solid var(--app-color-border);
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 }
 
 .MainCollectionVirtualHeaderCell.is-sortable .MainCollectionVirtualHeaderButton {
@@ -1609,9 +1784,9 @@ a:hover {
 
 .MainCollectionVirtualHeaderButton:focus-visible {
 	outline: none;
-	border-radius: 6px;
+	border-radius: var(--app-radius-sm);
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, var(--app-color-sider)),
 		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
 }
 
@@ -1637,6 +1812,7 @@ a:hover {
 	width: 100%;
 	min-width: max-content;
 	background: var(--app-color-surface);
+	transition: background-color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .MainCollectionVirtualRow:hover {
@@ -1657,6 +1833,10 @@ a:hover {
 	border-bottom: 1px solid var(--app-color-border);
 	box-sizing: border-box;
 	overflow: hidden;
+	transition:
+		background-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out);
 }
 
 .MainCollectionVirtualRow > .MainCollectionVirtualCell--align-left {
@@ -1695,6 +1875,61 @@ a:hover {
 	color: var(--app-color-text);
 	font-weight: 650;
 	pointer-events: none;
+	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.CollectionContentStage {
+	transition:
+		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		visibility 0s linear var(--app-motion-duration-fast);
+}
+
+.StartupCard,
+.StartupStatusCard {
+	animation: appSurfaceIn var(--app-motion-duration-standard) var(--app-motion-ease-out);
+}
+
+.StartupProgressFill {
+	transition: width var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+}
+
+.StartupStatusIcon {
+	transition:
+		color var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+}
+
+.SettingsView details[open] > div {
+	animation: appDisclosureIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+}
+
+.NotificationToast {
+	--notification-enter-x: 10px;
+	--notification-enter-y: -4px;
+	animation: notificationToastIn var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+	transform-origin: top right;
+	will-change: opacity, transform;
+}
+
+.NotificationToast[data-placement="topLeft"] {
+	--notification-enter-x: -10px;
+	transform-origin: top left;
+}
+
+.NotificationToast[data-placement="bottomRight"] {
+	--notification-enter-y: 4px;
+	transform-origin: bottom right;
+}
+
+.NotificationToast[data-placement="bottomLeft"] {
+	--notification-enter-x: -10px;
+	--notification-enter-y: 4px;
+	transform-origin: bottom left;
+}
+
+.NotificationToast[data-state="closing"] {
+	pointer-events: none;
+	animation: notificationToastOut var(--app-motion-duration-fast) var(--app-motion-ease-out) forwards;
 }
 
 .ModDetailFooterHeaderActions {
@@ -1753,16 +1988,18 @@ a:hover {
 @keyframes detailTabFade {
 	from {
 		opacity: 0;
+		transform: translateY(3px);
 	}
 	to {
 		opacity: 1;
+		transform: translateY(0);
 	}
 }
 
 @keyframes detailsOverlaySideIn {
 	from {
 		opacity: 0;
-		transform: translateX(8px);
+		transform: translateX(10px);
 	}
 	to {
 		opacity: 1;
@@ -1773,11 +2010,132 @@ a:hover {
 @keyframes detailsOverlayBottomIn {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: translateY(10px);
 	}
 	to {
 		opacity: 1;
 		transform: translateY(0);
+	}
+}
+
+@keyframes appSurfaceIn {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes appSurfaceMenuIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes appDialogOverlayIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes appDialogPanelIn {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes appIconSwapIn {
+	from {
+		opacity: 0.55;
+		transform: translateY(1px) scale(0.94);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes launchReadyPulse {
+	0% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-color-primary) 42%, transparent);
+		transform: translateY(0) scale(1);
+	}
+	42% {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-color-primary) 24%, transparent);
+		transform: translateY(-1px) scale(1.015);
+	}
+	100% {
+		box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-color-primary) 0%, transparent);
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes appLoadingVeilIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes appDisclosureIn {
+	from {
+		opacity: 0;
+		transform: translateY(-3px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes appTabRuleIn {
+	from {
+		opacity: 0;
+		transform: scaleX(0.6);
+	}
+	to {
+		opacity: 1;
+		transform: scaleX(1);
+	}
+}
+
+@keyframes notificationToastIn {
+	from {
+		opacity: 0;
+		transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+}
+
+@keyframes notificationToastOut {
+	from {
+		opacity: 1;
+		transform: translate3d(0, 0, 0) scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(0.99);
 	}
 }
 
@@ -1797,7 +2155,25 @@ a:hover {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		scroll-behavior: auto !important;
+		transition-delay: 0s !important;
 		transition-duration: 0.01ms !important;
+	}
+
+	.DesktopButton[data-ready-pulse="true"] {
+		animation: none !important;
+	}
+
+	.AppViewStage,
+	.CollectionDetailsOverlayPane,
+	.DesktopDialogPanel,
+	.DesktopButton[data-ready-pulse="true"],
+	.MenuCollapseButtonIcon,
+	.NotificationToast,
+	.StartupCard,
+	.StartupStatusCard,
+	.ToolbarMenuSurface {
+		transform: none !important;
+		will-change: auto !important;
 	}
 }
 

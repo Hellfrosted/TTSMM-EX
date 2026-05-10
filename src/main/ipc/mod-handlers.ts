@@ -2,7 +2,7 @@ import { shell, Menu } from 'electron';
 import type { IpcMain, MenuItemConstructorOptions, WebContents } from 'electron';
 import log from 'electron-log';
 import type { SteamworksStatus } from 'shared/ipc';
-import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
+import { getWorkshopDependencySnapshotMetadataUpdate, type WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 
 import { ModData, ModType, SessionMods, ValidChannel, createModUid, parseWorkshopModUid } from '../../model';
 import { openExternalUrl } from '../external-links';
@@ -163,8 +163,9 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 			}
 			mainWindowProvider.getWebContents()?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, workshopID), update);
 		};
+		let subscriptionAction: MenuItemConstructorOptions;
 		if (record.subscribed) {
-			template.push({
+			subscriptionAction = {
 				label: 'Unsubscribe',
 				click: () => {
 					void runContextMenuSteamworksAction(
@@ -181,9 +182,9 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						}
 					);
 				}
-			});
+			};
 		} else {
-			template.push({
+			subscriptionAction = {
 				label: 'Subscribe',
 				click: () => {
 					void runContextMenuSteamworksAction(
@@ -200,8 +201,12 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						}
 					);
 				}
-			});
+			};
 		}
+		template.push({
+			label: 'Steam Subscription',
+			submenu: [subscriptionAction]
+		});
 		if (record.needsUpdate) {
 			template.push({
 				label: 'Update',
@@ -230,17 +235,14 @@ export function createFetchWorkshopDependenciesHandler(
 	return async (_event: unknown, workshopID: bigint): Promise<WorkshopDependencyRefreshResult> => {
 		const validatedWorkshopID = parseWorkshopIdPayload(ValidChannel.FETCH_WORKSHOP_DEPENDENCIES, workshopID);
 		const dependencySnapshot = await workshopDependencySnapshot(validatedWorkshopID);
-		if (dependencySnapshot.status === 'failed') {
+		const metadataUpdate = getWorkshopDependencySnapshotMetadataUpdate(dependencySnapshot);
+		if (!metadataUpdate) {
 			return { status: 'failed' };
 		}
 
 		mainWindowProvider
 			.getWebContents()
-			?.send(
-				ValidChannel.MOD_METADATA_UPDATE,
-				createModUid(ModType.WORKSHOP, validatedWorkshopID),
-				dependencySnapshot.status === 'updated' ? dependencySnapshot.snapshot : { steamDependenciesFetchedAt: dependencySnapshot.checkedAt }
-			);
+			?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, validatedWorkshopID), metadataUpdate);
 
 		return { status: dependencySnapshot.status };
 	};

@@ -6,7 +6,10 @@ import { releaseAppPath, repoRoot } from './lib/paths';
 
 const manifestPath = path.join(repoRoot, 'native', 'block-lookup-extractor', 'Cargo.toml');
 const executableName = process.platform === 'win32' ? 'block-lookup-extractor.exe' : 'block-lookup-extractor';
-const builtExecutablePath = path.join(repoRoot, 'native', 'block-lookup-extractor', 'target', 'release', executableName);
+const cargoTargetDir = process.env.CARGO_TARGET_DIR
+	? path.resolve(repoRoot, process.env.CARGO_TARGET_DIR)
+	: path.join(repoRoot, 'native', 'block-lookup-extractor', 'target');
+const builtExecutablePath = path.join(cargoTargetDir, 'release', executableName);
 const releaseBinPath = path.join(releaseAppPath, 'bin');
 const releaseExecutablePath = path.join(releaseBinPath, executableName);
 

@@ -5,6 +5,7 @@ export * from './Mod';
 export * from './CollectionValidation';
 export * from './collection-validation-result';
 export * from './mod-dependency-projection';
+export * from './mod-dependency-target';
 export * from './nuterrasteam-compatibility';
 export * from './SessionMods';
 export * from './ModCollection';

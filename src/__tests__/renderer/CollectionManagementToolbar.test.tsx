@@ -324,4 +324,39 @@ describe('CollectionManagementToolbar', () => {
 
 		expect(screen.getByLabelText('Search mods by name, ID, author, or tag')).toBeInTheDocument();
 	});
+
+	it('announces launch-ready validation state without expanding the toolbar label', () => {
+		stubResizeObserver();
+
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		renderInAppRoot(
+			<CollectionManagementToolbar
+				appState={appState}
+				launchReady
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={vi.fn()}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={vi.fn()}
+			/>
+		);
+
+		const readyButton = screen.getByRole('button', { name: 'Collection Ready' });
+		expect(readyButton).toHaveTextContent(/^Ready$/);
+		expect(readyButton).toHaveAttribute('title', 'Collection is validated and ready to launch');
+	});
 });

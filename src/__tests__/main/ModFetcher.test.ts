@@ -3,9 +3,9 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks from '../../main/steamworks';
 import { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks/types';
-import ModFetcher from '../../main/mod-fetcher';
+import { buildWorkshopMod, createModInventoryContext, fetchWorkshopMods, processSteamModResults } from '../../main/mod-fetcher';
 import { ModType } from '../../model/Mod';
-import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
+import { MAX_TTSMM_METADATA_BYTES, createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
 import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
@@ -75,6 +75,28 @@ describe('ModFetcher', () => {
 					path: modDir
 				})
 			);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('skips oversized ttsmm metadata while keeping valid local mod detection', async () => {
+		const tempDir = createTempDir('ttsmm-local-metadata-limit-');
+		const modDir = path.join(tempDir, 'OversizedMetadataPack');
+		try {
+			fs.mkdirSync(modDir, { recursive: true });
+			fs.writeFileSync(path.join(modDir, 'OversizedBundle_bundle'), 'bundle');
+			fs.writeFileSync(path.join(modDir, 'ttsmm.json'), Buffer.alloc(MAX_TTSMM_METADATA_BYTES + 1, 'x'));
+			const progress = new ModInventoryProgress({ send: vi.fn() });
+
+			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
+				expect.objectContaining({
+					uid: 'local:OversizedBundle',
+					id: 'OversizedBundle',
+					name: 'OversizedBundle',
+					path: modDir
+				})
+			]);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
@@ -172,10 +194,10 @@ describe('ModFetcher', () => {
 		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
 		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
 		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
 		await expect(
-			fetcher.processSteamModResults([
+			processSteamModResults(context, [
 				createWorkshopDetails({
 					publishedFileId: BigInt(77),
 					title: 'Unknown Dependencies',
@@ -185,8 +207,9 @@ describe('ModFetcher', () => {
 				})
 			])
 		).resolves.toEqual([
-			expect.not.objectContaining({
-				steamDependencies: expect.any(Array),
+			expect.objectContaining({
+				steamDependencies: undefined,
+				steamDependencyNames: undefined,
 				steamDependenciesFetchedAt: expect.any(Number)
 			})
 		]);
@@ -208,10 +231,10 @@ describe('ModFetcher', () => {
 				)
 			);
 		});
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
 		await expect(
-			fetcher.processSteamModResults([
+			processSteamModResults(context, [
 				createWorkshopDetails({
 					publishedFileId: BigInt(77),
 					title: 'Parent',
@@ -271,9 +294,9 @@ describe('ModFetcher', () => {
 		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
 		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 		vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
 
-		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([
+		await expect(fetchWorkshopMods(context)).resolves.toEqual([
 			expect.objectContaining({
 				workshopID: BigInt(77),
 				steamDependencies: [BigInt(11)],
@@ -381,6 +404,42 @@ describe('ModFetcher', () => {
 		).toEqual(new Set());
 	});
 
+	it('uses Workshop dependency names for NuterraSteam expansion when the raw Workshop id is unknown', () => {
+		const stableNuterraWorkshopID = BigInt(2484820102);
+		const renamedBetaDependencyID = BigInt(999999999);
+		const workshopMap = new Map<bigint, { uid: string; id: string; name: string }>([
+			[
+				stableNuterraWorkshopID,
+				{
+					uid: `workshop:${stableNuterraWorkshopID}`,
+					id: 'NuterraSteam',
+					name: 'NuterraSteam'
+				}
+			]
+		]);
+		const parentMod = {
+			uid: 'workshop:1',
+			id: 'NeedsNuterra',
+			type: ModType.WORKSHOP,
+			hasCode: false,
+			steamDependencies: [renamedBetaDependencyID],
+			steamDependencyNames: {
+				[renamedBetaDependencyID.toString()]: 'NuterraSteam (Beta)'
+			}
+		};
+
+		expect(
+			collectMissingWorkshopDependencies([parentMod], workshopMap as never, new Set(), {
+				treatNuterraSteamBetaAsEquivalent: true
+			})
+		).toEqual(new Set());
+		expect(
+			collectMissingWorkshopDependencies([parentMod], workshopMap as never, new Set(), {
+				treatNuterraSteamBetaAsEquivalent: false
+			})
+		).toEqual(new Set([renamedBetaDependencyID]));
+	});
+
 	it('re-adds NuterraSteam Beta as a missing workshop dependency when compatibility is disabled', () => {
 		const stableNuterraWorkshopID = BigInt(2484820102);
 		const betaNuterraWorkshopID = BigInt(2790966966);
@@ -448,9 +507,9 @@ describe('ModFetcher', () => {
 		const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation(() => {
 			throw new Error('workshop scan should have been skipped');
 		});
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([]);
+		await expect(fetchWorkshopMods(context)).resolves.toEqual([]);
 
 		expect(isAppInstalled).toHaveBeenCalledWith(285920);
 		expect(getAppInstallDir).toHaveBeenCalledWith(285920);
@@ -468,9 +527,9 @@ describe('ModFetcher', () => {
 		const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation(() => {
 			throw new Error('linux workshop scans should not query user items');
 		});
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([]);
+		await expect(fetchWorkshopMods(context)).resolves.toEqual([]);
 
 		expect(isAppInstalled).toHaveBeenCalledWith(285920);
 		expect(getAppInstallDir).toHaveBeenCalledWith(285920);
@@ -548,9 +607,9 @@ describe('ModFetcher', () => {
 			vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Test Author');
 			vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 
-			const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
+			const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-			await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([
+			await expect(fetchWorkshopMods(context)).resolves.toEqual([
 				expect.objectContaining({
 					uid: `workshop:${validWorkshopID}`,
 					workshopID: validWorkshopID,
@@ -585,9 +644,9 @@ describe('ModFetcher', () => {
 		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.None);
 		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
 
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [explicitWorkshopID], 'linux');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [explicitWorkshopID], 'linux');
 
-		await expect(fetcher.fetchWorkshopMods()).resolves.toEqual([
+		await expect(fetchWorkshopMods(context)).resolves.toEqual([
 			expect.objectContaining({
 				uid: `workshop:${explicitWorkshopID}`,
 				workshopID: explicitWorkshopID,
@@ -645,9 +704,9 @@ describe('ModFetcher', () => {
 		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
 		const getFriendPersonaName = vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Author One');
 		const requestUserInformation = vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
-		const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'linux');
+		const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'linux');
 
-		await expect(fetcher.fetchWorkshopMods()).resolves.toMatchObject([
+		await expect(fetchWorkshopMods(context)).resolves.toMatchObject([
 			{
 				workshopID: BigInt(42),
 				name: 'Workshop Title',
@@ -701,8 +760,9 @@ describe('ModFetcher', () => {
 			vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
 			vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
 
-			const fetcher = new ModFetcher({ send: vi.fn() }, undefined, [], 'win32');
-			const mod = await fetcher.buildWorkshopMod(
+			const context = createModInventoryContext({ send: vi.fn() }, undefined, [], 'win32');
+			const mod = await buildWorkshopMod(
+				context,
 				workshopID,
 				createWorkshopDetails({
 					publishedFileId: workshopID,

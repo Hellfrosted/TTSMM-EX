@@ -10,6 +10,8 @@ use io_unity::type_tree::{convert::TryCastFrom, TypeTreeObjectRef};
 use io_unity::unity_asset_view::UnityAssetViewer;
 use serde::Serialize;
 
+const MAX_EMBEDDED_FALLBACK_BYTES: u64 = 32 * 1024 * 1024;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ExtractedTextAsset {
@@ -149,6 +151,13 @@ fn extract_text_assets(path: &Path) -> Result<Vec<ExtractedTextAsset>> {
 }
 
 fn extract_embedded_text_fallback(path: &Path) -> Vec<ExtractedTextAsset> {
+    if fs::metadata(path)
+        .map(|metadata| metadata.len() > MAX_EMBEDDED_FALLBACK_BYTES)
+        .unwrap_or(true)
+    {
+        return Vec::new();
+    }
+
     let Ok(bytes) = fs::read(path) else {
         return Vec::new();
     };

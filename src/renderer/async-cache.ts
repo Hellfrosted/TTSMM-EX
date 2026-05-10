@@ -3,6 +3,7 @@ import { hydrateSessionMods, type AppConfig } from 'model';
 import type { ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
+import type { AuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { createCollectionContentSaveRequest } from 'shared/collection-content-save';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
@@ -178,19 +179,26 @@ async function buildBlockLookupIndexMutationFn(request: BlockLookupBuildRequest)
 }
 
 export function useBuildBlockLookupIndexMutation() {
-	const queryClient = useQueryClient();
-
 	return useMutation({
-		mutationFn: buildBlockLookupIndexMutationFn,
-		onSuccess: async (result) => {
-			setBlockLookupBootstrapQueryData(queryClient, [result.settings, result.stats]);
-			await invalidateBlockLookupSearchQueries(queryClient);
-		}
+		mutationFn: buildBlockLookupIndexMutationFn
 	});
 }
 
 function setCollectionQueryData(queryClient: QueryClient, collection: ModCollection) {
 	queryClient.setQueryData(queryKeys.collections.detail(collection.name), collection);
+}
+
+function getCachedCollectionDetailNames(queryClient: QueryClient) {
+	return queryClient
+		.getQueryCache()
+		.findAll({ queryKey: queryKeys.collections.root() })
+		.flatMap((query) => {
+			const queryKey = query.queryKey;
+			if (queryKey[0] === 'collections' && queryKey[1] === 'detail' && typeof queryKey[2] === 'string') {
+				return [queryKey[2]];
+			}
+			return [];
+		});
 }
 
 async function updateCollectionMutationFn(collection: ModCollection): Promise<CollectionContentSaveResult> {
@@ -210,9 +218,10 @@ export function useUpdateCollectionMutation() {
 	});
 }
 
-export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, result: Extract<CollectionLifecycleResult, { ok: true }>) {
+export function applyAuthoritativeCollectionStateToCache(queryClient: QueryClient, result: AuthoritativeCollectionState) {
 	const nextCollectionNames = new Set(result.collectionNames);
 	const currentCollectionNames = queryClient.getQueryData<string[]>(queryKeys.collections.list()) ?? [];
+	const cachedDetailNames = getCachedCollectionDetailNames(queryClient);
 
 	setConfigQueryData(queryClient, result.config);
 	queryClient.setQueryData(queryKeys.collections.list(), result.collectionNames);
@@ -220,7 +229,7 @@ export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, 
 		setCollectionQueryData(queryClient, collection);
 	});
 
-	currentCollectionNames.forEach((collectionName) => {
+	new Set([...currentCollectionNames, ...cachedDetailNames]).forEach((collectionName) => {
 		if (!nextCollectionNames.has(collectionName)) {
 			queryClient.removeQueries({
 				queryKey: queryKeys.collections.detail(collectionName),
@@ -230,10 +239,14 @@ export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, 
 	});
 }
 
+export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, result: Extract<CollectionLifecycleResult, { ok: true }>) {
+	applyAuthoritativeCollectionStateToCache(queryClient, result);
+}
+
 export function setBlockLookupBootstrapQueryData(queryClient: QueryClient, data: BlockLookupBootstrapQueryData) {
 	queryClient.setQueryData(queryKeys.blockLookup.bootstrap(), data);
 }
 
-function invalidateBlockLookupSearchQueries(queryClient: QueryClient) {
+export function invalidateBlockLookupSearchQueries(queryClient: QueryClient) {
 	return queryClient.invalidateQueries({ queryKey: queryKeys.blockLookup.searchRoot() });
 }

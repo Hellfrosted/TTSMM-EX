@@ -1,6 +1,15 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow, type WebContentsConsoleMessageEventParams } from 'electron';
+import {
+	app,
+	BrowserWindow,
+	session,
+	type Event as ElectronEvent,
+	type Extension,
+	type LoadExtensionOptions,
+	type Session,
+	type WebContentsConsoleMessageEventParams
+} from 'electron';
 import log from 'electron-log';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 
@@ -37,6 +46,14 @@ interface RendererConsoleForwardOptions {
 	mirrorToConsole?: boolean;
 }
 
+interface DevtoolsExtensionInstallOptions {
+	chromeStoreId: string;
+	downloadChromeExtension: (chromeStoreID: string, options?: { attempts?: number; forceDownload?: boolean }) => Promise<string>;
+	forceDownload?: boolean;
+	loadExtensionOptions?: LoadExtensionOptions;
+	targetSession?: Pick<Session, 'extensions'>;
+}
+
 export function resolveSteamAppIdFilePath({
 	isPackaged = app.isPackaged,
 	cwd = process.cwd(),
@@ -67,13 +84,57 @@ export function ensureSteamAppIdFile(options: SteamAppIdFileOptions = {}) {
 	}
 }
 
+export async function installDevtoolsExtension({
+	chromeStoreId,
+	downloadChromeExtension,
+	forceDownload = false,
+	loadExtensionOptions,
+	targetSession = session.defaultSession
+}: DevtoolsExtensionInstallOptions): Promise<Extension> {
+	const extensionHost = targetSession.extensions;
+	const installedExtension = extensionHost.getAllExtensions().find((extension) => extension.id === chromeStoreId);
+
+	if (!forceDownload && installedExtension) {
+		return installedExtension;
+	}
+
+	const extensionFolder = await downloadChromeExtension(chromeStoreId, { forceDownload });
+
+	if (installedExtension?.id) {
+		const unloadPromise = new Promise<void>((resolve) => {
+			const handler = (_event: ElectronEvent, extension: Extension) => {
+				if (extension.id !== installedExtension.id) {
+					return;
+				}
+				extensionHost.removeListener('extension-unloaded', handler);
+				resolve();
+			};
+
+			extensionHost.on('extension-unloaded', handler);
+		});
+		extensionHost.removeExtension(installedExtension.id);
+		await unloadPromise;
+	}
+
+	return extensionHost.loadExtension(extensionFolder, loadExtensionOptions);
+}
+
 async function installExtensions() {
 	const installer = await import('electron-devtools-installer');
+	const { downloadChromeExtension } = await import('electron-devtools-installer/dist/downloadChromeExtension');
 	const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
 	const extensions = [installer.REACT_DEVELOPER_TOOLS];
 
 	try {
-		const installedExtensions = await installer.installExtension(extensions, { forceDownload });
+		const installedExtensions = await Promise.all(
+			extensions.map((extension) =>
+				installDevtoolsExtension({
+					chromeStoreId: extension.id,
+					downloadChromeExtension,
+					forceDownload
+				})
+			)
+		);
 		const installedNames = installedExtensions.map((extension) => extension.name).join(', ');
 		log.info(`Installed devtools extensions: ${installedNames}`);
 		return installedExtensions;

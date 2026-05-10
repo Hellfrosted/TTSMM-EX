@@ -9,7 +9,7 @@ import { getStoredViewPath } from 'renderer/util/view-path';
 interface MenuProps {
 	disableNavigation?: boolean;
 	config: AppConfig;
-	firstModLoad: boolean;
+	onWorkspacePreview?: (path: string) => void;
 	updateState: AppState['updateState'];
 }
 
@@ -19,7 +19,7 @@ const navigationItems = [
 	{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
 ];
 
-export default function MenuBar({ config, disableNavigation, firstModLoad, updateState }: MenuProps) {
+export default function MenuBar({ config, disableNavigation, onWorkspacePreview, updateState }: MenuProps) {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const configRef = useRef(config);
@@ -126,16 +126,15 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 				return;
 			}
 
-			const shouldLoadModsOnNavigate = !firstModLoad && nextPath.startsWith('/collections');
-			startTransition(() => {
-				if (shouldLoadModsOnNavigate) {
-					updateState({ loadingMods: true });
-				}
-				void navigate(nextPath);
-			});
+			onWorkspacePreview?.(nextPath);
+			window.setTimeout(() => {
+				startTransition(() => {
+					void navigate(nextPath);
+				});
+			}, 0);
 			schedulePathPersist(nextPath);
 		},
-		[disableNavigation, firstModLoad, navigate, schedulePathPersist, selectedPath, updateState]
+		[disableNavigation, navigate, onWorkspacePreview, schedulePathPersist, selectedPath]
 	);
 
 	useEffect(() => {

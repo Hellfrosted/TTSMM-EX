@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
@@ -8,10 +8,13 @@ import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
 import { createTestQueryClient } from './test-utils';
 import type { AppConfig, ModCollection } from '../../model';
+import { queryKeys } from '../../renderer/async-cache';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
+	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
+	const allCollections = useAppStateSelector((state) => state.allCollections);
 	const config = useAppStateSelector((state) => state.config);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
 
@@ -19,6 +22,8 @@ function ConfigLoadingHarness() {
 		<>
 			<div data-testid="location">{location.pathname}</div>
 			<div data-testid="active-collection">{activeCollection?.name || ''}</div>
+			<div data-testid="collection-count">{allCollections.size}</div>
+			<div data-testid="collection-names">{Array.from(allCollectionNames).join(',')}</div>
 			<div data-testid="config-active-collection">{config.activeCollection || ''}</div>
 			<div data-testid="config-game-exec">{config.gameExec || ''}</div>
 			<div data-testid="loading-mods">{String(loadingMods)}</div>
@@ -27,12 +32,12 @@ function ConfigLoadingHarness() {
 	);
 }
 
-function ConfigLoadingAppHarness() {
+function ConfigLoadingAppHarness({ queryClient }: { queryClient?: QueryClient }) {
 	const navigate = useNavigate();
-	const [queryClient] = React.useState(() => createTestQueryClient());
+	const [ownedQueryClient] = React.useState(() => queryClient ?? createTestQueryClient());
 
 	return (
-		<QueryClientProvider client={queryClient}>
+		<QueryClientProvider client={ownedQueryClient}>
 			<AppStateProvider navigate={navigate}>
 				<ConfigLoadingHarness />
 			</AppStateProvider>
@@ -250,6 +255,36 @@ describe('ConfigLoading', () => {
 		});
 	});
 
+	it('caches the normalized startup route after applying authoritative collection state', async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/settings',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
+			startupSuccess(config, { name: 'default', mods: [] })
+		);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness queryClient={queryClient} />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
+			expect(queryClient.getQueryData<AppConfig>(queryKeys.config.current())).toEqual(
+				expect.objectContaining({ currentPath: '/collections/main', activeCollection: 'default' })
+			);
+		});
+	});
+
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
@@ -308,6 +343,8 @@ describe('ConfigLoading', () => {
 		await waitFor(() => {
 			expect(window.electron.resolveStartupCollection).toHaveBeenCalledOnce();
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
+			expect(screen.getAllByTestId('collection-count').at(-1)).toHaveTextContent('2');
+			expect(screen.getAllByTestId('collection-names').at(-1)).toHaveTextContent('alpha,zeta');
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
 		});
 	});

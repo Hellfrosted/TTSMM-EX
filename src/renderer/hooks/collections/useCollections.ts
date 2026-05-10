@@ -1,9 +1,9 @@
 import { startTransition, useCallback, useMemo, useState } from 'react';
-import { cloneCollection, ModCollection, ModType } from 'model';
+import { cloneCollection, ModCollection, ModType, type ModData } from 'model';
 import type { NotificationProps } from 'model';
 import api from 'renderer/Api';
 import { useUpdateCollectionMutation } from 'renderer/async-cache';
-import { createCollectionWriteQueue, runCollectionContentSave } from 'renderer/collection-content-save';
+import { createCollectionWriteQueue } from 'renderer/collection-content-save';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import {
 	createCollectionDraftEditWorkflow,
@@ -14,7 +14,7 @@ import {
 	type CollectionDraftEditWorkflow
 } from 'renderer/collection-workspace-session';
 import type { NotificationType } from './useNotifications';
-import { useCollectionLifecycleCommands } from './useCollectionLifecycleCommands';
+import { type CollectionContentSaveCommandOptions, useCollectionLifecycleCommands } from './useCollectionLifecycleCommands';
 import { useCollectionRowProjection } from './useCollectionRowProjection';
 
 interface UseCollectionsOptions {
@@ -30,6 +30,28 @@ interface UseCollectionsOptions {
 	};
 }
 
+interface UseCollectionsResult {
+	changeActiveCollection: (name: string) => Promise<void>;
+	createNewCollection: (name: string, mods?: string[]) => Promise<void>;
+	deleteCollection: () => Promise<void>;
+	duplicateCollection: (name: string) => Promise<void>;
+	filteredRows: ModData[] | undefined;
+	getModManagerUID: () => string;
+	madeEdits: boolean;
+	onSearch: (search: string) => void;
+	onSearchChange: (search: string) => void;
+	persistCollection: (collection: ModCollection) => Promise<boolean>;
+	recalculateModData: () => void;
+	renameCollection: (name: string) => Promise<void>;
+	saveCollection: (collection: ModCollection, pureSave: boolean, options?: CollectionContentSaveCommandOptions) => Promise<boolean>;
+	savingCollection: boolean;
+	searchString: string;
+	setEnabledMods: (enabledMods: Set<string>) => void;
+	setMadeEdits: (madeEdits: boolean) => void;
+	setModSubset: (changes: { [uid: string]: boolean }) => void;
+	toggleMod: (checked: boolean, uid: string) => void;
+}
+
 export function useCollections({
 	appState,
 	draftState,
@@ -38,7 +60,7 @@ export function useCollections({
 	onCollectionContentSaveCompleted,
 	onCollectionLifecycleResultApplied,
 	onDraftEditWorkflow
-}: UseCollectionsOptions) {
+}: UseCollectionsOptions): UseCollectionsResult {
 	const [savingCollection, setSavingCollection] = useState(false);
 	const [localMadeEdits, setLocalMadeEdits] = useState(false);
 	const collectionWriteQueue = useMemo(() => createCollectionWriteQueue(), []);
@@ -84,33 +106,6 @@ export function useCollections({
 			}
 		},
 		[updateCollectionFileMutation]
-	);
-
-	const persistCollection = useCallback(
-		(collection: ModCollection) => {
-			return runQueuedCollectionWrite(async () => {
-				const saveOutcome = await runCollectionContentSave({
-					collection,
-					hasUnsavedDraft: madeEdits,
-					logger: api.logger,
-					persistCollectionFile,
-					pureSave: true
-				});
-				if (saveOutcome.notification) {
-					openNotification(saveOutcome.notification.props, saveOutcome.notification.type);
-				}
-				if (onCollectionContentSaveCompleted) {
-					onCollectionContentSaveCompleted({
-						pureSave: true,
-						writeAccepted: saveOutcome.writeAccepted
-					});
-				} else if (saveOutcome.nextHasUnsavedDraft !== madeEdits) {
-					setMadeEdits(saveOutcome.nextHasUnsavedDraft);
-				}
-				return saveOutcome.writeAccepted;
-			});
-		},
-		[madeEdits, onCollectionContentSaveCompleted, openNotification, persistCollectionFile, runQueuedCollectionWrite, setMadeEdits]
 	);
 
 	const applyActiveCollectionDraft = useCallback(
@@ -201,6 +196,11 @@ export function useCollections({
 			setMadeEdits,
 			setSavingCollection
 		});
+
+	const persistCollection = useCallback(
+		(collection: ModCollection) => saveCollection(collection, true, { showSuccessNotification: false }),
+		[saveCollection]
+	);
 
 	return {
 		searchString,

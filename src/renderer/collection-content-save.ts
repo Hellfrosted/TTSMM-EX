@@ -1,7 +1,7 @@
 import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import type { NotificationType } from './hooks/collections/useNotifications';
-import { applyCollectionContentSaveResult } from './collection-workspace-session';
+import type { CollectionContentSaveCompletion } from './collection-workspace-session';
 
 interface CollectionContentSaveLogger {
 	error: (message?: unknown, ...optionalParams: unknown[]) => void;
@@ -13,7 +13,7 @@ interface CollectionContentSaveNotification {
 }
 
 interface CollectionContentSaveOutcome {
-	nextHasUnsavedDraft: boolean;
+	completion: CollectionContentSaveCompletion;
 	notification?: CollectionContentSaveNotification;
 	result: CollectionContentSaveResult;
 	targetCollection: ModCollection;
@@ -22,7 +22,6 @@ interface CollectionContentSaveOutcome {
 
 interface CollectionContentSaveInput {
 	collection: ModCollection;
-	hasUnsavedDraft: boolean;
 	logger: CollectionContentSaveLogger;
 	persistCollectionFile: (collection: ModCollection) => Promise<CollectionContentSaveResult>;
 	pureSave: boolean;
@@ -69,12 +68,6 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 	}
 	const writeAccepted = result.ok;
 
-	const saveResult = applyCollectionContentSaveResult({
-		hasUnsavedDraft: input.hasUnsavedDraft,
-		pureSave: input.pureSave,
-		writeAccepted
-	});
-
 	const notification: CollectionContentSaveNotification | undefined = writeAccepted
 		? input.showSuccessNotification
 			? {
@@ -96,7 +89,10 @@ export async function runCollectionContentSave(input: CollectionContentSaveInput
 			};
 
 	return {
-		nextHasUnsavedDraft: saveResult.hasUnsavedDraft,
+		completion: {
+			pureSave: input.pureSave,
+			writeAccepted
+		},
 		notification,
 		result,
 		targetCollection,

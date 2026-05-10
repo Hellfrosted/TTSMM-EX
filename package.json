@@ -14,6 +14,7 @@
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"prepare": "husky",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
+		"lint-staged": "lint-staged",
 		"lint": "pnpm run lint:biome",
 		"lint:biome": "biome check .",
 		"lint:fix": "biome check . --write --unsafe",
@@ -28,6 +29,7 @@
 		"test": "vitest run",
 		"typecheck": "tsc -b",
 		"validate": "pnpm run lint && pnpm run deadcode && pnpm run typecheck && pnpm test && pnpm run build",
+		"verify:push": "pnpm run validate",
 		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
 		"bump": "node --import=tsx ./scripts/version.ts"
 	},

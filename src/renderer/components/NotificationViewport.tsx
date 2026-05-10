@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 import {
@@ -39,7 +39,7 @@ function getToastClassName(tone: ReturnType<typeof getNotificationTone>, classNa
 	const toneClassName = getStatusSurfaceClassName(tone);
 
 	return [
-		'pointer-events-auto grid grid-cols-[minmax(0,1fr)_28px] gap-2.5 rounded-md border p-3 text-text shadow-[0_14px_32px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
+		'NotificationToast pointer-events-auto grid grid-cols-[minmax(0,1fr)_28px] gap-2.5 rounded-sm border p-3 text-text shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
 		toneClassName,
 		className
 	]
@@ -71,29 +71,64 @@ type NotificationAction =
 	| {
 			id: string;
 			type: 'close';
+	  }
+	| {
+			id: string;
+			type: 'remove';
 	  };
 
-function reduceNotifications(notifications: AppNotification[], action: NotificationAction) {
+type RenderedNotification = AppNotification & {
+	renderState: 'closing' | 'open';
+};
+
+function reduceNotifications(notifications: RenderedNotification[], action: NotificationAction) {
 	switch (action.type) {
 		case 'add': {
-			const nextNotification = action.notification;
+			const nextNotification: RenderedNotification = { ...action.notification, renderState: 'open' };
 			if (nextNotification.props.key) {
 				return [...notifications.filter((notification) => notification.props.key !== nextNotification.props.key), nextNotification];
 			}
 			return [...notifications, nextNotification];
 		}
 		case 'close':
+			return notifications.map((notification) =>
+				notification.id === action.id ? { ...notification, renderState: 'closing' as const } : notification
+			);
+		case 'remove':
 			return notifications.filter((notification) => notification.id !== action.id);
 	}
 }
 
 export function NotificationViewport() {
 	const [notifications, dispatchNotifications] = useReducer(reduceNotifications, []);
+	const closingIdsRef = useRef(new Set<string>());
+	const closeTimersRef = useRef(new Map<string, number>());
+	const clearCloseState = useCallback((id: string) => {
+		const timeoutId = closeTimersRef.current.get(id);
+		if (timeoutId !== undefined) {
+			window.clearTimeout(timeoutId);
+			closeTimersRef.current.delete(id);
+		}
+		closingIdsRef.current.delete(id);
+	}, []);
 	const closeNotification = useCallback(
 		(id: string) => {
 			const target = notifications.find((notification) => notification.id === id);
+			if (!target || closingIdsRef.current.has(id)) {
+				return;
+			}
+
+			closingIdsRef.current.add(id);
 			target?.props.onClose?.();
 			dispatchNotifications({ type: 'close', id });
+			const timeoutId = window.setTimeout(() => {
+				closeTimersRef.current.delete(id);
+				if (!closingIdsRef.current.delete(id)) {
+					return;
+				}
+				dispatchNotifications({ type: 'remove', id });
+			}, 180);
+			closeTimersRef.current.set(id, timeoutId);
 		},
 		[notifications]
 	);
@@ -101,6 +136,7 @@ export function NotificationViewport() {
 	useEffect(() => {
 		const handleNotification = (event: Event) => {
 			const notificationEvent = event as AppNotificationEvent;
+			clearCloseState(notificationEvent.detail.id);
 			dispatchNotifications({ type: 'add', notification: notificationEvent.detail });
 		};
 
@@ -108,11 +144,21 @@ export function NotificationViewport() {
 		return () => {
 			window.removeEventListener(APP_NOTIFICATION_EVENT, handleNotification);
 		};
+	}, [clearCloseState]);
+
+	useEffect(() => {
+		return () => {
+			closeTimersRef.current.forEach((timeoutId) => {
+				window.clearTimeout(timeoutId);
+			});
+			closeTimersRef.current.clear();
+			closingIdsRef.current.clear();
+		};
 	}, []);
 
 	useEffect(() => {
 		const timeoutIds = notifications.reduce<number[]>((ids, notification) => {
-			if (notification.props.duration === null) {
+			if (notification.renderState === 'closing' || notification.props.duration === null) {
 				return ids;
 			}
 			const durationSeconds = notification.props.duration ?? 4.5;
@@ -131,7 +177,7 @@ export function NotificationViewport() {
 		};
 	}, [closeNotification, notifications]);
 
-	const groupedNotifications = notifications.reduce<Record<string, AppNotification[]>>((acc, notification) => {
+	const groupedNotifications = notifications.reduce<Record<string, RenderedNotification[]>>((acc, notification) => {
 		const placement = notification.props.placement || 'topRight';
 		acc[placement] = [...(acc[placement] || []), notification];
 		return acc;
@@ -163,6 +209,8 @@ export function NotificationViewport() {
 							<div
 								key={id}
 								className={getToastClassName(tone, notificationProps.className)}
+								data-placement={placement}
+								data-state={notification.renderState}
 								style={{
 									...notificationProps.style,
 									top: notificationProps.top,

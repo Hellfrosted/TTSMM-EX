@@ -6,7 +6,15 @@ import MenuBar from '../../renderer/components/MenuBar';
 import { createAppState } from './test-utils';
 import type { AppConfig } from '../../model';
 
-function MenuBarHarness({ appState, disableNavigation }: { appState: ReturnType<typeof createAppState>; disableNavigation?: boolean }) {
+function MenuBarHarness({
+	appState,
+	disableNavigation,
+	onWorkspacePreview
+}: {
+	appState: ReturnType<typeof createAppState>;
+	disableNavigation?: boolean;
+	onWorkspacePreview?: (path: string) => void;
+}) {
 	const location = useLocation();
 
 	return (
@@ -15,7 +23,7 @@ function MenuBarHarness({ appState, disableNavigation }: { appState: ReturnType<
 			<MenuBar
 				config={appState.config}
 				disableNavigation={disableNavigation}
-				firstModLoad={appState.firstModLoad}
+				onWorkspacePreview={onWorkspacePreview}
 				updateState={appState.updateState}
 			/>
 			<div data-testid="persisted-path">{appState.config.currentPath}</div>
@@ -199,35 +207,37 @@ describe('MenuBar', () => {
 		expect(window.electron.updateConfig).not.toHaveBeenCalled();
 	}, 10000);
 
-	it('starts the initial mod load only when entering collections before mods have loaded', async () => {
+	it('previews workspace navigation without starting a mod reload on ordinary collection entry', async () => {
 		const appState = createAppState({
 			config: {
 				...createAppState().config,
 				currentPath: '/settings'
-			},
-			firstModLoad: false
+			}
 		});
+		const onWorkspacePreview = vi.fn();
 
 		const view = render(
 			<MemoryRouter initialEntries={['/settings']}>
 				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} />} />
+					<Route path="*" element={<MenuBarHarness appState={appState} onWorkspacePreview={onWorkspacePreview} />} />
 				</Routes>
 			</MemoryRouter>
 		);
 		const harness = getHarness(view.container);
 
 		fireEvent.click(getBlockLookupMenuItem(view.container));
+		expect(onWorkspacePreview).toHaveBeenLastCalledWith('/block-lookup');
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
 		});
 		expect(appState.updateState).not.toHaveBeenCalled();
 
 		fireEvent.click(getCollectionsMenuItem(view.container));
+		expect(onWorkspacePreview).toHaveBeenLastCalledWith('/collections/main');
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/collections/main');
 		});
-		expect(appState.updateState).toHaveBeenCalledWith({ loadingMods: true });
+		expect(appState.updateState).not.toHaveBeenCalled();
 	}, 10000);
 
 	it('rolls back to the last persisted path when a later navigation write fails', async () => {

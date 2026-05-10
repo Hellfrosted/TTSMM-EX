@@ -18,7 +18,11 @@ import {
 	CollectionManagerModalType,
 	getCollectionStatusTags
 } from 'model';
-import { isWorkshopDependencySnapshotStale } from 'shared/workshop-dependency-snapshot';
+import {
+	getWorkshopDependencySnapshotState,
+	shouldRefreshWorkshopDependencySnapshot,
+	type WorkshopDependencySnapshotState
+} from 'shared/workshop-dependency-snapshot';
 import { formatDateStr } from 'util/Date';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
@@ -263,6 +267,31 @@ function dependencyLookupReducer(state: DependencyLookupState, action: Dependenc
 	}
 }
 
+function getUnknownWorkshopDependencyLookupMessage() {
+	return 'Steamworks did not provide Workshop dependency metadata for this mod.';
+}
+
+function getWorkshopDependencyEmptyText(recordType: ModType, snapshotState: WorkshopDependencySnapshotState) {
+	if (recordType !== ModType.WORKSHOP) {
+		return undefined;
+	}
+
+	switch (snapshotState.kind) {
+		case 'known-empty':
+			return 'Steamworks reports no Workshop dependencies for this mod.';
+		case 'stale-known-empty':
+			return 'Steamworks last reported no Workshop dependencies for this mod.';
+		case 'unknown':
+		case 'stale-unknown':
+			return 'Workshop dependency metadata is unknown for this mod.';
+		case 'never-checked':
+			return 'Workshop dependency metadata has not been checked for this mod.';
+		case 'known':
+		case 'stale-known':
+			return 'No Workshop dependencies are known for this mod.';
+	}
+}
+
 const NAME_SCHEMA: DetailColumn = {
 	title: 'Name',
 	dataIndex: 'name',
@@ -408,6 +437,14 @@ function useModDetailsFooterContent({
 	const currentRecordWorkshopID = currentRecord.workshopID;
 	const currentRecordSteamDependencies = currentRecord.steamDependencies;
 	const currentRecordSteamDependenciesFetchedAt = currentRecord.steamDependenciesFetchedAt;
+	const currentRecordWorkshopDependencySnapshotState = useMemo(
+		() =>
+			getWorkshopDependencySnapshotState({
+				steamDependencies: currentRecordSteamDependencies,
+				steamDependenciesFetchedAt: currentRecordSteamDependenciesFetchedAt
+			}),
+		[currentRecordSteamDependencies, currentRecordSteamDependenciesFetchedAt]
+	);
 
 	useEffect(() => {
 		if (dependencyLookupErrorUidRef.current !== currentRecordUid) {
@@ -434,9 +471,11 @@ function useModDetailsFooterContent({
 	}, [activeTabKey]);
 
 	useEffect(() => {
-		const dependencySnapshotMissing = currentRecordSteamDependencies === undefined && currentRecordSteamDependenciesFetchedAt === undefined;
-		const shouldRefreshWorkshopDependencies =
-			dependencySnapshotMissing || isWorkshopDependencySnapshotStale(currentRecordSteamDependenciesFetchedAt);
+		const currentWorkshopDependencySnapshotState = getWorkshopDependencySnapshotState({
+			steamDependencies: currentRecordSteamDependencies,
+			steamDependenciesFetchedAt: currentRecordSteamDependenciesFetchedAt
+		});
+		const shouldRefreshWorkshopDependencies = shouldRefreshWorkshopDependencySnapshot(currentWorkshopDependencySnapshotState);
 		const shouldRunManualLookup = manualLookupRequest !== handledManualDependencyLookupRequestRef.current;
 
 		if (
@@ -474,10 +513,7 @@ function useModDetailsFooterContent({
 					if (!cancelled) {
 						dispatchDependencyLookup({
 							type: 'lookup-unknown',
-							message:
-								currentRecordSteamDependencies && currentRecordSteamDependencies.length > 0
-									? 'Showing previously known Workshop dependencies. Steamworks did not provide a newer dependency list.'
-									: undefined
+							message: getUnknownWorkshopDependencyLookupMessage()
 						});
 					}
 					return;
@@ -510,11 +546,11 @@ function useModDetailsFooterContent({
 		};
 	}, [
 		activeTabKey,
+		currentRecordSteamDependencies,
+		currentRecordSteamDependenciesFetchedAt,
 		currentRecordUid,
 		currentRecordType,
 		currentRecordWorkshopID,
-		currentRecordSteamDependencies,
-		currentRecordSteamDependenciesFetchedAt,
 		dependencyLookupError,
 		manualLookupRequest
 	]);
@@ -930,7 +966,7 @@ function useModDetailsFooterContent({
 					dispatchDependencyLookup({ type: 'retry-requested' });
 				}}
 				requiredDependencyColumns={requiredDependencyColumns}
-				requiredEmptyText={currentRecordType === ModType.WORKSHOP ? 'No Workshop dependencies are known for this mod.' : undefined}
+				requiredEmptyText={getWorkshopDependencyEmptyText(currentRecordType, currentRecordWorkshopDependencySnapshotState)}
 				requiredDependencyRowSelection={requiredDependencyRowSelection}
 				requiredModData={requiredModData}
 			/>

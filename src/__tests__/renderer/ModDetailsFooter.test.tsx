@@ -283,7 +283,7 @@ describe('ModDetailsFooter', () => {
 		});
 	});
 
-	it('keeps missing workshop dependency metadata as a neutral empty state', async () => {
+	it('shows unknown Workshop dependency metadata without presenting it as known empty', async () => {
 		const workshopMod = {
 			uid: 'workshop:77',
 			type: ModType.WORKSHOP,
@@ -327,7 +327,7 @@ describe('ModDetailsFooter', () => {
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
 			expect(screen.queryByText('Workshop dependency refresh failed')).not.toBeInTheDocument();
-			expect(screen.getByText('No Workshop dependencies are known for this mod.')).toBeInTheDocument();
+			expect(screen.getByText('Steamworks did not provide Workshop dependency metadata for this mod.')).toBeInTheDocument();
 			expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
 		});
 
@@ -382,9 +382,7 @@ describe('ModDetailsFooter', () => {
 
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
-			expect(
-				screen.getByText('Showing previously known Workshop dependencies. Steamworks did not provide a newer dependency list.')
-			).toBeInTheDocument();
+			expect(screen.getByText('Steamworks did not provide Workshop dependency metadata for this mod.')).toBeInTheDocument();
 			expect(screen.getByText('11')).toBeInTheDocument();
 			expect(screen.queryByText('Workshop dependency refresh failed')).not.toBeInTheDocument();
 		});
@@ -435,6 +433,55 @@ describe('ModDetailsFooter', () => {
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it('shows known empty Workshop Dependency Snapshots separately from unknown metadata', async () => {
+		const workshopMod = {
+			uid: 'workshop:77',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(77),
+			id: 'EmptyDependencyMod',
+			name: 'Empty Dependency Mod',
+			subscribed: true,
+			installed: true,
+			steamDependencies: [],
+			steamDependenciesFetchedAt: Date.now()
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+		const fetchWorkshopDependencies = vi.fn(async () => ({ status: 'updated' as const }));
+		Object.assign(window.electron, { fetchWorkshopDependencies });
+
+		setupDescriptors(mods, appState.config.userOverrides);
+		const [currentRecord] = mods.foundMods;
+
+		renderFooter({
+			bigDetails: false,
+			halfLayoutMode: 'bottom',
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			activeTabKey: 'dependencies',
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		});
+
+		expect(screen.getByText('Steamworks reports no Workshop dependencies for this mod.')).toBeInTheDocument();
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+		expect(fetchWorkshopDependencies).not.toHaveBeenCalled();
 	});
 
 	it('does not update ignored validation config when persisting that change fails', async () => {

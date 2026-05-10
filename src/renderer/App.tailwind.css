@@ -29,9 +29,16 @@
 	--color-error-action: var(--app-color-error-action);
 	--color-error-action-hover: var(--app-color-error-action-hover);
 	--color-success: var(--app-color-success);
+	--color-success-text: var(--app-color-success-text);
+	--color-success-surface: var(--app-color-success-surface);
 	--color-warning: var(--app-color-warning);
+	--color-warning-text: var(--app-color-warning-text);
+	--color-warning-surface: var(--app-color-warning-surface);
 	--color-error: var(--app-color-error-text);
+	--color-error-surface: var(--app-color-error-surface);
 	--color-info: var(--app-color-info);
+	--color-info-text: var(--app-color-info-text);
+	--color-info-surface: var(--app-color-info-surface);
 	--color-link: var(--app-color-link);
 	--color-surface: var(--app-color-surface);
 	--color-surface-alt: var(--app-color-surface-alt);
@@ -48,7 +55,7 @@
 	--color-table-row-selected: var(--app-color-table-row-selected);
 	--color-table-row-selected-hover: var(--app-color-table-row-selected-hover);
 	--color-tag-default-text: var(--app-color-tag-default-text);
-	--shadow-soft: 0 16px 40px var(--app-shadow-soft);
+	--shadow-soft: 0 10px 24px var(--app-shadow-soft);
 	--radius-sm: var(--app-radius-sm);
 	--radius-md: var(--app-radius-md);
 	--radius-lg: var(--app-radius-lg);

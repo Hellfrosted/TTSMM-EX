@@ -5,6 +5,7 @@ import {
 	MAIN_WINDOW_DEFAULT_BOUNDS,
 	ensureSteamAppIdFile,
 	forwardRendererConsoleMessage,
+	installDevtoolsExtension,
 	resolveSteamAppIdFilePath
 } from '../../main/window';
 import { createTempDir } from './test-utils';
@@ -73,6 +74,53 @@ describe('window helpers', () => {
 			minWidth: 720,
 			minHeight: 600
 		});
+	});
+
+	it('reuses an already loaded devtools extension without deprecated session APIs', async () => {
+		const loadedExtension = { id: 'react-devtools', name: 'React Developer Tools' };
+		const extensionHost = {
+			getAllExtensions: vi.fn(() => [loadedExtension]),
+			loadExtension: vi.fn(),
+			on: vi.fn(),
+			removeExtension: vi.fn(),
+			removeListener: vi.fn()
+		};
+		const downloadChromeExtension = vi.fn();
+
+		await expect(
+			installDevtoolsExtension({
+				chromeStoreId: 'react-devtools',
+				downloadChromeExtension,
+				targetSession: { extensions: extensionHost } as never
+			})
+		).resolves.toBe(loadedExtension);
+
+		expect(downloadChromeExtension).not.toHaveBeenCalled();
+		expect(extensionHost.loadExtension).not.toHaveBeenCalled();
+	});
+
+	it('loads a downloaded devtools extension through the extensions API', async () => {
+		const loadedExtension = { id: 'react-devtools', name: 'React Developer Tools' };
+		const extensionHost = {
+			getAllExtensions: vi.fn(() => []),
+			loadExtension: vi.fn(async () => loadedExtension),
+			on: vi.fn(),
+			removeExtension: vi.fn(),
+			removeListener: vi.fn()
+		};
+		const downloadChromeExtension = vi.fn(async () => path.join(tempDir, 'react-devtools'));
+
+		await expect(
+			installDevtoolsExtension({
+				chromeStoreId: 'react-devtools',
+				downloadChromeExtension,
+				forceDownload: true,
+				targetSession: { extensions: extensionHost } as never
+			})
+		).resolves.toBe(loadedExtension);
+
+		expect(downloadChromeExtension).toHaveBeenCalledWith('react-devtools', { forceDownload: true });
+		expect(extensionHost.loadExtension).toHaveBeenCalledWith(path.join(tempDir, 'react-devtools'), undefined);
 	});
 
 	it('swallows broken pipe errors while mirroring renderer console output', () => {

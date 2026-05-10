@@ -8,6 +8,8 @@ import Steamworks from './steamworks';
 const JSON_SUFFIXES = new Set(['.json']);
 const IGNORE_SUFFIXES = new Set(['.png', '.jpg', '.jpeg', '.gif', '.txt', '.xml', '.meta', '.ini', '.md', '.tdc']);
 const IGNORE_FILENAMES = new Set(['SteamVersion']);
+export const MAX_BLOCK_LOOKUP_JSON_DEPTH = 32;
+const MAX_BLOCK_LOOKUP_JSON_SOURCES_PER_MOD = 5_000;
 
 export interface BlockLookupSourceRecord {
 	workshopId: string;
@@ -232,6 +234,34 @@ function addSourceRecord(sourceMap: Map<string, BlockLookupSourceRecord>, source
 	}
 }
 
+function isPathInsideDirectory(parentDirectory: string, candidatePath: string) {
+	const relativePath = path.relative(parentDirectory, candidatePath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function resolveContainedDirectory(candidatePath: string, parentDirectory: string): string | null {
+	if (!fs.existsSync(candidatePath)) {
+		return null;
+	}
+
+	try {
+		const candidateStats = fs.statSync(candidatePath);
+		if (!candidateStats.isDirectory()) {
+			return null;
+		}
+
+		const realParent = fs.realpathSync(parentDirectory);
+		const realCandidate = fs.realpathSync(candidatePath);
+		if (!isPathInsideDirectory(realParent, realCandidate)) {
+			return null;
+		}
+
+		return candidatePath;
+	} catch {
+		return null;
+	}
+}
+
 function addModDirectorySources(sourceMap: Map<string, BlockLookupSourceRecord>, modDir: string, modSource?: BlockLookupModSource) {
 	if (!fs.existsSync(modDir) || !fs.statSync(modDir).isDirectory()) {
 		return;
@@ -250,16 +280,29 @@ function addModDirectorySources(sourceMap: Map<string, BlockLookupSourceRecord>,
 	});
 
 	const blockJsonDir = path.join(modDir, 'BlockJSON');
-	const jsonRoot = fs.existsSync(blockJsonDir) && fs.statSync(blockJsonDir).isDirectory() ? blockJsonDir : modDir;
-	const visitJson = (directory: string) => {
+	const jsonRoot = resolveContainedDirectory(blockJsonDir, modDir) ?? modDir;
+	let jsonSourcesForMod = 0;
+	const visitJson = (directory: string, depth = 0) => {
+		if (depth > MAX_BLOCK_LOOKUP_JSON_DEPTH || jsonSourcesForMod >= MAX_BLOCK_LOOKUP_JSON_SOURCES_PER_MOD) {
+			return;
+		}
+
 		for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+			if (jsonSourcesForMod >= MAX_BLOCK_LOOKUP_JSON_SOURCES_PER_MOD) {
+				return;
+			}
+
 			const childPath = path.join(directory, entry.name);
 			if (entry.isDirectory()) {
-				visitJson(childPath);
+				const containedChildPath = resolveContainedDirectory(childPath, modDir);
+				if (containedChildPath) {
+					visitJson(containedChildPath, depth + 1);
+				}
 				continue;
 			}
 			if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.json') {
 				addSourceRecord(sourceMap, createSourceRecord(childPath, 'json', workshopId, modTitle));
+				jsonSourcesForMod += 1;
 			}
 		}
 	};

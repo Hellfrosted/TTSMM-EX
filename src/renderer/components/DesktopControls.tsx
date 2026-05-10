@@ -80,11 +80,11 @@ export function DesktopButton({
 		>
 			{loading ? (
 				<span
-					className="size-3.5 shrink-0 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current motion-reduce:animate-none"
+					className="DesktopButtonSpinner size-3.5 shrink-0 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current motion-reduce:animate-none"
 					aria-hidden="true"
 				/>
 			) : icon ? (
-				<span className="inline-flex shrink-0 items-center">{icon}</span>
+				<span className="DesktopButtonIcon inline-flex shrink-0 items-center">{icon}</span>
 			) : null}
 			{children ? (
 				<span className={joinClassNames('DesktopButtonLabel inline-flex min-w-0 items-center', labelClassName)}>{children}</span>
@@ -133,7 +133,7 @@ export function DesktopIconButton({ children, className, type = 'button', ...pro
 			{...props}
 			type={type}
 			className={joinClassNames(
-				'DesktopIconButton inline-flex h-[calc(var(--app-control-height)-8px)] min-h-0 w-[calc(var(--app-control-height)-8px)] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
+				'DesktopIconButton inline-flex h-[calc(var(--app-control-height)-8px)] min-h-0 w-[calc(var(--app-control-height)-8px)] cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
 				desktopControlFocusClassName,
 				className
 			)}
@@ -161,7 +161,7 @@ export function DesktopSelect({ children, className, ...props }: SelectHTMLAttri
 		<select
 			{...props}
 			className={joinClassNames(
-				'box-border min-h-control w-full min-w-0 cursor-pointer rounded-md border border-border bg-surface-elevated py-0 pl-2.75 pr-8.5 font-inherit text-text',
+				'DesktopSelect box-border min-h-control w-full min-w-0 cursor-pointer rounded-sm border border-border bg-surface-elevated py-0 pl-2.75 pr-8.5 font-inherit text-text',
 				desktopControlFocusClassName,
 				desktopDisabledClassName,
 				className
@@ -304,6 +304,7 @@ export function DesktopDialog({
 			ref={overlayRef}
 			className={joinClassNames(
 				'fixed inset-0 z-1000 flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6',
+				'DesktopDialogOverlay',
 				overlayClassName
 			)}
 			role="presentation"
@@ -318,7 +319,8 @@ export function DesktopDialog({
 				aria-modal="true"
 				aria-labelledby={titleId}
 				className={joinClassNames(
-					'flex max-h-[min(680px,calc(100vh-48px))] w-[min(560px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
+					'flex max-h-[min(680px,calc(100vh-48px))] w-[min(560px,100%)] flex-col overflow-hidden rounded-sm border border-border bg-surface-elevated shadow-[0_10px_24px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]',
+					'DesktopDialogPanel',
 					panelClassName
 				)}
 				style={panelStyle}

@@ -308,33 +308,6 @@ function getBlockLookupEmptyText(stats: BlockLookupIndexStats | null, query: str
 	return 'No indexed blocks found.';
 }
 
-function getAvailableBlockLookupModFilters(rows: BlockLookupRecord[]) {
-	return Array.from(new Set(rows.map((record) => record.modTitle).filter((modTitle) => modTitle.trim()))).sort((left, right) =>
-		left.localeCompare(right)
-	);
-}
-
-function filterBlockLookupRowsByMods(rows: BlockLookupRecord[], selectedMods: string[]) {
-	if (selectedMods.length === 0) {
-		return rows;
-	}
-
-	const selectedModSet = new Set(selectedMods);
-	return rows.filter((record) => selectedModSet.has(record.modTitle));
-}
-
-function getBlockLookupRowRange(sortedRowKeys: string[], anchorRowKey: string | undefined, targetRowKey: string) {
-	const anchorIndex = anchorRowKey ? sortedRowKeys.indexOf(anchorRowKey) : -1;
-	const targetIndex = sortedRowKeys.indexOf(targetRowKey);
-	if (anchorIndex === -1 || targetIndex === -1) {
-		return [targetRowKey];
-	}
-
-	const start = Math.min(anchorIndex, targetIndex);
-	const end = Math.max(anchorIndex, targetIndex);
-	return sortedRowKeys.slice(start, end + 1);
-}
-
 function useCoarsePointer() {
 	const [coarsePointer, setCoarsePointer] = useState(false);
 
@@ -403,6 +376,7 @@ function BlockLookupDetailField({
 
 function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const {
+		availableModFilters,
 		buildingIndex,
 		handleAutoDetectWorkshopRoot,
 		handleBrowseWorkshopRoot,
@@ -414,10 +388,17 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		query,
 		refreshResults,
 		rows,
-		selectedRowKey,
+		selectAllVisibleRows: selectAllVisibleRowKeys,
+		selectBlockLookupRow: requestBlockLookupRowSelection,
+		selectSingleBlockLookupRow,
+		selectedFilterMods,
+		selectedRecord,
+		selectedRowKeys,
+		selectedRowKeysInCopyOrder,
 		setQuery,
-		setSelectedRowKey,
+		setSelectedFilterMods,
 		setWorkshopRoot,
+		syncSelectionCopyOrder,
 		settings,
 		stats,
 		workshopRoot
@@ -450,9 +431,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		savingTableOptions,
 		tableOptionsOpen
 	} = localState;
-	const [selectedFilterMods, setSelectedFilterMods] = useState<string[]>([]);
-	const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
-	const [selectionAnchorRowKey, setSelectionAnchorRowKey] = useState<string | undefined>();
 	const setDraftColumnConfig = useCallback((updater: SetStateAction<BlockLookupColumnConfig[]>) => {
 		dispatchLocalState({ type: 'draft-column-config-changed', updater });
 	}, []);
@@ -490,53 +468,33 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const setSortDirection = useBlockLookupStore((state) => state.setSortDirection);
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const tableScrollRef = useRef<HTMLDivElement | null>(null);
-	const availableModFilters = useMemo(() => getAvailableBlockLookupModFilters(rows), [rows]);
-	const filteredRows = useMemo(() => filterBlockLookupRowsByMods(rows, selectedFilterMods), [rows, selectedFilterMods]);
-	const visibleRowKeys = useMemo(() => filteredRows.map((record) => getBlockLookupRecordKey(record)), [filteredRows]);
-	const visibleRowKeySet = useMemo(() => new Set(visibleRowKeys), [visibleRowKeys]);
-	const selectedRecord = useMemo(
-		() => filteredRows.find((record) => getBlockLookupRecordKey(record) === selectedRowKey),
-		[filteredRows, selectedRowKey]
-	);
 	const sortedRows = useMemo(() => {
-		return measurePerf('blockLookup.table.sortRows', () => sortBlockLookupRecords(filteredRows, sortKey, sortDirection), {
-			rows: filteredRows.length,
+		return measurePerf('blockLookup.table.sortRows', () => sortBlockLookupRecords(rows, sortKey, sortDirection), {
+			rows: rows.length,
 			sortKey,
 			sortDirection
 		});
-	}, [filteredRows, sortDirection, sortKey]);
+	}, [rows, sortDirection, sortKey]);
 	const sortedRowKeys = useMemo(() => sortedRows.map((record) => getBlockLookupRecordKey(record)), [sortedRows]);
-	const sortedRowKeySet = useMemo(() => new Set(sortedRowKeys), [sortedRowKeys]);
 	const selectedRowKeySet = useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
-	const selectedRecordsInCopyOrder = useMemo(
-		() => sortedRows.filter((record) => selectedRowKeySet.has(getBlockLookupRecordKey(record))),
-		[selectedRowKeySet, sortedRows]
+	const sortedRowsByKey = useMemo(
+		() => new Map(sortedRows.map((record) => [getBlockLookupRecordKey(record), record] as const)),
+		[sortedRows]
 	);
+	const selectedRecordsInCopyOrder = useMemo(() => {
+		const records: BlockLookupRecord[] = [];
+		for (const rowKey of selectedRowKeysInCopyOrder) {
+			const record = sortedRowsByKey.get(rowKey);
+			if (record) {
+				records.push(record);
+			}
+		}
+		return records;
+	}, [selectedRowKeysInCopyOrder, sortedRowsByKey]);
 
 	useEffect(() => {
-		setSelectedRowKeys((currentKeys) => {
-			const retainedKeys = currentKeys.filter((key) => visibleRowKeySet.has(key));
-			if (retainedKeys.length > 0) {
-				return retainedKeys;
-			}
-			return visibleRowKeys[0] ? [visibleRowKeys[0]] : [];
-		});
-		setSelectionAnchorRowKey((currentKey) => {
-			if (currentKey && visibleRowKeySet.has(currentKey)) {
-				return currentKey;
-			}
-			return visibleRowKeys[0];
-		});
-	}, [visibleRowKeys, visibleRowKeySet]);
-
-	useEffect(() => {
-		setSelectedRowKey((currentKey) => {
-			if (currentKey && selectedRowKeySet.has(currentKey)) {
-				return currentKey;
-			}
-			return selectedRowKeys[0] ?? visibleRowKeys[0];
-		});
-	}, [selectedRowKeys, selectedRowKeySet, setSelectedRowKey, visibleRowKeys]);
+		syncSelectionCopyOrder(sortedRowKeys);
+	}, [sortedRowKeys, syncSelectionCopyOrder]);
 
 	useEffect(() => {
 		columnConfigRef.current = columnConfig;
@@ -651,51 +609,15 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		}
 	}, [openNotification, sortedRows]);
 
-	const selectAllVisibleRows = useCallback(() => {
-		if (sortedRowKeys.length === 0) {
-			setSelectedRowKeys([]);
-			setSelectionAnchorRowKey(undefined);
-			setSelectedRowKey(undefined);
-			return;
-		}
+	const handleSelectAllVisibleRows = useCallback(() => {
+		selectAllVisibleRowKeys(sortedRowKeys);
+	}, [selectAllVisibleRowKeys, sortedRowKeys]);
 
-		setSelectedRowKeys(sortedRowKeys);
-		setSelectionAnchorRowKey(sortedRowKeys[0]);
-		setSelectedRowKey((currentKey) => (currentKey && sortedRowKeySet.has(currentKey) ? currentKey : sortedRowKeys[0]));
-	}, [setSelectedRowKey, sortedRowKeySet, sortedRowKeys]);
-
-	const selectBlockLookupRow = useCallback(
+	const handleSelectBlockLookupRow = useCallback(
 		(rowKey: string, event: MouseEvent<HTMLTableRowElement> | KeyboardEvent<HTMLTableRowElement>) => {
-			const shouldSelectRange = event.shiftKey;
-			const shouldToggleSelection = event.ctrlKey || event.metaKey;
-			if (shouldSelectRange) {
-				const anchorKey =
-					selectionAnchorRowKey && sortedRowKeySet.has(selectionAnchorRowKey)
-						? selectionAnchorRowKey
-						: selectedRowKey && sortedRowKeySet.has(selectedRowKey)
-							? selectedRowKey
-							: rowKey;
-				const rangeKeys = getBlockLookupRowRange(sortedRowKeys, anchorKey, rowKey);
-				setSelectedRowKeys(rangeKeys);
-				setSelectionAnchorRowKey(anchorKey);
-				setSelectedRowKey(rowKey);
-				return;
-			}
-
-			if (shouldToggleSelection) {
-				const selected = selectedRowKeySet.has(rowKey);
-				const nextKeys = selected ? selectedRowKeys.filter((key) => key !== rowKey) : [...selectedRowKeys, rowKey];
-				setSelectedRowKeys(nextKeys);
-				setSelectionAnchorRowKey(rowKey);
-				setSelectedRowKey(selected ? (nextKeys[0] ?? sortedRowKeys.find((key) => key !== rowKey)) : rowKey);
-				return;
-			}
-
-			setSelectedRowKeys([rowKey]);
-			setSelectionAnchorRowKey(rowKey);
-			setSelectedRowKey(rowKey);
+			requestBlockLookupRowSelection(rowKey, { range: event.shiftKey, toggle: event.ctrlKey || event.metaKey }, sortedRowKeys);
 		},
-		[selectedRowKey, selectedRowKeys, selectedRowKeySet, selectionAnchorRowKey, setSelectedRowKey, sortedRowKeys, sortedRowKeySet]
+		[requestBlockLookupRowSelection, sortedRowKeys]
 	);
 
 	const handleBlockLookupRowKeyDown = useCallback(
@@ -710,10 +632,10 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 				void handleCopySelected();
 			} else if (key === 'a') {
 				event.preventDefault();
-				selectAllVisibleRows();
+				handleSelectAllVisibleRows();
 			}
 		},
-		[handleCopySelected, selectAllVisibleRows]
+		[handleCopySelected, handleSelectAllVisibleRows]
 	);
 
 	const openTableOptions = useCallback(() => {
@@ -762,6 +684,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const hiddenColumns = useMemo(() => columnConfig.filter((column) => !column.visible), [columnConfig]);
 	const emptyStateText = getBlockLookupEmptyText(stats, query);
 	const lookupBusyText = buildingIndex ? 'Building block lookup index...' : 'Loading block lookup...';
+	const indexStatusText = formatBlockLookupIndexStatus(stats, rows.length, query);
 
 	useEffect(() => {
 		visibleColumns.forEach((column) => {
@@ -937,13 +860,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 									Full Rebuild
 								</BlockLookupButton>
 							</div>
-						</div>
-						<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.92rem] text-text-muted" aria-live="polite">
-							<span>{formatBlockLookupIndexStatus(stats, filteredRows.length, query)}</span>
-							<span aria-hidden="true">/</span>
-							<span>
-								{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
-							</span>
 						</div>
 					</section>
 				</header>
@@ -1174,15 +1090,13 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 														markPerfInteraction('blockLookup.rowSelect', {
 															row: rowKey
 														});
-														selectBlockLookupRow(rowKey, event);
+														handleSelectBlockLookupRow(rowKey, event);
 													}}
 													onDoubleClick={() => {
 														markPerfInteraction('blockLookup.rowDoubleClickCopy', {
 															row: rowKey
 														});
-														setSelectedRowKeys([rowKey]);
-														setSelectionAnchorRowKey(rowKey);
-														setSelectedRowKey(rowKey);
+														selectSingleBlockLookupRow(rowKey);
 														void copyToClipboard(row.original.spawnCommand).catch((error) => {
 															openNotification(
 																{
@@ -1232,6 +1146,13 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 						</div>
 					</div>
 					<div className="max-h-46 min-h-28 flex-none overflow-auto border-t border-border bg-surface px-(--workspace-table-inset-x) pb-3.5 pt-3">
+						<div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[0.86rem] text-text-muted" aria-live="polite">
+							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{indexStatusText}</span>
+							<span aria-hidden="true">/</span>
+							<span>
+								{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
+							</span>
+						</div>
 						{selectedRecord ? (
 							<div className="grid grid-cols-[minmax(220px,1.4fr)_minmax(220px,1.4fr)_repeat(4,minmax(120px,0.8fr))] items-start gap-x-4 gap-y-2.5 max-[900px]:grid-cols-[repeat(2,minmax(180px,1fr))] max-[520px]:grid-cols-1 [&>div]:flex [&>div]:min-w-0 [&>div]:flex-col [&>div]:gap-0.75">
 								<BlockLookupDetailField

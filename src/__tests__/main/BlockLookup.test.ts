@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import childProcess from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	buildBlockLookupAliases,
@@ -8,13 +9,19 @@ import {
 	readBlockLookupIndex,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
-import { extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
+import { extractBundleTextAssetOutcomes, extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
+import { createBlockLookupBundleSourceExtractionAdapter } from '../../main/block-lookup-extraction';
 import { createBlockLookupIndexBuild } from '../../main/block-lookup-index-build';
 import { createBlockLookupIndexModule } from '../../main/block-lookup-indexer';
 import { createBlockLookupIndexPlan } from '../../main/block-lookup-index-planner';
 import { createBlockLookupRecordsFromTextAssets } from '../../main/block-lookup-nuterra-text';
 import { searchBlockLookupRecords } from '../../main/block-lookup-search';
-import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
+import {
+	MAX_BLOCK_LOOKUP_JSON_DEPTH,
+	collectBlockLookupSources,
+	type BlockLookupSourceRecord
+} from '../../main/block-lookup-source-discovery';
+import { indexBlockLookupSources } from '../../main/block-lookup-source-indexing';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import Steamworks from '../../main/steamworks';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
@@ -58,6 +65,27 @@ function createBlockLookupHandlerHarness() {
 	};
 }
 
+function createTestBlockLookupRecord(overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
+	const blockName = overrides.blockName ?? 'Alpha Cannon';
+	const modTitle = overrides.modTitle ?? 'Test Blocks';
+	const sourcePath = overrides.sourcePath ?? path.normalize('/mods/TestCannon.json');
+	const preferredAlias = overrides.preferredAlias ?? `${blockName.replace(/\s/g, '_')}(${modTitle.replace(/\s/g, '_')})`;
+
+	return {
+		blockId: overrides.blockId ?? '42',
+		blockName,
+		fallbackAlias: overrides.fallbackAlias ?? preferredAlias,
+		fallbackSpawnCommand: overrides.fallbackSpawnCommand ?? `SpawnBlock ${preferredAlias}`,
+		internalName: overrides.internalName ?? blockName.replace(/\s/g, ''),
+		modTitle,
+		preferredAlias,
+		sourceKind: overrides.sourceKind ?? 'json',
+		sourcePath,
+		spawnCommand: overrides.spawnCommand ?? `SpawnBlock ${preferredAlias}`,
+		workshopId: overrides.workshopId ?? '12345'
+	};
+}
+
 describe('block lookup index', () => {
 	it('builds observed and strict SpawnBlock aliases', () => {
 		expect(buildBlockLookupAliases('Venture Pyrobat Flare/Chaff Dispenser', 'Active Defenses')).toEqual({
@@ -78,6 +106,450 @@ describe('block lookup index', () => {
 				blockId: '10005',
 				internalName: 'HE_Flak'
 			}
+		]);
+	});
+
+	it('indexes JSON block sources through the Block Lookup source indexing interface', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-json-');
+		const jsonPath = path.join(tempDir, 'TestCannon.json');
+		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"Alpha Cannon","ID":42}', 'utf8');
+		const stats = fs.statSync(jsonPath);
+
+		const result = await indexBlockLookupSources([
+			{
+				modTitle: 'Test Blocks',
+				mtimeMs: stats.mtimeMs,
+				size: stats.size,
+				sourceKind: 'json',
+				sourcePath: jsonPath,
+				workshopId: '12345'
+			}
+		]);
+
+		expect(result.recordsBySourcePath.get(jsonPath)).toEqual([
+			expect.objectContaining({
+				blockName: 'Alpha Cannon',
+				internalName: 'TestCannon',
+				sourceKind: 'json',
+				spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
+			})
+		]);
+	});
+
+	it('indexes vanilla TerraTech sources through the Block Lookup source indexing interface', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-vanilla-');
+		const assemblyPath = path.join(tempDir, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll');
+		const exportDir = path.join(tempDir, '_Export', 'BlockJson');
+		fs.mkdirSync(path.dirname(assemblyPath), { recursive: true });
+		fs.mkdirSync(exportDir, { recursive: true });
+		fs.writeFileSync(assemblyPath, '');
+		fs.writeFileSync(path.join(exportDir, 'HE_Cab_prefab.json'), '{}', 'utf8');
+		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+			if (typeof callback === 'function') {
+				callback(null, '["HE_Cab"]', '');
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+		const stats = fs.statSync(assemblyPath);
+
+		const result = await indexBlockLookupSources([
+			{
+				modTitle: 'TerraTech',
+				mtimeMs: stats.mtimeMs,
+				size: stats.size,
+				sourceKind: 'vanilla',
+				sourcePath: assemblyPath,
+				workshopId: 'vanilla'
+			}
+		]);
+
+		expect(result.records).toEqual([
+			expect.objectContaining({
+				blockName: 'HE Cab',
+				internalName: 'HE_Cab',
+				sourceKind: 'vanilla',
+				spawnCommand: 'SpawnBlock HE_Cab'
+			})
+		]);
+	});
+
+	it('routes source extraction through source-kind adapters while preserving source order', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-router-');
+		const bundleSource: BlockLookupSourceRecord = {
+			modTitle: 'Bundle Blocks',
+			mtimeMs: 3,
+			size: 30,
+			sourceKind: 'bundle',
+			sourcePath: path.join(tempDir, 'BundleBlocks_bundle'),
+			workshopId: 'bundle'
+		};
+		const secondBundleSource: BlockLookupSourceRecord = {
+			modTitle: 'Second Bundle Blocks',
+			mtimeMs: 4,
+			size: 40,
+			sourceKind: 'bundle',
+			sourcePath: path.join(tempDir, 'SecondBundleBlocks_bundle'),
+			workshopId: 'second-bundle'
+		};
+		const jsonSource: BlockLookupSourceRecord = {
+			modTitle: 'JSON Blocks',
+			mtimeMs: 1,
+			size: 10,
+			sourceKind: 'json',
+			sourcePath: path.join(tempDir, 'JsonBlock.json'),
+			workshopId: 'json'
+		};
+		const vanillaSource: BlockLookupSourceRecord = {
+			modTitle: 'TerraTech',
+			mtimeMs: 2,
+			size: 20,
+			sourceKind: 'vanilla',
+			sourcePath: path.join(tempDir, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll'),
+			workshopId: 'vanilla'
+		};
+		const createRoutingAdapter = (blockName: string) => ({
+			extractRecords: vi.fn(async (sources: readonly BlockLookupSourceRecord[]) => {
+				return new Map(
+					sources.map((source) => [
+						source.sourcePath,
+						[
+							createTestBlockLookupRecord({
+								blockName: `${blockName} ${source.workshopId}`,
+								modTitle: source.modTitle,
+								sourceKind: source.sourceKind,
+								sourcePath: source.sourcePath,
+								workshopId: source.workshopId
+							})
+						]
+					])
+				);
+			})
+		});
+		const bundleAdapter = createRoutingAdapter('Bundle Routed');
+		const jsonAdapter = createRoutingAdapter('JSON Routed');
+		const vanillaAdapter = createRoutingAdapter('Vanilla Routed');
+
+		const result = await indexBlockLookupSources([bundleSource, jsonSource, secondBundleSource, vanillaSource], {
+			sourceExtractionAdapters: {
+				bundle: bundleAdapter,
+				json: jsonAdapter,
+				vanilla: vanillaAdapter
+			}
+		});
+
+		expect(bundleAdapter.extractRecords).toHaveBeenCalledWith([bundleSource, secondBundleSource]);
+		expect(jsonAdapter.extractRecords).toHaveBeenCalledWith([jsonSource]);
+		expect(vanillaAdapter.extractRecords).toHaveBeenCalledWith([vanillaSource]);
+		expect(result.records.map((record) => record.blockName)).toEqual([
+			'Bundle Routed bundle',
+			'JSON Routed json',
+			'Bundle Routed second-bundle',
+			'Vanilla Routed vanilla'
+		]);
+	});
+
+	it('keeps source extraction failures local to source indexing', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-failure-');
+		const goodPath = path.join(tempDir, 'GoodBlock.json');
+		const missingPath = path.join(tempDir, 'MissingBlock.json');
+		fs.writeFileSync(goodPath, '{"Type":"NuterraBlock","Name":"Good Block","ID":7}', 'utf8');
+		const goodStats = fs.statSync(goodPath);
+
+		const result = await indexBlockLookupSources([
+			{
+				modTitle: 'Bad Blocks',
+				mtimeMs: 0,
+				size: 0,
+				sourceKind: 'json',
+				sourcePath: missingPath,
+				workshopId: 'bad'
+			},
+			{
+				modTitle: 'Good Blocks',
+				mtimeMs: goodStats.mtimeMs,
+				size: goodStats.size,
+				sourceKind: 'json',
+				sourcePath: goodPath,
+				workshopId: 'good'
+			}
+		]);
+
+		expect(result.recordsBySourcePath.get(missingPath)).toEqual([]);
+		expect(result.recordsBySourcePath.get(goodPath)).toEqual([expect.objectContaining({ blockName: 'Good Block' })]);
+	});
+
+	it('indexes bundle sources through the bundle source extraction adapter', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-');
+		const bundlePath = path.join(tempDir, 'BundleBlocks_bundle');
+		fs.writeFileSync(bundlePath, 'bundle', 'utf8');
+		const stats = fs.statSync(bundlePath);
+		const extractBundleTextAssetsAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					bundlePath,
+					[
+						{
+							assetName: 'BundleBlocks',
+							text: '{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}'
+						}
+					]
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Bundle Blocks',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'bundle',
+					sourcePath: bundlePath,
+					workshopId: '24680'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({ extractBundleTextAssets: extractBundleTextAssetsAdapter })
+				}
+			}
+		);
+
+		expect(extractBundleTextAssetsAdapter).toHaveBeenCalledWith([bundlePath]);
+		expect(result.records).toEqual([
+			expect.objectContaining({
+				blockName: 'Bundle Block',
+				internalName: 'Bundle_Block_Internal',
+				sourceKind: 'bundle'
+			})
+		]);
+	});
+
+	it('indexes mixed JSON and multiple bundle sources through one source indexing call', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-mixed-');
+		const jsonPath = path.join(tempDir, 'JsonBlock.json');
+		const firstBundlePath = path.join(tempDir, 'FirstBundle_bundle');
+		const secondBundlePath = path.join(tempDir, 'SecondBundle_bundle');
+		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"JSON Block","ID":10}', 'utf8');
+		fs.writeFileSync(firstBundlePath, 'bundle-a', 'utf8');
+		fs.writeFileSync(secondBundlePath, 'bundle-b', 'utf8');
+		const jsonStats = fs.statSync(jsonPath);
+		const firstBundleStats = fs.statSync(firstBundlePath);
+		const secondBundleStats = fs.statSync(secondBundlePath);
+		const extractBundleTextAssetsAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					firstBundlePath,
+					[
+						{
+							assetName: 'FirstBundle',
+							text: '{"m_Name":"First_Bundle_Internal","Type":"NuterraBlock","Name":"First Bundle Block","ID":11}'
+						}
+					]
+				],
+				[
+					secondBundlePath,
+					[
+						{
+							assetName: 'SecondBundle',
+							text: '{"m_Name":"Second_Bundle_Internal","Type":"NuterraBlock","Name":"Second Bundle Block","ID":12}'
+						}
+					]
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'JSON Blocks',
+					mtimeMs: jsonStats.mtimeMs,
+					size: jsonStats.size,
+					sourceKind: 'json',
+					sourcePath: jsonPath,
+					workshopId: 'json'
+				},
+				{
+					modTitle: 'First Bundle',
+					mtimeMs: firstBundleStats.mtimeMs,
+					size: firstBundleStats.size,
+					sourceKind: 'bundle',
+					sourcePath: firstBundlePath,
+					workshopId: 'first'
+				},
+				{
+					modTitle: 'Second Bundle',
+					mtimeMs: secondBundleStats.mtimeMs,
+					size: secondBundleStats.size,
+					sourceKind: 'bundle',
+					sourcePath: secondBundlePath,
+					workshopId: 'second'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({ extractBundleTextAssets: extractBundleTextAssetsAdapter })
+				}
+			}
+		);
+
+		expect(extractBundleTextAssetsAdapter).toHaveBeenCalledOnce();
+		expect(extractBundleTextAssetsAdapter).toHaveBeenCalledWith([firstBundlePath, secondBundlePath]);
+		expect(result.recordsBySourcePath.get(jsonPath)).toEqual([expect.objectContaining({ blockName: 'JSON Block', sourceKind: 'json' })]);
+		expect(result.recordsBySourcePath.get(firstBundlePath)).toEqual([
+			expect.objectContaining({ blockName: 'First Bundle Block', sourceKind: 'bundle' })
+		]);
+		expect(result.recordsBySourcePath.get(secondBundlePath)).toEqual([
+			expect.objectContaining({ blockName: 'Second Bundle Block', sourceKind: 'bundle' })
+		]);
+		expect(result.records).toHaveLength(3);
+	});
+
+	it('skips only bundle sources with missing TextAssets from the batch result', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-failure-');
+		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
+		const goodBundlePath = path.join(tempDir, 'GoodBundle_bundle');
+		fs.writeFileSync(failedBundlePath, 'UnityFS failed bundle content with NuterraBlock text that should not be parsed directly', 'utf8');
+		fs.writeFileSync(goodBundlePath, 'bundle', 'utf8');
+		const failedStats = fs.statSync(failedBundlePath);
+		const goodStats = fs.statSync(goodBundlePath);
+		const extractBundleTextAssetsAdapter = vi.fn(async () => {
+			return new Map([
+				[failedBundlePath, []],
+				[
+					goodBundlePath,
+					[
+						{
+							assetName: 'GoodBundle',
+							text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+						}
+					]
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Failed Bundle',
+					mtimeMs: failedStats.mtimeMs,
+					size: failedStats.size,
+					sourceKind: 'bundle',
+					sourcePath: failedBundlePath,
+					workshopId: 'failed'
+				},
+				{
+					modTitle: 'Good Bundle',
+					mtimeMs: goodStats.mtimeMs,
+					size: goodStats.size,
+					sourceKind: 'bundle',
+					sourcePath: goodBundlePath,
+					workshopId: 'good'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({ extractBundleTextAssets: extractBundleTextAssetsAdapter })
+				}
+			}
+		);
+
+		expect(result.recordsBySourcePath.get(failedBundlePath)).toEqual([]);
+		expect(result.recordsBySourcePath.get(goodBundlePath)).toEqual([
+			expect.objectContaining({ blockName: 'Good Bundle Block', sourceKind: 'bundle' })
+		]);
+		expect(result.records).toEqual([expect.objectContaining({ blockName: 'Good Bundle Block' })]);
+	});
+
+	it('indexes bundle sources from normalized extraction outcomes', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-outcomes-');
+		const emptyBundlePath = path.join(tempDir, 'EmptyBundle_bundle');
+		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
+		const goodBundlePath = path.join(tempDir, 'GoodBundle_bundle');
+		fs.writeFileSync(emptyBundlePath, 'empty bundle', 'utf8');
+		fs.writeFileSync(failedBundlePath, 'failed bundle', 'utf8');
+		fs.writeFileSync(goodBundlePath, 'good bundle', 'utf8');
+		const emptyStats = fs.statSync(emptyBundlePath);
+		const failedStats = fs.statSync(failedBundlePath);
+		const goodStats = fs.statSync(goodBundlePath);
+		const extractBundleTextAssetOutcomesAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					emptyBundlePath,
+					{
+						issues: [],
+						sourcePath: emptyBundlePath,
+						status: 'success' as const,
+						textAssets: []
+					}
+				],
+				[
+					failedBundlePath,
+					{
+						issues: ['Unable to read bundle TextAssets'],
+						sourcePath: failedBundlePath,
+						status: 'issue' as const,
+						textAssets: []
+					}
+				],
+				[
+					goodBundlePath,
+					{
+						issues: [],
+						sourcePath: goodBundlePath,
+						status: 'success' as const,
+						textAssets: [
+							{
+								assetName: 'GoodBundle',
+								text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+							}
+						]
+					}
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Empty Bundle',
+					mtimeMs: emptyStats.mtimeMs,
+					size: emptyStats.size,
+					sourceKind: 'bundle',
+					sourcePath: emptyBundlePath,
+					workshopId: 'empty'
+				},
+				{
+					modTitle: 'Failed Bundle',
+					mtimeMs: failedStats.mtimeMs,
+					size: failedStats.size,
+					sourceKind: 'bundle',
+					sourcePath: failedBundlePath,
+					workshopId: 'failed'
+				},
+				{
+					modTitle: 'Good Bundle',
+					mtimeMs: goodStats.mtimeMs,
+					size: goodStats.size,
+					sourceKind: 'bundle',
+					sourcePath: goodBundlePath,
+					workshopId: 'good'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({
+						extractBundleTextAssetOutcomes: extractBundleTextAssetOutcomesAdapter
+					})
+				}
+			}
+		);
+
+		expect(extractBundleTextAssetOutcomesAdapter).toHaveBeenCalledWith([emptyBundlePath, failedBundlePath, goodBundlePath]);
+		expect(result.recordsBySourcePath.get(emptyBundlePath)).toEqual([]);
+		expect(result.recordsBySourcePath.get(failedBundlePath)).toEqual([]);
+		expect(result.recordsBySourcePath.get(goodBundlePath)).toEqual([
+			expect.objectContaining({ blockName: 'Good Bundle Block', sourceKind: 'bundle' })
 		]);
 	});
 
@@ -111,6 +583,106 @@ describe('block lookup index', () => {
 				expect.objectContaining({ modTitle: 'Source Test', sourceKind: 'bundle', workshopId: '13579' })
 			])
 		);
+	});
+
+	it('rejects BlockJSON roots that resolve outside the mod directory', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-symlink-root-');
+		const modDir = path.join(tempDir, 'LoadedMod');
+		const outsideDir = path.join(tempDir, 'OutsideJson');
+		const escapedJsonPath = path.join(outsideDir, 'EscapedBlock.json');
+		fs.mkdirSync(modDir, { recursive: true });
+		fs.mkdirSync(outsideDir, { recursive: true });
+		fs.writeFileSync(escapedJsonPath, '{"Type":"NuterraBlock","Name":"Escaped Block"}', 'utf8');
+		fs.symlinkSync(outsideDir, path.join(modDir, 'BlockJSON'), process.platform === 'win32' ? 'junction' : 'dir');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'local:LoadedMod',
+					name: 'Loaded Mod',
+					path: modDir
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).not.toContain(path.normalize(escapedJsonPath));
+		expect(result.sources).toHaveLength(0);
+	});
+
+	it('accepts BlockJSON roots that resolve inside the mod directory', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-contained-symlink-root-');
+		const modDir = path.join(tempDir, 'LoadedMod');
+		const containedDir = path.join(modDir, 'ContainedJson');
+		const symlinkJsonPath = path.join(modDir, 'BlockJSON', 'ContainedBlock.json');
+		fs.mkdirSync(containedDir, { recursive: true });
+		fs.writeFileSync(path.join(containedDir, 'ContainedBlock.json'), '{"Type":"NuterraBlock","Name":"Contained Block"}', 'utf8');
+		fs.symlinkSync(containedDir, path.join(modDir, 'BlockJSON'), process.platform === 'win32' ? 'junction' : 'dir');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'local:LoadedMod',
+					name: 'Loaded Mod',
+					path: modDir
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).toEqual([path.normalize(symlinkJsonPath)]);
+	});
+
+	it('rejects nested JSON directories that resolve outside the mod directory', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-nested-symlink-');
+		const modDir = path.join(tempDir, 'LoadedMod');
+		const insideDir = path.join(modDir, 'Json');
+		const outsideDir = path.join(tempDir, 'OutsideJson');
+		const localJsonPath = path.join(insideDir, 'LocalBlock.json');
+		const escapedJsonPath = path.join(outsideDir, 'EscapedBlock.json');
+		fs.mkdirSync(insideDir, { recursive: true });
+		fs.mkdirSync(outsideDir, { recursive: true });
+		fs.writeFileSync(localJsonPath, '{"Type":"NuterraBlock","Name":"Local Block"}', 'utf8');
+		fs.writeFileSync(escapedJsonPath, '{"Type":"NuterraBlock","Name":"Escaped Block"}', 'utf8');
+		fs.symlinkSync(outsideDir, path.join(modDir, 'EscapedJson'), process.platform === 'win32' ? 'junction' : 'dir');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'local:LoadedMod',
+					name: 'Loaded Mod',
+					path: modDir
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).toEqual([path.normalize(localJsonPath)]);
+		expect(result.sources.map((source) => source.sourcePath)).not.toContain(path.normalize(escapedJsonPath));
+	});
+
+	it('stops BlockJSON recursion beyond the configured depth limit', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-depth-limit-');
+		const modDir = path.join(tempDir, 'LoadedMod');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const rootJsonPath = path.join(blockJsonDir, 'RootBlock.json');
+		let deepDir = blockJsonDir;
+		for (let depth = 0; depth <= MAX_BLOCK_LOOKUP_JSON_DEPTH; depth += 1) {
+			deepDir = path.join(deepDir, `d${depth}`);
+		}
+		const deepJsonPath = path.join(deepDir, 'TooDeepBlock.json');
+		fs.mkdirSync(deepDir, { recursive: true });
+		fs.writeFileSync(rootJsonPath, '{"Type":"NuterraBlock","Name":"Root Block"}', 'utf8');
+		fs.writeFileSync(deepJsonPath, '{"Type":"NuterraBlock","Name":"Too Deep Block"}', 'utf8');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'local:LoadedMod',
+					name: 'Loaded Mod',
+					path: modDir
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).toEqual([path.normalize(rootJsonPath)]);
 	});
 
 	it('indexes JSON block sources and reuses unchanged records', async () => {
@@ -242,6 +814,203 @@ describe('block lookup index', () => {
 		expect(secondBuild.index.records).toEqual(firstBuild.index.records);
 	});
 
+	it('keeps source extraction out of unchanged source reuse and scans again on force rebuild', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-reuse-adapter-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const blockJsonPath = path.join(blockJsonDir, 'TestCannon.json');
+		fs.mkdirSync(blockJsonDir, { recursive: true });
+		fs.writeFileSync(blockJsonPath, '{"Type":"NuterraBlock","Name":"Alpha Cannon","ID":42}', 'utf8');
+		const request = {
+			workshopRoot,
+			modSources: [
+				{
+					uid: 'workshop:12345',
+					name: 'Test Blocks',
+					path: modDir,
+					workshopID: '12345'
+				}
+			]
+		};
+
+		const firstBuild = await createBlockLookupIndexBuild({ version: 1, builtAt: '', sources: [], records: [] }, request);
+		const reuseIndexer = vi.fn(async () => ({
+			records: [],
+			recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
+		}));
+
+		const reusedBuild = await createBlockLookupIndexBuild(firstBuild.index, request, {
+			indexBlockLookupSources: reuseIndexer
+		});
+
+		expect(reuseIndexer).not.toHaveBeenCalled();
+		expect(reusedBuild.stats).toMatchObject({
+			scanned: 0,
+			skipped: 1,
+			updatedBlocks: 0
+		});
+
+		const forceIndexer = vi.fn(async (sources) => {
+			const source = sources[0]!;
+			const record: BlockLookupRecord = {
+				blockId: '43',
+				blockName: 'Forced Block',
+				fallbackAlias: 'Forced_Block(Test_Blocks)',
+				fallbackSpawnCommand: 'SpawnBlock Forced_Block(Test_Blocks)',
+				internalName: 'ForcedBlock',
+				modTitle: source.modTitle,
+				preferredAlias: 'Forced_Block(Test_Blocks)',
+				sourceKind: source.sourceKind,
+				sourcePath: source.sourcePath,
+				spawnCommand: 'SpawnBlock Forced_Block(Test_Blocks)',
+				workshopId: source.workshopId
+			};
+			return {
+				records: [record],
+				recordsBySourcePath: new Map([[source.sourcePath, [record]]])
+			};
+		});
+
+		const forceBuild = await createBlockLookupIndexBuild(
+			firstBuild.index,
+			{ ...request, forceRebuild: true },
+			{
+				indexBlockLookupSources: forceIndexer
+			}
+		);
+
+		expect(forceIndexer).toHaveBeenCalledOnce();
+		expect(forceBuild.stats).toMatchObject({
+			scanned: 1,
+			skipped: 0,
+			updatedBlocks: 1
+		});
+		expect(forceBuild.index.records).toEqual([expect.objectContaining({ blockName: 'Forced Block' })]);
+	});
+
+	it('preserves mixed scanned, skipped, removed, and updated block stats in the build flow', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-mixed-stats-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const unchangedModDir = path.join(workshopRoot, '111');
+		const changedModDir = path.join(workshopRoot, '222');
+		const unchangedJsonDir = path.join(unchangedModDir, 'BlockJSON');
+		const changedJsonDir = path.join(changedModDir, 'BlockJSON');
+		const unchangedPath = path.join(unchangedJsonDir, 'UnchangedBlock.json');
+		const changedPath = path.join(changedJsonDir, 'ChangedBlock.json');
+		const removedPath = path.join(tempDir, 'RemovedBlock.json');
+		fs.mkdirSync(unchangedJsonDir, { recursive: true });
+		fs.mkdirSync(changedJsonDir, { recursive: true });
+		fs.writeFileSync(unchangedPath, '{"Type":"NuterraBlock","Name":"Unchanged Block","ID":1}', 'utf8');
+		fs.writeFileSync(changedPath, '{"Type":"NuterraBlock","Name":"Changed Block","ID":2}', 'utf8');
+		const unchangedStats = fs.statSync(unchangedPath);
+		const changedStats = fs.statSync(changedPath);
+		const reusedRecord = createTestBlockLookupRecord({
+			blockId: '1',
+			blockName: 'Unchanged Block',
+			internalName: 'UnchangedBlock',
+			modTitle: 'Unchanged Blocks',
+			sourcePath: path.normalize(unchangedPath),
+			workshopId: '111'
+		});
+		const removedRecord = createTestBlockLookupRecord({
+			blockId: '0',
+			blockName: 'Removed Block',
+			internalName: 'RemovedBlock',
+			modTitle: 'Removed Blocks',
+			sourcePath: path.normalize(removedPath),
+			workshopId: '000'
+		});
+		const changedRecords = [
+			createTestBlockLookupRecord({
+				blockId: '2',
+				blockName: 'Changed Block',
+				internalName: 'ChangedBlock',
+				modTitle: 'Changed Blocks',
+				sourcePath: path.normalize(changedPath),
+				workshopId: '222'
+			}),
+			createTestBlockLookupRecord({
+				blockId: '3',
+				blockName: 'Changed Extra Block',
+				internalName: 'ChangedExtraBlock',
+				modTitle: 'Changed Blocks',
+				sourcePath: path.normalize(changedPath),
+				workshopId: '222'
+			})
+		];
+		const indexBlockLookupSourcesAdapter = vi.fn(async () => ({
+			records: changedRecords,
+			recordsBySourcePath: new Map([[path.normalize(changedPath), changedRecords]])
+		}));
+
+		const build = await createBlockLookupIndexBuild(
+			{
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [
+					{
+						sourcePath: path.normalize(unchangedPath),
+						workshopId: '111',
+						modTitle: 'Unchanged Blocks',
+						sourceKind: 'json',
+						size: unchangedStats.size,
+						mtimeMs: unchangedStats.mtimeMs
+					},
+					{
+						sourcePath: path.normalize(changedPath),
+						workshopId: '222',
+						modTitle: 'Changed Blocks',
+						sourceKind: 'json',
+						size: changedStats.size - 1,
+						mtimeMs: changedStats.mtimeMs
+					},
+					{
+						sourcePath: path.normalize(removedPath),
+						workshopId: '000',
+						modTitle: 'Removed Blocks',
+						sourceKind: 'json',
+						size: 1,
+						mtimeMs: 1
+					}
+				],
+				records: [reusedRecord, removedRecord]
+			},
+			{
+				workshopRoot,
+				modSources: [
+					{
+						uid: 'workshop:111',
+						name: 'Unchanged Blocks',
+						path: unchangedModDir,
+						workshopID: '111'
+					},
+					{
+						uid: 'workshop:222',
+						name: 'Changed Blocks',
+						path: changedModDir,
+						workshopID: '222'
+					}
+				]
+			},
+			{ indexBlockLookupSources: indexBlockLookupSourcesAdapter }
+		);
+
+		expect(indexBlockLookupSourcesAdapter).toHaveBeenCalledWith([
+			expect.objectContaining({ sourcePath: path.normalize(changedPath), workshopId: '222' })
+		]);
+		expect(build.stats).toMatchObject({
+			sources: 2,
+			scanned: 1,
+			skipped: 1,
+			removed: 1,
+			blocks: 3,
+			updatedBlocks: 2
+		});
+		expect(build.index.records).toEqual([reusedRecord, ...changedRecords]);
+		expect(build.index.records).not.toContain(removedRecord);
+	});
+
 	it('uses native bundle text extraction without Python dependencies', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-bundle-');
 		const userDataPath = path.join(tempDir, 'user-data');
@@ -305,6 +1074,138 @@ describe('block lookup index', () => {
 			internalName: 'Bundle_Block_Internal',
 			spawnCommand: 'SpawnBlock Bundle_Block(Bundle_Blocks)'
 		});
+	});
+
+	it('reads native sidecar TextAsset JSON output by source path', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-contract-');
+		const firstBundlePath = path.join(tempDir, 'FirstBundle_bundle');
+		const secondBundlePath = path.join(tempDir, 'SecondBundle_bundle');
+		const stdout = JSON.stringify({
+			version: 1,
+			files: [
+				{
+					sourcePath: firstBundlePath,
+					textAssets: [
+						{
+							assetName: 'FirstBundle',
+							text: '{"Type":"NuterraBlock","Name":"First Bundle Block","ID":21}'
+						}
+					]
+				},
+				{
+					sourcePath: secondBundlePath,
+					textAssets: [],
+					errors: ['No TextAssets contained NuterraBlock data']
+				}
+			]
+		});
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+			if (typeof callback === 'function') {
+				callback(null, stdout, 'sidecar warning');
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+
+		const textAssetsBySource = await extractBundleTextAssets([firstBundlePath, secondBundlePath], {
+			allowEmbeddedFallback: false,
+			extractorPath: '/fake/block-lookup-extractor'
+		});
+
+		expect(execFileSpy).toHaveBeenCalledWith(
+			'/fake/block-lookup-extractor',
+			[firstBundlePath, secondBundlePath],
+			expect.objectContaining({
+				encoding: 'utf8',
+				windowsHide: true
+			}),
+			expect.any(Function)
+		);
+		expect(textAssetsBySource.get(firstBundlePath)).toEqual([
+			{
+				assetName: 'FirstBundle',
+				text: '{"Type":"NuterraBlock","Name":"First Bundle Block","ID":21}'
+			}
+		]);
+		expect(textAssetsBySource.get(secondBundlePath)).toEqual([]);
+	});
+
+	it('normalizes native sidecar TextAsset extraction outcomes by source path', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sidecar-outcomes-');
+		const assetBundlePath = path.join(tempDir, 'AssetBundle_bundle');
+		const emptyBundlePath = path.join(tempDir, 'EmptyBundle_bundle');
+		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
+		const stdout = JSON.stringify({
+			version: 1,
+			files: [
+				{
+					sourcePath: assetBundlePath,
+					textAssets: [
+						{
+							assetName: 'AssetBundle',
+							text: '{"Type":"NuterraBlock","Name":"Asset Bundle Block","ID":21}'
+						}
+					]
+				},
+				{
+					sourcePath: emptyBundlePath,
+					textAssets: []
+				},
+				{
+					sourcePath: failedBundlePath,
+					textAssets: [],
+					errors: ['Unable to read bundle TextAssets']
+				}
+			]
+		});
+		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+			if (typeof callback === 'function') {
+				callback(null, stdout, '');
+			}
+			return {} as childProcess.ChildProcess;
+		}) as typeof childProcess.execFile);
+
+		const outcomes = await extractBundleTextAssetOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
+			allowEmbeddedFallback: false,
+			extractorPath: '/fake/block-lookup-extractor'
+		});
+
+		expect(outcomes.get(assetBundlePath)).toEqual({
+			issues: [],
+			sourcePath: assetBundlePath,
+			status: 'success',
+			textAssets: [
+				{
+					assetName: 'AssetBundle',
+					text: '{"Type":"NuterraBlock","Name":"Asset Bundle Block","ID":21}'
+				}
+			]
+		});
+		expect(outcomes.get(emptyBundlePath)).toEqual({
+			issues: [],
+			sourcePath: emptyBundlePath,
+			status: 'success',
+			textAssets: []
+		});
+		expect(outcomes.get(failedBundlePath)).toEqual({
+			issues: ['Unable to read bundle TextAssets'],
+			sourcePath: failedBundlePath,
+			status: 'issue',
+			textAssets: []
+		});
+	});
+
+	it('skips embedded bundle fallback when the source exceeds the configured size limit', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-fallback-limit-');
+		const bundlePath = path.join(tempDir, 'BundleBlocks_bundle');
+		fs.writeFileSync(bundlePath, 'UnityFS\0{"Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
+
+		const textAssetsBySource = await extractBundleTextAssets([bundlePath], {
+			allowEmbeddedFallback: true,
+			extractorPath: null,
+			maxEmbeddedFallbackBytes: 8
+		});
+
+		expect(textAssetsBySource.get(bundlePath)).toEqual([]);
 	});
 
 	it('requires the sidecar when embedded bundle fallback is disabled', async () => {

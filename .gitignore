@@ -32,11 +32,11 @@ release/app/*
 output/
 .erb/dll
 .erb/.tmp
+.scratch/
+.evo/
+docs/agents/
 
 .idea
-.serena/*
-!.serena/.gitignore
-!.serena/project.yml
 npm-debug.log.*
 *.css.d.ts
 *.sass.d.ts

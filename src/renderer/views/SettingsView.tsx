@@ -420,7 +420,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 					</div>
 				</SettingsDialog>
 			) : null}
-			<main className="box-border min-h-full w-full bg-background text-text">
+			<main className="box-border h-full w-full overflow-hidden bg-background text-text">
 				<div className="px-6 pt-5">
 					<h1 className="m-0 font-display text-[28px] leading-tight text-text">Settings</h1>
 					<p className="mb-0 mt-2 max-w-[70ch]">Manage game paths, launch behavior, and logging for this TerraTech install.</p>
@@ -435,11 +435,11 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 						}
 					)}
 					autoComplete="off"
-					className="mb-6 ml-6 mr-6 mt-5 max-[1100px]:mx-5"
+					className="box-border h-[calc(100%-78px)] px-6 py-5 max-[1100px]:px-5"
 				>
 					<div className="CollectionSettings mb-2.5 grid grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] gap-x-6 gap-y-5 max-[991px]:grid-cols-1">
 						<div key="misc-app-settings" className="flex max-[991px]:mb-5">
-							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-4.5 py-4">
+							<div className="box-border flex h-full flex-1 flex-col rounded-sm border border-border bg-surface px-4.5 py-4">
 								<SettingsField
 									id="localDir"
 									label="Local Mods Folder"
@@ -615,7 +615,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 							</div>
 						</div>
 						<div key="additional-commands" className="flex">
-							<div className="box-border flex h-full flex-1 flex-col rounded-md border border-border bg-surface px-4.5 py-4">
+							<div className="box-border flex h-full flex-1 flex-col rounded-sm border border-border bg-surface px-4.5 py-4">
 								<SettingsField id="extraParams" label="Launch Arguments">
 									<DesktopInput
 										id="extraParams"

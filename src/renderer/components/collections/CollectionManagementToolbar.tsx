@@ -31,9 +31,10 @@ const toolbarPrimaryActionGroupClassName = 'ml-auto inline-flex shrink-0 flex-wr
 const toolbarDraftActionGroupClassName =
 	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:flex-1 max-[760px]:[&>button]:flex-1';
 const toolbarLaunchActionClassName = 'min-w-34 max-[1100px]:min-w-control max-[1100px]:w-control max-[1100px]:px-0 max-[760px]:flex-1';
-const toolbarMenuButtonClassName = 'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[760px]:flex-1';
+const toolbarMenuButtonClassName =
+	'ToolbarMenuButton inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[760px]:flex-1';
 const toolbarMenuClassName =
-	'absolute right-0 top-[calc(100%+6px)] z-30 flex min-w-56 flex-col rounded-md border border-border bg-surface-elevated p-1.5 shadow-[0_14px_32px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]';
+	'ToolbarMenuSurface absolute right-0 top-[calc(100%+6px)] z-30 flex min-w-56 flex-col rounded-sm border border-border bg-surface-elevated p-1.5 shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]';
 const toolbarMenuItemClassName =
 	'flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none';
 
@@ -45,6 +46,7 @@ interface CollectionManagementToolbarProps {
 	validatingCollection?: boolean;
 	launchingGame?: boolean;
 	currentValidationStatus?: boolean;
+	launchReady?: boolean;
 	launchGameDisabled?: boolean;
 	launchGameDisabledReason?: string;
 	numResults?: number;
@@ -294,6 +296,7 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 function PrimaryCollectionControls({
 	currentValidationStatus,
 	disabledFeatures,
+	launchReady,
 	launchGameCallback,
 	launchGameDisabled,
 	launchGameDisabledReason,
@@ -309,6 +312,7 @@ function PrimaryCollectionControls({
 	| 'launchGameCallback'
 	| 'launchGameDisabled'
 	| 'launchGameDisabledReason'
+	| 'launchReady'
 	| 'launchingGame'
 	| 'madeEdits'
 	| 'saveCollectionCallback'
@@ -326,6 +330,35 @@ function PrimaryCollectionControls({
 		) : (
 			<RefreshCw className={validatingCollection ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
 		);
+	const [launchReadyPulse, setLaunchReadyPulse] = useState(false);
+	const validationRequestedRef = useRef(false);
+	const wasValidatingCollectionRef = useRef(!!validatingCollection);
+	const validateLabel = launchReady ? 'Collection Ready' : 'Validate Collection';
+	const readyTitle = launchReady ? 'Collection is validated and ready to launch' : 'Validate collection';
+
+	useEffect(() => {
+		const wasValidatingCollection = wasValidatingCollectionRef.current;
+		wasValidatingCollectionRef.current = !!validatingCollection;
+		if (!wasValidatingCollection || validatingCollection) {
+			return undefined;
+		}
+
+		const shouldPulse = validationRequestedRef.current && !!launchReady;
+		validationRequestedRef.current = false;
+		if (!shouldPulse) {
+			setLaunchReadyPulse(false);
+			return undefined;
+		}
+
+		setLaunchReadyPulse(true);
+		const timeoutId = window.setTimeout(() => {
+			setLaunchReadyPulse(false);
+		}, 620);
+
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [launchReady, validatingCollection]);
 
 	return (
 		<div className={toolbarPrimaryActionGroupClassName} role="group" aria-label="Primary collection actions">
@@ -342,20 +375,24 @@ function PrimaryCollectionControls({
 					Save Collection
 				</DesktopToolbarButton>
 				<DesktopToolbarButton
-					aria-label="Validate Collection"
-					title="Validate collection"
+					aria-label={validateLabel}
+					title={readyTitle}
 					icon={validateIcon}
 					danger={currentValidationStatus === false}
-					onClick={validateCollectionCallback}
+					onClick={() => {
+						validationRequestedRef.current = true;
+						validateCollectionCallback?.();
+					}}
 					disabled={disabledFeatures || validatingCollection || launchingGame || !validateCollectionCallback}
 				>
-					Validate Collection
+					{launchReady ? 'Ready' : 'Validate Collection'}
 				</DesktopToolbarButton>
 			</div>
 			<DesktopToolbarButton
 				aria-label="Launch Game"
 				title={launchGameDisabledReason || 'Launch game'}
 				className={toolbarLaunchActionClassName}
+				data-ready-pulse={launchReadyPulse ? 'true' : undefined}
 				icon={<Play size={16} aria-hidden="true" />}
 				loading={launchingGame}
 				variant="primary"
@@ -492,6 +529,7 @@ function CollectionManagementToolbarComponent({
 	currentValidationStatus,
 	launchGameDisabled,
 	launchGameDisabledReason,
+	launchReady,
 	numResults,
 	onSearchCallback,
 	onSearchChangeCallback,
@@ -603,6 +641,7 @@ function CollectionManagementToolbarComponent({
 					launchGameCallback={launchGameCallback}
 					launchGameDisabled={launchGameDisabled}
 					launchGameDisabledReason={launchGameDisabledReason}
+					launchReady={launchReady}
 					launchingGame={launchingGame}
 					madeEdits={madeEdits}
 					saveCollectionCallback={saveCollectionCallback}

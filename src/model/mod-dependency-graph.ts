@@ -1,8 +1,8 @@
 import { type ModData, type ModDataOverride, type ModDescriptor, ModType, getModDataId, getModDescriptorKey } from './Mod';
+import { createModDependencyTargetSatisfactionPolicy, type ModDependencyTargetSatisfactionPolicy } from './mod-dependency-target';
 import {
-	isNuterraSteamCompatibilityEnabled,
-	isNuterraSteamVariantText,
-	NUTERRASTEAM_BETA_WORKSHOP_ID,
+	createNuterraSteamBetaMatchingPolicy,
+	type NuterraSteamBetaMatchingPolicy,
 	type NuterraSteamCompatibilityOptions
 } from './nuterrasteam-compatibility';
 
@@ -87,22 +87,6 @@ export function getModDependentDescriptors(graph: ModDependencyGraph, mod: ModDa
 	return descriptorKey ? (graph.dependentsByDescriptorKey.get(descriptorKey) ?? []) : [];
 }
 
-function normalizeExternalDependencyId(modID: string | undefined | null, options: ModDependencyGraphOptions): string | undefined {
-	if (!modID) {
-		return undefined;
-	}
-
-	// External compatibility boundary:
-	// Published Workshop metadata and dependency names still appear under both
-	// NuterraSteam and NuterraSteam (Beta). The EX fork keeps this compatibility
-	// default-on, but users can turn it off when they need exact variant checks.
-	if (isNuterraSteamCompatibilityEnabled(options) && isNuterraSteamVariantText(modID)) {
-		return 'NuterraSteam';
-	}
-
-	return modID;
-}
-
 function createDescriptor(): ModDescriptor {
 	return {
 		UIDs: new Set()
@@ -116,8 +100,8 @@ function registerDescriptor(graph: ModDependencyGraph, descriptor: ModDescriptor
 	}
 }
 
-function ensureDescriptorForModId(modID: string | undefined | null, graph: ModDependencyGraph, options: ModDependencyGraphOptions) {
-	const normalizedModId = normalizeExternalDependencyId(modID, options);
+function ensureDescriptorForModId(modID: string | undefined | null, graph: ModDependencyGraph, policy: NuterraSteamBetaMatchingPolicy) {
+	const normalizedModId = policy.normalizeDependencyId(modID);
 	let descriptor = normalizedModId ? graph.modIdToDescriptor.get(normalizedModId) : undefined;
 	if (!descriptor && normalizedModId) {
 		descriptor = createDescriptor();
@@ -135,8 +119,12 @@ function ensureDescriptorForModId(modID: string | undefined | null, graph: ModDe
 	return descriptor;
 }
 
-function ensureDescriptorForEquivalentName(name: string | undefined | null, graph: ModDependencyGraph, options: ModDependencyGraphOptions) {
-	const normalizedName = normalizeExternalDependencyId(name, options);
+function ensureDescriptorForEquivalentName(
+	name: string | undefined | null,
+	graph: ModDependencyGraph,
+	policy: NuterraSteamBetaMatchingPolicy
+) {
+	const normalizedName = policy.normalizeDependencyId(name);
 	if (!normalizedName || normalizedName === name) {
 		return undefined;
 	}
@@ -154,17 +142,13 @@ function ensureDescriptorForEquivalentName(name: string | undefined | null, grap
 	return descriptor;
 }
 
-function findExistingDescriptorForModId(modID: string | undefined | null, graph: ModDependencyGraph, options: ModDependencyGraphOptions) {
-	const normalizedModId = normalizeExternalDependencyId(modID, options);
+function findExistingDescriptorForModId(
+	modID: string | undefined | null,
+	graph: ModDependencyGraph,
+	policy: NuterraSteamBetaMatchingPolicy
+) {
+	const normalizedModId = policy.normalizeDependencyId(modID);
 	return normalizedModId ? graph.modIdToDescriptor.get(normalizedModId) : undefined;
-}
-
-function findEquivalentDescriptorForWorkshopId(workshopID: bigint, graph: ModDependencyGraph, options: ModDependencyGraphOptions) {
-	if (isNuterraSteamCompatibilityEnabled(options) && workshopID === NUTERRASTEAM_BETA_WORKSHOP_ID) {
-		return ensureDescriptorForModId('NuterraSteam', graph, options);
-	}
-
-	return undefined;
 }
 
 function ensureDescriptorForWorkshopId(workshopID: bigint, graph: ModDependencyGraph) {
@@ -184,7 +168,7 @@ function ensureDescriptorForWorkshopId(workshopID: bigint, graph: ModDependencyG
 function applyWorkshopDescriptors(
 	session: DependencyGraphSession,
 	overrides: Map<string, ModDataOverride>,
-	options: ModDependencyGraphOptions
+	policy: NuterraSteamBetaMatchingPolicy
 ) {
 	const { dependencyGraph, foundMods, modIdToModDataMap } = session;
 
@@ -197,8 +181,8 @@ function applyWorkshopDescriptors(
 			const { workshopID } = mod;
 			const id = getModDataId(mod);
 			const descriptor =
-				ensureDescriptorForModId(id, dependencyGraph, options) ||
-				ensureDescriptorForEquivalentName(mod.name, dependencyGraph, options) ||
+				ensureDescriptorForModId(id, dependencyGraph, policy) ||
+				ensureDescriptorForEquivalentName(mod.name, dependencyGraph, policy) ||
 				ensureDescriptorForWorkshopId(workshopID, dependencyGraph);
 			descriptor.workshopID = workshopID;
 			dependencyGraph.workshopIdToDescriptor.set(workshopID, descriptor);
@@ -217,14 +201,14 @@ function applyWorkshopDescriptors(
 	});
 }
 
-function applyLocalDescriptors(session: DependencyGraphSession, options: ModDependencyGraphOptions) {
+function applyLocalDescriptors(session: DependencyGraphSession, policy: NuterraSteamBetaMatchingPolicy) {
 	const { dependencyGraph, foundMods } = session;
 
 	foundMods.forEach((mod: ModData) => {
 		if (mod.type !== ModType.WORKSHOP) {
 			const id = getModDataId(mod);
 			if (id) {
-				const descriptor = ensureDescriptorForModId(id, dependencyGraph, options);
+				const descriptor = ensureDescriptorForModId(id, dependencyGraph, policy);
 				if (descriptor) {
 					if (!descriptor.name && mod.name) {
 						descriptor.name = mod.name;
@@ -261,7 +245,22 @@ function addDependencyEdge(graph: ModDependencyGraphBuilder, dependentKey: strin
 	dependentKeys.add(dependentKey);
 }
 
-function applyDependencyEdges(session: DependencyGraphSession, options: ModDependencyGraphOptions) {
+function shouldCreateEquivalentDescriptor(input: {
+	dependencyName: string | undefined;
+	equivalentDependencyId: string | undefined;
+	equivalentWorkshopDependencyId: string | undefined;
+}) {
+	return (
+		input.equivalentDependencyId !== undefined &&
+		(input.equivalentWorkshopDependencyId !== undefined || input.equivalentDependencyId !== input.dependencyName)
+	);
+}
+
+function applyDependencyEdges(
+	session: DependencyGraphSession,
+	policy: NuterraSteamBetaMatchingPolicy,
+	targetPolicy: ModDependencyTargetSatisfactionPolicy
+) {
 	const graph = session.dependencyGraph as ModDependencyGraphBuilder;
 	const { foundMods } = session;
 
@@ -271,10 +270,21 @@ function applyDependencyEdges(session: DependencyGraphSession, options: ModDepen
 		if (myDescriptorKey) {
 			mod.steamDependencies?.forEach((workshopID) => {
 				const dependencyName = mod.steamDependencyNames?.[workshopID.toString()];
+				const equivalentWorkshopDependencyId = policy.getEquivalentDependencyIdForWorkshopId(workshopID);
+				const equivalentDependencyId = targetPolicy.getEquivalentDependencyIdForTarget({
+					workshopID,
+					name: dependencyName
+				});
 				const descriptor =
 					graph.workshopIdToDescriptor.get(workshopID) ||
-					findExistingDescriptorForModId(dependencyName, graph, options) ||
-					findEquivalentDescriptorForWorkshopId(workshopID, graph, options) ||
+					findExistingDescriptorForModId(equivalentDependencyId, graph, policy) ||
+					(shouldCreateEquivalentDescriptor({
+						dependencyName,
+						equivalentDependencyId,
+						equivalentWorkshopDependencyId
+					})
+						? ensureDescriptorForModId(equivalentDependencyId, graph, policy)
+						: undefined) ||
 					ensureDescriptorForWorkshopId(workshopID, graph);
 				graph.workshopIdToDescriptor.set(workshopID, descriptor);
 				registerDescriptor(graph, descriptor);
@@ -284,7 +294,7 @@ function applyDependencyEdges(session: DependencyGraphSession, options: ModDepen
 				addDependencyEdge(graph, myDescriptorKey, descriptor);
 			});
 			mod.explicitIDDependencies?.forEach((modID) => {
-				const descriptor = ensureDescriptorForModId(modID, graph, options);
+				const descriptor = ensureDescriptorForModId(modID, graph, policy);
 				if (descriptor) {
 					if (!descriptor.name) {
 						descriptor.name = modID;
@@ -321,11 +331,13 @@ export function setupModDependencyGraph(
 	options: ModDependencyGraphOptions = {}
 ) {
 	const { modIdToModDataMap } = session;
+	const policy = createNuterraSteamBetaMatchingPolicy(options);
+	const targetPolicy = createModDependencyTargetSatisfactionPolicy(options);
 	modIdToModDataMap.clear();
 	session.dependencyGraph = createModDependencyGraphBuilder();
 
-	applyWorkshopDescriptors(session, overrides, options);
-	applyLocalDescriptors(session, options);
-	applyDependencyEdges(session, options);
+	applyWorkshopDescriptors(session, overrides, policy);
+	applyLocalDescriptors(session, policy);
+	applyDependencyEdges(session, policy, targetPolicy);
 	finalizeDependencyEdges(session.dependencyGraph as ModDependencyGraphBuilder);
 }
