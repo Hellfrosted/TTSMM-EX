@@ -1,13 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Dropdown, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
-import type { MenuProps } from 'antd';
-import { ColumnType } from 'antd/lib/table';
-import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
+import type { CSSProperties, Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
-import { APP_THEME_COLORS } from 'renderer/theme';
+import { markPerfInteraction, measurePerf } from 'renderer/perf';
+import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
+import { APP_FONT_FAMILY, APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -23,7 +23,6 @@ import {
 	CorpType,
 	getCorpType
 } from 'model';
-import { WarningTwoTone, ClockCircleTwoTone, StopTwoTone, HddFilled, CodeFilled } from '@ant-design/icons';
 import { formatDateStr } from 'util/Date';
 
 import steam from '../../../../assets/steam.png';
@@ -39,15 +38,94 @@ import Icon_Skins from '../../../../assets/paintbrush.svg';
 import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
 import Icon_Corps from '../../../../assets/faction-flag.svg';
 
-const { Content } = Layout;
-const { Text } = Typography;
 const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
 const KEYBOARD_RESIZE_STEP = 16;
-const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
 const COLUMN_MEASUREMENT_SAMPLE_SIZE = 24;
 const COLUMN_AUTO_MEASURE_MAX_ROWS = 120;
-const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
+const COLUMN_MEASUREMENT_CACHE_LIMIT = 12;
+const NAME_CELL_ICON_WIDTH = 18;
+const SIZE_COLOR_MIN_BYTES = 10 * 1024;
+const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
+const KILOBYTE = 1024;
+const MEGABYTE = 1024 * 1024;
 const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+const mainColumnTitleSet = new Set<string>(ALL_MAIN_COLUMN_TITLES);
+const columnMeasurementCache = new Map<string, Record<string, number>>();
+const AUTO_MEASURE_COLUMN_TITLES = new Set<MainColumnTitles>([
+	MainColumnTitles.NAME,
+	MainColumnTitles.AUTHORS,
+	MainColumnTitles.STATE,
+	MainColumnTitles.ID,
+	MainColumnTitles.SIZE,
+	MainColumnTitles.TAGS
+]);
+interface SizeColorBand {
+	upperBound: number;
+	startColor: string;
+	endColor: string;
+	backgroundStartMix: number;
+	borderMix: number;
+	textMix: number;
+}
+
+const SIZE_COLOR_BANDS: readonly SizeColorBand[] = [
+	{
+		upperBound: 128 * KILOBYTE,
+		startColor: APP_THEME_COLORS.success,
+		endColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.warning, 0.18),
+		backgroundStartMix: 0.22,
+		borderMix: 0.5,
+		textMix: 0.12
+	},
+	{
+		upperBound: 512 * KILOBYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.primary, 0.34),
+		endColor: blendHexColors(APP_THEME_COLORS.success, APP_THEME_COLORS.warning, 0.44),
+		backgroundStartMix: 0.24,
+		borderMix: 0.54,
+		textMix: 0.14
+	},
+	{
+		upperBound: 2 * MEGABYTE,
+		startColor: APP_THEME_COLORS.primary,
+		endColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.16),
+		backgroundStartMix: 0.26,
+		borderMix: 0.58,
+		textMix: 0.16
+	},
+	{
+		upperBound: 8 * MEGABYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.26),
+		endColor: blendHexColors(APP_THEME_COLORS.primary, APP_THEME_COLORS.warning, 0.48),
+		backgroundStartMix: 0.29,
+		borderMix: 0.62,
+		textMix: 0.18
+	},
+	{
+		upperBound: 24 * MEGABYTE,
+		startColor: APP_THEME_COLORS.warning,
+		endColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.16),
+		backgroundStartMix: 0.32,
+		borderMix: 0.67,
+		textMix: 0.2
+	},
+	{
+		upperBound: 64 * MEGABYTE,
+		startColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.32),
+		endColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.58),
+		backgroundStartMix: 0.36,
+		borderMix: 0.72,
+		textMix: 0.24
+	},
+	{
+		upperBound: Number.POSITIVE_INFINITY,
+		startColor: blendHexColors(APP_THEME_COLORS.warning, APP_THEME_COLORS.error, 0.7),
+		endColor: APP_THEME_COLORS.error,
+		backgroundStartMix: 0.42,
+		borderMix: 0.78,
+		textMix: 0.28
+	}
+] as const;
 const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
 	[MainColumnTitles.AUTHORS]: 760,
 	[MainColumnTitles.STATE]: 860,
@@ -57,6 +135,210 @@ const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, numbe
 	[MainColumnTitles.DATE_ADDED]: 1280,
 	[MainColumnTitles.TAGS]: 1380
 };
+
+function areColumnWidthMapsEqual(left: Record<string, number>, right: Record<string, number>) {
+	const leftKeys = Object.keys(left);
+	const rightKeys = Object.keys(right);
+	if (leftKeys.length !== rightKeys.length) {
+		return false;
+	}
+
+	return leftKeys.every((key) => left[key] === right[key]);
+}
+
+function getColumnMeasurementCacheKey(measurementInputKey: string, activeColumnTitles: string[]) {
+	return `${measurementInputKey}::${activeColumnTitles.join('|')}`;
+}
+
+function cacheColumnMeasurements(cacheKey: string, widths: Record<string, number>) {
+	columnMeasurementCache.delete(cacheKey);
+	columnMeasurementCache.set(cacheKey, widths);
+	if (columnMeasurementCache.size <= COLUMN_MEASUREMENT_CACHE_LIMIT) {
+		return;
+	}
+
+	const oldestCacheKey = columnMeasurementCache.keys().next().value;
+	if (oldestCacheKey) {
+		columnMeasurementCache.delete(oldestCacheKey);
+	}
+}
+
+export function resetColumnMeasurementCache() {
+	columnMeasurementCache.clear();
+}
+
+function clampNumber(value: number, min: number, max: number) {
+	return Math.min(Math.max(value, min), max);
+}
+
+function parseRgbColor(color: string): [number, number, number] {
+	const normalized = color.trim();
+	if (normalized.startsWith('#')) {
+		const hexValue = normalized.slice(1);
+		const expanded = hexValue.length === 3 ? hexValue.split('').map((value) => `${value}${value}`).join('') : hexValue;
+		return [
+			Number.parseInt(expanded.slice(0, 2), 16),
+			Number.parseInt(expanded.slice(2, 4), 16),
+			Number.parseInt(expanded.slice(4, 6), 16)
+		];
+	}
+
+	const rgbMatch = normalized.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+	if (rgbMatch) {
+		return [Number.parseFloat(rgbMatch[1]), Number.parseFloat(rgbMatch[2]), Number.parseFloat(rgbMatch[3])].map((channel) =>
+			Math.round(channel)
+		) as [number, number, number];
+	}
+
+	throw new Error(`Unsupported color format: ${color}`);
+}
+
+function mixRgbChannels(left: [number, number, number], right: [number, number, number], amount: number): [number, number, number] {
+	return left.map((channel, index) => {
+		return Math.round(channel + (right[index] - channel) * amount);
+	}) as [number, number, number];
+}
+
+function rgbString([red, green, blue]: [number, number, number]) {
+	return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function blendHexColors(left: string, right: string, amount: number) {
+	return rgbString(mixRgbChannels(parseRgbColor(left), parseRgbColor(right), amount));
+}
+
+function parsePixelValue(value: string | null | undefined) {
+	const parsed = Number.parseFloat(value || '');
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getHorizontalInsets(element: Element) {
+	const style = window.getComputedStyle(element);
+	return (
+		parsePixelValue(style.paddingLeft) +
+		parsePixelValue(style.paddingRight) +
+		parsePixelValue(style.borderLeftWidth) +
+		parsePixelValue(style.borderRightWidth)
+	);
+}
+
+function getHorizontalMargins(element: Element) {
+	const style = window.getComputedStyle(element);
+	return parsePixelValue(style.marginLeft) + parsePixelValue(style.marginRight);
+}
+
+function buildFontShorthand(style: CSSStyleDeclaration) {
+	if (style.font) {
+		return style.font;
+	}
+
+	return `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize} / ${style.lineHeight} ${style.fontFamily}`
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function getElementFont(element: Element | null, fallbackFont: string) {
+	if (!element) {
+		return fallbackFont;
+	}
+
+	const font = buildFontShorthand(window.getComputedStyle(element));
+	return font || fallbackFont;
+}
+
+function getFallbackTextWidth(text: string, font: string) {
+	const fontSizeMatch = /(\d+(?:\.\d+)?)px/.exec(font);
+	const fontSize = fontSizeMatch ? Number.parseFloat(fontSizeMatch[1]) : 14;
+	return text.length * fontSize * 0.56;
+}
+
+let textMeasurementCanvas: HTMLCanvasElement | null = null;
+let canUseCanvasTextMeasurement: boolean | null = null;
+
+function measureTextWidth(text: string, font: string) {
+	if (!text) {
+		return 0;
+	}
+
+	if (canUseCanvasTextMeasurement === null) {
+		canUseCanvasTextMeasurement = !window.navigator.userAgent.toLowerCase().includes('jsdom');
+	}
+
+	if (!canUseCanvasTextMeasurement) {
+		return Math.ceil(getFallbackTextWidth(text, font));
+	}
+
+	if (!textMeasurementCanvas) {
+		textMeasurementCanvas = document.createElement('canvas');
+	}
+
+	const context = textMeasurementCanvas.getContext('2d');
+	if (!context) {
+		return Math.ceil(getFallbackTextWidth(text, font));
+	}
+
+	context.font = font;
+	return Math.ceil(context.measureText(text).width);
+}
+
+function getRenderedElementWidth(element: HTMLElement) {
+	return Math.ceil(Math.max(element.getBoundingClientRect().width, element.scrollWidth, element.offsetWidth));
+}
+
+function getInlineChildrenWidth(container: HTMLElement) {
+	const childElements = Array.from(container.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
+	if (childElements.length === 0) {
+		return 0;
+	}
+
+	return childElements.reduce((totalWidth, childElement) => {
+		return totalWidth + getRenderedElementWidth(childElement) + getHorizontalMargins(childElement);
+	}, 0);
+}
+
+function getSizeColorBandIndex(size: number) {
+	const normalizedSize = Math.max(size, SIZE_COLOR_MIN_BYTES);
+	return SIZE_COLOR_BANDS.findIndex((band) => normalizedSize <= band.upperBound);
+}
+
+function getSizeBandProgress(size: number, bandIndex: number) {
+	const lowerBound = bandIndex === 0 ? SIZE_COLOR_MIN_BYTES : SIZE_COLOR_BANDS[bandIndex - 1].upperBound;
+	const upperBound = Number.isFinite(SIZE_COLOR_BANDS[bandIndex].upperBound) ? SIZE_COLOR_BANDS[bandIndex].upperBound : SIZE_COLOR_MAX_BYTES;
+	const clampedSize = clampNumber(size, lowerBound, upperBound);
+	return (Math.log(clampedSize) - Math.log(lowerBound)) / (Math.log(upperBound) - Math.log(lowerBound) || 1);
+}
+
+function getSizeTagStyle(size: number): CSSProperties {
+	const bandIndex = getSizeColorBandIndex(size);
+	const band = SIZE_COLOR_BANDS[bandIndex];
+	const bandProgress = clampNumber(getSizeBandProgress(size, bandIndex), 0, 1);
+	const baseColor = parseRgbColor(blendHexColors(band.startColor, band.endColor, bandProgress));
+	const surfaceColor = parseRgbColor(APP_THEME_COLORS.surfaceElevated);
+	const textColor = parseRgbColor(APP_THEME_COLORS.textBase);
+	const backgroundColor = mixRgbChannels(surfaceColor, baseColor, band.backgroundStartMix + bandProgress * 0.04);
+
+	return {
+		color: rgbString(mixRgbChannels(textColor, baseColor, band.textMix + bandProgress * 0.05)),
+		background: rgbString(backgroundColor),
+		borderColor: rgbString(mixRgbChannels(surfaceColor, baseColor, band.borderMix + bandProgress * 0.04))
+	};
+}
+
+function MainCollectionTag({ children, className = '', style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+	return (
+		<span className={`MainCollectionTag${className ? ` ${className}` : ''}`} style={style}>
+			{children}
+		</span>
+	);
+}
+
+function MainCollectionIcon({ children, label, className = '' }: { children: ReactNode; label: string; className?: string }) {
+	return (
+		<span className={`MainCollectionIcon${className ? ` ${className}` : ''}`} role="img" aria-label={label} title={label}>
+			{children}
+		</span>
+	);
+}
 
 function getModTypeLabel(type: ModType) {
 	switch (type) {
@@ -76,24 +358,14 @@ function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title={label}>
-					<span role="img" aria-label={label}>
-						<HddFilled style={{ fontSize: size }} />
-					</span>
-				</Tooltip>
+				<MainCollectionIcon label={label}>
+					<HardDrive size={size} aria-hidden="true" />
+				</MainCollectionIcon>
 			);
 		case ModType.TTQMM:
-			return (
-				<Tooltip title={label}>
-					<img src={ttmm} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={ttmm} width={size} alt={label} key="type" title={label} />;
 		case ModType.WORKSHOP:
-			return (
-				<Tooltip title={label}>
-					<img src={steam} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={steam} width={size} alt={label} key="type" title={label} />;
 		default:
 			return null;
 	}
@@ -110,23 +382,11 @@ function getTypeIcon(type: TypeTag, size = 15) {
 		type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
 	switch (type) {
 		case TypeTag.SKINS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Skins} width={size - 14} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Skins} width={size - 14} alt={label} title={label} key={type} />;
 		case TypeTag.BLOCKS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Blocks} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Blocks} width={size} alt={label} title={label} key={type} />;
 		case TypeTag.CORPS:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Icon_Corps} width={size - 10} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Icon_Corps} width={size - 10} alt={label} title={label} key={type} />;
 		default:
 			return null;
 	}
@@ -151,47 +411,19 @@ function getCorpIcon(type: CorpType, size = 15) {
 									: 'Corporation';
 	switch (type) {
 		case CorpType.HE:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_HE} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_HE} width={size} alt={label} title={label} key={type} />;
 		case CorpType.GSO:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_GSO} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_GSO} width={size} alt={label} title={label} key={type} />;
 		case CorpType.GC:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_GC} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_GC} width={size} alt={label} title={label} key={type} />;
 		case CorpType.BF:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_BF} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_BF} width={size} alt={label} title={label} key={type} />;
 		case CorpType.RR:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_RR} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_RR} width={size} alt={label} title={label} key={type} />;
 		case CorpType.SPE:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_SPE} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_SPE} width={size} alt={label} title={label} key={type} />;
 		case CorpType.VEN:
-			return (
-				<Tooltip title={label} key={type}>
-					<img src={Corp_Icon_VEN} width={size} alt={label} key={type} />
-				</Tooltip>
-			);
+			return <img src={Corp_Icon_VEN} width={size} alt={label} title={label} key={type} />;
 		default:
 			return null;
 	}
@@ -211,32 +443,51 @@ function getTypeTag(tag: string): TypeTag | null {
 	return null;
 }
 
-interface ColumnSchema<T> {
+interface ColumnSchema {
 	title: string;
 	dataIndex: string;
 	className?: string;
 	width?: number;
 	align?: 'center';
 	defaultSortOrder?: 'ascend';
-	filters?: ColumnType<DisplayModData>['filters'];
-	filtersSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['filters'];
-	onFilter?: ColumnType<DisplayModData>['onFilter'];
-	sorter?:
-		| boolean
-		| CompareFn<DisplayModData>
-		| {
-				compare?: CompareFn<DisplayModData> | undefined;
-				multiple?: number | undefined;
-		  }
-		| undefined;
-	sorterSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['sorter'];
-	renderSetup?: (props: MainCollectionSchemaProps) => (value: any, record: T, index: number) => ReactNode;
+	filters?: MainCollectionFilter[];
+	filtersSetup?: (props: MainCollectionSchemaProps) => MainCollectionFilter[];
+	onFilter?: (value: boolean | Key, record: DisplayModData) => boolean;
+	sorter?: MainCollectionSorter;
+	sorterSetup?: (props: MainCollectionSchemaProps) => MainCollectionSorter;
+	renderSetup?: (props: MainCollectionSchemaProps) => MainCollectionCellRenderer;
 }
 
 type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
 
+interface MainCollectionFilter {
+	text: string;
+	value: Key;
+}
+
+type MainCollectionSortOrder = 'ascend' | 'descend' | null | undefined;
+type MainCollectionSorter =
+	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
+	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
+	| undefined;
+type MainCollectionCellRenderer = {
+	render(value: DisplayModData[keyof DisplayModData], record: DisplayModData, rowIndex: number): ReactNode;
+}['render'];
+
+interface HeaderMenuItem {
+	key?: Key;
+	label?: ReactNode;
+	type?: 'divider';
+	disabled?: boolean;
+}
+
+interface HeaderMenu {
+	items: HeaderMenuItem[];
+	onClick: (info: { key: Key }) => void;
+}
+
 interface StateTagConfig {
-	color?: string;
+	tone?: keyof typeof APP_TAG_STYLES;
 	rank: number;
 	text: string;
 }
@@ -253,7 +504,7 @@ function getAllTags(record: DisplayModData) {
 
 interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
 	'data-column-title'?: string;
-	headerMenu?: MenuProps;
+	headerMenu?: HeaderMenu;
 	label?: string;
 	width?: number | string;
 	resizeWidth?: number;
@@ -275,12 +526,29 @@ function ResizableHeaderCell({
 	...rest
 }: ResizableHeaderCellProps) {
 	const cleanupRef = useRef<(() => void) | null>(null);
-	const widthRef = useRef(resizeWidth ?? (typeof width === 'number' ? width : minWidth));
+	const currentResizeWidth = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
+	const widthRef = useRef(currentResizeWidth);
+	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
+	const syncResizeHandleValue = useCallback(
+		(nextWidth: number) => {
+			widthRef.current = nextWidth;
+			const resizeHandle = resizeHandleRef.current;
+			if (!resizeHandle) {
+				return;
+			}
+
+			resizeHandle.setAttribute('aria-valuenow', `${nextWidth}`);
+			resizeHandle.setAttribute('aria-valuetext', `${nextWidth}px wide`);
+			resizeHandle.setAttribute('aria-valuemax', `${Math.max(minWidth, nextWidth + 1024)}`);
+		},
+		[minWidth]
+	);
 
 	useEffect(() => {
-		widthRef.current = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
-	}, [minWidth, resizeWidth, width]);
+		syncResizeHandleValue(currentResizeWidth);
+	}, [currentResizeWidth, syncResizeHandleValue]);
 
 	useEffect(() => {
 		return () => {
@@ -288,15 +556,44 @@ function ResizableHeaderCell({
 		};
 	}, []);
 
+	useEffect(() => {
+		if (!menuPosition) {
+			return undefined;
+		}
+
+		const closeMenu = () => {
+			setMenuPosition(null);
+		};
+		const closeMenuOnEscape = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				closeMenu();
+			}
+		};
+
+		window.addEventListener('click', closeMenu);
+		window.addEventListener('contextmenu', closeMenu);
+		window.addEventListener('keydown', closeMenuOnEscape);
+		return () => {
+			window.removeEventListener('click', closeMenu);
+			window.removeEventListener('contextmenu', closeMenu);
+			window.removeEventListener('keydown', closeMenuOnEscape);
+		};
+	}, [menuPosition]);
+
 	const startResize = useCallback(
 		(startX: number) => {
 			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
 			let nextWidth = startWidth;
 			const previousCursor = document.body.style.cursor;
 			const previousUserSelect = document.body.style.userSelect;
+			markPerfInteraction('collection.columnResize.start', {
+				column: resizeLabel,
+				width: startWidth
+			});
 
 			const updateWidth = (clientX: number) => {
 				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
+				syncResizeHandleValue(nextWidth);
 				onResize?.(nextWidth);
 			};
 
@@ -306,6 +603,10 @@ function ResizableHeaderCell({
 				document.body.style.cursor = previousCursor;
 				document.body.style.userSelect = previousUserSelect;
 				cleanupRef.current = null;
+				markPerfInteraction('collection.columnResize.end', {
+					column: resizeLabel,
+					width: nextWidth
+				});
 				onResizeEnd?.(nextWidth);
 			};
 
@@ -323,7 +624,7 @@ function ResizableHeaderCell({
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
 		},
-		[minWidth, onResize, onResizeEnd]
+		[minWidth, onResize, onResizeEnd, resizeLabel, syncResizeHandleValue]
 	);
 
 	const handleMouseDown = useCallback(
@@ -345,28 +646,89 @@ function ResizableHeaderCell({
 			event.stopPropagation();
 			const direction = event.key === 'ArrowRight' ? 1 : -1;
 			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * KEYBOARD_RESIZE_STEP));
+			markPerfInteraction('collection.columnResize.keyboard', {
+				column: resizeLabel,
+				width: nextWidth
+			});
+			syncResizeHandleValue(nextWidth);
 			onResize?.(nextWidth);
 			onResizeEnd?.(nextWidth);
 		},
-		[minWidth, onResize, onResizeEnd]
+		[minWidth, onResize, onResizeEnd, resizeLabel, syncResizeHandleValue]
 	);
+
+	const handleContextMenu = useCallback(
+		(event: ReactMouseEvent<HTMLDivElement>) => {
+			if (!headerMenu) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			setMenuPosition({ x: event.clientX, y: event.clientY });
+		},
+		[headerMenu]
+	);
+
+	const headerContent = <div className="CollectionTableHeaderCell">{children}</div>;
 
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
-			{headerMenu ? (
-				<Dropdown menu={headerMenu} trigger={['contextMenu']}>
-					<div className="CollectionTableHeaderContextTarget">
-						<div className="CollectionTableHeaderCell">{children}</div>
+			<div className="CollectionTableHeaderInner">
+				{headerMenu ? (
+					<div className="CollectionTableHeaderContextTarget" onContextMenu={handleContextMenu}>
+						{headerContent}
 					</div>
-				</Dropdown>
-			) : (
-				<div className="CollectionTableHeaderCell">{children}</div>
-			)}
+				) : (
+					headerContent
+				)}
+			</div>
+			{headerMenu && menuPosition ? (
+				<div
+					className="MainCollectionHeaderMenu"
+					role="menu"
+					tabIndex={-1}
+					style={{ left: menuPosition.x, top: menuPosition.y }}
+				>
+					{headerMenu.items.map((item, index) => {
+						if (item.type === 'divider') {
+							return <div key={`divider-${index}`} className="MainCollectionHeaderMenuDivider" role="separator" />;
+						}
+
+						if (item.key === undefined) {
+							return null;
+						}
+
+						return (
+							<button
+								key={item.key.toString()}
+								type="button"
+								className="MainCollectionHeaderMenuItem"
+								role="menuitem"
+								disabled={item.disabled}
+								onClick={() => {
+									headerMenu.onClick({ key: item.key as Key });
+									setMenuPosition(null);
+								}}
+							>
+								{item.label}
+							</button>
+						);
+					})}
+				</div>
+			) : null}
 			{width ? (
 				<button
 					type="button"
+					ref={resizeHandleRef}
 					className="CollectionTableResizeHandle"
+					role="slider"
 					aria-label={`Resize ${resizeLabel}`}
+					aria-orientation="horizontal"
+					aria-valuemin={minWidth}
+					aria-valuenow={currentResizeWidth}
+					aria-valuemax={Math.max(minWidth, currentResizeWidth + 1024)}
+					aria-valuetext={`${currentResizeWidth}px wide`}
 					onClick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
@@ -395,21 +757,37 @@ function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: bool
 	return true;
 }
 
+function isMainColumnTitle(value: string): value is MainColumnTitles {
+	return mainColumnTitleSet.has(value);
+}
+
+function getConfiguredMainColumnTitles(config: MainCollectionConfig | undefined) {
+	const configuredColumnSet = new Set<MainColumnTitles>();
+	const configuredOrder = (config?.columnOrder || []).filter((column): column is MainColumnTitles => {
+		if (!isMainColumnTitle(column) || configuredColumnSet.has(column)) {
+			return false;
+		}
+		configuredColumnSet.add(column);
+		return true;
+	});
+	return [...configuredOrder, ...ALL_MAIN_COLUMN_TITLES.filter((column) => !configuredColumnSet.has(column))];
+}
+
 function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
 	const { uid, subscribed, workshopID, installed, id } = record;
 
 	if (installed && id === null) {
-		return [{ text: 'Invalid', color: 'red', rank: 0 }];
+		return [{ text: 'Invalid', tone: 'danger', rank: 0 }];
 	}
 
 	if (!selectedMods.includes(uid)) {
 		if (!subscribed && workshopID && workshopID > 0) {
-			return [{ text: 'Not subscribed', rank: 4 }];
+			return [{ text: 'Not subscribed', tone: 'warning', rank: 4 }];
 		}
 		if (subscribed && !installed) {
-			return [{ text: 'Not installed', rank: 5 }];
+			return [{ text: 'Not installed', tone: 'warning', rank: 5 }];
 		}
 		return [];
 	}
@@ -419,20 +797,20 @@ function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'las
 	if (errors) {
 		const { incompatibleMods, invalidId, missingDependencies, notInstalled, notSubscribed, needsUpdate } = errors;
 		if (incompatibleMods && incompatibleMods.length > 0) {
-			stateTags.push({ text: 'Conflicts', color: 'red', rank: 1 });
+			stateTags.push({ text: 'Conflicts', tone: 'danger', rank: 1 });
 		}
 		if (invalidId) {
-			stateTags.push({ text: 'Invalid ID', color: 'volcano', rank: 0 });
+			stateTags.push({ text: 'Invalid ID', tone: 'danger', rank: 0 });
 		}
 		if (missingDependencies && missingDependencies.length > 0) {
-			stateTags.push({ text: 'Missing dependencies', color: 'orange', rank: 2 });
+			stateTags.push({ text: 'Missing dependencies', tone: 'warning', rank: 2 });
 		}
 		if (notSubscribed) {
-			stateTags.push({ text: 'Not subscribed', color: 'yellow', rank: 4 });
+			stateTags.push({ text: 'Not subscribed', tone: 'warning', rank: 4 });
 		} else if (notInstalled) {
-			stateTags.push({ text: 'Not installed', color: 'yellow', rank: 5 });
+			stateTags.push({ text: 'Not installed', tone: 'warning', rank: 5 });
 		} else if (needsUpdate) {
-			stateTags.push({ text: 'Needs update', color: 'yellow', rank: 6 });
+			stateTags.push({ text: 'Needs update', tone: 'warning', rank: 6 });
 		}
 	}
 
@@ -441,11 +819,11 @@ function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'las
 	}
 
 	if (lastValidationStatus !== undefined) {
-		return [{ text: 'OK', color: 'green', rank: 7 }];
+		return [{ text: 'OK', tone: 'success', rank: 7 }];
 	}
 
 	if (selectedMods.includes(uid)) {
-		return [{ text: 'Pending', rank: 8 }];
+		return [{ text: 'Pending', tone: 'neutral', rank: 8 }];
 	}
 
 	return [];
@@ -463,6 +841,139 @@ function compareStateTags(leftTags: StateTagConfig[], rightTags: StateTagConfig[
 	return leftLabel.localeCompare(rightLabel);
 }
 
+function formatSizeLabel(size?: number) {
+	if (!size || size <= 0) {
+		return undefined;
+	}
+
+	const strNum = `${size}`;
+	const power = strNum.length;
+	const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
+	let digit3 = digit3Raw;
+	if (!digit4) {
+		return `${strNum} B`;
+	}
+
+	digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
+
+	let descriptor = ' B';
+	if (power > 3) {
+		if (power > 6) {
+			descriptor = power > 9 ? ' GB' : ' MB';
+		} else {
+			descriptor = ' KB';
+		}
+	}
+
+	let value = `${digit1}${digit2}${digit3}`;
+	const decimal = power % 3;
+	if (decimal === 1) {
+		value = `${digit1}.${digit2}${digit3}`;
+	} else if (decimal === 2) {
+		value = `${digit1}${digit2}.${digit3}`;
+	}
+
+	return value + descriptor;
+}
+
+interface RenderedColumnBodyCell {
+	cell: HTMLElement;
+	row: DisplayModData;
+}
+
+function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {
+	const headerRow = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTable thead tr:last-child');
+	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const body = tableRoot.querySelector<HTMLElement>('.MainCollectionVirtualTableBody');
+	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const sampledBodyRows = bodyRows.slice(0, sampledRows.length);
+	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
+	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
+
+	return activeColumnTitles.reduce(
+		(acc, columnTitle, columnIndex) => {
+			const renderedColumnIndex = columnIndex + leadingCellCount;
+			const renderedCells: RenderedColumnBodyCell[] = [];
+			sampledBodyCells.forEach((bodyCells, rowIndex) => {
+				const bodyCell = bodyCells[renderedColumnIndex];
+				const row = sampledRows[rowIndex];
+				if (bodyCell && row) {
+					renderedCells.push({ cell: bodyCell, row });
+				}
+			});
+			acc[columnTitle] = renderedCells;
+			return acc;
+		},
+		{} as Record<string, RenderedColumnBodyCell[]>
+	);
+}
+
+function measureInlineChildrenCellWidth(cell: HTMLElement) {
+	return Math.ceil(getHorizontalInsets(cell) + getInlineChildrenWidth(cell));
+}
+
+function measureNameCellWidth(cell: HTMLElement, row: DisplayModData) {
+	const button = cell.querySelector<HTMLElement>('.CollectionNameButton');
+	const labelElement = cell.querySelector<HTMLElement>('.CollectionNameLabel');
+	const displayName = getModDataDisplayName(row) || row.uid;
+	const fallbackFont = `${row.needsUpdate ? 700 : 400} 14px ${APP_FONT_FAMILY}`;
+	let width = getHorizontalInsets(cell);
+
+	if (button) {
+		width += getHorizontalInsets(button);
+	}
+
+	width += measureTextWidth(` ${displayName} `, getElementFont(labelElement || button, fallbackFont));
+	if (row.needsUpdate) {
+		width += NAME_CELL_ICON_WIDTH;
+	}
+	if (row.hasCode) {
+		width += NAME_CELL_ICON_WIDTH;
+	}
+
+	return Math.ceil(width);
+}
+
+function measureIdCellWidth(cell: HTMLElement, row: DisplayModData) {
+	const tag = cell.querySelector<HTMLElement>('.MainCollectionTag');
+	if (tag) {
+		return Math.ceil(getHorizontalInsets(cell) + getRenderedElementWidth(tag) + getHorizontalMargins(tag));
+	}
+
+	const displayId = getModDataDisplayId(row);
+	if (!displayId) {
+		return 0;
+	}
+
+	return Math.ceil(getHorizontalInsets(cell) + measureTextWidth(displayId, getElementFont(cell, `400 14px ${APP_FONT_FAMILY}`)));
+}
+
+function measureBodyCellWidth(columnTitle: MainColumnTitles, renderedCell: RenderedColumnBodyCell) {
+	const { cell, row } = renderedCell;
+	switch (columnTitle) {
+		case MainColumnTitles.NAME:
+			return measureNameCellWidth(cell, row);
+		case MainColumnTitles.AUTHORS:
+		case MainColumnTitles.STATE:
+		case MainColumnTitles.TAGS:
+			return measureInlineChildrenCellWidth(cell);
+		case MainColumnTitles.ID:
+			return measureIdCellWidth(cell, row);
+		case MainColumnTitles.SIZE:
+			return cell.querySelector<HTMLElement>('.MainCollectionTag')
+				? measureInlineChildrenCellWidth(cell)
+				: Math.ceil(
+						getHorizontalInsets(cell) +
+							measureTextWidth(formatSizeLabel(row.size) || '', getElementFont(cell, `500 14px ${APP_FONT_FAMILY}`))
+				  );
+		default:
+			if (columnTitle === MainColumnTitles.TYPE) {
+				return getMainColumnMinWidth(columnTitle);
+			}
+			return 0;
+	}
+}
+
 function getMeasurementRowSignature(rows: DisplayModData[]) {
 	if (rows.length === 0) {
 		return 'empty';
@@ -470,12 +981,28 @@ function getMeasurementRowSignature(rows: DisplayModData[]) {
 
 	return rows
 		.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE)
-		.map((row) => row.uid)
+		.map((row) => {
+			return [
+				row.uid,
+				getModDataDisplayName(row) || '',
+				getModDataDisplayId(row) || '',
+				(row.authors || []).join(','),
+				formatSizeLabel(row.size) || '',
+				getAllTags(row).sort((left, right) => left.localeCompare(right)).join(','),
+				row.subscribed ? '1' : '0',
+				row.installed ? '1' : '0',
+				row.needsUpdate ? '1' : '0',
+				row.downloadPending ? '1' : '0',
+				row.downloading ? '1' : '0',
+				row.hasCode ? '1' : '0',
+				JSON.stringify(row.errors || {})
+			].join('::');
+		})
 		.sort((left, right) => left.localeCompare(right))
 		.join('|');
 }
 
-const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
+const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 	{
 		title: MainColumnTitles.TYPE,
 		dataIndex: 'type',
@@ -499,30 +1026,30 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 			const small = (props.config as MainCollectionConfig | undefined)?.smallRows;
 			return (_name: string, record: DisplayModData) => {
 				let updateIcon = null;
-				let updateType: 'danger' | 'warning' | undefined;
+				let updateTone: 'danger' | 'warning' | undefined;
 				const { needsUpdate, downloadPending, downloading, uid, hasCode } = record;
 				if (needsUpdate) {
 					updateIcon = (
-						<Tooltip title="Needs update">
-							<WarningTwoTone twoToneColor="red" />
-						</Tooltip>
+						<MainCollectionIcon label="Needs update" className="MainCollectionStatusIcon MainCollectionStatusIcon--danger">
+							<TriangleAlert size={16} aria-hidden="true" />
+						</MainCollectionIcon>
 					);
-					updateType = 'danger';
+					updateTone = 'danger';
 					if (downloadPending) {
 						updateIcon = (
-							<Tooltip title="Download pending">
-								<ClockCircleTwoTone twoToneColor="orange" />
-							</Tooltip>
+							<MainCollectionIcon label="Download pending" className="MainCollectionStatusIcon MainCollectionStatusIcon--warning">
+								<Clock3 size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						);
-						updateType = 'warning';
+						updateTone = 'warning';
 					}
 					if (downloading) {
 						updateIcon = (
-							<Tooltip title="Downloading">
-								<StopTwoTone spin twoToneColor="orange" />
-							</Tooltip>
+							<MainCollectionIcon label="Downloading" className="MainCollectionStatusIcon MainCollectionStatusIcon--warning MainCollectionStatusIcon--spin">
+								<LoaderCircle size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						);
-						updateType = 'warning';
+						updateTone = 'warning';
 					}
 				}
 				const displayName = getModDataDisplayName(record) || record.uid;
@@ -549,12 +1076,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 							props.getModDetails(uid, record);
 						}}
 						>
-							{updateIcon}
-						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${displayName} `}</Text>
+						{updateIcon}
+						<span className={`CollectionNameLabel${needsUpdate ? ' is-strong' : ''}${updateTone ? ` is-${updateTone}` : ''}`}>
+							{` ${displayName} `}
+						</span>
 						{hasCode ? (
-							<Tooltip title="Contains code">
-								<CodeFilled style={{ color: APP_THEME_COLORS.success, fontSize: small ? 16 : 16, verticalAlign: 'middle' }} />
-							</Tooltip>
+							<MainCollectionIcon label="Contains code" className="MainCollectionStatusIcon MainCollectionStatusIcon--success">
+								<Code2 size={16} aria-hidden="true" />
+							</MainCollectionIcon>
 						) : null}
 					</button>
 				);
@@ -596,7 +1125,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		},
 		renderSetup: () => {
 			return (authors: string[] | undefined) => {
-				return (authors || []).map((author) => <Tag key={author}>{author}</Tag>);
+				return (authors || []).map((author) => <MainCollectionTag key={author}>{author}</MainCollectionTag>);
 			};
 		}
 	},
@@ -612,9 +1141,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				const stateTags = getStateTags(props, record);
 				if (stateTags.length > 0) {
 					return stateTags.map((tagConfig) => (
-						<Tag key={tagConfig.text} color={tagConfig.color}>
+						<MainCollectionTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone || 'neutral']}>
 							{tagConfig.text}
-						</Tag>
+						</MainCollectionTag>
 					));
 				}
 				return null;
@@ -634,9 +1163,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				}
 				if (record.workshopID === undefined && record.overrides?.id) {
 					return (
-						<Tag color="gray" key="id">
+						<MainCollectionTag key="id" style={APP_TAG_STYLES.neutral}>
 							{displayID}
-						</Tag>
+						</MainCollectionTag>
 					);
 				}
 				return displayID;
@@ -650,58 +1179,15 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		sorter: (a, b) => (a.size || 0) - (b.size || 0),
 		renderSetup: () => {
 			return (size?: number) => {
-				if (!size || size <= 0) {
+				const sizeStr = formatSizeLabel(size);
+				if (!sizeStr || !size) {
 					return null;
 				}
 
-				const strNum = `${size}`;
-				const power = strNum.length;
-				const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
-				let digit3 = digit3Raw;
-				let sizeStr = '';
-				if (!digit4) {
-					sizeStr = `${strNum} B`;
-				} else {
-					digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
-
-					let descriptor = ' B';
-					if (power > 3) {
-						if (power > 6) {
-							descriptor = power > 9 ? ' GB' : ' MB';
-						} else {
-							descriptor = ' KB';
-						}
-					}
-
-					let value = `${digit1}${digit2}${digit3}`;
-					const decimal = power % 3;
-					if (decimal === 1) {
-						value = `${digit1}.${digit2}${digit3}`;
-					} else if (decimal === 2) {
-						value = `${digit1}${digit2}.${digit3}`;
-					}
-					sizeStr = value + descriptor;
-				}
-
-				let color = 'green';
-				if (size > 1000000) {
-					if (size < 5000000) {
-						color = 'cyan';
-					} else if (size < 50000000) {
-						color = 'blue';
-					} else if (size < 1000000000) {
-						color = 'geekblue';
-					} else if (size < 5000000000) {
-						color = 'purple';
-					} else {
-						color = 'magenta';
-					}
-				}
-
 				return (
-					<Tag color={color} key="size">
+					<MainCollectionTag key="size" style={getSizeTagStyle(size)}>
 						{sizeStr}
-					</Tag>
+					</MainCollectionTag>
 				);
 			};
 		}
@@ -770,9 +1256,9 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 				return [
 					...typeTags.map((type) => getTypeIcon(type, small ? 30 : 40)),
 					...actualTags.map((tag) => (
-						<Tag color="blue" key={tag}>
+						<MainCollectionTag key={tag} style={APP_TAG_STYLES.accent}>
 							{tag}
-						</Tag>
+						</MainCollectionTag>
 					)),
 					...iconTags.map((corp) => getCorpIcon(corp, small ? 30 : 40))
 				];
@@ -781,8 +1267,11 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	}
 ];
 
-function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
-	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
+function getActiveColumnSchemas(config: MainCollectionConfig | undefined): ColumnSchema[] {
+	const columnSchemaByTitle = new Map(MAIN_COLUMN_SCHEMA.map((column) => [column.title, column]));
+	let activeColumns = getConfiguredMainColumnTitles(config)
+		.map((columnTitle) => columnSchemaByTitle.get(columnTitle))
+		.filter((column): column is ColumnSchema => !!column);
 	const columnActiveConfig = config?.columnActiveConfig;
 	if (columnActiveConfig) {
 		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
@@ -790,7 +1279,7 @@ function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
 	return activeColumns;
 }
 
-function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0) {
+function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0): ColumnSchema[] {
 	const activeColumns = getActiveColumnSchemas(config);
 	if (availableTableWidth <= 0) {
 		return activeColumns;
@@ -802,72 +1291,53 @@ function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefin
 	});
 }
 
-function getRowSelection(
-	props: Pick<
-		CollectionViewProps,
-		'collection' | 'rows' | 'filteredRows' | 'setEnabledModsCallback' | 'setEnabledCallback' | 'setDisabledCallback'
-	>
-) {
-	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
-
-	const rowSelection: TableRowSelection<DisplayModData> = {
-		selections: [Table.SELECTION_INVERT],
-		selectedRowKeys: collection.mods,
-		onChange: (selectedRowKeys: Key[]) => {
-			const currentVisible = new Set(filteredRows.map((modData) => modData.uid));
-			const currentSelection = collection.mods;
-			const newSelection = rows
-				.map((modData) => modData.uid)
-				.filter((mod) => (!currentVisible.has(mod) && currentSelection.includes(mod)) || selectedRowKeys.includes(mod));
-			setEnabledModsCallback(new Set(newSelection));
-		},
-		onSelect: (record: DisplayModData, selected: boolean) => {
-			if (selected) {
-				setEnabledCallback(record.uid);
-			} else {
-				setDisabledCallback(record.uid);
-			}
-		},
-		onSelectAll: (selected: boolean) => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selectedMods = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				if (selected) {
-					selectedMods.add(mod);
-				} else {
-					selectedMods.delete(mod);
-				}
-			});
-			setEnabledModsCallback(selectedMods);
-		},
-		onSelectInvert: () => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selected = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				if (!selected.has(mod)) {
-					selected.add(mod);
-				} else {
-					selected.delete(mod);
-				}
-			});
-			setEnabledModsCallback(selected);
-		},
-		onSelectNone: () => {
-			const currentVisible = filteredRows.map((modData) => modData.uid);
-			const selected = new Set(collection.mods);
-			currentVisible.forEach((mod) => {
-				selected.delete(mod);
-			});
-			setEnabledModsCallback(selected);
-		}
+function getSelectionState(collectionMods: string[], visibleRows: DisplayModData[]) {
+	const selectedMods = new Set(collectionMods);
+	const visibleModIds = visibleRows.map((modData) => modData.uid);
+	const selectedVisibleCount = visibleModIds.filter((uid) => selectedMods.has(uid)).length;
+	return {
+		selectedMods,
+		allVisibleSelected: visibleModIds.length > 0 && selectedVisibleCount === visibleModIds.length,
+		someVisibleSelected: selectedVisibleCount > 0 && selectedVisibleCount < visibleModIds.length
 	};
+}
 
-	return rowSelection;
+function SelectionCheckbox({
+	'aria-label': ariaLabel,
+	checked,
+	indeterminate,
+	onChange
+}: {
+	'aria-label': string;
+	checked: boolean;
+	indeterminate?: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+
+	useEffect(() => {
+		if (inputRef.current) {
+			inputRef.current.indeterminate = !!indeterminate;
+		}
+	}, [indeterminate]);
+
+	return (
+		<input
+			ref={inputRef}
+			type="checkbox"
+			className="MainCollectionSelectionCheckbox"
+			aria-label={ariaLabel}
+			checked={checked}
+			onChange={(event) => {
+				onChange(event.target.checked);
+			}}
+		/>
+	);
 }
 
 export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
 	const configuredWidths = config?.columnWidthConfig || {};
-	const columnWidths = getResponsiveActiveColumnSchemas(config, availableTableWidth).reduce(
+	const columnWidths = getResponsiveActiveColumnSchemas(config, availableTableWidth).reduce<Record<string, number>>(
 		(acc, column) => {
 			if (column.width) {
 				const minWidth = getMainColumnMinWidth(column.title as MainColumnTitles);
@@ -876,7 +1346,7 @@ export function getColumnWidths(config: MainCollectionConfig | undefined, autoCo
 			}
 			return acc;
 		},
-		{} as Record<string, number>
+		{}
 	);
 
 	const nameWidth = columnWidths[MainColumnTitles.NAME];
@@ -890,90 +1360,6 @@ export function getColumnWidths(config: MainCollectionConfig | undefined, autoCo
 	}
 
 	return columnWidths;
-}
-
-function createColumnMeasurementHost() {
-	const measurementHost = document.createElement('div');
-	measurementHost.className = COLUMN_MEASUREMENT_HOST_CLASS;
-	Object.assign(measurementHost.style, {
-		position: 'fixed',
-		left: '-100000px',
-		top: '0',
-		visibility: 'hidden',
-		pointerEvents: 'none',
-		whiteSpace: 'nowrap',
-		width: 'max-content',
-		maxWidth: 'none',
-		overflow: 'visible',
-		contain: 'layout style size'
-	});
-	document.body.appendChild(measurementHost);
-	return measurementHost;
-}
-
-function prepareMeasurementClone(root: HTMLElement) {
-	root.querySelectorAll('.CollectionTableResizeHandle').forEach((handle) => handle.remove());
-	const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
-	elements.forEach((element) => {
-		element.style.width = element.classList.contains('CollectionNameButton') || element.style.width === '100%' ? 'auto' : element.style.width;
-		element.style.minWidth = '0';
-		element.style.maxWidth = 'none';
-		element.style.whiteSpace = 'nowrap';
-		element.style.overflow = 'visible';
-		if (element === root) {
-			element.style.position = 'static';
-			element.style.left = 'auto';
-			element.style.right = 'auto';
-			element.style.top = 'auto';
-			element.style.bottom = 'auto';
-			element.style.transform = 'none';
-			if (element.tagName === 'TH' || element.tagName === 'TD') {
-				element.style.display = 'inline-block';
-			}
-		}
-		if (element.classList.contains('CollectionNameButton')) {
-			element.style.display = 'inline-block';
-		}
-	});
-}
-
-function measureNaturalCellWidth(cell: HTMLElement, measurementHost: HTMLElement) {
-	const clone = cell.cloneNode(true) as HTMLElement;
-	prepareMeasurementClone(clone);
-	measurementHost.appendChild(clone);
-	const width = Math.ceil(clone.getBoundingClientRect().width);
-	measurementHost.removeChild(clone);
-	return width;
-}
-
-function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: string[]) {
-	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
-	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
-	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
-	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
-	const sampledBodyRows = bodyRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE);
-	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
-	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
-
-	return activeColumnTitles.reduce(
-		(acc, columnTitle, columnIndex) => {
-			const renderedColumnIndex = columnIndex + leadingCellCount;
-			const renderedCells: HTMLElement[] = [];
-			const headerCell = headerCells[renderedColumnIndex];
-			if (headerCell) {
-				renderedCells.push(headerCell);
-			}
-			sampledBodyCells.forEach((bodyCells) => {
-				const bodyCell = bodyCells[renderedColumnIndex];
-				if (bodyCell) {
-					renderedCells.push(bodyCell);
-				}
-			});
-			acc[columnTitle] = renderedCells;
-			return acc;
-		},
-		{} as Record<string, HTMLElement[]>
-	);
 }
 
 function getColumnWidthVariableName(columnTitle: string) {
@@ -995,11 +1381,11 @@ function getColumnSchema(
 	props: MainCollectionSchemaProps,
 	columnWidthConfig?: Record<string, number>,
 	availableTableWidth = 0
-): ColumnType<DisplayModData>[] {
+): MainCollectionTableColumn[] {
 	const { config } = props;
 	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
-	return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
+	return activeColumns.map((colSchema: ColumnSchema) => {
 		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
 		return {
 			title,
@@ -1014,6 +1400,107 @@ function getColumnSchema(
 			render: renderSetup ? renderSetup(props) : undefined
 		};
 	});
+}
+
+interface MainCollectionTableColumn {
+	title: string;
+	dataIndex: string;
+	className?: string;
+	align?: 'center';
+	width?: number | string;
+	resizeWidth?: number;
+	sorter?: MainCollectionSorter;
+	render?: MainCollectionCellRenderer;
+	onHeaderCell?: (column: MainCollectionTableColumn) => ResizableHeaderCellProps;
+	onCell?: (record: DisplayModData, index?: number) => { style?: CSSProperties; 'data-column-title'?: string };
+}
+
+function getRecordValue(record: DisplayModData, dataIndex: string) {
+	return record[dataIndex as keyof DisplayModData];
+}
+
+function getSorterCompare(sorter: MainCollectionSorter) {
+	if (typeof sorter === 'function') {
+		return sorter;
+	}
+
+	if (sorter && typeof sorter === 'object' && 'compare' in sorter && typeof sorter.compare === 'function') {
+		return sorter.compare;
+	}
+
+	return undefined;
+}
+
+function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], sortState: MainSortState) {
+	return measurePerf(
+		'collection.table.sortRows',
+		() => {
+			const column = columns.find((candidate) => candidate.title === sortState.columnTitle);
+			const compare = getSorterCompare(column?.sorter);
+			if (!compare) {
+				return rows;
+			}
+
+			const direction = sortState.order === 'ascend' ? 1 : -1;
+			return [...rows].sort((left, right) => direction * compare(left, right, sortState.order));
+		},
+		{
+			rows: rows.length,
+			column: sortState.columnTitle,
+			order: sortState.order
+		}
+	);
+}
+
+function renderCellValue(column: MainCollectionTableColumn, record: DisplayModData, rowIndex: number): ReactNode {
+	const value = getRecordValue(record, column.dataIndex);
+	if (column.render) {
+		return column.render(value, record, rowIndex);
+	}
+
+	if (value instanceof Date) {
+		return formatDateStr(value);
+	}
+
+	return value as ReactNode;
+}
+
+function getColumnPixelWidth(column: MainCollectionTableColumn) {
+	if (typeof column.resizeWidth === 'number') {
+		return column.resizeWidth;
+	}
+
+	if (typeof column.width === 'number') {
+		return column.width;
+	}
+
+	if (typeof column.width === 'string') {
+		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
+		if (match) {
+			return Number.parseFloat(match[1]);
+		}
+	}
+
+	return 120;
+}
+
+function getHeaderCellProps(column: MainCollectionTableColumn) {
+	return column.onHeaderCell?.(column);
+}
+
+function getBodyCellProps(column: MainCollectionTableColumn, record: DisplayModData) {
+	return column.onCell?.(record, 0);
+}
+
+function getNextSortState(currentSort: MainSortState, column: MainCollectionTableColumn): MainSortState {
+	if (currentSort.columnTitle !== column.title) {
+		return { columnTitle: column.title, order: 'ascend' };
+	}
+
+	return {
+		columnTitle: column.title,
+		order: currentSort.order === 'ascend' ? 'descend' : 'ascend'
+	};
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
@@ -1032,6 +1519,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setEnabledModsCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback,
+		setMainColumnOrderCallback,
 		width
 	} = props;
 	const mainConfig = config as MainCollectionConfig | undefined;
@@ -1042,6 +1530,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const configuredColumnWidths = useMemo(() => columnWidthConfig || {}, [columnWidthConfig]);
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
 	const manuallyActiveColumnTitles = useMemo(
 		() => getActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined).map((column) => column.title),
 		[columnActiveConfig]
@@ -1054,9 +1543,23 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !manuallyActiveColumnTitles.includes(columnTitle)),
 		[manuallyActiveColumnTitles]
 	);
+	const sampledRows = useMemo(() => deferredRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE), [deferredRows]);
 	const measurementInputKey = useMemo(
 		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
 		[deferredRows, small]
+	);
+	const measuredColumnTitles = useMemo(
+		() => activeColumnTitles.filter((columnTitle) => AUTO_MEASURE_COLUMN_TITLES.has(columnTitle as MainColumnTitles)),
+		[activeColumnTitles]
+	);
+	const selectedModMeasurementKey = useMemo(() => [...collection.mods].sort((left, right) => left.localeCompare(right)).join('|'), [collection.mods]);
+	const measurementStateKey = useMemo(
+		() => `${measurementInputKey}::mods=${selectedModMeasurementKey}::validated=${lastValidationStatus ? '1' : '0'}`,
+		[lastValidationStatus, measurementInputKey, selectedModMeasurementKey]
+	);
+	const measurementCacheKey = useMemo(
+		() => getColumnMeasurementCacheKey(measurementStateKey, measuredColumnTitles),
+		[measuredColumnTitles, measurementStateKey]
 	);
 	const resolvedColumnWidths = useMemo(
 		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
@@ -1113,91 +1616,89 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 	useEffect(() => {
 		const tableRoot = tableRootRef.current;
-		const missingColumnTitles = activeColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
+		const missingColumnTitles = measuredColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
 		const shouldAutoMeasureColumns = deferredRows.length > 0 && deferredRows.length <= COLUMN_AUTO_MEASURE_MAX_ROWS;
+		let cancelled = false;
 
 		if (!tableRoot) {
 			return;
 		}
 
+		const applyAutoColumnWidthUpdate = (nextWidths: Record<string, number>) => {
+			setAutoColumnWidths((currentWidths) => (areColumnWidthMapsEqual(currentWidths, nextWidths) ? currentWidths : nextWidths));
+		};
+
 		if (!shouldAutoMeasureColumns) {
-			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			applyAutoColumnWidthUpdate({});
 			return;
 		}
 
 		if (missingColumnTitles.length === 0) {
-			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			applyAutoColumnWidthUpdate({});
 			return;
 		}
 
-		const animationFrame = window.requestAnimationFrame(() => {
-			const measurementHost = createColumnMeasurementHost();
+		const cachedColumnWidths = columnMeasurementCache.get(measurementCacheKey);
+		if (cachedColumnWidths) {
+			applyAutoColumnWidthUpdate(cachedColumnWidths);
+			return;
+		}
 
-			try {
-				const renderedColumnCells = getRenderedColumnCells(tableRoot, activeColumnTitles);
-				const nextMeasuredWidths: Record<string, number> = {};
+		const runMeasurement = () => {
+			if (cancelled) {
+				return;
+			}
 
-				missingColumnTitles.forEach((columnTitle) => {
-					const matchingCells = renderedColumnCells[columnTitle] || [];
-					const measuredWidth = matchingCells.reduce((largestWidth, cell) => {
-						return Math.max(largestWidth, measureNaturalCellWidth(cell, measurementHost));
-					}, 0);
-
-					if (measuredWidth > 0) {
-						nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
-					}
-				});
-
-				setAutoColumnWidths((currentWidths) => {
-					const nextWidths: Record<string, number> = {};
-					let changed = false;
+			const nextMeasuredWidths = measurePerf(
+				'collection.table.autoMeasureColumns',
+				() => {
+					const renderedColumnCells = getRenderedColumnBodyCells(tableRoot, activeColumnTitles, sampledRows);
+					const measuredWidths: Record<string, number> = {};
 
 					missingColumnTitles.forEach((columnTitle) => {
-						const nextWidth = nextMeasuredWidths[columnTitle] ?? currentWidths[columnTitle];
-						if (nextWidth !== undefined) {
-							nextWidths[columnTitle] = nextWidth;
-							if (currentWidths[columnTitle] !== nextWidth) {
-								changed = true;
-							}
+						const measuredWidth = (renderedColumnCells[columnTitle] || []).reduce((largestWidth, renderedCell) => {
+							return Math.max(largestWidth, measureBodyCellWidth(columnTitle as MainColumnTitles, renderedCell));
+						}, 0);
+
+						if (measuredWidth > 0) {
+							measuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
 						}
 					});
 
-					if (!changed && Object.keys(currentWidths).length === Object.keys(nextWidths).length) {
-						return currentWidths;
-					}
+					return measuredWidths;
+				},
+				{
+					columns: missingColumnTitles.length,
+					rows: sampledRows.length
+				}
+			);
 
-					return nextWidths;
-				});
-			} finally {
-				measurementHost.remove();
+			if (cancelled) {
+				return;
 			}
-		});
+
+			cacheColumnMeasurements(measurementCacheKey, nextMeasuredWidths);
+			setAutoColumnWidths((currentWidths) => {
+				return areColumnWidthMapsEqual(currentWidths, nextMeasuredWidths) ? currentWidths : nextMeasuredWidths;
+			});
+		};
+
+		if (typeof window.requestIdleCallback === 'function') {
+			const idleHandle = window.requestIdleCallback(runMeasurement, { timeout: 200 });
+			return () => {
+				cancelled = true;
+				window.cancelIdleCallback(idleHandle);
+			};
+		}
+
+		const timeout = window.setTimeout(runMeasurement, 0);
 
 		return () => {
-			window.cancelAnimationFrame(animationFrame);
+			cancelled = true;
+			window.clearTimeout(timeout);
 		};
-	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measurementInputKey]);
+	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measuredColumnTitles, measurementCacheKey, sampledRows]);
 
-	const rowSelection = useMemo(
-		() =>
-			getRowSelection({
-				collection,
-				filteredRows: deferredRows,
-				rows,
-				setDisabledCallback,
-				setEnabledCallback,
-				setEnabledModsCallback
-			}),
-		[collection, deferredRows, rows, setDisabledCallback, setEnabledCallback, setEnabledModsCallback]
-	);
-	const tableComponents = useMemo(
-		() => ({
-			header: {
-				cell: ResizableHeaderCell
-			}
-		}),
-		[]
-	);
 	const columnSchemaProps = useMemo<MainCollectionSchemaProps>(
 		() => ({
 			collection,
@@ -1208,7 +1709,9 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		}),
 		[collection, config, getModDetails, lastValidationStatus, rows]
 	);
-	const columns = useMemo(() => {
+	const sortState = useMainCollectionTableStore((state) => state.sortState);
+	const setSortState = useMainCollectionTableStore((state) => state.setSortState);
+	const columns = useMemo<MainCollectionTableColumn[]>(() => {
 		return getColumnSchema(columnSchemaProps, resolvedColumnWidths, availableTableWidth).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
 			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
@@ -1218,7 +1721,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 			const typedColumnTitle = columnTitle as MainColumnTitles;
 			const canHideColumn = canSetMainColumnVisibility(typedColumnTitle, false, columnActiveConfig);
-			const contextMenuItems: NonNullable<MenuProps['items']> = [
+			const contextMenuItems: HeaderMenuItem[] = [
 				{
 					key: `hide:${typedColumnTitle}`,
 					label: `Hide ${typedColumnTitle}`,
@@ -1267,6 +1770,30 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 						width: getColumnWidthStyle(columnTitle, currentWidth),
 						resizeWidth: currentWidth,
 						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+						draggable: true,
+						className: draggingColumnTitle === typedColumnTitle ? 'is-dragging' : undefined,
+						onDragStart: (event) => {
+							event.dataTransfer.effectAllowed = 'move';
+							event.dataTransfer.setData('text/plain', typedColumnTitle);
+							setDraggingColumnTitle(typedColumnTitle);
+						},
+						onDragOver: (event) => {
+							if (draggingColumnTitle && draggingColumnTitle !== typedColumnTitle) {
+								event.preventDefault();
+								event.dataTransfer.dropEffect = 'move';
+							}
+						},
+						onDrop: (event) => {
+							event.preventDefault();
+							const sourceTitle = event.dataTransfer.getData('text/plain');
+							setDraggingColumnTitle(undefined);
+							if (isMainColumnTitle(sourceTitle)) {
+								void Promise.resolve(setMainColumnOrderCallback?.(sourceTitle, typedColumnTitle));
+							}
+						},
+						onDragEnd: () => {
+							setDraggingColumnTitle(undefined);
+						},
 						headerMenu: {
 							items: contextMenuItems,
 							onClick: (info: { key: Key }) => {
@@ -1309,23 +1836,121 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								restorePersistedColumnWidth();
 							})();
 						}
-					}) as any,
+					}),
 				onCell: () =>
 					({
-						'data-column-title': columnTitle
-					}) as any
+						'data-column-title': columnTitle,
+						style: {
+							width: getColumnWidthStyle(columnTitle, currentWidth)
+						}
+					})
 			};
-		});
+		}) as MainCollectionTableColumn[];
 	}, [
 		columnActiveConfig,
 		columnSchemaProps,
+		draggingColumnTitle,
 		hiddenColumnTitles,
 		openMainViewSettingsCallback,
 		availableTableWidth,
 		resolvedColumnWidths,
+		setMainColumnOrderCallback,
 		setMainColumnVisibilityCallback,
 		setMainColumnWidthCallback
 	]);
+	useEffect(() => {
+		if (columns.some((column) => column.title === sortState.columnTitle && getSorterCompare(column.sorter))) {
+			return;
+		}
+
+		const defaultColumn =
+			columns.find((column) => column.title === MainColumnTitles.NAME && getSorterCompare(column.sorter)) ??
+			columns.find((column) => getSorterCompare(column.sorter));
+		if (defaultColumn) {
+			setSortState({ columnTitle: defaultColumn.title, order: 'ascend' });
+		}
+	}, [columns, setSortState, sortState.columnTitle]);
+	const sortedRows = useMemo(() => sortRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
+	const tableColumnDefs = useMemo<ColumnDef<DisplayModData>[]>(
+		() => [
+			{
+				id: '__selection',
+				size: DEFAULT_SELECTION_COLUMN_WIDTH
+			},
+			...columns.map((column) => ({
+				id: column.title,
+				accessorKey: column.dataIndex,
+				size: getColumnPixelWidth(column)
+			}))
+		],
+		[columns]
+	);
+	// eslint-disable-next-line react-hooks/incompatible-library
+	const table = useReactTable({
+		data: sortedRows,
+		columns: tableColumnDefs,
+		getCoreRowModel: getCoreRowModel(),
+		getRowId: (row) => row.uid
+	});
+	const tableRows = table.getRowModel().rows;
+	const tableScrollX = useMemo(() => {
+		return Object.values(resolvedColumnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
+	}, [resolvedColumnWidths]);
+	const scrollParentRef = useRef<HTMLDivElement | null>(null);
+	const rowVirtualizer = useVirtualizer({
+		count: tableRows.length,
+		getScrollElement: () => scrollParentRef.current,
+		estimateSize: () => (small ? 48 : 56),
+		overscan: 12,
+		initialRect: {
+			height: typeof height === 'number' ? height : 640,
+			width: typeof width === 'number' ? width : 1024
+		},
+		measureElement: (element) => element.getBoundingClientRect().height
+	});
+	const estimatedRowHeight = small ? 48 : 56;
+	const virtualRows = rowVirtualizer.getVirtualItems();
+	const renderedVirtualRows =
+		virtualRows.length > 0
+			? virtualRows
+			: tableRows.slice(0, Math.min(tableRows.length, 50)).map((_, index) => ({
+					index,
+					start: index * estimatedRowHeight
+				}));
+	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), tableRows.length * estimatedRowHeight);
+	const selectionState = useMemo(() => getSelectionState(collection.mods, sortedRows), [collection.mods, sortedRows]);
+	const setAllVisibleSelected = useCallback(
+		(selected: boolean) => {
+			markPerfInteraction('collection.rowSelect.allVisible', {
+				selected,
+				rows: sortedRows.length
+			});
+			const selectedMods = new Set(collection.mods);
+			sortedRows.forEach((modData) => {
+				if (selected) {
+					selectedMods.add(modData.uid);
+				} else {
+					selectedMods.delete(modData.uid);
+				}
+			});
+			setEnabledModsCallback(selectedMods);
+		},
+		[collection.mods, setEnabledModsCallback, sortedRows]
+	);
+	const setRowSelected = useCallback(
+		(record: DisplayModData, selected: boolean) => {
+			markPerfInteraction('collection.rowSelect.single', {
+				selected,
+				uid: record.uid
+			});
+			if (selected) {
+				setEnabledCallback(record.uid);
+			} else {
+				setDisabledCallback(record.uid);
+			}
+		},
+		[setDisabledCallback, setEnabledCallback]
+	);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -1336,26 +1961,113 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 
 	return (
 		<div ref={tableRootRef} className="MainCollectionTableRoot" style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<Layout style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-				<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
-					<Table
-						dataSource={deferredRows}
-						pagination={false}
-						loading={launchingGame}
-						size="small"
-						tableLayout="fixed"
-						rowKey="uid"
-						rowSelection={rowSelection}
-						components={tableComponents}
-						columns={columns}
-						sortDirections={TABLE_SORT_DIRECTIONS}
-						sticky
-						scroll={{ x: 'max-content' }}
-						onRow={handleRow}
-						rowClassName={() => (small ? 'CompactModRow' : '')}
-					/>
-				</Content>
-			</Layout>
+			<div className={`MainCollectionVirtualShell${launchingGame ? ' is-loading' : ''}`}>
+				<div ref={scrollParentRef} className="MainCollectionVirtualScroll">
+					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX, minWidth: '100%' }}>
+						<thead className="MainCollectionVirtualTableHeader">
+							<tr>
+								<th className="MainCollectionVirtualSelectionCell" style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}>
+									<SelectionCheckbox
+										aria-label="Include all visible mods in collection"
+										checked={selectionState.allVisibleSelected}
+										indeterminate={selectionState.someVisibleSelected}
+										onChange={setAllVisibleSelected}
+									/>
+								</th>
+								{columns.map((column) => {
+									const headerProps = getHeaderCellProps(column);
+									const sortable = !!getSorterCompare(column.sorter);
+									const sorted = sortState.columnTitle === column.title;
+									const widthStyle = headerProps?.width ?? column.width;
+									return (
+										<ResizableHeaderCell
+											key={column.title}
+											{...(headerProps || {})}
+											aria-sort={sorted ? (sortState.order === 'ascend' ? 'ascending' : 'descending') : 'none'}
+											className={`MainCollectionVirtualHeaderCell ${sortable ? 'is-sortable' : ''} ${sorted ? 'is-sorted' : ''}`}
+											style={{ ...(headerProps?.style || {}), width: widthStyle }}
+										>
+											<button
+												type="button"
+												className="MainCollectionVirtualHeaderButton"
+												disabled={!sortable}
+												onClick={() => {
+													if (!sortable) {
+														return;
+													}
+													markPerfInteraction('collection.sort', {
+														column: column.title,
+														rows: sortedRows.length
+													});
+													setSortState((currentSort) => getNextSortState(currentSort, column));
+												}}
+											>
+												<span>{column.title}</span>
+												{sortable ? (
+													<span className="MainCollectionVirtualSortIndicator" aria-hidden="true">
+														{sorted ? (sortState.order === 'ascend' ? '▲' : '▼') : '↕'}
+													</span>
+												) : null}
+											</button>
+										</ResizableHeaderCell>
+									);
+								})}
+							</tr>
+						</thead>
+						<tbody className="MainCollectionVirtualTableBody" style={{ height: virtualBodyHeight }}>
+							{renderedVirtualRows.map((virtualRow) => {
+								const row = tableRows[virtualRow.index];
+								if (!row) {
+									return null;
+								}
+
+								const record = row.original;
+								const selected = selectionState.selectedMods.has(record.uid);
+								const rowHandlers = handleRow(record);
+								return (
+									<tr
+										key={row.id}
+										ref={rowVirtualizer.measureElement}
+										data-index={virtualRow.index}
+										className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}`}
+										style={{ transform: `translateY(${virtualRow.start}px)` }}
+										{...rowHandlers}
+									>
+										<td className="MainCollectionVirtualCell MainCollectionVirtualSelectionCell" style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }}>
+											<SelectionCheckbox
+												aria-label={`Include ${getModDataDisplayName(record) || record.uid} in collection`}
+												checked={selected}
+												onChange={(checked) => {
+													setRowSelected(record, checked);
+												}}
+											/>
+										</td>
+										{columns.map((column) => {
+											const bodyCellProps = getBodyCellProps(column, record);
+											const widthStyle = bodyCellProps?.style?.width ?? column.width;
+											return (
+												<td
+													key={`${record.uid}:${column.title}`}
+													className={`MainCollectionVirtualCell ${column.className || ''}`}
+													data-column-title={column.title}
+													style={{
+														...(bodyCellProps?.style || {}),
+														width: widthStyle,
+														textAlign: column.align
+													}}
+												>
+													{renderCellValue(column, record, virtualRow.index)}
+												</td>
+											);
+										})}
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
+				</div>
+				{launchingGame ? <div className="MainCollectionVirtualLoading">Launching game...</div> : null}
+			</div>
 		</div>
 	);
 }

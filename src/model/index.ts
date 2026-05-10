@@ -6,4 +6,5 @@ export * from './CollectionValidation';
 export * from './SessionMods';
 export * from './ModCollection';
 export * from './MainCollectionView';
+export * from './BlockLookupView';
 export * from './Corp';

@@ -1,12 +1,16 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionMods } from '../../model';
 import { CollectionView } from '../../renderer/views/CollectionView';
 import { createAppState } from './test-utils';
 
+afterEach(() => {
+	cleanup();
+});
+
 describe('CollectionView', () => {
-	it('blocks launch while mods are still loading', () => {
+	it('blocks launch while mods are still loading', async () => {
 		const activeCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			activeCollection,
@@ -28,5 +32,6 @@ describe('CollectionView', () => {
 
 		expect(screen.getByRole('button', { name: 'Validate Collection' })).toBeDisabled();
 		expect(screen.getAllByRole('button', { name: 'Launch Game' }).at(-1)).toBeDisabled();
+		await vi.dynamicImportSettled();
 	});
 });

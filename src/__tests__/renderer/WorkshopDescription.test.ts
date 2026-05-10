@@ -29,10 +29,25 @@ describe('convertWorkshopDescriptionToHtml', () => {
 		expect(html).not.toContain('<script>');
 	});
 
-	it('exposes workshop images to assistive technologies with a fallback description', () => {
-		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/preview.png[/img]');
+	it('falls back to a meaningful generic alt label when no caption can be derived', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/22f30ba3c6.png[/img]');
 
 		expect(html).toContain('alt="Workshop description image"');
 		expect(html).toContain('decoding="async"');
+	});
+
+	it('derives alt text only from specific descriptive image filenames', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/mod-dependency-graph.png[/img]');
+
+		expect(html).toContain('alt="mod dependency graph"');
+		expect(html).toContain('decoding="async"');
+	});
+
+	it('lets callers provide a more specific image alt fallback', () => {
+		const html = convertWorkshopDescriptionToHtml('[img]https://example.com/22f30ba3c6.png[/img]', {
+			imageAltFallback: 'NuterraSteam workshop description image'
+		});
+
+		expect(html).toContain('alt="NuterraSteam workshop description image"');
 	});
 });

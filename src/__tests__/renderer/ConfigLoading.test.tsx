@@ -4,19 +4,21 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-rou
 import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import { AppStateProvider, useAppState } from '../../renderer/state/app-state';
+import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
-	const appState = useAppState();
+	const activeCollection = useAppStateSelector((state) => state.activeCollection);
+	const config = useAppStateSelector((state) => state.config);
+	const loadingMods = useAppStateSelector((state) => state.loadingMods);
 
 	return (
 		<>
 			<div data-testid="location">{location.pathname}</div>
-			<div data-testid="active-collection">{appState.activeCollection?.name || ''}</div>
-			<div data-testid="config-active-collection">{appState.config.activeCollection || ''}</div>
-			<div data-testid="config-game-exec">{appState.config.gameExec || ''}</div>
-			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
+			<div data-testid="active-collection">{activeCollection?.name || ''}</div>
+			<div data-testid="config-active-collection">{config.activeCollection || ''}</div>
+			<div data-testid="config-game-exec">{config.gameExec || ''}</div>
+			<div data-testid="loading-mods">{String(loadingMods)}</div>
 			<ConfigLoading />
 		</>
 	);
@@ -201,36 +203,11 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it('normalizes legacy relative collection routes during boot', async () => {
+	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
 			...DEFAULT_CONFIG,
-			currentPath: 'collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
-		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
-		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
-
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
-
-		await waitFor(() => {
-			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
-		});
-	});
-
-	it('normalizes the bare collections route during boot', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections',
+			currentPath,
 			viewConfigs: {},
 			ignoredValidationErrors: new Map(),
 			userOverrides: new Map()
@@ -349,7 +326,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Failed to persist repaired active collection alpha')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not save which collection should open.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -378,7 +355,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Failed to persist the default collection during boot')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not create the default collection it needs to start.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -407,7 +384,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Error: Failed to load collection "broken"')).toBeInTheDocument();
+			expect(screen.getAllByText('One of your saved collections could not be opened.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
@@ -429,7 +406,7 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Error: Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')).toBeInTheDocument();
+			expect(screen.getAllByText('TTSMM-EX could not read your saved settings.').length).toBeGreaterThan(0);
 		});
 
 		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');

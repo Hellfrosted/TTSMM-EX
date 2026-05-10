@@ -1,4 +1,5 @@
-import type { AppConfig, AppState, ModCollection, ModDataOverride } from 'model';
+import type { AppConfig, ModCollection, ModDataOverride } from 'model';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 export function cloneCollection(collection: ModCollection): ModCollection {
 	return {
@@ -30,7 +31,20 @@ export function cloneAppConfig(config: AppConfig): AppConfig {
 							: undefined,
 						columnWidthConfig: config.viewConfigs.main.columnWidthConfig
 							? { ...config.viewConfigs.main.columnWidthConfig }
-							: undefined
+							: undefined,
+						columnOrder: config.viewConfigs.main.columnOrder ? [...config.viewConfigs.main.columnOrder] : undefined
+				  }
+				: undefined,
+			blockLookup: config.viewConfigs.blockLookup
+				? {
+						...config.viewConfigs.blockLookup,
+						columnActiveConfig: config.viewConfigs.blockLookup.columnActiveConfig
+							? { ...config.viewConfigs.blockLookup.columnActiveConfig }
+							: undefined,
+						columnWidthConfig: config.viewConfigs.blockLookup.columnWidthConfig
+							? { ...config.viewConfigs.blockLookup.columnWidthConfig }
+							: undefined,
+						columnOrder: config.viewConfigs.blockLookup.columnOrder ? [...config.viewConfigs.blockLookup.columnOrder] : undefined
 				  }
 				: undefined
 		},
@@ -56,7 +70,7 @@ export function withActiveCollection(config: AppConfig, activeCollection: string
 }
 
 export function updateAppCollectionState(
-	appState: AppState,
+	appState: CollectionWorkspaceAppState,
 	nextCollections: Map<string, ModCollection>,
 	nextCollectionNames: Set<string>,
 	nextActiveCollection: ModCollection | undefined,

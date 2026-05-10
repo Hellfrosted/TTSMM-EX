@@ -42,7 +42,7 @@ describe('ModDetailsFooter', () => {
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({
@@ -87,7 +87,7 @@ describe('ModDetailsFooter', () => {
 			activeCollection: { name: 'default', mods: [workshopMod.uid] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({
@@ -138,7 +138,7 @@ describe('ModDetailsFooter', () => {
 			activeCollection: { name: 'default', mods: [currentMod.uid, dependencyMod.uid] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({
@@ -183,7 +183,7 @@ describe('ModDetailsFooter', () => {
 		const fetchWorkshopDependencies = vi.fn(async () => false);
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		const footerProps = {
@@ -249,7 +249,7 @@ describe('ModDetailsFooter', () => {
 		const fetchWorkshopDependencies = vi.fn(async () => false).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({
@@ -273,10 +273,13 @@ describe('ModDetailsFooter', () => {
 
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(1);
-			expect(screen.getByRole('button', { name: 'Retry Dependency Lookup' })).toBeInTheDocument();
-			expect(screen.getAllByText('Failed to load workshop dependencies for 77').length).toBeGreaterThan(0);
+			expect(screen.getByRole('button', { name: 'Retry Workshop Dependency Lookup' })).toBeInTheDocument();
+			expect(screen.getByText('Workshop dependency refresh failed')).toBeInTheDocument();
+			expect(
+				screen.getByText('Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.')
+			).toBeInTheDocument();
 		});
-		fireEvent.click(screen.getByRole('button', { name: 'Retry Dependency Lookup' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Retry Workshop Dependency Lookup' }));
 
 		await waitFor(() => {
 			expect(fetchWorkshopDependencies).toHaveBeenCalledTimes(2);
@@ -303,7 +306,7 @@ describe('ModDetailsFooter', () => {
 		const fetchWorkshopDependencies = vi.fn(async () => true);
 		Object.assign(window.electron, { fetchWorkshopDependencies });
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({
@@ -355,7 +358,7 @@ describe('ModDetailsFooter', () => {
 		const validateCollection = vi.fn();
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;
 
 		renderFooter({

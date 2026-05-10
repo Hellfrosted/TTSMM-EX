@@ -1,14 +1,24 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
-import { AppConfig, AppState, CollectionManagerModalType, ModCollection, ModData, ModType, filterRows } from 'model';
+import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType, filterRows } from 'model';
 import api from 'renderer/Api';
 import type { NotificationProps } from 'model';
 import { writeConfig } from 'renderer/util/config-write';
 import { validateCollectionName } from 'shared/collection-name';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import {
+	collectionWorkspaceSnapshot,
+	createCollectionSnapshot,
+	deleteActiveCollectionSnapshot,
+	duplicateActiveCollectionSnapshot,
+	renameActiveCollectionSnapshot,
+	switchActiveCollectionSnapshot
+} from 'renderer/collection-lifecycle';
 import type { NotificationType } from './useNotifications';
-import { cloneCollection, copyCollectionsMap, updateAppCollectionState, withActiveCollection } from './utils';
+import { cloneCollection, copyCollectionsMap } from './utils';
+import { markPerfInteraction, measurePerf } from 'renderer/perf';
 
 interface UseCollectionsOptions {
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	cancelValidation: () => void;
 	resetValidationState: () => void;
@@ -31,15 +41,21 @@ export function useCollections({
 	const collectionWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 	const pendingValidationRef = useRef<ModCollection | undefined>(undefined);
 	const searchStringRef = useRef(searchString);
-	const { activeCollection: currentActiveCollection } = appState;
+	const {
+		activeCollection: currentActiveCollection,
+		allCollectionNames,
+		allCollections,
+		config,
+		updateState
+	} = appState;
 
 	useEffect(() => {
 		searchStringRef.current = searchString;
 	}, [searchString]);
 
 	const getModManagerUID = useCallback(() => {
-		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
-	}, [appState.config.workshopID]);
+		return `${ModType.WORKSHOP}:${config.workshopID}`;
+	}, [config.workshopID]);
 
 	const hasSameSelectedMods = useCallback((selectedMods: string[], nextSelectedMods: string[]) => {
 		return selectedMods.length === nextSelectedMods.length && selectedMods.every((uid, index) => uid === nextSelectedMods[index]);
@@ -114,19 +130,24 @@ export function useCollections({
 			nextConfig: AppConfig
 		) => {
 			startTransition(() => {
-				updateAppCollectionState(appState, nextCollections, nextCollectionNames, nextActiveCollection, nextConfig);
+				updateState({
+					allCollections: nextCollections,
+					allCollectionNames: nextCollectionNames,
+					activeCollection: nextActiveCollection,
+					config: nextConfig
+				});
 			});
 		},
-		[appState]
+		[updateState]
 	);
 
 	const applyActiveCollection = useCallback(
 		(nextCollection: ModCollection) => {
-			const nextCollections = copyCollectionsMap(appState.allCollections);
+			const nextCollections = copyCollectionsMap(allCollections);
 			nextCollections.set(nextCollection.name, nextCollection);
-			commitCollectionState(nextCollections, appState.allCollectionNames, nextCollection, appState.config);
+			commitCollectionState(nextCollections, allCollectionNames, nextCollection, config);
 		},
-		[appState, commitCollectionState]
+		[allCollectionNames, allCollections, commitCollectionState, config]
 	);
 
 	const validateAfterCollectionEdit = useCallback(
@@ -254,16 +275,32 @@ export function useCollections({
 
 	const recalculateModData = useCallback(() => {
 		startTransition(() => {
-			setFilteredRows(filterRows(appState.mods, searchStringRef.current));
+			setFilteredRows(
+				measurePerf('collection.filter.recalculate', () => filterRows(appState.mods, searchStringRef.current), {
+					queryLength: searchStringRef.current.length,
+					totalMods: appState.mods.modIdToModDataMap.size
+				})
+			);
 		});
 	}, [appState.mods]);
 
 	const onSearchChange = useCallback(
 		(search: string) => {
+			markPerfInteraction('collection.search.change', {
+				queryLength: search.length,
+				totalMods: appState.mods.modIdToModDataMap.size
+			});
 			setSearchString(search);
 			searchStringRef.current = search;
 			startTransition(() => {
-				setFilteredRows(search.length > 0 ? filterRows(appState.mods, search) : undefined);
+				setFilteredRows(
+					search.length > 0
+						? measurePerf('collection.filter.searchChange', () => filterRows(appState.mods, search), {
+								queryLength: search.length,
+								totalMods: appState.mods.modIdToModDataMap.size
+							})
+						: undefined
+				);
 			});
 		},
 		[appState.mods]
@@ -271,10 +308,21 @@ export function useCollections({
 
 	const onSearch = useCallback(
 		(search: string) => {
+			markPerfInteraction('collection.search.submit', {
+				queryLength: search.length,
+				totalMods: appState.mods.modIdToModDataMap.size
+			});
 			setSearchString(search);
 			searchStringRef.current = search;
 			startTransition(() => {
-				setFilteredRows(search.length > 0 ? filterRows(appState.mods, search) : undefined);
+				setFilteredRows(
+					search.length > 0
+						? measurePerf('collection.filter.searchSubmit', () => filterRows(appState.mods, search), {
+								queryLength: search.length,
+								totalMods: appState.mods.modIdToModDataMap.size
+							})
+						: undefined
+				);
 			});
 		},
 		[appState.mods]
@@ -331,10 +379,8 @@ export function useCollections({
 				}
 
 				setSavingCollection(true);
-				const newCollection: ModCollection = {
-					name,
-					mods: mods || []
-				};
+				const lifecycleResult = createCollectionSnapshot(collectionWorkspaceSnapshot(appState), name, mods || []);
+				const newCollection = lifecycleResult.activeCollection;
 
 				try {
 					const writeSuccess = await api.updateCollection(newCollection);
@@ -350,13 +396,7 @@ export function useCollections({
 						return;
 					}
 
-					const nextCollections = copyCollectionsMap(appState.allCollections);
-					nextCollections.set(name, newCollection);
-					const nextCollectionNames = new Set(appState.allCollectionNames);
-					nextCollectionNames.add(name);
-					const nextConfig = withActiveCollection(appState.config, name);
-
-					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Created collection ${name} but failed to activate it`);
+					const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Created collection ${name} but failed to activate it`);
 					if (!configPersisted) {
 						const rolledBack = await api.deleteCollection(name);
 						if (!rolledBack) {
@@ -365,7 +405,12 @@ export function useCollections({
 						return;
 					}
 
-					commitCollectionState(nextCollections, nextCollectionNames, newCollection, nextConfig);
+					commitCollectionState(
+						lifecycleResult.allCollections,
+						lifecycleResult.allCollectionNames,
+						lifecycleResult.activeCollection,
+						lifecycleResult.config
+					);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -423,10 +468,11 @@ export function useCollections({
 				}
 
 				setSavingCollection(true);
-				const newCollection: ModCollection = {
-					name,
-					mods: [...activeCollection.mods]
-				};
+				const lifecycleResult = duplicateActiveCollectionSnapshot(collectionWorkspaceSnapshot(appState), name);
+				if (!lifecycleResult) {
+					return;
+				}
+				const newCollection = lifecycleResult.activeCollection;
 				const oldName = activeCollection.name;
 
 				try {
@@ -443,13 +489,7 @@ export function useCollections({
 						return;
 					}
 
-					const nextCollections = copyCollectionsMap(appState.allCollections);
-					nextCollections.set(name, newCollection);
-					const nextCollectionNames = new Set(appState.allCollectionNames);
-					nextCollectionNames.add(name);
-					const nextConfig = withActiveCollection(appState.config, name);
-
-					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Duplicated collection ${oldName} but failed to activate ${name}`);
+					const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Duplicated collection ${oldName} but failed to activate ${name}`);
 					if (!configPersisted) {
 						const rolledBack = await api.deleteCollection(name);
 						if (!rolledBack) {
@@ -458,7 +498,12 @@ export function useCollections({
 						return;
 					}
 
-					commitCollectionState(nextCollections, nextCollectionNames, newCollection, nextConfig);
+					commitCollectionState(
+						lifecycleResult.allCollections,
+						lifecycleResult.allCollectionNames,
+						lifecycleResult.activeCollection,
+						lifecycleResult.config
+					);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -525,19 +570,15 @@ export function useCollections({
 						return;
 					}
 
-					const renamedCollection: ModCollection = {
-						...cloneCollection(activeCollection),
-						name
-					};
-					const nextCollections = copyCollectionsMap(appState.allCollections);
-					nextCollections.delete(oldName);
-					nextCollections.set(name, renamedCollection);
-					const nextCollectionNames = new Set(appState.allCollectionNames);
-					nextCollectionNames.delete(oldName);
-					nextCollectionNames.add(name);
-					const nextConfig = withActiveCollection(appState.config, name);
-
-					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Renamed collection ${oldName} but failed to persist the active collection change`);
+					const lifecycleResult = renameActiveCollectionSnapshot(collectionWorkspaceSnapshot(appState), name);
+					if (!lifecycleResult) {
+						return;
+					}
+					const renamedCollection = lifecycleResult.activeCollection;
+					const configPersisted = await persistConfigAndReportFailure(
+						lifecycleResult.config,
+						`Renamed collection ${oldName} but failed to persist the active collection change`
+					);
 					if (!configPersisted) {
 						const rolledBack = await api.renameCollection(renamedCollection, oldName);
 						if (!rolledBack) {
@@ -546,7 +587,12 @@ export function useCollections({
 						return;
 					}
 
-					commitCollectionState(nextCollections, nextCollectionNames, renamedCollection, nextConfig);
+					commitCollectionState(
+						lifecycleResult.allCollections,
+						lifecycleResult.allCollectionNames,
+						lifecycleResult.activeCollection,
+						lifecycleResult.config
+					);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -607,38 +653,21 @@ export function useCollections({
 					return;
 				}
 
-				const nextCollections = copyCollectionsMap(appState.allCollections);
-				nextCollections.delete(name);
-				const nextCollectionNames = new Set(appState.allCollectionNames);
-				nextCollectionNames.delete(name);
-
-				let nextActiveCollection: ModCollection | undefined;
-				if (nextCollectionNames.size > 0) {
-					const [nextCollectionName] = [...nextCollectionNames].sort();
-					nextActiveCollection = nextCollections.get(nextCollectionName);
+				const lifecycleResult = deleteActiveCollectionSnapshot(collectionWorkspaceSnapshot(appState));
+				if (!lifecycleResult) {
+					return;
 				}
-
-				let createdFallbackCollection = false;
-				if (!nextActiveCollection) {
-					nextActiveCollection = {
-						name: 'default',
-						mods: []
-					};
-					nextCollections.set(nextActiveCollection.name, nextActiveCollection);
-					nextCollectionNames.add(nextActiveCollection.name);
-					const createdDefaultCollection = await rawPersistCollection(nextActiveCollection);
+				if (lifecycleResult.createdFallbackCollection) {
+					const createdDefaultCollection = await rawPersistCollection(lifecycleResult.activeCollection);
 					if (!createdDefaultCollection) {
 						return;
 					}
-					createdFallbackCollection = true;
 				}
 
-				const nextConfig = withActiveCollection(appState.config, nextActiveCollection.name);
-
-				const configPersisted = await persistConfigAndReportFailure(nextConfig, `Deleted collection ${name} but failed to persist the replacement selection`);
+				const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Deleted collection ${name} but failed to persist the replacement selection`);
 				if (!configPersisted) {
-					if (createdFallbackCollection) {
-						const deletedFallbackCollection = await api.deleteCollection(nextActiveCollection.name);
+					if (lifecycleResult.createdFallbackCollection) {
+						const deletedFallbackCollection = await api.deleteCollection(lifecycleResult.activeCollection.name);
 						if (!deletedFallbackCollection) {
 							notifyRollbackFailure(`Failed to remove the fallback collection after the config update failed`);
 						}
@@ -650,7 +679,12 @@ export function useCollections({
 					return;
 				}
 
-				commitCollectionState(nextCollections, nextCollectionNames, nextActiveCollection, nextConfig);
+				commitCollectionState(
+					lifecycleResult.allCollections,
+					lifecycleResult.allCollectionNames,
+					lifecycleResult.activeCollection,
+					lifecycleResult.config
+				);
 				setMadeEdits(false);
 				openNotification(
 					{
@@ -678,8 +712,8 @@ export function useCollections({
 
 	const changeActiveCollection = useCallback(
 		async (name: string) => {
-			const nextActiveCollection = appState.allCollections.get(name);
-			if (!nextActiveCollection || appState.activeCollection?.name === name) {
+			const lifecycleResult = switchActiveCollectionSnapshot(collectionWorkspaceSnapshot(appState), name);
+			if (!lifecycleResult) {
 				return;
 			}
 
@@ -694,14 +728,18 @@ export function useCollections({
 						}
 					}
 
-					const nextConfig = withActiveCollection(appState.config, name);
-					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Failed to switch to collection ${name}`);
+					const configPersisted = await persistConfigAndReportFailure(lifecycleResult.config, `Failed to switch to collection ${name}`);
 					if (!configPersisted) {
 						return;
 					}
 
 					resetValidationState();
-					commitCollectionState(appState.allCollections, appState.allCollectionNames, cloneCollection(nextActiveCollection), nextConfig);
+					commitCollectionState(
+						lifecycleResult.allCollections,
+						lifecycleResult.allCollectionNames,
+						lifecycleResult.activeCollection,
+						lifecycleResult.config
+					);
 					setMadeEdits(false);
 				} finally {
 					setSavingCollection(false);

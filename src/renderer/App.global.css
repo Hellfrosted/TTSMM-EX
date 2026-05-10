@@ -1,0 +1,3605 @@
+
+html {
+	height: 100vh;
+	width: 100vw;
+	background: #131517;
+}
+
+#root {
+	height: 100%;
+	width: 100%;
+}
+
+.AppRoot {
+	height: 100%;
+	width: 100%;
+}
+
+body {
+	position: relative;
+	color: var(--app-color-text, rgba(242, 237, 230, 0.88));
+	height: 100%;
+	width: 100%;
+	font-family: var(--app-font-body, 'Aptos', 'Segoe UI Variable Text', 'Noto Sans', 'Segoe UI', sans-serif);
+	font-kerning: normal;
+	text-rendering: optimizeLegibility;
+	margin: 0;
+	overflow-y: hidden;
+	overflow-x: hidden;
+	background: var(--app-color-background, #131517);
+}
+
+#root,
+.AppLayout {
+	min-height: 100%;
+}
+
+.AppLayout {
+	display: flex;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 100%;
+}
+
+.AppSidebar {
+	position: relative;
+	flex: 0 0 120px;
+	width: 120px;
+	min-width: 120px;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	background: var(--app-color-sider);
+	border-right: 1px solid var(--app-color-border);
+	transition:
+		flex-basis 140ms ease,
+		width 140ms ease,
+		min-width 140ms ease;
+}
+
+.AppSidebar.is-collapsed {
+	flex-basis: 56px;
+	width: 56px;
+	min-width: 56px;
+}
+
+.MenuCollapseButton {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 44px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--app-color-text-muted);
+	line-height: 1;
+	background: var(--app-color-sider);
+	border: 0;
+	border-top: 1px solid var(--app-color-border);
+	cursor: pointer;
+}
+
+.MenuCollapseButton svg {
+	width: 18px;
+	height: 18px;
+}
+
+.MenuCollapseButton:hover,
+.MenuCollapseButton:focus-visible {
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+	outline: none;
+}
+
+.AppLayout > * {
+	flex-shrink: 0;
+	min-width: 0;
+	min-height: 0;
+}
+
+.AppViewHost {
+	position: relative;
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	isolation: isolate;
+}
+
+.AppViewStage,
+.CollectionContentStage {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	contain: layout paint style;
+	content-visibility: hidden;
+	transition:
+		opacity 140ms ease,
+		visibility 0s linear 140ms;
+}
+
+.AppViewStage.is-active,
+.CollectionContentStage.is-active {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	content-visibility: visible;
+	transition:
+		opacity 140ms ease,
+		visibility 0s;
+}
+
+.AppViewStage > * {
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+}
+
+.CollectionContentStageHost {
+	position: relative;
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	isolation: isolate;
+}
+
+.CollectionSplitDetailsPane {
+	min-width: 0;
+	min-height: 0;
+}
+
+.CollectionSplitDetailsPane--side {
+	animation: splitPaneFade 140ms ease;
+}
+
+.CollectionSplitDetailsPane--bottom {
+	animation: splitPaneFade 140ms ease;
+}
+
+.CollectionNameButton {
+	background-color: transparent;
+	min-height: 44px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	border: none;
+	appearance: none;
+	font-size: 1.3rem;
+	box-shadow: none;
+	transition:
+		background-color 120ms ease,
+		color 120ms ease;
+	cursor: pointer;
+}
+
+.CollectionNameButton:hover {
+	background-color: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionNameButton:focus-visible {
+	outline: none;
+	background-color: color-mix(in srgb, var(--app-color-primary) 18%, transparent);
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.CollectionNameLabel {
+	display: inline;
+	width: 100%;
+	white-space: normal;
+	vertical-align: middle;
+}
+
+.CollectionNameLabel.is-strong {
+	font-weight: 700;
+}
+
+.CollectionNameLabel.is-danger {
+	color: var(--app-color-error);
+}
+
+.CollectionNameLabel.is-warning {
+	color: var(--app-color-warning);
+}
+
+.MainCollectionIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	vertical-align: middle;
+}
+
+.MainCollectionStatusIcon {
+	margin-right: 3px;
+}
+
+.MainCollectionStatusIcon--danger {
+	color: var(--app-color-error);
+}
+
+.MainCollectionStatusIcon--warning {
+	color: var(--app-color-warning);
+}
+
+.MainCollectionStatusIcon--success {
+	color: var(--app-color-success);
+}
+
+.MainCollectionStatusIcon--spin {
+	animation: mainCollectionIconSpin 900ms linear infinite;
+}
+
+.MainCollectionTag {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	min-height: 22px;
+	margin: 2px 4px 2px 0;
+	padding: 0 7px;
+	color: var(--app-color-text);
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 20px;
+	border: 1px solid var(--app-color-border);
+	border-radius: 4px;
+	background: var(--app-color-surface-elevated);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	box-sizing: border-box;
+}
+
+.CollectionTableHeaderCell {
+	min-width: 0;
+	width: 100%;
+}
+
+.MainCollectionTableRoot .CollectionTableHeaderCell {
+	cursor: grab;
+}
+
+.MainCollectionTableRoot th.is-dragging {
+	opacity: 0.62;
+}
+
+.CollectionTableHeaderInner {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-width: 0;
+}
+
+.CollectionTableHeaderContextTarget {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.CollectionTableResizeHandle {
+	position: absolute;
+	top: 0;
+	right: -(44px / 2);
+	width: 44px;
+	height: 100%;
+	cursor: col-resize;
+	z-index: 2;
+	outline: none;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.CollectionTableResizeHandle::after {
+	content: '';
+	position: absolute;
+	top: 18%;
+	bottom: 18%;
+	left: 50%;
+	width: 2px;
+	background: color-mix(in srgb, var(--app-color-text-base) 14%, transparent);
+	transform: translateX(-50%);
+	transition: background-color 120ms ease;
+}
+
+.CollectionTableResizeHandle:focus-visible {
+	border-radius: 8px;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+th:hover .CollectionTableResizeHandle::after,
+.CollectionTableResizeHandle:focus-visible::after {
+	background: color-mix(in srgb, var(--app-color-primary-hover) 82%, transparent);
+}
+
+.MainCollectionHeaderMenu {
+	position: fixed;
+	z-index: 1200;
+	min-width: 178px;
+	padding: 5px;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 6px;
+	box-shadow: 0 14px 32px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.MainCollectionHeaderMenuItem {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 30px;
+	padding: 0 10px;
+	color: var(--app-color-text);
+	font: inherit;
+	font-size: 13px;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.MainCollectionHeaderMenuItem:hover:not(:disabled),
+.MainCollectionHeaderMenuItem:focus-visible {
+	outline: none;
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.MainCollectionHeaderMenuItem:disabled {
+	color: color-mix(in srgb, var(--app-color-text-base) 26%, transparent);
+	cursor: not-allowed;
+}
+
+.MainCollectionHeaderMenuDivider {
+	height: 1px;
+	margin: 5px 4px;
+	background: var(--app-color-border);
+}
+
+li {
+	list-style: none;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+a {
+	text-decoration: none;
+	color: inherit;
+}
+
+a:hover {
+	opacity: 1;
+	text-decoration: none;
+}
+
+.MenuBar {
+	background: var(--app-color-sider);
+	border-right: 1px solid var(--app-color-border);
+}
+
+#MenuBar {
+	padding-top: 10px;
+	border-inline-end: none;
+}
+
+#MenuBar.MenuBarNav {
+	width: 100%;
+}
+
+.MenuBarNavList {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+	padding: 0 10px;
+	list-style: none;
+}
+
+.MenuBarNavButton {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: calc(var(--app-control-height) + 8px);
+	padding: 0 16px;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.MenuBarNavButton:hover:not(:disabled),
+.MenuBarNavItem.is-selected .MenuBarNavButton {
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+}
+
+.MenuBarNavButton:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.MenuBarNavButton:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.MenuBarNavIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.MenuBarNavLabel {
+	font-family: var(--app-font-display);
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.AppSidebar.is-collapsed #MenuBar .MenuBarNavButton {
+	justify-content: center;
+	padding-inline: 0;
+}
+
+.AppSidebar.is-collapsed #MenuBar .MenuBarNavLabel {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.SettingsView {
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 100%;
+	background: var(--app-color-background);
+}
+
+.Settings {
+	width: 100%;
+	min-height: 100%;
+	box-sizing: border-box;
+	background: var(--app-color-background);
+	color: var(--app-color-text);
+}
+
+.SettingsHeader {
+	padding: 20px 24px 0;
+}
+
+.SettingsTitle,
+.ModDetailFooterTitle {
+	font-family: var(--app-font-display);
+	font-kerning: normal;
+	letter-spacing: 0;
+}
+
+.SettingsTitle {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 28px;
+	line-height: 1.25;
+}
+
+.SettingsIntro {
+	margin-top: 8px;
+	margin-bottom: 0;
+	max-width: 70ch;
+}
+
+.SettingsForm {
+	margin: 20px 24px 24px;
+}
+
+.SettingsPaneGrid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+	gap: 20px 24px;
+	margin-bottom: 10px;
+}
+
+.SettingsPane {
+	padding: 16px 18px;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.SettingsPane .SettingsField:last-child {
+	margin-bottom: 0;
+}
+
+.SettingsPaneColumn {
+	display: flex;
+}
+
+.SettingsPaneColumn > .SettingsPane {
+	flex: 1 1 auto;
+}
+
+.SettingsNativeForm,
+.SettingsField,
+.SettingsFieldBody {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.SettingsNativeForm {
+	gap: 12px;
+}
+
+.SettingsField {
+	display: grid;
+	grid-template-columns: minmax(10rem, 0.42fr) minmax(0, 0.58fr);
+	align-items: start;
+	gap: 8px 16px;
+	width: 100%;
+	margin-bottom: 16px;
+}
+
+.SettingsFieldLabel {
+	min-height: var(--app-control-height);
+	padding-top: 8px;
+	color: var(--app-color-text);
+	font-size: 16px;
+	line-height: 1.35;
+	white-space: normal;
+}
+
+.SettingsFieldLabel.is-required::before {
+	content: '*';
+	margin-right: 4px;
+	color: var(--app-color-error);
+}
+
+.SettingsFieldBody {
+	gap: 6px;
+}
+
+.SettingsFieldExtra {
+	color: var(--app-color-text-muted);
+	font-size: 12px;
+	line-height: 1.35;
+}
+
+.SettingsFieldError {
+	color: var(--app-color-error);
+	font-size: 12px;
+	font-weight: 650;
+	line-height: 1.35;
+}
+
+.SettingsPathControl,
+.SettingsInlineControls {
+	display: flex;
+	align-items: stretch;
+	width: 100%;
+	min-width: 0;
+}
+
+.SettingsInput {
+	width: 100%;
+	min-width: 0;
+	min-height: var(--app-control-height);
+	padding: 0 11px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+	outline: none;
+}
+
+.SettingsInput:focus {
+	border-color: var(--app-color-primary);
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.SettingsInput:disabled {
+	color: var(--app-color-text-muted);
+	background: var(--app-color-surface);
+	cursor: not-allowed;
+}
+
+.SettingsPathControl .SettingsInput,
+.SettingsInlineControls .SettingsInput {
+	min-width: 0;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.SettingsPathControl .SettingsButton,
+.SettingsInlineControls .SettingsButton {
+	flex: 0 0 auto;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+.SettingsButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: var(--app-control-height);
+	padding: 0 14px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.SettingsButton:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.SettingsButton:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.SettingsButton:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.SettingsButton--primary {
+	color: var(--app-color-text);
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.SettingsButton--danger {
+	background: var(--app-color-error);
+	border-color: var(--app-color-error);
+}
+
+.SettingsButtonIcon,
+.SettingsButtonText {
+	display: inline-flex;
+	align-items: center;
+}
+
+.SettingsButtonSpinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.SettingsDialogOverlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.SettingsDialog {
+	width: min(560px, 100%);
+	max-height: min(680px, calc(100vh - 48px));
+	display: flex;
+	flex-direction: column;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+	overflow: hidden;
+}
+
+.SettingsDialogHeader,
+.SettingsDialogFooter {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 14px 16px;
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.SettingsDialogHeader {
+	justify-content: space-between;
+}
+
+.SettingsDialogFooter {
+	justify-content: flex-end;
+	border-top: 1px solid var(--app-color-border);
+	border-bottom: 0;
+}
+
+.SettingsDialogTitle {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 18px;
+	line-height: 1.3;
+}
+
+.SettingsDialogBody {
+	padding: 16px;
+	overflow: auto;
+}
+
+.SettingsSelect {
+	width: 100%;
+	min-width: 0;
+	min-height: var(--app-control-height);
+	padding: 0 34px 0 11px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+	font: inherit;
+	cursor: pointer;
+}
+
+.SettingsSelect:focus-visible,
+.SettingsSwitch:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.SettingsLoggerLevelSelect {
+	flex: 1 1 12rem;
+	width: 100%;
+}
+
+.SettingsLoggerIdControl {
+	flex: 2 1 16rem;
+}
+
+.SettingsSwitch {
+	position: relative;
+	width: 44px;
+	height: 24px;
+	margin-top: 9px;
+	border: 1px solid var(--app-color-border);
+	border-radius: 999px;
+	appearance: none;
+	background: var(--app-color-surface-elevated);
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease;
+}
+
+.SettingsSwitch::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--app-color-text-muted);
+	transition:
+		transform 140ms ease,
+		background-color 140ms ease;
+}
+
+.SettingsSwitch:checked {
+	background: color-mix(in srgb, var(--app-color-primary) 28%, var(--app-color-surface-elevated));
+	border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+}
+
+.SettingsSwitch:checked::after {
+	background: var(--app-color-primary);
+	transform: translateX(20px);
+}
+
+.SettingsDisclosure {
+	margin-top: 2px;
+	padding-top: 4px;
+	border-top: 1px solid var(--app-color-border);
+}
+
+.SettingsDisclosureSummary {
+	min-height: 38px;
+	padding: 9px 0;
+	color: var(--app-color-text);
+	font-weight: 650;
+	line-height: 1.25;
+	cursor: pointer;
+	user-select: none;
+}
+
+.SettingsDisclosureSummary::marker {
+	color: var(--app-color-text-muted);
+}
+
+.SettingsDisclosureSummary:focus-visible {
+	outline: none;
+	border-radius: 6px;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.SettingsDisclosureBody {
+	padding-top: 12px;
+}
+
+.SettingsDisclosureActions {
+	display: flex;
+	justify-content: flex-start;
+}
+
+.MainFooter {
+	flex: 0 0 auto;
+	display: flex;
+	justify-content: center;
+	padding: 10px;
+	background: var(--app-color-surface-alt);
+	border-top: 1px solid var(--app-color-border);
+}
+
+.StartupShell {
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--app-color-background);
+}
+
+.StartupContent {
+	flex: 1 1 auto;
+	display: flex;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 32px 24px;
+	box-sizing: border-box;
+	overflow: auto;
+}
+
+.StartupCard {
+	width: min(680px, 100%);
+	padding: 28px 28px 24px;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.StartupCard--wide {
+	width: min(760px, 100%);
+	padding: 28px;
+}
+
+.StartupEyebrow {
+	display: block;
+	color: var(--app-color-text-muted);
+	font-weight: 650;
+}
+
+.StartupTitle {
+	margin: 10px 0 8px;
+	color: var(--app-color-text);
+	font-size: 1.65rem;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.StartupIntro {
+	margin-top: 0;
+	margin-bottom: 20px;
+	color: var(--app-color-text-muted);
+	line-height: 1.55;
+}
+
+.StartupStatusCard {
+	padding: 14px 16px;
+	background: var(--app-color-surface-alt);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+}
+
+.StartupStatusCard__content {
+	display: flex;
+	align-items: flex-start;
+	gap: 14px;
+}
+
+.StartupStatusCard__content--large {
+	align-items: center;
+}
+
+.StartupStatusCard.is-error {
+	border-color: var(--app-color-error);
+}
+
+.StartupStatusTitle {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.StartupStatusDetail {
+	color: var(--app-color-text-muted);
+}
+
+.StartupProgress {
+	margin-top: 16px;
+}
+
+.StartupProgressBar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	margin-top: 16px;
+}
+
+.StartupProgressBar__track {
+	position: relative;
+	flex: 1 1 auto;
+	height: 10px;
+	background: var(--app-color-border);
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.StartupProgressBar__value {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: var(--app-color-primary);
+	border-radius: inherit;
+	transition: width 160ms ease-out;
+}
+
+.StartupProgressBar--exception .StartupProgressBar__value {
+	background: var(--app-color-error);
+}
+
+.StartupProgressBar--success .StartupProgressBar__value {
+	background: var(--app-color-success);
+}
+
+.StartupProgressBar__label {
+	min-width: 4ch;
+	color: var(--app-color-text-muted);
+	font-variant-numeric: tabular-nums;
+	font-weight: 650;
+	text-align: right;
+}
+
+.StartupStatusIcon {
+	flex: 0 0 auto;
+	display: block;
+}
+
+.StartupStatusIcon--loading {
+	color: var(--app-color-primary);
+	animation: spin 900ms linear infinite;
+}
+
+.StartupStatusIcon--success {
+	color: var(--app-color-success);
+}
+
+.StartupStatusIcon--error {
+	color: var(--app-color-error);
+}
+
+.StartupButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: var(--app-control-height);
+	padding: 0 16px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	cursor: pointer;
+	box-sizing: border-box;
+}
+
+.StartupButton:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.StartupButton:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.StartupButton:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.StartupButton--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.StartupButton--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.StartupButton__spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.StartupErrorText {
+	display: block;
+	max-width: 100%;
+	padding: 10px 12px;
+	color: var(--app-color-error);
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+	border: 1px solid color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
+	border-radius: 8px;
+	overflow-wrap: anywhere;
+}
+
+.StartupActions {
+	margin-top: 16px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-start;
+	width: 100%;
+}
+
+.StatusCallout {
+	width: 100%;
+	padding: 12px 14px;
+	background: var(--app-color-surface-alt);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.StatusCallout--error {
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+	border-color: color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
+}
+
+.StatusCallout--warning {
+	background: color-mix(in srgb, var(--app-color-warning) 16%, var(--app-color-surface-alt));
+	border-color: color-mix(in srgb, var(--app-color-warning) 38%, var(--app-color-border));
+}
+
+.StatusCallout__title {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.StatusCallout__body {
+	display: block;
+	color: var(--app-color-text);
+	line-height: 1.45;
+	word-break: break-word;
+}
+
+.NotificationViewport {
+	position: fixed;
+	z-index: 2000;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	width: min(360px, calc(100vw - 32px));
+	pointer-events: none;
+}
+
+.NotificationViewport--topRight {
+	top: 18px;
+	right: 18px;
+}
+
+.NotificationViewport--topLeft {
+	top: 18px;
+	left: 18px;
+}
+
+.NotificationViewport--bottomRight {
+	right: 18px;
+	bottom: 18px;
+}
+
+.NotificationViewport--bottomLeft {
+	left: 18px;
+	bottom: 18px;
+}
+
+.NotificationToast {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 28px;
+	gap: 10px;
+	padding: 12px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 14px 32px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+	pointer-events: auto;
+}
+
+.NotificationToast--error {
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+	border-color: color-mix(in srgb, var(--app-color-error) 40%, var(--app-color-border));
+}
+
+.NotificationToast--warning {
+	background: color-mix(in srgb, var(--app-color-warning) 16%, var(--app-color-surface-alt));
+	border-color: color-mix(in srgb, var(--app-color-warning) 38%, var(--app-color-border));
+}
+
+.NotificationToast--success {
+	border-color: color-mix(in srgb, var(--app-color-success) 42%, var(--app-color-border));
+}
+
+.NotificationToast__body {
+	min-width: 0;
+}
+
+.NotificationToast__title,
+.NotificationToast__description {
+	display: block;
+	line-height: 1.35;
+	word-break: break-word;
+}
+
+.NotificationToast__description {
+	margin-top: 4px;
+	color: var(--app-color-text-muted);
+}
+
+.NotificationToast__actions {
+	margin-top: 10px;
+}
+
+.NotificationToast__close {
+	width: 28px;
+	height: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.NotificationToast__close:hover,
+.NotificationToast__close:focus-visible {
+	color: var(--app-color-text);
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+	outline: none;
+}
+
+.ViewStageLoadingFallback {
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	box-sizing: border-box;
+	overflow: auto;
+}
+
+.ViewStageLoadingFallback--compact {
+	padding: 12px;
+}
+
+.ViewStageLoadingFallback__card {
+	width: min(520px, 100%);
+	padding: 18px 20px;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 12px 28px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.ViewStageLoadingFallback__card--compact {
+	width: 100%;
+	padding: 14px 16px;
+	background: var(--app-color-surface-alt);
+	box-shadow: none;
+}
+
+.ViewStageLoadingFallback__body {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+}
+
+.ViewStageLoadingFallback__spinner {
+	flex: 0 0 auto;
+	color: var(--app-color-primary);
+	animation: spin 900ms linear infinite;
+}
+
+.ViewStageLoadingFallback__copy {
+	min-width: 0;
+}
+
+.ViewStageLoadingFallback__title {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.ViewStageLoadingFallback__detail {
+	margin: 0;
+	color: var(--app-color-text-muted);
+}
+
+.StartupHeroRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	margin-bottom: 24px;
+}
+
+.StartupHeroCopy {
+	flex: 1 1 340px;
+	min-width: 0;
+}
+
+.StartupHeroArtwork {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+}
+
+::-webkit-scrollbar {
+	background: var(--app-color-background);
+	width: 12px;
+}
+
+::-webkit-scrollbar-track {
+	background: color-mix(in srgb, var(--app-color-text-base) 6%, transparent); /* color of the tracking area */
+	border-radius: 6px;
+	border-color: color-mix(in srgb, var(--app-color-background) 82%, var(--app-color-text-base));
+}
+
+::-webkit-scrollbar-thumb {
+	background-color: color-mix(in srgb, var(--app-color-text-base) 26%, transparent); /* color of the scroll thumb */
+	border-radius: 6px; /* roundness of the scroll thumb */
+}
+
+.CollectionViewLayout {
+	flex: 1 1 0;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--app-color-background);
+	overflow: hidden;
+}
+
+.CollectionHeader {
+	min-height: 120px;
+	height: auto;
+	background: var(--app-color-surface);
+	border-bottom: 1px solid var(--app-color-border);
+	padding: 16px 24px 14px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 12px;
+}
+
+.CollectionFooterActions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.CollectionFooterButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: var(--app-control-height);
+	padding: 0 14px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.CollectionFooterButton:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionFooterButton:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.CollectionFooterButton:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.CollectionFooterButton--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.CollectionFooterButton--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.CollectionFooterButton--danger {
+	border-color: var(--app-color-error);
+}
+
+.CollectionFooterButton--danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+}
+
+.CollectionFooterButtonIcon,
+.CollectionFooterButtonSpinner {
+	flex: 0 0 auto;
+}
+
+.CollectionFooterButtonIcon--spinning {
+	animation: spin 900ms linear infinite;
+}
+
+.CollectionFooterButtonSpinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.CollectionToolbar {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.CollectionToolbarPrimaryBar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px 16px;
+	width: 100%;
+}
+
+.CollectionToolbarCollectionSelector {
+	flex: 0 1 280px;
+	min-width: 220px;
+	max-width: 360px;
+}
+
+.CollectionToolbarRow {
+	margin: 0;
+}
+
+.CollectionToolbarColumn {
+	width: 100%;
+	min-width: 0;
+}
+
+.CollectionToolbarSecondaryBar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px 24px;
+	align-items: center;
+	width: 100%;
+}
+
+.CollectionToolbarSearchColumn,
+.CollectionToolbarMetaColumn {
+	min-width: 0;
+}
+
+.CollectionToolbarSearch,
+.CollectionToolbarMeta {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: var(--app-control-height);
+}
+
+.CollectionToolbarActions {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	min-height: 38px;
+}
+
+.CollectionToolbarActionGroup {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.CollectionToolbarActionGroup--collection {
+	flex: 0 1 auto;
+}
+
+.CollectionToolbarActionGroup--utility {
+	margin-left: auto;
+	padding-left: 16px;
+	border-left: 1px solid var(--app-color-border);
+}
+
+.CollectionToolbarActions--primary {
+	flex: 1 1 auto;
+}
+
+.CollectionToolbarActions--utility {
+	justify-content: flex-end;
+}
+
+.CollectionToolbarActions--secondary {
+	justify-content: flex-end;
+}
+
+.CollectionToolbarMeta {
+	justify-content: flex-end;
+	color: var(--app-color-text-muted);
+}
+
+.CollectionToolbarSelect,
+.CollectionToolbarSearchInput,
+.CollectionToolbarButton,
+.CollectionToolbarSearchClear,
+.CollectionToolbarSearchSubmit {
+	min-height: var(--app-control-height);
+	color: var(--app-color-text);
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.CollectionToolbarSelect {
+	width: 100%;
+	padding: 0 12px;
+}
+
+.CollectionToolbarSearchBox {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+}
+
+.CollectionToolbarSearchInput {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 0 12px;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.CollectionToolbarSearchClear,
+.CollectionToolbarSearchSubmit,
+.CollectionToolbarButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.CollectionToolbarButton {
+	padding: 0 12px;
+}
+
+.CollectionToolbarSearchClear,
+.CollectionToolbarSearchSubmit {
+	width: var(--app-control-height);
+	border-left: 0;
+	border-radius: 0;
+}
+
+.CollectionToolbarSearchSubmit {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
+}
+
+.CollectionToolbarSearchSubmit:hover:not(:disabled),
+.CollectionToolbarButton--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.CollectionToolbarSearchClear:hover:not(:disabled),
+.CollectionToolbarButton:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionToolbarButton--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.CollectionToolbarButton--danger {
+	border-color: var(--app-color-error);
+}
+
+.CollectionToolbarButton--danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+}
+
+.CollectionToolbarSelect:focus-visible,
+.CollectionToolbarSearchInput:focus-visible,
+.CollectionToolbarButton:focus-visible,
+.CollectionToolbarSearchClear:focus-visible,
+.CollectionToolbarSearchSubmit:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+	position: relative;
+	z-index: 1;
+}
+
+.CollectionToolbarSelect:disabled,
+.CollectionToolbarSearchInput:disabled,
+.CollectionToolbarButton:disabled,
+.CollectionToolbarSearchClear:disabled,
+.CollectionToolbarSearchSubmit:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.CollectionToolbarButtonSpinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.CollectionNamingModalOverlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.CollectionNamingModal {
+	width: min(520px, 100%);
+	display: flex;
+	flex-direction: column;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+	overflow: hidden;
+}
+
+.CollectionNamingModal__header,
+.CollectionNamingModal__footer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 14px 16px;
+}
+
+.CollectionNamingModal__header {
+	justify-content: space-between;
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.CollectionNamingModal__footer {
+	justify-content: flex-end;
+	border-top: 1px solid var(--app-color-border);
+}
+
+.CollectionNamingModal__title {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 1rem;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.CollectionNamingModal__close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.CollectionNamingModal__close:hover {
+	color: var(--app-color-text);
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionNamingModal__body {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px;
+}
+
+.CollectionNamingModal__label {
+	color: var(--app-color-text);
+	font-weight: 650;
+}
+
+.CollectionNamingModal__input {
+	width: 100%;
+	min-height: var(--app-control-height);
+	padding: 0 12px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.CollectionNamingModal__input:focus-visible,
+.CollectionNamingModal__button:focus-visible,
+.CollectionNamingModal__close:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.CollectionNamingModal__input[aria-invalid='true'] {
+	border-color: var(--app-color-error);
+}
+
+.CollectionNamingModal__help {
+	color: var(--app-color-text-muted);
+	font-size: 0.9rem;
+	line-height: 1.4;
+}
+
+.CollectionNamingModal__error {
+	color: var(--app-color-error);
+	font-size: 0.9rem;
+	line-height: 1.4;
+}
+
+.CollectionNamingModal__button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: var(--app-control-height);
+	padding: 0 14px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.CollectionNamingModal__button:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionNamingModal__button:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.CollectionNamingModal__button--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.CollectionNamingModal__button--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.CollectionNamingModal__spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.CollectionTypeIndicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+}
+
+.BlockLookupViewLayout {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--app-color-background);
+}
+
+.BlockLookupHeader {
+	height: auto;
+	min-height: 138px;
+	padding: 14px 20px 12px;
+	background: var(--app-color-surface);
+	border-bottom: 1px solid var(--app-color-border);
+	line-height: 1.4;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.BlockLookupToolbar,
+.BlockLookupPathBar,
+.BlockLookupStatus {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	gap: 10px;
+}
+
+.BlockLookupToolbar {
+	flex-wrap: wrap;
+}
+
+.BlockLookupSearch {
+	position: relative;
+	display: flex;
+	align-items: center;
+	flex: 1 1 340px;
+	min-width: 280px;
+	max-width: 560px;
+}
+
+.BlockLookupActions {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-left: auto;
+}
+
+.BlockLookupSearchIcon {
+	position: absolute;
+	left: 12px;
+	color: var(--app-color-text-muted);
+	pointer-events: none;
+}
+
+.BlockLookupSearchInput,
+.BlockLookupPathInput,
+.BlockLookupButton,
+.BlockLookupSearchClear,
+.BlockLookupNumberInput {
+	min-height: var(--app-control-height);
+	color: var(--app-color-text);
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.BlockLookupSearchInput {
+	width: 100%;
+	min-width: 0;
+	padding: 0 38px;
+}
+
+.BlockLookupPathInput {
+	flex: 1 1 auto;
+	min-width: 260px;
+	padding: 0 12px;
+}
+
+.BlockLookupSearchClear {
+	position: absolute;
+	right: 4px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: calc(var(--app-control-height) - 8px);
+	height: calc(var(--app-control-height) - 8px);
+	min-height: 0;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+	cursor: pointer;
+}
+
+.BlockLookupButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 0 12px;
+	font-weight: 650;
+	cursor: pointer;
+}
+
+.BlockLookupButton:hover:not(:disabled),
+.BlockLookupSearchClear:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.BlockLookupButton--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.BlockLookupButton--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.BlockLookupButton:focus-visible,
+.BlockLookupSearchInput:focus-visible,
+.BlockLookupPathInput:focus-visible,
+.BlockLookupSearchClear:focus-visible,
+.BlockLookupNumberInput:focus-visible,
+.BlockLookupSwitch:focus-visible,
+.BlockLookupDetailsCopyButton:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.BlockLookupButton:disabled,
+.BlockLookupPathInput:disabled,
+.BlockLookupNumberInput:disabled,
+.BlockLookupSwitch:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.BlockLookupButton__spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.BlockLookupButton__label {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.BlockLookupStatus {
+	justify-content: space-between;
+	color: var(--app-color-text-muted);
+}
+
+.BlockLookupContent {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.BlockLookupTablePane {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 12px 16px 0;
+	overflow: hidden;
+}
+
+.BlockLookupTable {
+	height: 100%;
+}
+
+.BlockLookupVirtualShell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--app-color-surface);
+	overflow: hidden;
+}
+
+.BlockLookupVirtualScroll {
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	scrollbar-width: none;
+}
+
+.BlockLookupVirtualTable {
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	font-variant-numeric: tabular-nums;
+}
+
+.BlockLookupVirtualTableHeader {
+	position: sticky;
+	top: 0;
+	z-index: 3;
+	background: var(--app-color-surface-elevated);
+}
+
+.BlockLookupVirtualTableHeader th {
+	height: 42px;
+	padding: 0 8px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	text-align: left;
+	background: var(--app-color-surface-elevated);
+	border-bottom: 1px solid var(--app-color-border);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.BlockLookupVirtualHeaderButton {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	cursor: pointer;
+}
+
+.BlockLookupVirtualHeaderButton:focus-visible {
+	outline: none;
+	border-radius: 6px;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.BlockLookupVirtualSortIndicator {
+	margin-left: auto;
+	color: var(--app-color-text-muted);
+	font-size: 10px;
+	line-height: 1;
+}
+
+.BlockLookupVirtualTableBody {
+	position: relative;
+	display: block;
+	min-width: 100%;
+}
+
+.BlockLookupVirtualRow {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: flex;
+	width: 100%;
+	min-width: max-content;
+	background: var(--app-color-surface);
+}
+
+.BlockLookupVirtualRow:hover {
+	background: var(--app-color-surface-alt);
+}
+
+.BlockLookupVirtualRow > .BlockLookupVirtualCell {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 8px;
+	border-bottom: 1px solid var(--app-color-border);
+	box-sizing: border-box;
+	overflow: hidden;
+	vertical-align: middle;
+}
+
+.BlockLookupVirtualRow.CompactBlockLookupRow > .BlockLookupVirtualCell {
+	min-height: 36px;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+.BlockLookupVirtualRow.CompactBlockLookupRow .BlockLookupTag {
+	margin-top: 1px;
+	margin-bottom: 1px;
+	padding-inline: 7px;
+	font-size: 12px;
+	line-height: 19px;
+}
+
+.BlockLookupVirtualLoading,
+.BlockLookupVirtualEmpty {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--app-color-text);
+	font-weight: 650;
+	pointer-events: none;
+}
+
+.BlockLookupVirtualLoading {
+	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
+}
+
+.BlockLookupTableHeaderCell {
+	min-width: 0;
+	width: 100%;
+	cursor: grab;
+}
+
+.BlockLookupTableHeaderCell.is-dragging,
+.BlockLookupSettingsColumnRow.is-dragging {
+	opacity: 0.62;
+}
+
+.BlockLookupVirtualRow.is-selected > .BlockLookupVirtualCell {
+	background: color-mix(in srgb, var(--app-color-primary) 14%, transparent);
+}
+
+.BlockLookupTableHeaderLabel {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.BlockLookupCommand {
+	font-family: 'Cascadia Mono', 'Consolas', monospace;
+	font-size: 12.5px;
+}
+
+.BlockLookupMutedText {
+	color: var(--app-color-text-muted);
+}
+
+.BlockLookupTag {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	min-height: 22px;
+	padding: 1px 8px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 650;
+	line-height: 18px;
+}
+
+.BlockLookupDetailsPane {
+	flex: 0 0 auto;
+	min-height: 112px;
+	max-height: 184px;
+	padding: 12px 16px 14px;
+	border-top: 1px solid var(--app-color-border);
+	background: var(--app-color-surface);
+	overflow: auto;
+}
+
+.BlockLookupDetailsGrid {
+	display: grid;
+	grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1.4fr) repeat(4, minmax(120px, 0.8fr));
+	gap: 10px 16px;
+	align-items: start;
+}
+
+.BlockLookupDetailsGrid > div {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.BlockLookupDetailsGrid__source {
+	grid-column: 1 / -1;
+}
+
+.BlockLookupDetailsValue {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--app-color-text);
+}
+
+.BlockLookupDetailsCopyValue {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.BlockLookupDetailsCopyButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.BlockLookupDetailsCopyButton:hover {
+	color: var(--app-color-text);
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.BlockLookupSwitch {
+	position: relative;
+	width: 44px;
+	height: 24px;
+	margin: 0;
+	border: 1px solid var(--app-color-border);
+	border-radius: 999px;
+	appearance: none;
+	background: var(--app-color-surface);
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease;
+}
+
+.BlockLookupSwitch::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--app-color-text-muted);
+	transition:
+		transform 140ms ease,
+		background-color 140ms ease;
+}
+
+.BlockLookupSwitch:checked {
+	background: color-mix(in srgb, var(--app-color-primary) 28%, var(--app-color-surface-elevated));
+	border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+}
+
+.BlockLookupSwitch:checked::after {
+	background: var(--app-color-primary);
+	transform: translateX(20px);
+}
+
+.BlockLookupNumberInput {
+	width: 100%;
+	padding: 0 12px;
+}
+
+.BlockLookupSettingsColumnsHeader,
+.BlockLookupSettingsColumnsList {
+	grid-template-columns: minmax(560px, 1fr);
+}
+
+.BlockLookupSettingsColumnsHeader .CollectionSettingsColumnsHeaderGroup,
+.BlockLookupSettingsColumnRow {
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
+	cursor: grab;
+}
+
+.CollectionToolbarButtonLabel {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.SettingsActions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: center;
+	width: 100%;
+	padding-top: 10px;
+}
+
+.CollectionToolbarMeta,
+.StartupStatusDetail {
+	font-variant-numeric: tabular-nums;
+}
+
+.ModDetailFooterTitle {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1.25;
+}
+
+.ModDetailFooterIdentity {
+	margin-top: 3px;
+	color: var(--app-color-text-muted);
+	font-size: 12px;
+	line-height: 1.25;
+	word-break: break-all;
+}
+
+.ModDetailIconButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	color: var(--app-color-text);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.ModDetailIconButton:hover {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+	border-color: var(--app-color-border);
+}
+
+.ModDetailIconButton:focus-visible,
+.ModDetailButton:focus-visible,
+.ModDetailTabButton:focus-visible,
+.ModDetailCollapseHeader:focus-visible,
+.ModDetailCheckbox:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.ModDetailButton {
+	align-self: flex-start;
+	min-height: 30px;
+	padding: 0 10px;
+	color: var(--app-color-text);
+	font: inherit;
+	font-weight: 650;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.ModDetailButton:hover {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.ModDetailTag {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	min-height: 22px;
+	margin: 2px 4px 2px 0;
+	padding: 0 7px;
+	color: var(--app-color-text);
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 20px;
+	border: 1px solid var(--app-color-border);
+	border-radius: 4px;
+	background: var(--app-color-surface-elevated);
+	white-space: nowrap;
+	box-sizing: border-box;
+}
+
+.ModDetailIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	vertical-align: middle;
+}
+
+.ModDetailIcon--danger {
+	color: var(--app-color-error);
+}
+
+.ModDetailIcon--warning {
+	color: var(--app-color-warning);
+}
+
+.ModDetailIcon--spin {
+	animation: mainCollectionIconSpin 900ms linear infinite;
+}
+
+.ModDetailNameLabel.is-strong {
+	font-weight: 700;
+}
+
+.ModDetailNameLabel.is-danger {
+	color: var(--app-color-error);
+}
+
+.ModDetailNameLabel.is-warning {
+	color: var(--app-color-warning);
+}
+
+.ModDetailFooterBody {
+	display: grid;
+	grid-template-columns: minmax(150px, 18%) minmax(0, 1fr);
+	gap: 16px;
+	flex: 1;
+	min-height: 0;
+	padding: 0 10px 10px;
+}
+
+.ModDetailFooterPreviewCol,
+.ModDetailFooterContentCol {
+	min-height: 0;
+	min-width: 0;
+}
+
+.ModDetailFooterContentCol {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.ModDetailFooterPreview {
+	width: 100%;
+	padding: 10px;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.ModDetailFooterPreview img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: 5px;
+	object-fit: contain;
+}
+
+.WorkshopDescription {
+	color: var(--app-color-text);
+	font-size: 0.95rem;
+	line-height: 1.55;
+	word-break: break-word;
+
+	h1,
+	h2,
+	h3 {
+		color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+		font-family: var(--app-font-body);
+		font-weight: 650;
+		line-height: 1.25;
+		margin-top: 18px;
+		margin-bottom: 8px;
+	}
+
+	h1 {
+		font-size: 1.28rem;
+	}
+
+	h2 {
+		font-size: 1.12rem;
+	}
+
+	h3 {
+		font-size: 1rem;
+	}
+
+	h1:first-child,
+	h2:first-child,
+	h3:first-child {
+		margin-top: 0;
+	}
+
+	p,
+	ul,
+	ol,
+	blockquote,
+	pre {
+		max-width: 88ch;
+	}
+
+	a {
+		color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+		text-decoration: underline;
+		margin: 0;
+	}
+
+	blockquote,
+	pre {
+		margin: 12px 0;
+		padding: 12px 16px;
+		background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+		border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--app-color-primary) 76%, white) 32%, transparent);
+		border-radius: 6px;
+	}
+
+	code {
+		font-family: Consolas, 'Courier New', monospace;
+	}
+
+	img {
+		max-width: 100%;
+		height: auto;
+		display: block;
+		margin: 12px 0;
+	}
+
+	ul,
+	ol {
+		margin: 12px 0;
+		padding-left: 24px;
+	}
+
+	li {
+		list-style: inherit;
+		margin-bottom: 6px;
+	}
+
+	hr {
+		border: none;
+		border-top: 1px solid color-mix(in srgb, var(--app-color-text-base) 14%, transparent);
+		margin: 16px 0;
+	}
+}
+
+.ModDetailFooterTabs {
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.ModDetailTabsNav {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 4px;
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.ModDetailTabButton {
+	position: relative;
+	min-height: 34px;
+	padding: 0 12px;
+	color: var(--app-color-text-muted);
+	font: inherit;
+	font-weight: 650;
+	background: transparent;
+	border: 0;
+	border-radius: 6px 6px 0 0;
+	cursor: pointer;
+}
+
+.ModDetailTabButton:hover {
+	color: var(--app-color-text);
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.ModDetailTabButton.is-active {
+	color: var(--app-color-text);
+}
+
+.ModDetailTabButton.is-active::after {
+	content: '';
+	position: absolute;
+	left: 10px;
+	right: 10px;
+	bottom: -1px;
+	height: 2px;
+	background: var(--app-color-primary);
+}
+
+.ModDetailTabsPanel {
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	padding-top: 10px;
+}
+
+.ModDetailTabsPanel {
+	animation: detailTabFade 140ms ease;
+}
+
+.ModDetailDescriptions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	border: 1px solid var(--app-color-border);
+	border-bottom: 0;
+	background: var(--app-color-surface);
+}
+
+.ModDetailDescriptions--columns-2 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ModDetailDescriptionsItem {
+	display: grid;
+	grid-template-columns: 150px minmax(0, 1fr);
+	border-bottom: 1px solid var(--app-color-border);
+	min-width: 0;
+}
+
+.ModDetailDescriptionsLabel,
+.ModDetailDescriptionsValue {
+	min-width: 0;
+	padding: 5px 8px;
+	word-break: break-word;
+}
+
+.ModDetailDescriptionsLabel {
+	color: var(--app-color-text-muted);
+	font-weight: 650;
+	background: var(--app-color-surface-elevated);
+	border-right: 1px solid var(--app-color-border);
+}
+
+.ModDetailCollapse {
+	border: 1px solid var(--app-color-border);
+	border-bottom: 0;
+	background: var(--app-color-surface);
+}
+
+.ModDetailCollapseItem {
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.ModDetailCollapseHeader {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-height: 30px;
+	padding: 4px 8px;
+	color: var(--app-color-text);
+	font: inherit;
+	font-weight: 650;
+	text-align: left;
+	background: var(--app-color-surface-elevated);
+	border: 0;
+	cursor: pointer;
+}
+
+.ModDetailCollapseHeader:hover {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.ModDetailCollapsePanel {
+	padding: 0 0 0 24px;
+}
+
+.ModDetailDependenciesPane {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.ModDetailDependencyError {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+}
+
+.ModDetailDependencies .ModDetailCollapsePanel {
+	padding: 0;
+}
+
+.ModDetailTableWrap {
+	width: 100%;
+	overflow: auto;
+}
+
+.ModDetailTable {
+	width: 100%;
+	min-width: max-content;
+	border-collapse: collapse;
+	color: var(--app-color-text);
+	font-size: 13px;
+}
+
+.ModDetailTable th,
+.ModDetailTable td {
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--app-color-border);
+	text-align: left;
+	vertical-align: middle;
+}
+
+.ModDetailTable th {
+	color: var(--app-color-text-muted);
+	font-weight: 700;
+	background: var(--app-color-surface-elevated);
+}
+
+.ModDetailTableSelectionCell {
+	width: 34px;
+	text-align: center;
+}
+
+.ModDetailTableEmpty {
+	color: var(--app-color-text-muted);
+	text-align: center;
+}
+
+.ModDetailCheckbox {
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	accent-color: var(--app-color-primary);
+}
+
+.CollectionNativeModalOverlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: color-mix(in srgb, var(--app-color-background) 72%, transparent);
+}
+
+.CollectionNativeModal {
+	max-width: calc(100vw - 32px);
+	max-height: calc(100vh - 48px);
+	display: flex;
+	flex-direction: column;
+	background: var(--app-color-surface-elevated);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
+	overflow: hidden;
+}
+
+.CollectionNativeModal__header,
+.CollectionNativeModal__footer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 14px 16px;
+}
+
+.CollectionNativeModal__header {
+	justify-content: space-between;
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.CollectionNativeModal__footer {
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	border-top: 1px solid var(--app-color-border);
+}
+
+.CollectionNativeModal__title {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 1.05rem;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.CollectionNativeModal__close,
+.CollectionNativeModalButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--app-color-text);
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.CollectionNativeModal__close {
+	width: 32px;
+	height: 32px;
+	color: var(--app-color-text-muted);
+	background: transparent;
+	border: 0;
+}
+
+.CollectionNativeModal__close:hover {
+	color: var(--app-color-text);
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionNativeModal__body {
+	padding: 16px;
+	overflow: auto;
+}
+
+.CollectionValidationModal .CollectionNativeModal__body {
+	max-height: calc(100vh - 224px);
+}
+
+.CollectionSettingsModal .CollectionNativeModal__body {
+	padding-top: 10px;
+	padding-bottom: 12px;
+}
+
+.CollectionNativeModalButton {
+	gap: 8px;
+	min-height: var(--app-control-height);
+	padding: 0 14px;
+	font-weight: 650;
+}
+
+.CollectionNativeModalButton:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
+}
+
+.CollectionNativeModalButton:focus-visible,
+.CollectionNativeModal__close:focus-visible,
+.CollectionNativeInput:focus-visible,
+.CollectionNativeNumberInput:focus-visible,
+.CollectionNativeSwitch:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.CollectionNativeModalButton:disabled,
+.CollectionNativeInput:disabled,
+.CollectionNativeNumberInput:disabled,
+.CollectionNativeSwitch:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.CollectionNativeModalButton--primary {
+	background: var(--app-color-primary);
+	border-color: var(--app-color-primary);
+}
+
+.CollectionNativeModalButton--primary:hover:not(:disabled) {
+	background: var(--app-color-primary-hover);
+	border-color: var(--app-color-primary-hover);
+}
+
+.CollectionNativeModalButton--danger {
+	border-color: var(--app-color-error);
+}
+
+.CollectionNativeModalButton--danger:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--app-color-error) 18%, var(--app-color-surface-alt));
+}
+
+.CollectionNativeModalButton__spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+	border-top-color: currentColor;
+	border-radius: 999px;
+	animation: spin 700ms linear infinite;
+}
+
+.CollectionNativeField {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.CollectionNativeField__label {
+	color: var(--app-color-text);
+	font-weight: 650;
+}
+
+.CollectionNativeInput,
+.CollectionNativeNumberInput {
+	width: 100%;
+	min-height: var(--app-control-height);
+	padding: 0 12px;
+	color: var(--app-color-text);
+	background: var(--app-color-surface);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.CollectionNativeSwitch {
+	position: relative;
+	width: 44px;
+	height: 24px;
+	margin: 0;
+	border: 1px solid var(--app-color-border);
+	border-radius: 999px;
+	appearance: none;
+	background: var(--app-color-surface);
+	cursor: pointer;
+	transition:
+		background-color 140ms ease,
+		border-color 140ms ease;
+}
+
+.CollectionNativeSwitch::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--app-color-text-muted);
+	transition:
+		transform 140ms ease,
+		background-color 140ms ease;
+}
+
+.CollectionNativeSwitch:checked {
+	background: color-mix(in srgb, var(--app-color-primary) 28%, var(--app-color-surface-elevated));
+	border-color: color-mix(in srgb, var(--app-color-primary) 62%, var(--app-color-border));
+}
+
+.CollectionNativeSwitch:checked::after {
+	background: var(--app-color-primary);
+	transform: translateX(20px);
+}
+
+.CollectionSettingsModalWrap {
+	padding: 68px 12px 12px;
+}
+
+.CollectionModalIntro {
+	margin-bottom: 16px;
+}
+
+.CollectionValidationIssueSection {
+	margin-top: 20px;
+}
+
+.CollectionValidationIssueScroller {
+	padding-right: 8px;
+}
+
+.CollectionValidationIssueList,
+.CollectionValidationIssueDetails {
+	margin: 0;
+	padding: 0;
+}
+
+.CollectionValidationIssueList {
+	display: grid;
+	gap: 14px;
+}
+
+.CollectionValidationIssueItem {
+	display: grid;
+	gap: 4px;
+}
+
+.CollectionValidationIssueItem__title,
+.CollectionValidationIssueItem__uid {
+	display: block;
+}
+
+.CollectionValidationIssueDetails {
+	display: grid;
+	gap: 4px;
+	padding-left: 20px;
+}
+
+.CollectionSettingsForm,
+.ModOverrideForm {
+	margin-top: 4px;
+}
+
+.CollectionSettingsForm--dense {
+	margin-top: 0;
+	display: grid;
+	gap: 12px;
+	width: fit-content;
+	max-width: 100%;
+}
+
+.CollectionSettingsTopBar {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 16px;
+	width: 100%;
+	margin-bottom: 0;
+}
+
+.CollectionSettingsTopCopy {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.CollectionSettingsSubheading {
+	margin: 0;
+	color: var(--app-color-text);
+	font-size: 0.95rem;
+	font-weight: 700;
+}
+
+.CollectionSettingsToggleCard {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+}
+
+.CollectionSettingsToggleCopy {
+	min-width: 0;
+}
+
+.CollectionSettingsColumnsHeader {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(280px, 1fr));
+	gap: 20px;
+	width: 100%;
+	padding: 0 0 2px;
+}
+
+.CollectionSettingsColumnsHeaderGroup {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
+	align-items: center;
+	gap: 8px;
+}
+
+.CollectionSettingsColumnsHeader span {
+	color: var(--app-color-text-muted);
+	font-size: 12px;
+	font-weight: 650;
+	text-transform: uppercase;
+	letter-spacing: 0;
+}
+
+.CollectionSettingsColumnsHeader span:nth-child(2),
+.CollectionSettingsColumnsHeader span:nth-child(3) {
+	justify-self: start;
+}
+
+.CollectionSettingsColumnsList {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(280px, 1fr));
+	gap: 8px 20px;
+	width: 100%;
+}
+
+.CollectionSettingsColumnRow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(136px, 152px);
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.CollectionSettingsColumnLabel {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.CollectionSettingsColumnHint {
+	font-size: 12px;
+	line-height: 1.35;
+}
+
+.CollectionSettingsColumnSwitch {
+	display: flex;
+	justify-content: flex-start;
+	width: 52px;
+	min-height: 44px;
+	align-items: center;
+}
+
+.CollectionSettingsColumnWidth {
+	width: 100%;
+	max-width: none;
+}
+
+.ModOverridesPane {
+	height: 100%;
+	padding: 16px 18px;
+	background: var(--app-color-surface-alt);
+	border: 1px solid var(--app-color-border);
+	border-radius: 8px;
+}
+
+.ModOverrides {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.MainCollectionVirtualShell {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: var(--app-color-surface);
+	overflow: hidden;
+}
+
+.MainCollectionVirtualScroll {
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+	scrollbar-width: none;
+}
+
+.MainCollectionVirtualTable {
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: fixed;
+	font-variant-numeric: tabular-nums;
+}
+
+.MainCollectionVirtualTableHeader {
+	position: sticky;
+	top: 0;
+	z-index: 3;
+	background: var(--app-color-surface-elevated);
+}
+
+.MainCollectionVirtualTableHeader th {
+	height: 42px;
+	padding: 0 8px;
+	color: var(--app-color-text);
+	font-weight: 650;
+	text-align: left;
+	background: var(--app-color-surface-elevated);
+	border-bottom: 1px solid var(--app-color-border);
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.MainCollectionVirtualTableHeader .MainCollectionVirtualSelectionCell {
+	text-align: center;
+}
+
+.MainCollectionVirtualHeaderButton {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	cursor: default;
+}
+
+.MainCollectionVirtualHeaderCell.is-sortable .MainCollectionVirtualHeaderButton {
+	cursor: pointer;
+}
+
+.MainCollectionVirtualHeaderButton:disabled {
+	color: inherit;
+}
+
+.MainCollectionVirtualHeaderButton:focus-visible {
+	outline: none;
+	border-radius: 6px;
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
+		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
+}
+
+.MainCollectionVirtualSortIndicator {
+	margin-left: auto;
+	color: var(--app-color-text-muted);
+	font-size: 10px;
+	line-height: 1;
+}
+
+.MainCollectionVirtualTableBody {
+	position: relative;
+	display: block;
+	min-width: 100%;
+}
+
+.MainCollectionVirtualRow {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: flex;
+	width: 100%;
+	min-width: max-content;
+	background: var(--app-color-surface);
+}
+
+.MainCollectionVirtualRow:hover {
+	background: var(--app-color-surface-alt);
+}
+
+.MainCollectionVirtualRow > .MainCollectionVirtualCell {
+	display: flex;
+	align-items: center;
+	min-height: 48px;
+	padding: 8px;
+	border-bottom: 1px solid var(--app-color-border);
+	box-sizing: border-box;
+	overflow: hidden;
+	vertical-align: middle;
+}
+
+.MainCollectionVirtualSelectionCell {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.MainCollectionSelectionCheckbox {
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	accent-color: var(--app-color-primary);
+}
+
+.MainCollectionVirtualLoading {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
+	color: var(--app-color-text);
+	font-weight: 650;
+	pointer-events: none;
+}
+
+.ModDetailFooterHeaderActions {
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.MainCollectionVirtualRow > .MainCollectionVirtualCell.CollectionRowModName {
+	padding: 2px 4px 2px 2px;
+	align-items: stretch;
+}
+
+.MainCollectionVirtualRow.CompactModRow > .MainCollectionVirtualCell {
+	min-height: 44px;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+.MainCollectionVirtualRow.CompactModRow > .MainCollectionVirtualCell.CollectionRowModName {
+	padding: 3px 4px 3px 3px;
+}
+
+.MainCollectionVirtualRow.CompactModRow .CollectionNameButton {
+	font-size: 13.5px;
+	line-height: 1.28;
+	min-height: 44px;
+	padding-top: 6px;
+	padding-bottom: 6px;
+	padding-left: 8px;
+	padding-right: 6px;
+}
+
+.MainCollectionVirtualRow.CompactModRow .MainCollectionTag {
+	margin-top: 1px;
+	margin-bottom: 1px;
+	padding-inline: 7px;
+	font-size: 12px;
+	line-height: 19px;
+}
+
+.MainCollectionVirtualRow.CompactModRow .MainCollectionVirtualCell.CollectionRowTags {
+	padding: 0 0 0 8px;
+}
+
+@keyframes detailTabFade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes splitPaneFade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes mainCollectionIconSpin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.AppViewStage,
+	.CollectionContentStage,
+	.CollectionSplitDetailsPane,
+	.CollectionNameButton {
+		animation: none !important;
+		transition: none !important;
+	}
+}
+
+@media (pointer: coarse) {
+	.CollectionTableResizeHandle {
+		right: -(44px / 2);
+		width: 44px;
+	}
+
+	.MainCollectionVirtualRow.CompactModRow > .MainCollectionVirtualCell {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.MainCollectionVirtualRow.CompactModRow > .MainCollectionVirtualCell.CollectionRowModName {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.MainCollectionVirtualRow.CompactModRow .MainCollectionTag {
+		display: inline-flex;
+		align-items: center;
+		min-height: 24px;
+	}
+}
+
+@media (max-width: 992px) {
+	.StartupHeroArtwork {
+		display: none;
+	}
+}
+
+@media (max-width: 1199px) {
+	.CollectionToolbarSecondaryBar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.CollectionToolbarMeta {
+		justify-content: flex-start;
+	}
+
+	.CollectionToolbarActions--secondary {
+		justify-content: flex-start;
+	}
+}
+
+@media (max-width: 991px) {
+	.SettingsPaneGrid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.SettingsPaneColumn.MiscAppSettings {
+		margin-bottom: 20px;
+	}
+}
+
+@media (max-width: 1100px) {
+	.SettingsForm {
+		margin-inline: 20px;
+	}
+
+	.CollectionToolbarPrimaryBar {
+		column-gap: 10px;
+	}
+
+	.CollectionToolbarCollectionSelector {
+		flex-basis: 100%;
+		max-width: none;
+	}
+
+	.CollectionToolbarActionGroup--utility {
+		margin-left: auto;
+		padding-left: 12px;
+	}
+
+	.CollectionToolbarActions {
+		gap: 8px;
+	}
+
+	.CollectionToolbarButton {
+		width: var(--app-control-height);
+		min-width: var(--app-control-height);
+		padding-inline: 0;
+	}
+
+	.CollectionToolbar .CollectionToolbarActions .CollectionToolbarButtonLabel {
+		display: none;
+	}
+
+	.StartupContent {
+		padding: 24px 16px;
+	}
+
+	.StartupCard,
+	.StartupCard--wide {
+		padding: 22px 20px;
+	}
+
+	.CollectionSettingsTopBar {
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: start;
+	}
+
+	.CollectionSettingsColumnsList {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6px;
+	}
+
+	.CollectionSettingsColumnsHeader {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.CollectionSettingsColumnsHeaderGroup:last-child {
+		display: none;
+	}
+
+	.ModOverridesPane {
+		padding: 14px 16px;
+	}
+
+	.ModDetailFooterHeader {
+		flex-direction: column;
+		align-items: flex-start;
+		justify-content: flex-start;
+	}
+
+	.ModDetailFooterHeaderActions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.ModDetailFooterPreviewCol {
+		display: none;
+	}
+
+	.ModDetailFooterBody {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.ModDetailFooterContentCol {
+		padding-right: 0;
+	}
+
+	.BlockLookupActions {
+		margin-left: 0;
+	}
+
+	.BlockLookupButton {
+		min-height: var(--app-control-height);
+	}
+
+	.BlockLookupDetailsGrid {
+		grid-template-columns: repeat(2, minmax(180px, 1fr));
+	}
+}
+
+@media (max-width: 720px) {
+	.CollectionHeader {
+		min-height: 0;
+		padding: 12px 16px;
+		gap: 8px;
+	}
+
+	.CollectionToolbar,
+	.CollectionToolbarPrimaryBar {
+		gap: 8px;
+	}
+
+	.CollectionToolbarActionGroup--utility {
+		padding-left: 10px;
+	}
+
+	.CollectionToolbarCollectionSelector {
+		min-width: 0;
+	}
+
+	.CollectionToolbarButton,
+	.CollectionToolbarSearchClear,
+	.CollectionToolbarSearchSubmit,
+	.CollectionToolbarSearchInput,
+	.CollectionToolbarSelect {
+		min-height: var(--app-control-height);
+	}
+
+	.SettingsActions {
+		justify-content: flex-start;
+	}
+
+	.SettingsField {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.CollectionSettingsTopBar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.CollectionSettingsToggleCard {
+		min-width: 0;
+	}
+
+	.CollectionSettingsColumnsHeader {
+		display: none;
+	}
+
+	.CollectionSettingsColumnRow {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.CollectionSettingsColumnWidth {
+		grid-column: 1 / -1;
+	}
+
+	.SettingsActions .SettingsButton {
+		flex: 1 1 100%;
+		width: 100%;
+	}
+
+	.BlockLookupHeader {
+		padding: 12px 14px;
+	}
+
+	.BlockLookupSearch,
+	.BlockLookupPathBar,
+	.BlockLookupPathInput {
+		flex-basis: 100%;
+		min-width: 0;
+	}
+
+	.BlockLookupActions {
+		width: 100%;
+	}
+
+	.BlockLookupActions .BlockLookupButton {
+		flex: 1 1 calc(50% - 5px);
+	}
+
+	.BlockLookupStatus {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.BlockLookupDetailsGrid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.BlockLookupSettingsColumnsHeader,
+	.BlockLookupSettingsColumnsList {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.BlockLookupSettingsColumnRow {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+}

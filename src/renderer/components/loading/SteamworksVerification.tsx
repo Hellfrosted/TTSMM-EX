@@ -1,31 +1,56 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Layout, Button, Typography, Row, Col, Space } from 'antd';
-import { CheckOutlined, CloseOutlined, Loading3QuartersOutlined } from '@ant-design/icons';
 import api from 'renderer/Api';
-import { APP_THEME_COLORS } from 'renderer/theme';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
-import { useAppState } from 'renderer/state/app-state';
-import { getStoredViewPath } from 'renderer/util/view-path';
-
-const { Content } = Layout;
-const { Paragraph, Text, Title } = Typography;
+import { useAppStateSelector } from 'renderer/state/app-state';
+import { StartupButton, StartupStatusIcon } from './StartupPrimitives';
 
 interface VerificationMessage {
 	inited: boolean;
 	error?: string;
 }
 
+function describeSteamworksError(error: string | undefined) {
+	const normalizedError = (error || '').toLowerCase();
+
+	if (normalizedError.includes('steam unavailable') || normalizedError.includes('steam is not running')) {
+		return {
+			title: 'Steam is not available right now.',
+			detail: 'Start Steam, sign in, then retry the Steamworks check.'
+		};
+	}
+
+	if (
+		normalizedError.includes('dll') ||
+		normalizedError.includes('module') ||
+		normalizedError.includes('greenworks') ||
+		normalizedError.includes('steamworks')
+	) {
+		return {
+			title: 'The Steamworks files are not ready on this machine.',
+			detail: 'Make sure Steamworks dependencies are installed for this build, then retry.'
+		};
+	}
+
+	return {
+		title: 'Steamworks could not be initialized.',
+		detail: 'Start Steam, confirm this build has its Steamworks files available, then retry.'
+	};
+}
+
 export default function SteamworksVerification() {
-	const appState = useAppState();
+	const config = useAppStateSelector((state) => state.config);
+	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
+	const navigate = useAppStateSelector((state) => state.navigate);
+	const updateState = useAppStateSelector((state) => state.updateState);
 	const [verifying, setVerifying] = useState(true);
 	const [error, setError] = useState<string>();
-	const appStateRef = useRef(appState);
+	const appStateRef = useRef({ config, initializedConfigs, navigate, updateState });
 	const mountedRef = useRef(true);
 	const timeoutIdsRef = useRef<number[]>([]);
 
 	useEffect(() => {
-		appStateRef.current = appState;
-	}, [appState]);
+		appStateRef.current = { config, initializedConfigs, navigate, updateState };
+	}, [config, initializedConfigs, navigate, updateState]);
 
 	const scheduleTimeout = useCallback((callback: () => void, delay: number) => {
 		if (!mountedRef.current) {
@@ -50,8 +75,8 @@ export default function SteamworksVerification() {
 			return;
 		}
 
-		const nextPath = getStoredViewPath(config.currentPath);
-		if (nextPath !== config.currentPath) {
+		const nextPath = '/collections/main';
+		if (config.currentPath !== nextPath) {
 			updateState({
 				config: {
 					...config,
@@ -62,38 +87,47 @@ export default function SteamworksVerification() {
 		navigate(nextPath);
 	}, []);
 
-	const processVerificationMessage = useCallback((message: VerificationMessage) => {
-		scheduleTimeout(() => {
-			if (message.inited) {
-				setError(undefined);
-			} else {
-				setError(message.error);
-			}
-			setVerifying(false);
-			if (message.inited) {
-				scheduleTimeout(() => {
-					goToConfig();
-				}, 500);
-			}
-		}, 100);
+	const processVerificationMessage = useCallback(
+		(message: VerificationMessage) => {
+			scheduleTimeout(() => {
+				if (message.inited) {
+					setError(undefined);
+				} else {
+					setError(message.error);
+				}
+				setVerifying(false);
+				if (message.inited) {
+					scheduleTimeout(() => {
+						goToConfig();
+					}, 500);
+				}
+			}, 100);
 
-		return message.inited;
-	}, [goToConfig, scheduleTimeout]);
+			return message.inited;
+		},
+		[goToConfig, scheduleTimeout]
+	);
 
-	const processVerificationFailure = useCallback((cause: unknown) => {
-		const message = cause instanceof Error ? cause.message : String(cause);
-		scheduleTimeout(() => {
-			setError(message);
-			setVerifying(false);
-		}, 100);
-	}, [scheduleTimeout]);
+	const processVerificationFailure = useCallback(
+		(cause: unknown) => {
+			const message = cause instanceof Error ? cause.message : String(cause);
+			scheduleTimeout(() => {
+				setError(message);
+				setVerifying(false);
+			}, 100);
+		},
+		[scheduleTimeout]
+	);
 
 	useEffect(() => {
 		mountedRef.current = true;
-		void api.steamworksInited().then(processVerificationMessage).catch((error) => {
-			api.logger.error(error);
-			processVerificationFailure(error);
-		});
+		void api
+			.steamworksInited()
+			.then(processVerificationMessage)
+			.catch((error) => {
+				api.logger.error(error);
+				processVerificationFailure(error);
+			});
 		return () => {
 			mountedRef.current = false;
 			timeoutIdsRef.current.forEach((timeoutId) => {
@@ -103,77 +137,75 @@ export default function SteamworksVerification() {
 		};
 	}, [processVerificationFailure, processVerificationMessage]);
 
-	function getStatusIcon() {
-		if (verifying) {
-			return <Loading3QuartersOutlined spin style={{ fontSize: 64, color: APP_THEME_COLORS.primary }} />;
-		}
-		if (error) {
-			return <CloseOutlined style={{ fontSize: 64, color: APP_THEME_COLORS.error }} />;
-		}
-		return <CheckOutlined style={{ fontSize: 64, color: APP_THEME_COLORS.success }} />;
-	}
-
 	function verify() {
 		setError(undefined);
 		setVerifying(true);
-		void api.steamworksInited().then(processVerificationMessage).catch((error) => {
-			api.logger.error(error);
-			processVerificationFailure(error);
-		});
+		void api
+			.steamworksInited()
+			.then(processVerificationMessage)
+			.catch((error) => {
+				api.logger.error(error);
+				processVerificationFailure(error);
+			});
 	}
 
-	const statusLabel = verifying ? 'Checking Steamworks integration' : error ? 'Steamworks initialization failed' : 'Steamworks is ready';
+	const describedError = error ? describeSteamworksError(error) : undefined;
+	const statusLabel = verifying
+		? 'Checking Steamworks integration'
+		: error
+			? describedError?.title || 'Steamworks initialization failed'
+			: 'Steamworks is ready';
 	const statusDetail = verifying
 		? 'Confirming the manager can talk to Steam before restoring your saved workspace.'
 		: error
-			? 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
-			: 'Continuing to your saved view.';
+			? describedError?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
+			: 'Continuing to mod collections.';
+	const statusIcon = verifying ? 'loading' : error ? 'error' : 'success';
 
 	return (
-		<Layout className="StartupShell">
-			<Content className="StartupContent">
+		<div className="StartupShell">
+			<main className="StartupContent">
 				<section aria-labelledby="steamworks-title" className="StartupCard StartupCard--wide">
-					<Row key="steamworks" justify="space-between" align="middle" gutter={[24, 24]}>
-						<Col flex="1 1 340px">
-							<Text type="secondary">Startup</Text>
-							<Title id="steamworks-title" level={2} style={{ marginTop: 10, marginBottom: 8 }}>
+					<div className="StartupHeroRow">
+						<div className="StartupHeroCopy">
+							<span className="StartupEyebrow">Startup</span>
+							<h2 id="steamworks-title" className="StartupTitle">
 								Verifying Steamworks access
-							</Title>
-							<Paragraph style={{ marginBottom: 0, color: APP_THEME_COLORS.textMuted }}>
+							</h2>
+							<p className="StartupIntro">
 								The manager checks Steamworks before loading your configuration so workshop subscriptions and launch actions stay reliable.
-							</Paragraph>
-						</Col>
-						<Col key="logo" flex="0 0 auto" className="StartupHeroArtwork">
+							</p>
+						</div>
+						<div className="StartupHeroArtwork">
 							<img src={logo_steamworks} width={240} alt="Steamworks logo" key="steamworks" />
-						</Col>
-					</Row>
-					<div aria-live="polite" role="status" className={`StartupStatusCard${error ? ' is-error' : ''}`} style={{ marginTop: 24 }}>
-						<Space size={14} align="start">
-							<span aria-hidden>{getStatusIcon()}</span>
+						</div>
+					</div>
+					<div aria-live="polite" role="status" className={`StartupStatusCard${error ? ' is-error' : ''}`}>
+						<div className="StartupStatusCard__content StartupStatusCard__content--large">
+							<StartupStatusIcon status={statusIcon} size={64} />
 							<span>
-								<Text strong className="StartupStatusTitle">
-									{statusLabel}
-								</Text>
-								<Text className="StartupStatusDetail">{statusDetail}</Text>
+								<strong className="StartupStatusTitle">{statusLabel}</strong>
+								<span className="StartupStatusDetail">{statusDetail}</span>
 							</span>
-						</Space>
+						</div>
 					</div>
 					{error ? (
-						<Row key="error" justify="start" className="StartupActions">
-							<Text code type="danger">
-								{error}
-							</Text>
-						</Row>
+						<div key="error" className="StartupActions">
+							<div className="StatusCallout StatusCallout--error">
+								<strong className="StatusCallout__title">{describedError?.title || 'Resolve this before retrying'}</strong>
+								<span className="StatusCallout__body">{describedError?.detail || error}</span>
+							</div>
+						</div>
 					) : null}
 					{error ? (
-						<Row key="retry" justify="start" className="StartupActions">
-							<Button type="primary" onClick={verify} loading={verifying}>
-								Retry Steamworks Initialization
-							</Button>
-						</Row>
+						<div key="retry" className="StartupActions">
+							<StartupButton variant="primary" onClick={verify} loading={verifying}>
+								Try Steamworks Again
+							</StartupButton>
+						</div>
 					) : null}
 				</section>
-			</Content>
-		</Layout>
+			</main>
+		</div>
 	);
 }

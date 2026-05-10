@@ -26,7 +26,7 @@ describe('useModMetadata', () => {
 			mods,
 			activeCollection: { name: 'default', mods: [mod.uid] }
 		});
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 
 		const onMetadataUpdate = vi.fn();
 		renderHook(() => useModMetadata(appState, onMetadataUpdate));

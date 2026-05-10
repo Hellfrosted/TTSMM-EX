@@ -1,29 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
-import { Button, Layout, Progress, Space, Typography } from 'antd';
-import { AppConfig, ModType, AppState, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { AppConfig, ModType, ModCollection, ProgressTypes, SessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
-import { APP_THEME_COLORS } from 'renderer/theme';
-import { CheckCircleFilled, CloseCircleFilled, Loading3QuartersOutlined } from '@ant-design/icons';
-
-const { Content } = Layout;
-const { Paragraph, Text, Title } = Typography;
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { StartupButton, StartupProgressBar, StartupStatusIcon } from './StartupPrimitives';
 
 interface ModLoadingProps {
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 	modLoadCompleteCallback: () => void;
 }
 
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
+	const { allCollections, config: rawConfig, forceReloadMods, updateState: updateAppState } = appState;
+	const config = rawConfig as AppConfig;
 	const [progress, setProgress] = useState(0);
 	const [progressMessage, setProgressMessage] = useState('Counting mods');
 	const [loadError, setLoadError] = useState<string>();
 	const [retryCount, setRetryCount] = useState(0);
 	const loadRequestIdRef = useRef(0);
+	const completeModLoad = useEffectEvent(() => {
+		modLoadCompleteCallback();
+	});
 
 	useEffect(() => {
 		const requestId = loadRequestIdRef.current + 1;
 		loadRequestIdRef.current = requestId;
-		const config: AppConfig = appState.config as AppConfig;
 		const unsubscribeProgress = api.onProgressChange((type: ProgressTypes, nextProgress: number, nextProgressMessage: string) => {
 			if (loadRequestIdRef.current !== requestId) {
 				return;
@@ -35,13 +35,9 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			}
 		});
 
-		const allKnownMods: Set<string> = appState.forceReloadMods
+		const allKnownMods: Set<string> = forceReloadMods
 			? new Set<string>()
-			: new Set(
-					[...appState.allCollections.values()]
-						.map((value: ModCollection) => value.mods)
-						.flat()
-				);
+			: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
 		allKnownMods.add(`${ModType.WORKSHOP}:${config.workshopID}`);
 
 		void api
@@ -50,14 +46,14 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				if (loadRequestIdRef.current !== requestId) {
 					return mods;
 				}
-				setupDescriptors(mods as SessionMods, appState.config.userOverrides, appState.config);
-				appState.updateState({
+				setupDescriptors(mods as SessionMods, config.userOverrides);
+				updateAppState({
 					mods,
 					firstModLoad: true,
 					loadingMods: false,
 					forceReloadMods: false
 				});
-				modLoadCompleteCallback();
+				completeModLoad();
 				return mods;
 			})
 			.catch((error) => {
@@ -74,58 +70,37 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				loadRequestIdRef.current += 1;
 			}
 		};
-	}, [appState, modLoadCompleteCallback, retryCount]);
+	}, [allCollections, config.localDir, config.userOverrides, config.workshopID, forceReloadMods, retryCount, updateAppState]);
 
 	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';
 	const statusDetail = loadError ? 'Fix the error below and retry the scan.' : progressMessage || 'Counting mods';
-	const statusIcon = loadError ? (
-		<CloseCircleFilled style={{ fontSize: 32, color: APP_THEME_COLORS.error }} />
-	) : progressPercent >= 100 ? (
-		<CheckCircleFilled style={{ fontSize: 32, color: APP_THEME_COLORS.success }} />
-	) : (
-		<Loading3QuartersOutlined spin style={{ fontSize: 32, color: APP_THEME_COLORS.primary }} />
-	);
+	const statusIcon = loadError ? 'error' : progressPercent >= 100 ? 'success' : 'loading';
 
 	return (
-		<Layout className="StartupShell">
-			<Content className="StartupContent">
+		<div className="StartupShell">
+			<main className="StartupContent">
 				<section aria-labelledby="mod-loading-title" className="StartupCard">
-					<Text type="secondary">Startup</Text>
-					<Title id="mod-loading-title" level={2} style={{ marginTop: 10, marginBottom: 8 }}>
+					<span className="StartupEyebrow">Startup</span>
+					<h2 id="mod-loading-title" className="StartupTitle">
 						Scanning your mods
-					</Title>
-					<Paragraph className="StartupIntro">
-						Refreshing local and workshop metadata before the collection workspace opens.
-					</Paragraph>
+					</h2>
+					<p className="StartupIntro">Refreshing local and workshop metadata before the collection workspace opens.</p>
 					<div aria-live="polite" role="status" className={`StartupStatusCard${loadError ? ' is-error' : ''}`}>
-						<Space size={14} align="start">
-							<span aria-hidden>{statusIcon}</span>
+						<div className="StartupStatusCard__content">
+							<StartupStatusIcon status={statusIcon} />
 							<span>
-								<Text strong className="StartupStatusTitle">
-									{statusLabel}
-								</Text>
-								<Text className="StartupStatusDetail">{statusDetail}</Text>
+								<strong className="StartupStatusTitle">{statusLabel}</strong>
+								<span className="StartupStatusDetail">{statusDetail}</span>
 							</span>
-						</Space>
+						</div>
 					</div>
-					<Progress
-						className="StartupProgress"
-						strokeColor={APP_THEME_COLORS.primary}
-						railColor={APP_THEME_COLORS.border}
-						percent={progressPercent}
-						status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'}
-						format={(percent) =>
-							percent && percent >= 100 ? <CheckCircleFilled style={{ color: APP_THEME_COLORS.success }} /> : `${percent?.toFixed()}%`
-						}
-					/>
+					<StartupProgressBar percent={progressPercent} status={loadError ? 'exception' : progressPercent >= 100 ? 'success' : 'active'} />
 					{loadError ? (
 						<div className="StartupActions">
-							<Text code type="danger">
-								{loadError}
-							</Text>
-							<Button
-								type="primary"
+							<code className="StartupErrorText">{loadError}</code>
+							<StartupButton
+								variant="primary"
 								onClick={() => {
 									setLoadError(undefined);
 									setProgress(0);
@@ -134,11 +109,11 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 								}}
 							>
 								Retry Mod Scan
-							</Button>
+							</StartupButton>
 						</div>
 					) : null}
 				</section>
-			</Content>
-		</Layout>
+			</main>
+		</div>
 	);
 }

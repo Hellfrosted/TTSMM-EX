@@ -316,7 +316,7 @@ export function validateMod(_session: SessionMods, modData: ModData, logger?: El
 
 	const id = getModDataId(modData);
 	if ((!id || id.length <= 0) && !modData.workshopID) {
-		// we couldn't find any info on this mod - should never reach here
+		thisModErrors.invalidId = true;
 	}
 
 	// Check subscription

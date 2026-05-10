@@ -1,11 +1,13 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MainCollectionView, getColumnWidths } from '../../renderer/components/collections/MainCollectionComponent';
+import { MainCollectionView, getColumnWidths, resetColumnMeasurementCache } from '../../renderer/components/collections/MainCollectionComponent';
 import { CollectionViewProps, MainCollectionConfig, MainColumnTitles, ModType } from '../../model';
 
 afterEach(() => {
 	cleanup();
+	resetColumnMeasurementCache();
+	vi.unstubAllGlobals();
 });
 
 function stubResizeObserver() {
@@ -19,24 +21,35 @@ function stubResizeObserver() {
 	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 }
 
-function getResizeHandles(columnTitle: string) {
-	return Array.from(document.querySelectorAll('thead th'))
-		.filter((header) => header.textContent?.trim() === columnTitle)
-		.flatMap((header) => Array.from(header.querySelectorAll('.CollectionTableResizeHandle'))) as HTMLButtonElement[];
+async function findResizeHandles(columnTitle: string) {
+	return screen.findAllByRole('slider', { name: `Resize ${columnTitle}` });
 }
 
 function clickHeaderSort(columnTitle: string) {
-	const headerCell = Array.from(document.querySelectorAll('thead th')).find((header) => header.textContent?.trim() === columnTitle) as HTMLElement | undefined;
-	expect(headerCell).toBeDefined();
-	fireEvent.click(headerCell?.querySelector('.ant-table-column-sorters') || headerCell!);
+	fireEvent.click(screen.getAllByText(columnTitle)[0]);
 }
 
-function getHeaderCell(columnTitle: string) {
-	return Array.from(document.querySelectorAll('thead th')).find((header) => header.textContent?.trim() === columnTitle) as HTMLElement | undefined;
+function getResizeValue(columnTitle: string) {
+	const [resizeHandle] = screen.getAllByRole('slider', { name: `Resize ${columnTitle}` });
+	return Number.parseInt(resizeHandle.getAttribute('aria-valuenow') || '0', 10);
 }
 
 function getRenderedNameOrder() {
-	return Array.from(document.querySelectorAll('.CollectionNameButton')).map((button) => button.textContent?.trim() || '');
+	return screen
+		.getAllByRole('button', { name: /^Open details for / })
+		.map((button) => button.getAttribute('aria-label')?.replace('Open details for ', '') || '');
+}
+
+function createDataTransfer() {
+	const data = new Map<string, string>();
+	return {
+		effectAllowed: '',
+		dropEffect: '',
+		setData: vi.fn((type: string, value: string) => {
+			data.set(type, value);
+		}),
+		getData: vi.fn((type: string) => data.get(type) || '')
+	};
 }
 
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
@@ -182,13 +195,19 @@ describe('MainCollectionView', () => {
 
 		render(<MainCollectionView {...createProps()} />);
 
-		await waitFor(() => {
-			expect(document.querySelector('.CollectionNameButton')).not.toBeNull();
-		});
-		const nameButton = document.querySelector('.CollectionNameButton');
-		expect(nameButton).not.toBeNull();
-		expect(nameButton).toHaveAttribute('aria-label', 'Open details for HumanReadableModId');
+		expect(await screen.findByRole('button', { name: 'Open details for HumanReadableModId' })).toBeInTheDocument();
 		expect(screen.getByAltText('Steam Workshop mod')).toBeInTheDocument();
+		const [resizeHandle] = await findResizeHandles('ID');
+		expect(resizeHandle).toHaveAttribute('role', 'slider');
+		expect(resizeHandle).toHaveAttribute('aria-orientation', 'horizontal');
+	});
+
+	it('labels row selection checkboxes by mod name for accessibility', async () => {
+		stubResizeObserver();
+
+		render(<MainCollectionView {...createProps()} />);
+
+		expect(await screen.findByRole('checkbox', { name: 'Include HumanReadableModId in collection' })).toBeChecked();
 	});
 
 	it('defaults to name sorting and supports size and date added sorting without an unsorted state', async () => {
@@ -278,12 +297,8 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		await waitFor(() => {
-			expect(getResizeHandles('ID').length).toBeGreaterThan(0);
-		});
-		const tableRoot = document.querySelector('.MainCollectionTableRoot');
-		const initialWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
-		const resizeHandles = getResizeHandles('ID');
+		const resizeHandles = await findResizeHandles('ID');
+		const initialWidth = getResizeValue('ID');
 		resizeHandles.forEach((resizeHandle) => {
 			fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
 		});
@@ -310,27 +325,19 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		await waitFor(() => {
-			expect(getResizeHandles('ID').length).toBeGreaterThan(0);
-		});
-		const [resizeHandle] = getResizeHandles('ID');
-		const tableRoot = document.querySelector('.MainCollectionTableRoot');
-
-		expect(resizeHandle).toBeDefined();
-		expect(tableRoot).not.toBeNull();
-		const initialWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
+		const [resizeHandle] = await findResizeHandles('ID');
+		const initialWidth = getResizeValue('ID');
 
 		fireEvent.mouseDown(resizeHandle, { clientX: 200 });
 		fireEvent.mouseMove(window, { clientX: 236 });
 
 		expect(setMainColumnWidthCallback).not.toHaveBeenCalled();
-		const previewWidth = Number.parseInt(tableRoot?.style.getPropertyValue('--main-collection-column-width-id') || '0', 10);
-		expect(previewWidth).toBeGreaterThan(initialWidth);
+		expect(getResizeValue('ID')).toBeGreaterThan(initialWidth);
 
 		fireEvent.mouseUp(window);
 	});
 
-	it('offers a header context menu that can hide the current column and restore hidden columns', async () => {
+	it('offers column options that can hide the current column and restore hidden columns', async () => {
 		stubResizeObserver();
 
 		const setMainColumnVisibilityCallback = vi.fn();
@@ -342,12 +349,7 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		await waitFor(() => {
-			expect(getHeaderCell('Tags')).toBeDefined();
-		});
-		const tagsHeader = getHeaderCell('Tags');
-		expect(tagsHeader).toBeDefined();
-		fireEvent.contextMenu(tagsHeader?.querySelector('.CollectionTableHeaderContextTarget') || tagsHeader!);
+		fireEvent.contextMenu(screen.getAllByText('Tags')[0]);
 		fireEvent.click(await screen.findByText('Hide Tags'));
 
 		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, false);
@@ -365,27 +367,49 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		await waitFor(() => {
-			expect(getHeaderCell('Name')).toBeDefined();
-		});
-		const nameHeader = getHeaderCell('Name');
-		expect(nameHeader).toBeDefined();
-		fireEvent.contextMenu(nameHeader?.querySelector('.CollectionTableHeaderContextTarget') || nameHeader!);
+		fireEvent.contextMenu(screen.getAllByText('Name')[0]);
 		fireEvent.click(await screen.findByText('Show Tags'));
 
 		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, true);
 	});
 
-	it('does not rerun offscreen measurement when the same sampled rows are only reordered', async () => {
+	it('reorders columns by dragging collection table headers', async () => {
 		stubResizeObserver();
 
+		const setMainColumnOrderCallback = vi.fn();
+		const { container } = render(
+			<MainCollectionView
+				{...createProps({
+					setMainColumnOrderCallback
+				})}
+			/>
+		);
+
+		await screen.findByText('HumanReadableModId');
+		const idHeader = container.querySelector('th[data-column-title="ID"]');
+		const nameHeader = container.querySelector('th[data-column-title="Name"]');
+		expect(idHeader).toBeDefined();
+		expect(nameHeader).toBeDefined();
+
+		const dataTransfer = createDataTransfer();
+		fireEvent.dragStart(idHeader as Element, { dataTransfer });
+		fireEvent.dragOver(nameHeader as Element, { dataTransfer });
+		fireEvent.drop(nameHeader as Element, { dataTransfer });
+
+		expect(setMainColumnOrderCallback).toHaveBeenCalledWith(MainColumnTitles.ID, MainColumnTitles.NAME);
+	});
+
+	it('auto-sizes from rendered cells and keeps the measured width when sampled rows are reordered', async () => {
+		stubResizeObserver();
+
+		const longDisplayName = 'Charlie Custom Paint With Long Searchable Workshop Identifier And Extra Width';
 		const firstRows = [
 			{
 				uid: 'workshop:3',
 				type: ModType.WORKSHOP,
 				workshopID: BigInt(3),
-				id: 'Charlie',
-				name: 'Charlie',
+				id: longDisplayName,
+				name: longDisplayName,
 				subscribed: true,
 				installed: true
 			},
@@ -408,11 +432,6 @@ describe('MainCollectionView', () => {
 				installed: true
 			}
 		];
-		const appendSpy = vi.spyOn(document.body, 'appendChild');
-		const countMeasurementHosts = () =>
-			appendSpy.mock.calls.filter(
-				([node]) => node instanceof HTMLElement && node.className === 'MainCollectionTableMeasureHost'
-			).length;
 
 		const { rerender } = render(
 			<MainCollectionView
@@ -425,10 +444,10 @@ describe('MainCollectionView', () => {
 		);
 
 		await waitFor(() => {
-			expect(countMeasurementHosts()).toBeGreaterThan(0);
+			expect(getResizeValue('Name')).toBeGreaterThan(288);
 		});
+		const measuredNameWidth = getResizeValue('Name');
 
-		const initialMeasurementCount = countMeasurementHosts();
 		const reorderedRows = [firstRows[1], firstRows[2], firstRows[0]];
 		rerender(
 			<MainCollectionView
@@ -441,22 +460,22 @@ describe('MainCollectionView', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText('Bravo')).toBeInTheDocument();
+			expect(getResizeValue('Name')).toBe(measuredNameWidth);
 		});
-
-		expect(countMeasurementHosts()).toBe(initialMeasurementCount);
-		appendSpy.mockRestore();
 	});
 
-	it('skips offscreen width measurement for very large collections', async () => {
+	it('keeps fallback widths for very large collections', async () => {
 		stubResizeObserver();
 
-		const rows = createRows(121);
-		const appendSpy = vi.spyOn(document.body, 'appendChild');
-		const countMeasurementHosts = () =>
-			appendSpy.mock.calls.filter(
-				([node]) => node instanceof HTMLElement && node.className === 'MainCollectionTableMeasureHost'
-			).length;
+		const rows = createRows(121).map((row, index) =>
+			index === 0
+				? {
+						...row,
+						id: 'Very Long Workshop Identifier That Would Need A Wider Name Column If Measured',
+						name: 'Very Long Workshop Identifier That Would Need A Wider Name Column If Measured'
+				  }
+				: row
+		);
 
 		render(
 			<MainCollectionView
@@ -468,11 +487,11 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		await waitFor(() => {
-			expect(document.querySelectorAll('.CollectionNameButton').length).toBeGreaterThan(0);
+		await screen.findAllByRole('button', { name: /^Open details for / });
+		await new Promise((resolve) => {
+			window.setTimeout(resolve, 0);
 		});
 
-		expect(countMeasurementHosts()).toBe(0);
-		appendSpy.mockRestore();
+		expect(getResizeValue('Name')).toBe(288);
 	});
 });

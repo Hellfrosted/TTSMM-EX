@@ -1,49 +1,55 @@
 import React from 'react';
+import fs from 'node:fs';
+import path from 'node:path';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import App, { AppViewStage } from '../renderer/App';
-import { useAppState } from '../renderer/state/app-state';
+import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
+import { AppRoutes } from '../renderer/routes';
+import { useAppStateSelector } from '../renderer/state/app-state';
 
 function AppFlowProbe() {
 	const location = useLocation();
-	const appState = useAppState();
+	const loadingMods = useAppStateSelector((state) => state.loadingMods);
+	const forceReloadMods = useAppStateSelector((state) => state.forceReloadMods);
 
 	return (
 		<div>
 			<div data-testid="location">{location.pathname}</div>
-			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
-			<div data-testid="force-reload-mods">{String(appState.forceReloadMods)}</div>
+			<div data-testid="loading-mods">{String(loadingMods)}</div>
+			<div data-testid="force-reload-mods">{String(forceReloadMods)}</div>
 		</div>
 	);
 }
 
 describe('App', () => {
-	it('marks inactive view stages as hidden to assistive tech', () => {
+	it('marks inactive view stages as hidden to assistive tech without native inert', () => {
 		render(<AppViewStage active={false} name="settings">Hidden settings</AppViewStage>);
 
 		const stage = screen.getByText('Hidden settings').closest('[data-view-stage="settings"]');
 		expect(stage).toHaveAttribute('aria-hidden', 'true');
 		expect(stage).toHaveAttribute('data-active', 'false');
-		expect(stage).toHaveAttribute('inert');
+		expect(stage).not.toHaveAttribute('inert');
 	});
 
-	it('should render', async () => {
-		render(
-			<MemoryRouter initialEntries={['/loading/steamworks']}>
-				<Routes>
-					<Route path="/" element={<App />}>
-						<Route path="loading">
-							<Route path="steamworks" element={<div>Steamworks</div>} />
-						</Route>
-					</Route>
-				</Routes>
-			</MemoryRouter>
-		);
+	it('defines the view stage fill contract for staged route roots', () => {
+		const css = fs.readFileSync(path.resolve(__dirname, '../renderer/App.global.css'), 'utf8');
 
-		await waitFor(() => {
-			expect(screen.getByText('Steamworks')).toBeInTheDocument();
-		});
+		expect(css).toMatch(/\.AppViewStage\s*>\s*\*\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/\.SettingsView\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/\.BlockLookupViewLayout\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+		expect(css).toMatch(/body\s*{[^}]*background:\s*var\(--app-color-background,\s*#131517\);/s);
+	});
+
+	it('renders an accessible view-stage loading fallback', () => {
+		render(<ViewStageLoadingFallback title="Loading settings" detail="Preparing controls." />);
+
+		const status = screen.getByRole('status');
+		expect(status).toHaveAttribute('aria-live', 'polite');
+		expect(status).toHaveAttribute('aria-busy', 'true');
+		expect(screen.getByText('Loading settings')).toBeInTheDocument();
+		expect(screen.getByText('Preparing controls.')).toBeInTheDocument();
 	});
 
 	it('registers app-level refresh handlers and flips loading state on mod refresh', async () => {
@@ -85,5 +91,27 @@ describe('App', () => {
 		});
 
 		expect(reloadSteamworksHandler).toEqual(expect.any(Function));
+	});
+
+	it('defines explicit elements for staged leaf routes', async () => {
+		const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<AppRoutes />
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.onModRefreshRequested).toHaveBeenCalled();
+		});
+
+		expect(
+			consoleWarn.mock.calls.some(([message]) =>
+				String(message).includes('Matched leaf route at location "/collections/main" does not have an element or Component')
+			)
+		).toBe(false);
+
+		consoleWarn.mockRestore();
 	});
 });

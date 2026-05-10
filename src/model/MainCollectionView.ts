@@ -30,4 +30,5 @@ export interface MainCollectionConfig {
 	smallRows?: boolean;
 	columnActiveConfig?: { [colID: string]: boolean };
 	columnWidthConfig?: { [colID: string]: number };
+	columnOrder?: string[];
 }

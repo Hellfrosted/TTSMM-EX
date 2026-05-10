@@ -76,7 +76,8 @@ module.exports = [
 			'import/resolver': {
 				node: true,
 				typescript: {
-					project: ['./tsconfig.renderer.json', './tsconfig.main.json', './tsconfig.preload.json']
+					project: ['./tsconfig.renderer.json', './tsconfig.main.json', './tsconfig.preload.json'],
+					noWarnOnMultipleProjects: true
 				}
 			}
 		},

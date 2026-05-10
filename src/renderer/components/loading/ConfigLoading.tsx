@@ -1,15 +1,16 @@
 import { useEffect, useEffectEvent, useState } from 'react';
-import { Layout, Progress, Typography } from 'antd';
 import { AppConfig, AppConfigKeys, ModCollection } from 'model';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
-import { useAppDispatch, useAppState, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
-import { APP_THEME_COLORS } from 'renderer/theme';
+import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
+import { StartupProgressBar } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
 import { validateSettingsPath } from 'util/Validation';
-
-const { Content } = Layout;
-const { Paragraph, Text, Title } = Typography;
+import {
+	createCollectionSnapshot,
+	switchActiveCollectionSnapshot,
+	type CollectionWorkspaceSnapshot
+} from 'renderer/collection-lifecycle';
 
 function normalizeCurrentPath(currentPath: string | undefined): string {
 	if (!currentPath) {
@@ -17,7 +18,7 @@ function normalizeCurrentPath(currentPath: string | undefined): string {
 	}
 
 	const normalizedPath = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
-	if (normalizedPath === '/collections') {
+	if (normalizedPath === '/collections' || normalizedPath.startsWith('/block-lookup') || normalizedPath.startsWith('/settings')) {
 		return '/collections/main';
 	}
 
@@ -35,6 +36,51 @@ function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean)
 	}
 
 	return !hasStoredConfig || configuredPath === DEFAULT_CONFIG.gameExec;
+}
+
+function describeBootError(error: string) {
+	if (error.includes('Failed to load config file')) {
+		return {
+			title: 'TTSMM-EX could not read your saved settings.',
+			detail: 'Check config.json for invalid JSON or restore a known-good copy, then reopen the app.'
+		};
+	}
+
+	if (error.includes('Failed to load collection')) {
+		return {
+			title: 'One of your saved collections could not be opened.',
+			detail: 'Fix or remove the broken collection JSON from the app data folder, then start TTSMM-EX again.'
+		};
+	}
+
+	if (error.includes('Failed to persist repaired active collection')) {
+		return {
+			title: 'TTSMM-EX could not save which collection should open.',
+			detail: 'Check that the app data folder is writable, then retry.'
+		};
+	}
+
+	if (
+		error.includes('Failed to persist the default collection during boot') ||
+		error.includes('Failed to persist the default active collection during boot')
+	) {
+		return {
+			title: 'TTSMM-EX could not create the default collection it needs to start.',
+			detail: 'Check that the app data folder is writable, then retry.'
+		};
+	}
+
+	if (error.length > 0) {
+		return {
+			title: 'Startup stopped because a required app file could not be read or written.',
+			detail: 'Review the app data folder and permissions, then try again.'
+		};
+	}
+
+	return {
+		title: 'Startup needs attention.',
+		detail: 'Fix the issue below before the app can continue.'
+	};
 }
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
@@ -78,9 +124,13 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 }
 
 export default function ConfigLoading() {
-	const appState = useAppState();
 	const dispatch = useAppDispatch();
-	const { allCollectionNames, allCollections, config, configErrors } = appState;
+	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
+	const allCollections = useAppStateSelector((state) => state.allCollections);
+	const config = useAppStateSelector((state) => state.config);
+	const configErrors = useAppStateSelector((state) => state.configErrors);
+	const navigateApp = useAppStateSelector((state) => state.navigate);
+	const updateAppState = useAppStateSelector((state) => state.updateState);
 	const [loadingConfig, setLoadingConfig] = useState(true);
 	const [userDataPathError, setUserDataPathError] = useState<string>();
 	const [configLoadError, setConfigLoadError] = useState<string>();
@@ -94,7 +144,7 @@ export default function ConfigLoading() {
 	const readUserDataPath = useEffectEvent(async () => {
 		try {
 			const path = await api.getUserDataPath();
-			appState.updateState({ userDataPath: path });
+			updateAppState({ userDataPath: path });
 		} catch (error) {
 			api.logger.error(error);
 			setUserDataPathError(String(error));
@@ -102,13 +152,13 @@ export default function ConfigLoading() {
 	});
 
 	const validateConfig = useEffectEvent(async (nextConfig: AppConfig) => {
-		appState.updateState({ configErrors: {} });
+		updateAppState({ configErrors: {} });
 		try {
 			const result = await validateAppConfig(nextConfig);
-			appState.updateState({ configErrors: result });
+			updateAppState({ configErrors: result });
 		} catch (error) {
 			api.logger.error(error);
-			appState.updateState({
+			updateAppState({
 				configErrors: {
 					undefined: `Internal exception while validating AppConfig:\n${String(error)}`
 				}
@@ -229,8 +279,8 @@ export default function ConfigLoading() {
 				...resolvedConfig,
 				currentPath: '/settings'
 			};
-			appState.updateState({ config: nextConfig, loadingMods: false });
-			appState.navigate('/settings');
+			updateAppState({ config: nextConfig, loadingMods: false });
+			navigateApp('/settings');
 			return;
 		}
 
@@ -239,8 +289,8 @@ export default function ConfigLoading() {
 			...resolvedConfig,
 			currentPath
 		};
-		appState.updateState({ config: nextConfig, loadingMods: true });
-		appState.navigate(currentPath);
+		updateAppState({ config: nextConfig, loadingMods: true });
+		navigateApp(currentPath);
 	});
 
 	useEffect(() => {
@@ -277,48 +327,51 @@ export default function ConfigLoading() {
 				}
 
 				const [collectionName] = [...allCollectionNames].sort();
-				const nextConfig = {
-					...config,
-					activeCollection: collectionName
-				};
-				const persistedActiveCollection = await tryWriteConfig(nextConfig);
+				const lifecycleResult = switchActiveCollectionSnapshot(
+					{
+						activeCollection: undefined,
+						allCollectionNames,
+						allCollections,
+						config
+					},
+					collectionName
+				);
+				if (!lifecycleResult) {
+					haltBootOnPersistenceFailure(`Failed to select repaired active collection ${collectionName}`);
+					return;
+				}
+				const persistedActiveCollection = await tryWriteConfig(lifecycleResult.config);
 				if (!persistedActiveCollection) {
 					haltBootOnPersistenceFailure(`Failed to persist repaired active collection ${collectionName}`);
 					return;
 				}
-				dispatch(setAppConfig(nextConfig));
-				dispatch(setActiveCollection(allCollections.get(collectionName)));
-				proceedToNext(nextConfig);
+				dispatch(setAppConfig(lifecycleResult.config));
+				dispatch(setActiveCollection(lifecycleResult.activeCollection));
+				proceedToNext(lifecycleResult.config);
 				return;
 			}
 
-			const defaultCollection: ModCollection = {
-				mods: [],
-				name: 'default'
+			const emptySnapshot: CollectionWorkspaceSnapshot = {
+				activeCollection: undefined,
+				allCollectionNames,
+				allCollections,
+				config
 			};
+			const lifecycleResult = createCollectionSnapshot(emptySnapshot, 'default');
+			const defaultCollection: ModCollection = lifecycleResult.activeCollection;
 			const createdDefaultCollection = await api.updateCollection(defaultCollection);
 			if (!createdDefaultCollection) {
 				haltBootOnPersistenceFailure('Failed to persist the default collection during boot');
 				return;
 			}
-			const nextCollections = new Map(allCollections);
-			nextCollections.set(defaultCollection.name, defaultCollection);
-			const nextCollectionNames = new Set(allCollectionNames);
-			nextCollectionNames.add(defaultCollection.name);
-			const nextConfig = {
-				...config,
-				activeCollection: defaultCollection.name
-			};
-			const persistedActiveCollection = await tryWriteConfig(nextConfig);
+			const persistedActiveCollection = await tryWriteConfig(lifecycleResult.config);
 			if (!persistedActiveCollection) {
 				haltBootOnPersistenceFailure('Failed to persist the default active collection during boot');
 				return;
 			}
-			dispatch(
-				setCollectionsState(nextCollections, nextCollectionNames, defaultCollection)
-			);
-			dispatch(setAppConfig(nextConfig));
-			proceedToNext(nextConfig);
+			dispatch(setCollectionsState(lifecycleResult.allCollections, lifecycleResult.allCollectionNames, defaultCollection));
+			dispatch(setAppConfig(lifecycleResult.config));
+			proceedToNext(lifecycleResult.config);
 		})();
 	}, [
 		allCollectionNames,
@@ -338,47 +391,40 @@ export default function ConfigLoading() {
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
 	const bootError = configLoadError || bootPersistenceError || userDataPathError || collectionLoadError;
-	const statusLabel = bootError ? 'Startup needs attention' : 'Preparing your mod manager';
+	const describedBootError = bootError ? describeBootError(bootError) : undefined;
+	const statusLabel = bootError ? describedBootError?.title || 'Startup needs attention' : 'Preparing your mod manager';
 	const statusDetail = bootError
-		? 'Fix the issue below before the app can continue.'
+		? describedBootError?.detail || 'Fix the issue below before the app can continue.'
 		: totalCollections > 0
 			? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
 			: 'Checking your saved settings and creating a default collection if this is your first launch.';
 
 	return (
-		<Layout className="StartupShell">
-			<Content className="StartupContent">
+		<div className="StartupShell">
+			<main className="StartupContent">
 				<section aria-labelledby="boot-title" className="StartupCard">
-					<Text type="secondary">Startup</Text>
-					<Title id="boot-title" level={2} style={{ marginTop: 10, marginBottom: 8 }}>
+					<span className="StartupEyebrow">Startup</span>
+					<h2 id="boot-title" className="StartupTitle">
 						Preparing TTSMM-EX
-					</Title>
-					<Paragraph className="StartupIntro">
+					</h2>
+					<p className="StartupIntro">
 						Restoring your saved configuration, checking required paths, and loading your collections before the mod workspace appears.
-					</Paragraph>
+					</p>
 					<div aria-live="polite" role="status" className={`StartupStatusCard${bootError ? ' is-error' : ''}`}>
-						<Text strong className="StartupStatusTitle">
-							{statusLabel}
-						</Text>
-						<Text className="StartupStatusDetail">{statusDetail}</Text>
+						<strong className="StartupStatusTitle">{statusLabel}</strong>
+						<span className="StartupStatusDetail">{statusDetail}</span>
 					</div>
-					<Progress
-						className="StartupProgress"
-						percent={percent}
-						showInfo={!bootError}
-						status={bootError ? 'exception' : 'active'}
-						strokeColor={APP_THEME_COLORS.primary}
-						railColor={APP_THEME_COLORS.border}
-					/>
+					<StartupProgressBar percent={percent} showInfo={!bootError} status={bootError ? 'exception' : 'active'} />
 					{bootError ? (
 						<div className="StartupActions">
-							<Text code type="danger">
-								{bootError}
-							</Text>
+							<div className="StatusCallout StatusCallout--error">
+								<strong className="StatusCallout__title">{describedBootError?.title || 'Resolve this before continuing'}</strong>
+								<span className="StatusCallout__body">{describedBootError?.detail || bootError}</span>
+							</div>
 						</div>
 					) : null}
 				</section>
-			</Content>
-		</Layout>
+			</main>
+		</div>
 	);
 }

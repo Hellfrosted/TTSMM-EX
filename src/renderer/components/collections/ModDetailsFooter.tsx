@@ -1,43 +1,21 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
 import {
-	Empty,
-	Layout,
-	Button,
-	Typography,
-	Col,
-	Row,
-	Tabs,
-	Image,
-	Space,
-	Card,
-	Descriptions,
-	Tag,
-	Collapse,
-	Table,
-	Checkbox,
-	Tooltip,
-	ConfigProvider
-} from 'antd';
-import {
-	CheckSquareFilled,
-	ClockCircleTwoTone,
-	ColumnHeightOutlined,
-	ColumnWidthOutlined,
-	CloseOutlined,
-	EditFilled,
-	FolderOpenFilled,
-	FullscreenExitOutlined,
-	FullscreenOutlined,
-	HddFilled,
-	QuestionCircleFilled,
-	StopTwoTone,
-	WarningTwoTone
-} from '@ant-design/icons';
-import { ColumnType } from 'antd/lib/table';
-import { TableRowSelection } from 'antd/lib/table/interface';
+	CheckSquare,
+	CircleHelp,
+	Clock3,
+	Edit3,
+	FolderOpen,
+	HardDrive,
+	LoaderCircle,
+	Maximize2,
+	Minimize2,
+	PanelBottom,
+	PanelRight,
+	TriangleAlert,
+	X
+} from 'lucide-react';
 import api from 'renderer/Api';
 import {
-	AppState,
 	DisplayModData,
 	getDescriptor,
 	getModDescriptorDisplayName,
@@ -56,18 +34,346 @@ import {
 } from 'model';
 import { isWorkshopDependencyLookupStale } from 'shared/workshop-dependency-lookup';
 import { formatDateStr } from 'util/Date';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
+import { APP_TAG_STYLES } from 'renderer/theme';
 
 import missing from '../../../../assets/missing.png';
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
 
-const { Content } = Layout;
-const { Text, Title } = Typography;
-const DESCRIPTION_LABEL_STYLES = { label: { width: 150 } };
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
+
+type DetailCellRenderer = {
+	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;
+}['render'];
+
+interface DetailColumn {
+	title: ReactNode;
+	dataIndex?: string;
+	defaultSortOrder?: 'ascend';
+	sorter?: (a: DisplayModData, b: DisplayModData) => number;
+	render?: DetailCellRenderer;
+	width?: number;
+	align?: 'center';
+}
+
+interface DetailRowSelection {
+	selectedRowKeys: Key[];
+	checkStrictly?: boolean;
+	onChange: (selectedRowKeys: Key[]) => void;
+	onSelect?: (record: DisplayModData, selected: boolean) => void;
+	onSelectAll?: () => void;
+	onSelectNone?: () => void;
+}
+
+interface DetailDescriptionItem {
+	label: ReactNode;
+	children: ReactNode;
+	span?: number;
+}
+
+interface DetailCollapseItem {
+	key: string;
+	label: ReactNode;
+	children: ReactNode;
+}
+
+interface DetailTabItem {
+	key: string;
+	label: ReactNode;
+	children: ReactNode;
+}
+
+function DetailTag({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+	return (
+		<span className="ModDetailTag" style={style}>
+			{children}
+		</span>
+	);
+}
+
+function DetailIcon({ children, label, className = '' }: { children: ReactNode; label: string; className?: string }) {
+	return (
+		<span className={`ModDetailIcon${className ? ` ${className}` : ''}`} role="img" aria-label={label} title={label}>
+			{children}
+		</span>
+	);
+}
+
+function DetailIconButton({
+	'aria-label': ariaLabel,
+	'aria-pressed': ariaPressed,
+	children,
+	onClick,
+	title
+}: {
+	'aria-label': string;
+	'aria-pressed'?: boolean;
+	children: ReactNode;
+	onClick: () => void;
+	title?: string;
+}) {
+	return (
+		<button
+			type="button"
+			className="ModDetailIconButton"
+			aria-label={ariaLabel}
+			aria-pressed={ariaPressed}
+			title={title}
+			onClick={onClick}
+		>
+			{children}
+		</button>
+	);
+}
+
+function DetailButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+	return (
+		<button type="button" className="ModDetailButton" onClick={onClick}>
+			{children}
+		</button>
+	);
+}
+
+function DetailCheckbox({
+	'aria-label': ariaLabel,
+	checked,
+	disabled,
+	onChange
+}: {
+	'aria-label': string;
+	checked: boolean;
+	disabled?: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<input
+			type="checkbox"
+			className="ModDetailCheckbox"
+			aria-label={ariaLabel}
+			checked={checked}
+			disabled={disabled}
+			onChange={(event) => {
+				onChange(event.target.checked);
+			}}
+		/>
+	);
+}
+
+function DetailDescriptions({ column = 1, items }: { column?: number; items: DetailDescriptionItem[] }) {
+	return (
+		<div className={`ModDetailDescriptions ModDetailDescriptions--columns-${column}`}>
+			{items.map((item, index) => (
+				<div
+					key={`${String(item.label)}-${index}`}
+					className="ModDetailDescriptionsItem"
+					style={{ gridColumn: item.span ? `span ${item.span}` : undefined }}
+				>
+					<div className="ModDetailDescriptionsLabel">{item.label}</div>
+					<div className="ModDetailDescriptionsValue">{item.children}</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function DetailCollapse({ className = '', defaultActiveKey, items }: { className?: string; defaultActiveKey?: string[]; items: DetailCollapseItem[] }) {
+	const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(defaultActiveKey || []));
+
+	return (
+		<div className={`ModDetailCollapse${className ? ` ${className}` : ''}`}>
+			{items.map((item) => {
+				const open = openKeys.has(item.key);
+				return (
+					<section key={item.key} className="ModDetailCollapseItem">
+						<button
+							type="button"
+							className="ModDetailCollapseHeader"
+							aria-expanded={open}
+							onClick={() => {
+								setOpenKeys((currentKeys) => {
+									const nextKeys = new Set(currentKeys);
+									if (nextKeys.has(item.key)) {
+										nextKeys.delete(item.key);
+									} else {
+										nextKeys.add(item.key);
+									}
+									return nextKeys;
+								});
+							}}
+						>
+							<span aria-hidden="true">{open ? '▾' : '▸'}</span>
+							<span>{item.label}</span>
+						</button>
+						{open ? <div className="ModDetailCollapsePanel">{item.children}</div> : null}
+					</section>
+				);
+			})}
+		</div>
+	);
+}
+
+function DetailTabs({ activeKey, items, onChange }: { activeKey: string; items: DetailTabItem[]; onChange: (key: string) => void }) {
+	return (
+		<div className="ModDetailFooterTabs">
+			<div className="ModDetailTabsNav" role="tablist">
+				{items.map((item) => (
+					<button
+						key={item.key}
+						type="button"
+						className={`ModDetailTabButton${activeKey === item.key ? ' is-active' : ''}`}
+						role="tab"
+						aria-selected={activeKey === item.key}
+						onClick={() => {
+							onChange(item.key);
+						}}
+					>
+						{item.label}
+					</button>
+				))}
+			</div>
+			<div className="ModDetailTabsPanel" role="tabpanel">
+				{items.find((item) => item.key === activeKey)?.children}
+			</div>
+		</div>
+	);
+}
+
+function getRecordValue(record: DisplayModData, dataIndex?: string) {
+	return dataIndex ? record[dataIndex as keyof DisplayModData] : undefined;
+}
+
+function flattenDetailRows(rows: DisplayModData[]) {
+	return rows.flatMap((record) => [
+		{ record, depth: 0 },
+		...(record.children || []).map((childRecord) => ({ record: childRecord, depth: 1 }))
+	]);
+}
+
+function DetailTable({
+	columns,
+	dataSource,
+	loading,
+	rowSelection
+}: {
+	columns: DetailColumn[];
+	dataSource: DisplayModData[];
+	loading?: boolean;
+	rowSelection?: DetailRowSelection;
+}) {
+	const visibleRows = flattenDetailRows(dataSource);
+	const selectedKeys = new Set((rowSelection?.selectedRowKeys || []).map((key) => key.toString()));
+	const selectableKeys = visibleRows.map(({ record }) => record.uid);
+	const allSelected = selectableKeys.length > 0 && selectableKeys.every((uid) => selectedKeys.has(uid));
+	const someSelected = selectableKeys.some((uid) => selectedKeys.has(uid)) && !allSelected;
+
+	const updateSelection = (record: DisplayModData, selected: boolean) => {
+		if (!rowSelection) {
+			return;
+		}
+
+		const nextKeys = new Set(selectedKeys);
+		const affectedRecords = record.children && !rowSelection.checkStrictly ? record.children : [record];
+		affectedRecords.forEach((affectedRecord) => {
+			if (selected) {
+				nextKeys.add(affectedRecord.uid);
+			} else {
+				nextKeys.delete(affectedRecord.uid);
+			}
+		});
+		rowSelection.onSelect?.(record, selected);
+		rowSelection.onChange([...nextKeys]);
+	};
+
+	return (
+		<div className="ModDetailTableWrap">
+			<table className="ModDetailTable">
+				<thead>
+					<tr>
+						{rowSelection ? (
+							<th className="ModDetailTableSelectionCell">
+								<DetailCheckbox
+									aria-label="Select all dependency rows"
+									checked={allSelected}
+									onChange={(checked) => {
+										if (checked) {
+											rowSelection.onSelectAll?.();
+											rowSelection.onChange(selectableKeys);
+										} else {
+											rowSelection.onSelectNone?.();
+											rowSelection.onChange([]);
+										}
+									}}
+								/>
+								<span className="sr-only">{someSelected ? 'Some dependency rows selected' : ''}</span>
+							</th>
+						) : null}
+						{columns.map((column, index) => (
+							<th
+								key={`${String(column.title)}-${index}`}
+								style={{ width: column.width, textAlign: column.align }}
+							>
+								{column.title}
+							</th>
+						))}
+					</tr>
+				</thead>
+				<tbody>
+					{loading ? (
+						<tr>
+							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
+								Loading...
+							</td>
+						</tr>
+					) : null}
+					{!loading && visibleRows.length === 0 ? (
+						<tr>
+							<td colSpan={columns.length + (rowSelection ? 1 : 0)} className="ModDetailTableEmpty">
+								No data
+							</td>
+						</tr>
+					) : null}
+					{!loading
+						? visibleRows.map(({ record, depth }, rowIndex) => (
+								<tr key={record.uid}>
+									{rowSelection ? (
+										<td className="ModDetailTableSelectionCell">
+											<DetailCheckbox
+												aria-label={`Select dependency row for ${getModDataDisplayName(record) || record.name || record.uid}`}
+												checked={selectedKeys.has(record.uid)}
+												onChange={(checked) => {
+													updateSelection(record, checked);
+												}}
+											/>
+										</td>
+									) : null}
+									{columns.map((column, columnIndex) => {
+										const value = getRecordValue(record, column.dataIndex);
+										const rendered = column.render ? column.render(value, record, rowIndex) : (value as ReactNode);
+										return (
+											<td
+												key={`${record.uid}:${columnIndex}`}
+												style={{
+													width: column.width,
+													textAlign: column.align,
+													paddingLeft: columnIndex === 0 ? 8 + depth * 18 : undefined
+												}}
+											>
+												{rendered}
+											</td>
+										);
+									})}
+								</tr>
+							))
+						: null}
+				</tbody>
+			</table>
+		</div>
+	);
+}
 
 function getModTypeLabel(type: ModType) {
 	switch (type) {
@@ -87,24 +393,14 @@ function getImageSrcFromType(type: ModType, size = 15) {
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title={label}>
-					<span role="img" aria-label={label}>
-						<HddFilled width={size} />
-					</span>
-				</Tooltip>
+				<DetailIcon label={label}>
+					<HardDrive size={size} aria-hidden="true" />
+				</DetailIcon>
 			);
 		case ModType.TTQMM:
-			return (
-				<Tooltip title={label}>
-					<img src={ttmm} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={ttmm} width={size} alt={label} title={label} key="type" />;
 		case ModType.WORKSHOP:
-			return (
-				<Tooltip title={label}>
-					<img src={steam} width={size} alt={label} key="type" />
-				</Tooltip>
-			);
+			return <img src={steam} width={size} alt={label} title={label} key="type" />;
 		default:
 			return null;
 	}
@@ -112,9 +408,15 @@ function getImageSrcFromType(type: ModType, size = 15) {
 
 function getImagePreview(path?: string, altText = 'Mod preview image') {
 	return (
-		<Card className="ModDetailFooterPreview" style={{ width: '100%', padding: 10 }}>
-			<Image src={path} fallback={missing} alt={altText} width="100%" />
-		</Card>
+		<div className="ModDetailFooterPreview">
+			<img
+				src={path || missing}
+				alt={altText}
+				onError={(event) => {
+					event.currentTarget.src = missing;
+				}}
+			/>
+		</div>
 	);
 }
 
@@ -152,7 +454,7 @@ interface ModDetailsFooterProps {
 	bigDetails: boolean;
 	halfLayoutMode: 'bottom' | 'side';
 	lastValidationStatus?: boolean;
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 	currentRecord: DisplayModData;
 	activeTabKey: string;
 	setActiveTabKey: (key: string) => void;
@@ -163,11 +465,11 @@ interface ModDetailsFooterProps {
 	disableModCallback: (uid: string) => void;
 	setModSubsetCallback: (changes: { [uid: string]: boolean }) => void;
 	openNotification: (props: NotificationProps, type?: 'info' | 'error' | 'success' | 'warn') => void;
-	validateCollection: (options?: { config?: AppState['config'] }) => void;
+	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
 }
 
-const NAME_SCHEMA: ColumnType<DisplayModData> = {
+const NAME_SCHEMA: DetailColumn = {
 	title: 'Name',
 	dataIndex: 'name',
 	defaultSortOrder: 'ascend',
@@ -177,46 +479,48 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 		if (record.type === ModType.DESCRIPTOR && record.children && record.children.length > 0) {
 			return (
 				<span>
-					<FolderOpenFilled /> {displayName}
+					<FolderOpen size={15} aria-hidden="true" /> {displayName}
 				</span>
 			);
 		}
 		let updateIcon = null;
-		let updateType: 'danger' | 'warning' | undefined;
+		let updateTone: 'danger' | 'warning' | undefined;
 		if (record.needsUpdate) {
 			updateIcon = (
-				<Tooltip title="Needs update">
-					<WarningTwoTone twoToneColor="red" />
-				</Tooltip>
+				<DetailIcon label="Needs update" className="ModDetailIcon--danger">
+					<TriangleAlert size={15} aria-hidden="true" />
+				</DetailIcon>
 			);
-			updateType = 'danger';
+			updateTone = 'danger';
 			if (record.downloadPending) {
 				updateIcon = (
-					<Tooltip title="Download pending">
-						<ClockCircleTwoTone twoToneColor="orange" />
-					</Tooltip>
+					<DetailIcon label="Download pending" className="ModDetailIcon--warning">
+						<Clock3 size={15} aria-hidden="true" />
+					</DetailIcon>
 				);
-				updateType = 'warning';
+				updateTone = 'warning';
 			}
 			if (record.downloading) {
 				updateIcon = (
-					<Tooltip title="Downloading">
-						<StopTwoTone spin twoToneColor="orange" />
-					</Tooltip>
+					<DetailIcon label="Downloading" className="ModDetailIcon--warning ModDetailIcon--spin">
+						<LoaderCircle size={15} aria-hidden="true" />
+					</DetailIcon>
 				);
-				updateType = 'warning';
+				updateTone = 'warning';
 			}
 		}
 		return (
 			<span>
 				{updateIcon}
-				<Text strong={record.needsUpdate} type={updateType}>{` ${displayName}`}</Text>
+				<span className={`ModDetailNameLabel${record.needsUpdate ? ' is-strong' : ''}${updateTone ? ` is-${updateTone}` : ''}`}>
+					{` ${displayName}`}
+				</span>
 			</span>
 		);
 	}
 };
 
-const TYPE_SCHEMA: ColumnType<DisplayModData> = {
+const TYPE_SCHEMA: DetailColumn = {
 	title: 'Type',
 	dataIndex: 'type',
 	render: (type: ModType) => getImageSrcFromType(type, 20),
@@ -224,7 +528,7 @@ const TYPE_SCHEMA: ColumnType<DisplayModData> = {
 	align: 'center'
 };
 
-const AUTHORS_SCHEMA: ColumnType<DisplayModData> = {
+const AUTHORS_SCHEMA: DetailColumn = {
 	title: 'Authors',
 	dataIndex: 'authors',
 	defaultSortOrder: 'ascend',
@@ -258,11 +562,11 @@ const AUTHORS_SCHEMA: ColumnType<DisplayModData> = {
 		return -1;
 	},
 	render: (authors: string[] | undefined) => {
-		return (authors || []).map((author) => <Tag key={author}>{author}</Tag>);
+		return (authors || []).map((author) => <DetailTag key={author}>{author}</DetailTag>);
 	}
 };
 
-const ID_SCHEMA: ColumnType<DisplayModData> = {
+const ID_SCHEMA: DetailColumn = {
 	title: 'ID',
 	dataIndex: 'id',
 	sorter: compareModDataDisplayId,
@@ -272,7 +576,7 @@ const ID_SCHEMA: ColumnType<DisplayModData> = {
 			return null;
 		}
 		if (record.workshopID === undefined && record.overrides?.id) {
-			return <Tag color="gray">{displayID}</Tag>;
+			return <DetailTag style={APP_TAG_STYLES.neutral}>{displayID}</DetailTag>;
 		}
 		return displayID;
 	}
@@ -351,12 +655,12 @@ function ModDetailsFooter({
 				return;
 			}
 
+			const message = 'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
 			requestedDependencyLookupUidRef.current = currentRecordUid;
 			setLoadingDependencies(true);
 			try {
 				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
 				if (!loaded) {
-					const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
 					api.logger.warn(message);
 					if (!cancelled) {
 						setDependencyLookupError(message);
@@ -367,7 +671,6 @@ function ModDetailsFooter({
 					setDependencyLookupError(undefined);
 				}
 			} catch (error) {
-				const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
 				api.logger.error(message);
 				api.logger.error(error);
 				if (!cancelled) {
@@ -428,11 +731,11 @@ function ModDetailsFooter({
 				(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
 
 			return (
-				<Checkbox
+				<DetailCheckbox
 					aria-label={`Ignore validation error for ${recordName || recordUid}`}
 					checked={isSelected}
 					disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
-					onChange={(event) => {
+					onChange={(checked) => {
 						const nextConfig = cloneAppConfig(appConfig);
 						let nextIgnoredErrors = nextConfig.ignoredValidationErrors.get(errorType as ModErrorType);
 						if (!nextIgnoredErrors) {
@@ -446,7 +749,7 @@ function ModDetailsFooter({
 							return;
 						}
 
-						nextIgnoredErrors[currentRecordUid] = event.target.checked
+						nextIgnoredErrors[currentRecordUid] = checked
 							? [...new Set([...existingValues, targetValue])]
 							: existingValues.filter((ignoredID) => ignoredID !== targetValue);
 
@@ -474,7 +777,7 @@ function ModDetailsFooter({
 	}, [appConfig, currentRecord, openNotification, updateAppState, validateCollection]);
 
 	const getDependenciesSchema = useCallback((tableType: DependenciesTableType) => {
-		const STATE_SCHEMA: ColumnType<DisplayModData> = {
+		const STATE_SCHEMA: DetailColumn = {
 			title: 'State',
 			dataIndex: 'errors',
 			render: (errors: ModErrors | undefined, record: DisplayModData) => {
@@ -485,77 +788,73 @@ function ModDetailsFooter({
 					const children = record.children?.map((data) => data.uid) || [];
 					const selectedChildren = children.filter((uid) => selectedMods.includes(uid));
 					if (selectedChildren.length > 1) {
-						return <Tag color="red">Conflicts</Tag>;
+						return <DetailTag style={APP_TAG_STYLES.danger}>Conflicts</DetailTag>;
 					}
 				}
 
 				if (!selectedMods.includes(record.uid)) {
 					if (!record.subscribed && record.workshopID && record.workshopID > 0) {
-						return <Tag key="notSubscribed">Not subscribed</Tag>;
+						return <DetailTag key="notSubscribed" style={APP_TAG_STYLES.warning}>Not subscribed</DetailTag>;
 					}
 					if (record.subscribed && !record.installed) {
-						return <Tag key="notInstalled">Not installed</Tag>;
+						return <DetailTag key="notInstalled" style={APP_TAG_STYLES.warning}>Not installed</DetailTag>;
 					}
 					return null;
 				}
 
-				const errorTags: { text: string; color: string }[] = [];
+				const errorTags: { text: string; tone: keyof typeof APP_TAG_STYLES }[] = [];
 				if (errors) {
 					if (errors.incompatibleMods?.length) {
-						errorTags.push({ text: 'Conflicts', color: 'red' });
+						errorTags.push({ text: 'Conflicts', tone: 'danger' });
 					}
 					if (errors.invalidId) {
-						errorTags.push({ text: 'Invalid ID', color: 'volcano' });
+						errorTags.push({ text: 'Invalid ID', tone: 'danger' });
 					}
 					if (errors.missingDependencies?.length) {
-						errorTags.push({ text: 'Missing dependencies', color: 'orange' });
+						errorTags.push({ text: 'Missing dependencies', tone: 'warning' });
 					}
 					if (errors.notSubscribed) {
-						errorTags.push({ text: 'Not subscribed', color: 'yellow' });
+						errorTags.push({ text: 'Not subscribed', tone: 'warning' });
 					} else if (errors.notInstalled) {
-						errorTags.push({ text: 'Not installed', color: 'yellow' });
+						errorTags.push({ text: 'Not installed', tone: 'warning' });
 					} else if (errors.needsUpdate) {
-						errorTags.push({ text: 'Needs update', color: 'yellow' });
+						errorTags.push({ text: 'Needs update', tone: 'warning' });
 					}
 				}
 
 				if (errorTags.length > 0) {
 					return errorTags.map((tagConfig) => (
-						<Tag key={tagConfig.text} color={tagConfig.color}>
+						<DetailTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone]}>
 							{tagConfig.text}
-						</Tag>
+						</DetailTag>
 					));
 				}
 
 				if (lastValidationStatus !== undefined) {
 					return (
-						<Tag key="OK" color="green">
+						<DetailTag key="OK" style={APP_TAG_STYLES.success}>
 							OK
-						</Tag>
+						</DetailTag>
 					);
 				}
 
-				return <Tag key="Pending">Pending</Tag>;
+				return <DetailTag key="Pending" style={APP_TAG_STYLES.neutral}>Pending</DetailTag>;
 			}
 		};
 
-		const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: ColumnType<DisplayModData> = {
+		const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: DetailColumn = {
 			title: (
-				<Tooltip title="Which version of the mod did the author say is the canonical dependency?">
-					<span role="img" aria-label="Author-specified dependency column">
-						<QuestionCircleFilled />
-					</span>
-				</Tooltip>
+				<DetailIcon label="Author-specified dependency column">
+					<CircleHelp size={15} aria-hidden="true" />
+				</DetailIcon>
 			),
 			dataIndex: 'workshopID',
 			render: (workshopID: bigint | undefined) => {
 				if (!!workshopID && currentRecord.steamDependencies?.includes(workshopID)) {
 					return (
-						<Tooltip title="This is the mod the author specified as the canonical dependency">
-							<span role="img" aria-label="Author-specified dependency">
-								<CheckSquareFilled />
-							</span>
-						</Tooltip>
+						<DetailIcon label="Author-specified dependency">
+							<CheckSquare size={15} aria-hidden="true" />
+						</DetailIcon>
 					);
 				}
 				return null;
@@ -564,7 +863,7 @@ function ModDetailsFooter({
 			align: 'center'
 		};
 
-		const descriptorColumnSchema: ColumnType<DisplayModData>[] = [NAME_SCHEMA];
+		const descriptorColumnSchema: DetailColumn[] = [NAME_SCHEMA];
 		if (tableType === DependenciesTableType.REQUIRED) {
 			descriptorColumnSchema.push(AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA);
 		}
@@ -585,7 +884,7 @@ function ModDetailsFooter({
 		const { mods } = activeCollection!;
 		const availableKeys = new Set(getDependencySelectionKeys(data));
 
-		const rowSelection: TableRowSelection<DisplayModData> = {
+		const rowSelection: DetailRowSelection = {
 			selectedRowKeys: mods.filter((uid) => availableKeys.has(uid)),
 			checkStrictly: false,
 			onChange: (selectedRowKeys: Key[]) => {
@@ -655,24 +954,34 @@ function ModDetailsFooter({
 
 	const renderInfoTab = () => {
 		const descriptionColumns = bigDetails && halfLayoutMode === 'bottom' ? 2 : 1;
-		const steamTags = currentRecord.tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || [];
+		const steamTags = currentRecord.tags?.map((tag) => <DetailTag key={tag}>{tag}</DetailTag>) || [];
 		const userTags =
 			currentRecord.overrides?.tags?.map((tag) => (
-				<Tag key={tag} color="blue">
+				<DetailTag key={tag} style={APP_TAG_STYLES.accent}>
 					{tag}
-				</Tag>
+				</DetailTag>
 			)) || [];
 
 		return (
-			<Descriptions column={descriptionColumns} bordered size="small">
-				<Descriptions.Item label="Author">{currentRecord.authors}</Descriptions.Item>
-				<Descriptions.Item label="Tags">{steamTags.concat(userTags)}</Descriptions.Item>
-				<Descriptions.Item label="Created">{formatDateStr(currentRecord.dateCreated)}</Descriptions.Item>
-				<Descriptions.Item label="Installed">{formatDateStr(currentRecord.dateAdded)}</Descriptions.Item>
-				<Descriptions.Item label="Description" span={descriptionColumns}>
-					<WorkshopDescription description={currentRecord.description} />
-				</Descriptions.Item>
-			</Descriptions>
+			<DetailDescriptions
+				column={descriptionColumns}
+				items={[
+					{ label: 'Author', children: currentRecord.authors },
+					{ label: 'Tags', children: steamTags.concat(userTags) },
+					{ label: 'Created', children: formatDateStr(currentRecord.dateCreated) },
+					{ label: 'Installed', children: formatDateStr(currentRecord.dateAdded) },
+					{
+						label: 'Description',
+						span: descriptionColumns,
+						children: (
+							<WorkshopDescription
+								description={currentRecord.description}
+								imageAltFallback={`${getModDataDisplayName(currentRecord) || currentRecord.uid} workshop description image`}
+							/>
+						)
+					}
+				]}
+			/>
 		);
 	};
 
@@ -681,7 +990,7 @@ function ModDetailsFooter({
 		const modDescriptor = getDescriptor(mods, currentRecord);
 
 		return (
-			<Collapse
+			<DetailCollapse
 				className="ModDetailInspect"
 				defaultActiveKey={['info', 'descriptor', 'properties', 'status']}
 				items={[
@@ -689,97 +998,115 @@ function ModDetailsFooter({
 						key: 'info',
 						label: 'Mod Info',
 						children: (
-					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
-						<Descriptions.Item label="ID">
-							{currentRecordID ? (
-								currentRecordID
-							) : (
-								<Button
-									aria-label={`Edit the override ID for ${currentRecord.name}`}
-									icon={<EditFilled />}
-									onClick={() => {
-										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
-									}}
-								/>
-							)}
-						</Descriptions.Item>
-						{currentRecord.workshopID !== undefined && !!currentRecord.id ? (
-							<Descriptions.Item label="Mod ID">{currentRecord.id}</Descriptions.Item>
-						) : null}
-						{currentRecord?.overrides?.id ? (
-							<Descriptions.Item label={currentRecord.workshopID !== undefined ? 'Mod ID (Override)' : 'ID (Override)'}>
-								<Button
-									aria-label={`Edit the override ID for ${currentRecord.name}`}
-									icon={<EditFilled />}
-									onClick={() => {
-										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
-									}}
-								/>
-								{currentRecord.overrides.id}
-							</Descriptions.Item>
-						) : null}
-						<Descriptions.Item label="UID">{currentRecord.uid}</Descriptions.Item>
-						<Descriptions.Item label="Name">{currentRecord.name}</Descriptions.Item>
-						<Descriptions.Item label="Author">{currentRecord.authors}</Descriptions.Item>
-						<Descriptions.Item label="Tags">{currentRecord.tags ? currentRecord.tags.join(', ') : null}</Descriptions.Item>
-						{currentRecord?.overrides?.tags ? (
-							<Descriptions.Item label="User Tags">{currentRecord.overrides.tags.join(', ')}</Descriptions.Item>
-						) : null}
-						<Descriptions.Item label="Description">{currentRecord.description}</Descriptions.Item>
-					</Descriptions>
+							<DetailDescriptions
+								items={[
+									{
+										label: 'ID',
+										children: currentRecordID ? (
+											currentRecordID
+										) : (
+											<DetailIconButton
+												aria-label={`Edit the override ID for ${currentRecord.name}`}
+												onClick={() => {
+													openModal(CollectionManagerModalType.EDIT_OVERRIDES);
+												}}
+											>
+												<Edit3 size={15} aria-hidden="true" />
+											</DetailIconButton>
+										)
+									},
+									...(currentRecord.workshopID !== undefined && !!currentRecord.id
+										? [{ label: 'Mod ID', children: currentRecord.id }]
+										: []),
+									...(currentRecord?.overrides?.id
+										? [
+												{
+													label: currentRecord.workshopID !== undefined ? 'Mod ID (Override)' : 'ID (Override)',
+													children: (
+														<>
+															<DetailIconButton
+																aria-label={`Edit the override ID for ${currentRecord.name}`}
+																onClick={() => {
+																	openModal(CollectionManagerModalType.EDIT_OVERRIDES);
+																}}
+															>
+																<Edit3 size={15} aria-hidden="true" />
+															</DetailIconButton>
+															{currentRecord.overrides.id}
+														</>
+													)
+												}
+										  ]
+										: []),
+									{ label: 'UID', children: currentRecord.uid },
+									{ label: 'Name', children: currentRecord.name },
+									{ label: 'Author', children: currentRecord.authors },
+									{ label: 'Tags', children: currentRecord.tags ? currentRecord.tags.join(', ') : null },
+									...(currentRecord?.overrides?.tags
+										? [{ label: 'User Tags', children: currentRecord.overrides.tags.join(', ') }]
+										: []),
+									{ label: 'Description', children: currentRecord.description }
+								]}
+							/>
 						)
 					},
 					{
 						key: 'descriptor',
 						label: 'Mod Descriptor',
 						children: (
-					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
-						<Descriptions.Item label="Name">{modDescriptor?.name}</Descriptions.Item>
-						<Descriptions.Item label="Mod ID">{modDescriptor?.modID}</Descriptions.Item>
-						<Descriptions.Item label="Equivalent UIDs">{[...(modDescriptor?.UIDs || [])].join(', ')}</Descriptions.Item>
-					</Descriptions>
+							<DetailDescriptions
+								items={[
+									{ label: 'Name', children: modDescriptor?.name },
+									{ label: 'Mod ID', children: modDescriptor?.modID },
+									{ label: 'Equivalent UIDs', children: [...(modDescriptor?.UIDs || [])].join(', ') }
+								]}
+							/>
 						)
 					},
 					{
 						key: 'properties',
 						label: 'Mod Properties',
 						children: (
-					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
-						<Descriptions.Item label="BrowserLink">
-							{currentRecord.workshopID ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${currentRecord.workshopID}` : null}
-						</Descriptions.Item>
-						<Descriptions.Item label="Requires RR">UNKNOWN</Descriptions.Item>
-						<Descriptions.Item label="Has Code">{(!!currentRecord.hasCode).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Date Added">{formatDateStr(currentRecord.dateAdded)}</Descriptions.Item>
-						<Descriptions.Item label="Date Created">{formatDateStr(currentRecord.dateCreated)}</Descriptions.Item>
-						<Descriptions.Item label="Date Updated">{formatDateStr(currentRecord.lastUpdate)}</Descriptions.Item>
-						<Descriptions.Item label="Image">{currentRecord.preview}</Descriptions.Item>
-						<Descriptions.Item label="Path">{currentRecord.path}</Descriptions.Item>
-						<Descriptions.Item label="Size">{currentRecord.size}</Descriptions.Item>
-						<Descriptions.Item label="Source">{currentRecord.type}</Descriptions.Item>
-						<Descriptions.Item label="SteamLink">
-							{currentRecord.workshopID ? `steam://url/CommunityFilePage/${currentRecord.workshopID}` : null}
-						</Descriptions.Item>
-						<Descriptions.Item label="Workshop ID">
-							{currentRecord.workshopID ? currentRecord.workshopID.toString() : null}
-						</Descriptions.Item>
-					</Descriptions>
+							<DetailDescriptions
+								items={[
+									{
+										label: 'BrowserLink',
+										children: currentRecord.workshopID
+											? `https://steamcommunity.com/sharedfiles/filedetails/?id=${currentRecord.workshopID}`
+											: null
+									},
+									{ label: 'Requires RR', children: 'UNKNOWN' },
+									{ label: 'Has Code', children: (!!currentRecord.hasCode).toString() },
+									{ label: 'Date Added', children: formatDateStr(currentRecord.dateAdded) },
+									{ label: 'Date Created', children: formatDateStr(currentRecord.dateCreated) },
+									{ label: 'Date Updated', children: formatDateStr(currentRecord.lastUpdate) },
+									{ label: 'Image', children: currentRecord.preview },
+									{ label: 'Path', children: currentRecord.path },
+									{ label: 'Size', children: currentRecord.size },
+									{ label: 'Source', children: currentRecord.type },
+									{
+										label: 'SteamLink',
+										children: currentRecord.workshopID ? `steam://url/CommunityFilePage/${currentRecord.workshopID}` : null
+									},
+									{ label: 'Workshop ID', children: currentRecord.workshopID ? currentRecord.workshopID.toString() : null }
+								]}
+							/>
 						)
 					},
 					{
 						key: 'status',
 						label: 'Mod Status',
 						children: (
-					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
-						<Descriptions.Item label="Subscribed">{(!!currentRecord.subscribed).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Downloading">{(!!currentRecord.downloading).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Download Pending">{(!!currentRecord.downloadPending).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Needs Update">{(!!currentRecord.needsUpdate).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Is Installed">{(!!currentRecord.installed).toString()}</Descriptions.Item>
-						<Descriptions.Item label="Is Active">
-							{(!!activeCollection && activeCollection.mods.includes(currentRecord.uid)).toString()}
-						</Descriptions.Item>
-					</Descriptions>
+							<DetailDescriptions
+								items={[
+									{ label: 'Subscribed', children: (!!currentRecord.subscribed).toString() },
+									{ label: 'Downloading', children: (!!currentRecord.downloading).toString() },
+									{ label: 'Download Pending', children: (!!currentRecord.downloadPending).toString() },
+									{ label: 'Needs Update', children: (!!currentRecord.needsUpdate).toString() },
+									{ label: 'Is Installed', children: (!!currentRecord.installed).toString() },
+									{ label: 'Is Active', children: (!!activeCollection && activeCollection.mods.includes(currentRecord.uid)).toString() }
+								]}
+							/>
 						)
 					}
 				]}
@@ -789,78 +1116,65 @@ function ModDetailsFooter({
 
 	const renderDependenciesTab = (requiredModData: DisplayModData[], dependentModData: DisplayModData[], conflictingModData: DisplayModData[]) => {
 		return (
-			<ConfigProvider
-				renderEmpty={() => {
-					return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 5, marginBottom: 5 }} />;
-				}}
-			>
+			<div className="ModDetailDependenciesPane">
 				{dependencyLookupError ? (
-					<Space orientation="vertical" size={8} style={{ width: '100%', marginBottom: 12 }}>
-						<Text type="warning">{dependencyLookupError}</Text>
-						<Button
-							size="small"
+					<div className="ModDetailDependencyError">
+						<div className="StatusCallout StatusCallout--warning">
+							<strong className="StatusCallout__title">
+								Workshop dependency refresh failed
+							</strong>
+							<span className="StatusCallout__body">{dependencyLookupError}</span>
+						</div>
+						<DetailButton
 							onClick={() => {
 								setDependencyLookupError(undefined);
 							}}
 						>
-							Retry Dependency Lookup
-						</Button>
-					</Space>
+							Retry Workshop Dependency Lookup
+						</DetailButton>
+					</div>
 				) : null}
-				<Collapse
+				<DetailCollapse
 					className="ModDetailDependencies"
 					defaultActiveKey={['required']}
-					destroyOnHidden
 					items={[
 						{
 							key: 'required',
 							label: 'Required mods:',
 							children: (
-						<Table
-							pagination={false}
-							size="small"
-							rowKey="uid"
-							loading={loadingDependencies}
-							dataSource={requiredModData}
-							rowSelection={requiredDependencyRowSelection}
-							columns={requiredDependencyColumns}
-							scroll={{ x: 'max-content' }}
-						/>
+								<DetailTable
+									loading={loadingDependencies}
+									dataSource={requiredModData}
+									rowSelection={requiredDependencyRowSelection}
+									columns={requiredDependencyColumns}
+								/>
 							)
 						},
 						{
 							key: 'dependent',
 							label: 'Dependent mods:',
 							children: (
-						<Table
-							pagination={false}
-							size="small"
-							rowKey="uid"
-							dataSource={dependentModData}
-							rowSelection={dependentDependencyRowSelection}
-							columns={dependentDependencyColumns}
-							scroll={{ x: 'max-content' }}
-						/>
+								<DetailTable
+									dataSource={dependentModData}
+									rowSelection={dependentDependencyRowSelection}
+									columns={dependentDependencyColumns}
+								/>
 							)
 						},
 						{
 							key: 'conflict',
 							label: 'Conflicting mods:',
 							children: (
-						<Table
-							pagination={false}
-							size="small"
-							rowKey="uid"
-							dataSource={conflictingModData}
-							rowSelection={conflictingDependencyRowSelection}
-							columns={conflictingDependencyColumns}
-							scroll={{ x: 'max-content' }}
-						/>
+								<DetailTable
+									dataSource={conflictingModData}
+									rowSelection={conflictingDependencyRowSelection}
+									columns={conflictingDependencyColumns}
+								/>
 							)
 						}
 					]}
 				/>
-			</ConfigProvider>
+			</div>
 		);
 	};
 
@@ -957,32 +1271,26 @@ function ModDetailsFooter({
 	);
 
 	const currentRecordID = getModDataDisplayId(currentRecord);
-	const activeTabContent =
-		activeTabKey === 'inspect'
-			? renderInspectTab()
-			: activeTabKey === 'dependencies'
-				? renderDependenciesTab(requiredModData, dependentModData, conflictingModData)
-				: renderInfoTab();
 	const tabItems = [
 		{
 			key: 'info',
 			label: 'Info',
-			children: activeTabKey === 'info' ? activeTabContent : null
+			children: activeTabKey === 'info' ? renderInfoTab() : null
 		},
 		{
 			key: 'inspect',
 			label: 'Inspect',
-			children: activeTabKey === 'inspect' ? activeTabContent : null
+			children: activeTabKey === 'inspect' ? renderInspectTab() : null
 		},
 		{
 			key: 'dependencies',
 			label: 'Dependencies',
-			children: activeTabKey === 'dependencies' ? activeTabContent : null
+			children: activeTabKey === 'dependencies' ? renderDependenciesTab(requiredModData, dependentModData, conflictingModData) : null
 		}
 	];
 
 	return (
-		<Content className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
+		<section className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
 			<div
 				className="ModDetailFooterHeader"
 				style={{
@@ -996,66 +1304,44 @@ function ModDetailsFooter({
 				}}
 			>
 				<div>
-					<Title level={5} style={{ margin: 0 }}>
+					<h2 className="ModDetailFooterTitle">
 						{currentRecord.name}
-					</Title>
-					<Text type="secondary">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</Text>
+					</h2>
+					<div className="ModDetailFooterIdentity">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</div>
 				</div>
-				<Space className="ModDetailFooterHeaderActions">
-					<Tooltip title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}>
-						<Button
-							aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
-							aria-pressed={halfLayoutMode === 'side'}
-							icon={halfLayoutMode === 'side' ? <ColumnHeightOutlined /> : <ColumnWidthOutlined />}
-							type="text"
-							onClick={toggleHalfLayoutCallback}
-						/>
-					</Tooltip>
-					<Tooltip title={bigDetails ? 'Return to split details' : 'Expand details to full view'}>
-						<Button
-							aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
-							aria-pressed={bigDetails}
-							icon={bigDetails ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-							type="text"
-							onClick={() => {
-								expandFooterCallback(!bigDetails);
-							}}
-						/>
-					</Tooltip>
-					<Tooltip title="Close details">
-						<Button aria-label="Close details" icon={<CloseOutlined />} type="text" onClick={closeFooterCallback} />
-					</Tooltip>
-				</Space>
-			</div>
-			<Row key="mod-details" className="ModDetailFooterBody" justify="space-between" gutter={16} style={{ flex: 1, minHeight: 0 }}>
-				<Col xs={24} md={7} xl={4} className="ModDetailFooterPreviewCol" style={{ paddingLeft: 10, minHeight: 0 }}>
-					{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}
-				</Col>
-				<Col xs={24} md={17} xl={20} className="ModDetailFooterContentCol" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-					<Content
-						style={{
-							paddingBottom: 10,
-							paddingRight: 10,
-							flex: 1,
-							minHeight: 0,
-							minWidth: 0,
-							overflow: 'hidden',
-							display: 'flex',
-							flexDirection: 'column'
+				<div className="ModDetailFooterHeaderActions">
+					<DetailIconButton
+						aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
+						aria-pressed={halfLayoutMode === 'side'}
+						title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}
+						onClick={toggleHalfLayoutCallback}
+					>
+						{halfLayoutMode === 'side' ? <PanelBottom size={18} aria-hidden="true" /> : <PanelRight size={18} aria-hidden="true" />}
+					</DetailIconButton>
+					<DetailIconButton
+						aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
+						aria-pressed={bigDetails}
+						title={bigDetails ? 'Return to split details' : 'Expand details to full view'}
+						onClick={() => {
+							expandFooterCallback(!bigDetails);
 						}}
 					>
-						<Tabs
-							className="ModDetailFooterTabs"
-							activeKey={activeTabKey}
-							onChange={setActiveTabKey}
-							animated={false}
-							destroyOnHidden
-							items={tabItems}
-						/>
-					</Content>
-				</Col>
-			</Row>
-		</Content>
+						{bigDetails ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+					</DetailIconButton>
+					<DetailIconButton aria-label="Close details" title="Close details" onClick={closeFooterCallback}>
+						<X size={18} aria-hidden="true" />
+					</DetailIconButton>
+				</div>
+			</div>
+			<div key="mod-details" className="ModDetailFooterBody">
+				<div className="ModDetailFooterPreviewCol">
+					{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}
+				</div>
+				<div className="ModDetailFooterContentCol">
+					<DetailTabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />
+				</div>
+			</div>
+		</section>
 	);
 }
 

@@ -1,4 +1,12 @@
 import type { AppConfig, ModCollection, ModData, SessionMods } from 'model';
+import type {
+	BlockLookupBuildRequest,
+	BlockLookupBuildResult,
+	BlockLookupIndexStats,
+	BlockLookupSearchRequest,
+	BlockLookupSearchResult,
+	BlockLookupSettings
+} from './block-lookup';
 import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
 
 export type ElectronLogFunctions = {
@@ -34,6 +42,12 @@ export interface ElectronApi {
 	pathExists: (targetPath: string, expectedType?: PathType) => Promise<boolean>;
 	discoverGameExecutable: () => Promise<string | null>;
 	selectPath: (directory: boolean, title: string) => Promise<string | null>;
+	readBlockLookupSettings: () => Promise<BlockLookupSettings>;
+	saveBlockLookupSettings: (settings: BlockLookupSettings) => Promise<BlockLookupSettings>;
+	buildBlockLookupIndex: (request: BlockLookupBuildRequest) => Promise<BlockLookupBuildResult>;
+	searchBlockLookup: (request: BlockLookupSearchRequest) => Promise<BlockLookupSearchResult>;
+	getBlockLookupStats: () => Promise<BlockLookupIndexStats | null>;
+	autoDetectBlockLookupWorkshopRoot: (request: BlockLookupBuildRequest) => Promise<string | null>;
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => Promise<boolean>;
 	isGameRunning: () => Promise<boolean>;
 	readModMetadata: (localDir: string | undefined, allKnownMods: string[]) => Promise<SessionMods>;

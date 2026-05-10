@@ -13,55 +13,64 @@ let updater: MenuItem | null = null;
 autoUpdater.autoDownload = false;
 autoUpdater.logger = log;
 
-autoUpdater.on('error', (error: Error) => {
-	dialog.showErrorBox('Error: ', error == null ? 'unknown' : (error.stack || error).toString());
+function resetUpdaterMenuItem() {
 	if (updater) {
 		updater.enabled = true;
 		updater = null;
 	}
+}
+
+autoUpdater.on('error', (error: Error) => {
+	dialog.showErrorBox('Error: ', error == null ? 'unknown' : (error.stack || error).toString());
+	resetUpdaterMenuItem();
 });
 
 autoUpdater.on('update-available', () => {
-	// eslint-disable-next-line promise/catch-or-return
-	dialog
-		.showMessageBox({
-			type: 'info',
-			title: 'Found Updates',
-			message: 'Found updates, do you want update now?',
-			buttons: ['Yes', 'No']
-		})
-		.then((res) => {
-			// eslint-disable-next-line promise/always-return
+	void (async () => {
+		try {
+			const res = await dialog.showMessageBox({
+				type: 'info',
+				title: 'Found Updates',
+				message: 'Found updates, do you want update now?',
+				buttons: ['Yes', 'No']
+			});
 			if (res.response === 0) {
-				autoUpdater.downloadUpdate();
-			} else if (updater) {
-				updater.enabled = true;
-				updater = null;
+				await autoUpdater.downloadUpdate();
+				return;
 			}
-		});
+			resetUpdaterMenuItem();
+		} catch (error) {
+			log.error(error);
+			resetUpdaterMenuItem();
+		}
+	})();
 });
 
 autoUpdater.on('update-not-available', () => {
 	if (updater) {
-		dialog.showMessageBox({
+		void dialog.showMessageBox({
 			title: 'No Updates',
 			message: 'Current version is up-to-date.'
+		}).catch((error) => {
+			log.error(error);
 		});
-		updater.enabled = true;
-		updater = null;
+		resetUpdaterMenuItem();
 	}
 });
 
 autoUpdater.on('update-downloaded', () => {
-	// eslint-disable-next-line promise/catch-or-return
-	dialog
+	void dialog
 		.showMessageBox({
 			title: 'Install Updates',
 			message: 'Updates downloaded, application will quit for update...'
 		})
-		// eslint-disable-next-line promise/always-return
 		.then(() => {
 			setImmediate(() => autoUpdater.quitAndInstall());
+			return undefined;
+		})
+		.catch((error) => {
+			log.error(error);
+			resetUpdaterMenuItem();
 		});
 });
 

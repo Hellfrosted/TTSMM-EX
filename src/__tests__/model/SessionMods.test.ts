@@ -1,29 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { ModType } from '../../model/Mod';
 import { SessionMods, filterRows, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
-	it('treats NuterraSteam and NuterraSteam(beta) as the same dependency target when enabled', () => {
+	it.each([
+		{
+			dependencyId: 'NuterraSteam(beta)',
+			dependencyName: 'NuterraSteam(beta)',
+			explicitDependency: 'NuterraSteam'
+		},
+		{
+			dependencyId: 'NuterraSteam',
+			dependencyName: 'NuterraSteam',
+			explicitDependency: 'NuterraSteam (Beta)'
+		}
+	])('treats $dependencyName and $explicitDependency as the same dependency target', ({ dependencyId, dependencyName, explicitDependency }) => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
 			workshopID: BigInt(1),
-			id: 'NuterraSteam(beta)',
-			name: 'NuterraSteam(beta)'
+			id: dependencyId,
+			name: dependencyName
 		};
 		const dependent = {
 			uid: `${ModType.LOCAL}:dependent-mod`,
 			type: ModType.LOCAL,
 			id: 'DependentMod',
-			explicitIDDependencies: ['NuterraSteam']
+			explicitIDDependencies: [explicitDependency]
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependencyDescriptor).toBeDefined();
@@ -31,34 +38,7 @@ describe('session mod descriptors', () => {
 		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
 	});
 
-	it('treats NuterraSteam and NuterraSteam (Beta) as the same dependency target when enabled', () => {
-		const dependency = {
-			uid: `${ModType.WORKSHOP}:1`,
-			type: ModType.WORKSHOP,
-			workshopID: BigInt(1),
-			id: 'NuterraSteam',
-			name: 'NuterraSteam'
-		};
-		const dependent = {
-			uid: `${ModType.LOCAL}:dependent-mod`,
-			type: ModType.LOCAL,
-			id: 'DependentMod',
-			explicitIDDependencies: ['NuterraSteam (Beta)']
-		};
-		const session = new SessionMods('', [dependency, dependent]);
-
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
-
-		const dependencyDescriptor = getDescriptor(session, dependency);
-		expect(dependencyDescriptor).toBeDefined();
-		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
-		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
-	});
-
-	it('matches workshop dependency names for Nuterra variants when enabled', async () => {
+	it('matches workshop dependency names for Nuterra variants', async () => {
 		const dependency = {
 			uid: `${ModType.WORKSHOP}:1`,
 			type: ModType.WORKSHOP,
@@ -79,10 +59,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
@@ -124,10 +101,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [stableDependency, betaDependency, dependent]);
 
-		setupDescriptors(session, new Map(), {
-			...DEFAULT_CONFIG,
-			treatNuterraSteamBetaAsEquivalent: true
-		});
+		setupDescriptors(session, new Map());
 
 		expect(dependent.dependsOn).toEqual([getDescriptor(session, stableDependency)]);
 
@@ -149,7 +123,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -173,7 +147,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -200,7 +174,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [dependent]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(dependent.dependsOn).toHaveLength(1);
 		expect(dependent.dependsOn?.[0]).toMatchObject({
@@ -218,7 +192,7 @@ describe('session mod descriptors', () => {
 			name: 'OmodManager v1.6.1.1'
 		};
 		const session = new SessionMods('', [versionedWorkshopMod]);
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(filterRows(session, 'omodmanager')).toEqual([versionedWorkshopMod]);
 	});
@@ -242,15 +216,14 @@ describe('session mod descriptors', () => {
 						tags: ['utility']
 					}
 				]
-			]),
-			DEFAULT_CONFIG
+			])
 		);
 		expect(mod.overrides).toEqual({
 			id: 'OverrideModId',
 			tags: ['utility']
 		});
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		expect(mod.overrides).toBeUndefined();
 	});
@@ -264,7 +237,7 @@ describe('session mod descriptors', () => {
 		};
 		const session = new SessionMods('', [mod]);
 
-		setupDescriptors(session, new Map(), DEFAULT_CONFIG);
+		setupDescriptors(session, new Map());
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -272,5 +245,24 @@ describe('session mod descriptors', () => {
 		});
 
 		expect(errors[mod.uid]?.incompatibleMods).toEqual([mod.uid]);
+	});
+
+	it('reports loaded mods without any dependency identity as invalid', async () => {
+		const mod = {
+			uid: `${ModType.LOCAL}:missing-id`,
+			type: ModType.LOCAL,
+			id: null,
+			name: 'Missing ID Mod'
+		};
+		const session = new SessionMods('', [mod]);
+
+		setupDescriptors(session, new Map());
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [mod.uid]
+		});
+
+		expect(errors[mod.uid]?.invalidId).toBe(true);
 	});
 });

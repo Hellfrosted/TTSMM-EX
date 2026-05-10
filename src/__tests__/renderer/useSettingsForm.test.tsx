@@ -79,8 +79,7 @@ describe('useSettingsForm', () => {
 		);
 		expect(saveResult).toEqual({
 			ok: true,
-			reloadRequired: false,
-			descriptorsRebuilt: false
+			reloadRequired: false
 		});
 		expect(appState.configErrors).toEqual({});
 	});
@@ -166,5 +165,24 @@ describe('useSettingsForm', () => {
 		});
 
 		expect(result.current.selectingDirectory).toBe(false);
+	});
+
+	it('restores modal-scoped settings edits when a modal is cancelled', () => {
+		const appState = createAppState();
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		act(() => {
+			result.current.openWorkshopIdModal();
+			result.current.setField(AppConfigKeys.MANAGER_ID, BigInt(42));
+		});
+
+		expect(result.current.editingConfig.workshopID).toBe(BigInt(42));
+
+		act(() => {
+			result.current.closeModal({ restoreSnapshot: true });
+		});
+
+		expect(result.current.modalType).toBe(SettingsViewModalType.NONE);
+		expect(result.current.editingConfig.workshopID).toBe(appState.config.workshopID);
 	});
 });

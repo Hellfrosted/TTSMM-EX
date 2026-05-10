@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AppState, ModData, NotificationProps } from 'model';
+import type { ModData, NotificationProps } from 'model';
 import api from 'renderer/Api';
 import { pause } from 'util/Sleep';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { NotificationType } from './useNotifications';
 
 interface UseGameLaunchOptions {
-	appState: AppState;
+	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	pollGameRunning: () => Promise<void>;
 	clearGameRunningPoll: () => void;

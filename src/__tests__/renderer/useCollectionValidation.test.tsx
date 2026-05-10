@@ -23,7 +23,7 @@ describe('useCollectionValidation', () => {
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 
 		const { result, rerender } = renderHook(() =>
 			useCollectionValidation({
@@ -66,7 +66,7 @@ describe('useCollectionValidation', () => {
 			activeCollection: { name: 'default', mods: [] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 
 		const { result } = renderHook(() =>
 			useCollectionValidation({
@@ -86,8 +86,9 @@ describe('useCollectionValidation', () => {
 		expect(result.current.isValidationCurrentForCollection(appState.activeCollection)).toBe(true);
 	});
 
-	it('does not treat validation as current after config changes that affect descriptor equivalence', async () => {
-		const mods = new SessionMods('', []);
+	it('does not treat validation as current after config changes that affect descriptor resolution', async () => {
+		const mod = { uid: 'local:a', id: 'CoreMod', name: 'Core Mod', type: ModType.LOCAL };
+		const mods = new SessionMods('', [mod]);
 		const appState = createAppState({
 			config: {
 				...DEFAULT_CONFIG,
@@ -95,14 +96,13 @@ describe('useCollectionValidation', () => {
 				activeCollection: 'default',
 				viewConfigs: {},
 				ignoredValidationErrors: new Map(),
-				userOverrides: new Map(),
-				treatNuterraSteamBetaAsEquivalent: true
+				userOverrides: new Map()
 			},
 			mods,
-			activeCollection: { name: 'default', mods: [] }
+			activeCollection: { name: 'default', mods: [mod.uid] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 
 		const { result, rerender } = renderHook(() =>
 			useCollectionValidation({
@@ -123,7 +123,7 @@ describe('useCollectionValidation', () => {
 		act(() => {
 			appState.config = {
 				...appState.config,
-				treatNuterraSteamBetaAsEquivalent: false
+				userOverrides: new Map([[mod.uid, { id: 'CoreModOverride' }]])
 			};
 		});
 		rerender();
@@ -149,7 +149,7 @@ describe('useCollectionValidation', () => {
 		const persistCollection = vi.fn(async () => false);
 		const launchMods = vi.fn(async () => undefined);
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 
 		const { result } = renderHook(() =>
 			useCollectionValidation({
@@ -202,7 +202,7 @@ describe('useCollectionValidation', () => {
 			activeCollection: { name: 'default', mods: [currentMod.uid] }
 		});
 
-		setupDescriptors(mods, appState.config.userOverrides, appState.config);
+		setupDescriptors(mods, appState.config.userOverrides);
 		const ignoredDependencyDescriptor = mods.foundMods[0].dependsOn?.[0];
 		if (!ignoredDependencyDescriptor) {
 			throw new Error('Expected a dependency descriptor for the validation override test');

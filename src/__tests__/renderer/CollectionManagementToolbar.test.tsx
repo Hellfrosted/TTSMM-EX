@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionManagementToolbar from '../../renderer/components/collections/CollectionManagementToolbar';
 import { createAppState } from './test-utils';
@@ -18,6 +18,14 @@ function stubResizeObserver() {
 		};
 	});
 	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+}
+
+async function clickToolbarAction(name: string | RegExp) {
+	fireEvent.click(await screen.findByRole('button', { name }));
+}
+
+async function findCollectionNameInput() {
+	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 5000 });
 }
 
 describe('CollectionManagementToolbar', () => {
@@ -54,7 +62,7 @@ describe('CollectionManagementToolbar', () => {
 		expect(renameButton).not.toBeNull();
 		fireEvent.click(renameButton!);
 
-		expect(await screen.findByRole('textbox', { name: 'New collection name' })).toHaveValue('default');
+		expect(await findCollectionNameInput()).toHaveValue('default');
 		expect(screen.getByText('Rename the saved collection without changing its enabled mods.')).toBeInTheDocument();
 		expect(await screen.findByRole('button', { name: 'Rename Collection' })).toBeDisabled();
 	}, 20000);
@@ -88,27 +96,33 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		fireEvent.click(screen.getByRole('button', { name: /Duplicate/ }));
+		await clickToolbarAction('Duplicate');
 
-		expect(await screen.findByRole('textbox', { name: 'New collection name' })).toHaveValue('default copy');
+		expect(await findCollectionNameInput()).toHaveValue('default copy');
 		expect(screen.getByText('The duplicate keeps the current mod list and saves it under a new name.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Duplicate Collection' })).toBeEnabled();
 	});
 
-	it('keeps collection actions visible and moves reload plus view options outside the primary strip', async () => {
+	it('copies the active collection JSON to the clipboard and reports success', async () => {
 		stubResizeObserver();
 
-		const defaultCollection = { name: 'default', mods: [] };
+		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
 			allCollectionNames: new Set(['default']),
 			activeCollection: defaultCollection
 		});
+		const openNotification = vi.fn();
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
 
 		render(
 			<CollectionManagementToolbar
 				appState={appState}
-				madeEdits
+				madeEdits={false}
 				searchString=""
 				openModal={vi.fn()}
 				saveCollectionCallback={vi.fn()}
@@ -120,16 +134,70 @@ describe('CollectionManagementToolbar', () => {
 				newCollectionCallback={vi.fn()}
 				duplicateCollectionCallback={vi.fn()}
 				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
+				openNotification={openNotification}
 			/>
 		);
 
-		expect(screen.getByRole('button', { name: /Duplicate/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Save Collection/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Copy JSON/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Delete/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /Reload Mods/ })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /View Options/ })).toBeInTheDocument();
+		await clickToolbarAction('Copy JSON');
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith(JSON.stringify(defaultCollection, null, '\t'));
+		});
+		expect(openNotification).toHaveBeenCalledWith(
+			expect.objectContaining({
+				message: 'Collection copied',
+				description: 'default was copied as a formatted JSON export.'
+			}),
+			'success'
+		);
+	});
+
+	it('reports a clipboard error instead of claiming success when export copying fails', async () => {
+		stubResizeObserver();
+
+		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openNotification = vi.fn();
+		const writeText = vi.fn().mockRejectedValue(new Error('clipboard blocked'));
+		Object.defineProperty(window.navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText }
+		});
+
+		render(
+			<CollectionManagementToolbar
+				appState={appState}
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={vi.fn()}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={openNotification}
+			/>
+		);
+
+		await clickToolbarAction('Copy JSON');
+
+		await waitFor(() => {
+			expect(openNotification).toHaveBeenCalledWith(
+				expect.objectContaining({
+					message: 'Unable to copy collection',
+					description: 'The collection export could not be written to the system clipboard.'
+				}),
+				'error'
+			);
+		});
 	});
 
 	it('labels the mod search field for assistive technologies', () => {

@@ -1,11 +1,17 @@
 import fs from 'fs';
 import path from 'path';
-import { app, IpcMain } from 'electron';
+import { app } from 'electron';
+import type { IpcMain } from 'electron';
 import log from 'electron-log';
 
 import { ModCollection, ValidChannel } from '../../model';
 import { validateCollectionName } from '../../shared/collection-name';
 import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from '../storage';
+import { parseCollectionNamePayload, parseModCollectionPayload } from './collection-validation';
+
+interface UserDataPathProvider {
+	getUserDataPath: () => string;
+}
 
 function resolveCollectionFilePath(userDataPath: string, collectionName: string): string | null {
 	const validationError = validateCollectionName(collectionName);
@@ -54,7 +60,7 @@ export function readCollectionFile(userDataPath: string, collection: string): Mo
 	}
 
 	try {
-		const data = readJsonFile<ModCollection>(collectionPath);
+		const data = parseModCollectionPayload(ValidChannel.READ_COLLECTION, readJsonFile<unknown>(collectionPath));
 		data.name = collection;
 		return data;
 	} catch (error) {
@@ -157,24 +163,35 @@ export function deleteCollectionFile(userDataPath: string, collection: string): 
 	}
 }
 
-export function registerCollectionHandlers(ipcMain: IpcMain) {
+export function registerCollectionHandlers(
+	ipcMain: IpcMain,
+	userDataPathProvider: UserDataPathProvider = {
+		getUserDataPath: () => app.getPath('userData')
+	}
+) {
+	const getUserDataPath = () => userDataPathProvider.getUserDataPath();
+
 	ipcMain.handle(ValidChannel.READ_COLLECTION, async (_event, collection: string) => {
-		return readCollectionFile(app.getPath('userData'), collection);
+		return readCollectionFile(getUserDataPath(), parseCollectionNamePayload(ValidChannel.READ_COLLECTION, collection));
 	});
 
 	ipcMain.handle(ValidChannel.READ_COLLECTIONS, async () => {
-		return listCollections(app.getPath('userData'));
+		return listCollections(getUserDataPath());
 	});
 
 	ipcMain.handle(ValidChannel.UPDATE_COLLECTION, async (_event, collection: ModCollection) => {
-		return updateCollectionFile(app.getPath('userData'), collection);
+		return updateCollectionFile(getUserDataPath(), parseModCollectionPayload(ValidChannel.UPDATE_COLLECTION, collection));
 	});
 
 	ipcMain.handle(ValidChannel.RENAME_COLLECTION, async (_event, collection: ModCollection, newName: string) => {
-		return renameCollectionFile(app.getPath('userData'), collection, newName);
+		return renameCollectionFile(
+			getUserDataPath(),
+			parseModCollectionPayload(ValidChannel.RENAME_COLLECTION, collection),
+			parseCollectionNamePayload(ValidChannel.RENAME_COLLECTION, newName)
+		);
 	});
 
 	ipcMain.handle(ValidChannel.DELETE_COLLECTION, async (_event, collection: string) => {
-		return deleteCollectionFile(app.getPath('userData'), collection);
+		return deleteCollectionFile(getUserDataPath(), parseCollectionNamePayload(ValidChannel.DELETE_COLLECTION, collection));
 	});
 }

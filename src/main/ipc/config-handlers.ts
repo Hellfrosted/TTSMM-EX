@@ -1,10 +1,16 @@
 import fs from 'fs';
 import path from 'path';
-import { app, IpcMain } from 'electron';
+import { app } from 'electron';
+import type { IpcMain } from 'electron';
 import log from 'electron-log';
 
 import { AppConfig, LogLevel, ModDataOverride, ModErrorType, ValidChannel } from '../../model';
 import { writeUtf8FileAtomic } from '../storage';
+import { parseAppConfigPayload } from './config-validation';
+
+interface UserDataPathProvider {
+	getUserDataPath: () => string;
+}
 
 export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
 	log.transports.file.level = level;
@@ -26,9 +32,8 @@ export function readConfigFile(filepath: string, isDevelopment: boolean): AppCon
 		if (!appConfig.viewConfigs) {
 			appConfig.viewConfigs = {};
 		}
-		if (appConfig.treatNuterraSteamBetaAsEquivalent === undefined) {
-			appConfig.treatNuterraSteamBetaAsEquivalent = true;
-		}
+		// Persisted config boundary: older user config files may still contain this removed draft flag.
+		delete (appConfig as { treatNuterraSteamBetaAsEquivalent?: unknown }).treatNuterraSteamBetaAsEquivalent;
 		if (appConfig.ignoredValidationErrors) {
 			const convertedMap: Map<ModErrorType, { [uid: string]: string[] }> = new Map();
 			const castObject = appConfig.ignoredValidationErrors as { [modID: number]: { [uid: string]: string[] } };
@@ -80,21 +85,29 @@ export function writeConfigFile(filepath: string, config: AppConfig): boolean {
 	}
 }
 
-export function registerConfigHandlers(ipcMain: IpcMain, isDevelopment: boolean) {
+export function registerConfigHandlers(
+	ipcMain: IpcMain,
+	isDevelopment: boolean,
+	userDataPathProvider: UserDataPathProvider = {
+		getUserDataPath: () => app.getPath('userData')
+	}
+) {
+	const getUserDataPath = () => userDataPathProvider.getUserDataPath();
+
 	ipcMain.on(ValidChannel.UPDATE_LOG_LEVEL, (_event, level: LogLevel) => {
 		applyLogLevel(level, isDevelopment);
 	});
 
 	ipcMain.handle(ValidChannel.USER_DATA_PATH, async () => {
-		return app.getPath('userData');
+		return getUserDataPath();
 	});
 
 	ipcMain.handle(ValidChannel.READ_CONFIG, async () => {
-		return readConfigFile(path.join(app.getPath('userData'), 'config.json'), isDevelopment);
+		return readConfigFile(path.join(getUserDataPath(), 'config.json'), isDevelopment);
 	});
 
 	ipcMain.handle(ValidChannel.UPDATE_CONFIG, async (_event, config: AppConfig) => {
 		log.debug('updated config');
-		return writeConfigFile(path.join(app.getPath('userData'), 'config.json'), config);
+		return writeConfigFile(path.join(getUserDataPath(), 'config.json'), parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config));
 	});
 }

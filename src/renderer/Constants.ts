@@ -33,8 +33,6 @@ function getDefaultExecutablePath(): string {
 export const DEFAULT_GAME_EXEC = getDefaultExecutablePath();
 
 export const DEFAULT_CONFIG: AppConfig = {
-	// localDir: 'E:\\Steam\\steamapps\\common\\TerraTech\\LocalMods',
-	// workshopDir: `E:\\Steam\\steamapps\\workshop\\content\\285920`,
 	gameExec: DEFAULT_GAME_EXEC,
 	workshopID: DEFAULT_WORKSHOP_ID,
 
@@ -42,7 +40,6 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 	closeOnLaunch: false,
 	language: 'english',
-	treatNuterraSteamBetaAsEquivalent: true,
 	activeCollection: undefined,
 	steamMaxConcurrency: 5,
 

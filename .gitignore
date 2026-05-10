@@ -22,6 +22,7 @@ release/greenworks
 release/app/greenworks
 release/app/dist
 release/build
+output/
 .erb/dll
 .erb/.tmp
 

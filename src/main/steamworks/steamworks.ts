@@ -75,12 +75,134 @@ interface RawSteamPageResults {
 	numReturned: number;
 }
 
+type SteamworksEventCallback = (...props: unknown[]) => void;
+type GreenworksItemQueryOptions = NonNullable<GetItemsProps['options']>;
+type GreenworksUserItemQueryOptions = NonNullable<GetUserItemsProps['options']>;
+type GreenworksSynchronizeOptions = NonNullable<SynchronizeItemsProps['options']>;
+type GreenworksWorkshopFileOptions = NonNullable<PublishWorkshopFileProps['options']>;
+type GreenworksPageResultsCallback = (results: Partial<SteamPageResults> | RawWorkshopItem[]) => void;
+
+interface GreenworksNative {
+	Utils: {
+		move: (
+			source_dir: string,
+			target_dir: string,
+			success_callback: (() => void) | undefined,
+			error_callback: SteamErrorCallback | undefined
+		) => void;
+		createArchive: (
+			zip_file_path: string,
+			source_dir: string,
+			password: string,
+			compress_level: string,
+			success_callback: () => void,
+			error_callback: SteamErrorCallback | undefined
+		) => void;
+		extractArchive: (
+			zip_file_path: string,
+			extract_dir: string,
+			password: string,
+			success_callback: () => void,
+			error_callback: SteamErrorCallback | undefined
+		) => void;
+	};
+	init: () => boolean;
+	on: (channel: ValidGreenworksChannels, callback: SteamworksEventCallback) => void;
+	requestUserInformation: (raw_steam_id: string, require_name_only: boolean) => boolean;
+	getSmallFriendAvatar: (raw_steam_id: string) => number;
+	getMediumFriendAvatar: (raw_steam_id: string) => number;
+	getLargeFriendAvatar: (raw_steam_id: string) => number;
+	getFriendPersonaName: (raw_steam_id: string) => string;
+	getImageSize: (handle: number) => { height?: number; width?: number };
+	getImageRGBA: (handle: number) => Buffer;
+	getAppInstallDir: (app_id: number) => string;
+	getAppBuildId: () => number;
+	getAppId: () => number;
+	getSteamId: () => SteamID;
+	isAppInstalled: (app_id: number) => boolean;
+	isSubscribedApp: (app_id: number) => boolean;
+	getLaunchCommandLine: () => string;
+	fileShare: (file_path: string, success_callback: (file_handle: string) => void, error_callback?: SteamErrorCallback) => boolean;
+	ugcDownloadItem: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
+	ugcUnsubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
+	ugcSubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
+	ugcCreateItem: (
+		options: { app_id: number; file_type: WorkshopFileType },
+		success_callback: (id: string) => void,
+		error_callback?: SteamErrorCallback
+	) => boolean;
+	ugcShowOverlay: (published_file_id?: string) => boolean;
+	ugcGetItemState: (published_file_id: string) => UGCItemState;
+	ugcGetItemInstallInfo: (published_file_id: string) => ItemInstallInfo | undefined;
+	getSubscribedItems?: () => unknown[];
+	getUGCDetails: (workshop_ids: string[], success_callback: GreenworksPageResultsCallback, error_callback?: SteamErrorCallback) => void;
+	_ugcGetItems: (
+		options: GreenworksItemQueryOptions,
+		ugc_matching_type: GetItemsProps['ugc_matching_type'],
+		ugc_query_type: GetItemsProps['ugc_query_type'],
+		success_callback: GreenworksPageResultsCallback,
+		error_callback: SteamErrorCallback
+	) => void;
+	_ugcGetUserItems: (
+		options: GreenworksUserItemQueryOptions,
+		ugc_matching_type: GetUserItemsProps['ugc_matching_type'],
+		ugc_list_sort_order: GetUserItemsProps['ugc_list_sort_order'],
+		ugc_list: GetUserItemsProps['ugc_list'],
+		success_callback: GreenworksPageResultsCallback,
+		error_callback: SteamErrorCallback
+	) => void;
+	_ugcSynchronizeItems: (
+		options: GreenworksSynchronizeOptions,
+		sync_dir: string,
+		success_callback: (results: unknown) => void,
+		error_callback: SteamErrorCallback
+	) => void;
+	_publishWorkshopFile: (
+		options: GreenworksWorkshopFileOptions,
+		file_path: string,
+		image_path: string,
+		title: string,
+		description: string,
+		success_callback: (publish_file_handle: string) => void,
+		error_callback: SteamErrorCallback
+	) => void;
+	_updatePublishedWorkshopFile: (
+		options: GreenworksWorkshopFileOptions,
+		published_file_handle: string,
+		file_path: string,
+		image_path: string,
+		title: string,
+		description: string,
+		success_callback: UpdatePublishedWorkshopFileProps['success_callback'],
+		error_callback: SteamErrorCallback
+	) => void;
+	ugcPublish: (
+		file_name: string,
+		title: string,
+		description: string,
+		image_name: string,
+		success_callback: (published_file_handle: string) => void,
+		error_callback?: SteamErrorCallback,
+		progress_callback?: ProgressCallback
+	) => void;
+	ugcPublishUpdate: (
+		published_file_id: string,
+		file_name: string,
+		title: string,
+		description: string,
+		image_name: string,
+		success_callback: () => void,
+		error_callback?: SteamErrorCallback,
+		progress_callback?: ProgressCallback
+	) => void;
+}
+
 function normalizeWorkshopChildren(children: unknown): bigint[] | undefined {
 	if (!Array.isArray(children)) {
 		return undefined;
 	}
 
-	return children.map((stringID: string) => BigInt(stringID));
+	return children.map((workshopID) => BigInt(String(workshopID)));
 }
 
 function normalizeWorkshopTags(tags: unknown): string[] {
@@ -125,9 +247,8 @@ function normalizeWorkshopItem<T extends RawWorkshopItem>(result: T): Normalized
 	} as NormalizedWorkshopItem<T>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const greenworks: any = new Proxy(
-	{},
+const greenworks = new Proxy(
+	{} as GreenworksNative,
 	{
 		get: (_target, property) => {
 			const loaded = getGreenworksModule();
@@ -138,7 +259,7 @@ const greenworks: any = new Proxy(
 			return typeof value === 'function' ? value.bind(loaded) : value;
 		}
 	}
-);
+) as GreenworksNative;
 
 function wrapCallbackForWorkshopIDConversion(callback: (results: SteamPageResults) => void) {
 	return (apiResults: Partial<SteamPageResults> | RawWorkshopItem[]) => {
@@ -157,9 +278,8 @@ class SteamworksAPI {
 		return greenworks.init();
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	on(channel: ValidGreenworksChannels, callback: (...props: any) => void) {
-		greenworks.on(channel, callback);
+	on<Args extends unknown[]>(channel: ValidGreenworksChannels, callback: (...props: Args) => void) {
+		greenworks.on(channel, callback as SteamworksEventCallback);
 	}
 
 	// Friends
@@ -306,9 +426,9 @@ class SteamworksAPI {
 		}
 
 		return subscribedItems
-			.map((workshopID: string) => {
+			.map((workshopID) => {
 				try {
-					return BigInt(workshopID);
+					return BigInt(String(workshopID));
 				} catch (e) {
 					return 0n;
 				}
@@ -329,15 +449,14 @@ class SteamworksAPI {
 
 	ugcGetItems(props: GetItemsProps) {
 		const { options, ugc_matching_type, ugc_query_type, success_callback, error_callback } = props;
-		let actualOptions = options;
-		if (!options || Object.keys(options).length === 0) {
-			actualOptions = {
+		const actualOptions: GreenworksItemQueryOptions = options && Object.keys(options).length > 0
+			? options
+			: {
 				app_id: greenworks.getAppId(),
 				page_num: 1
 			};
-		}
-		if (!actualOptions!.required_tag) {
-			actualOptions!.required_tag = '';
+		if (!actualOptions.required_tag) {
+			actualOptions.required_tag = '';
 		}
 		greenworks._ugcGetItems(
 			actualOptions,
@@ -350,15 +469,14 @@ class SteamworksAPI {
 
 	ugcGetUserItems(props: GetUserItemsProps) {
 		const { options, ugc_matching_type, ugc_list_sort_order, ugc_list, success_callback, error_callback } = props;
-		let actualOptions = options;
-		if (!options || Object.keys(options).length === 0) {
-			actualOptions = {
+		const actualOptions: GreenworksUserItemQueryOptions = options && Object.keys(options).length > 0
+			? options
+			: {
 				app_id: greenworks.getAppId(),
 				page_num: 1
 			};
-		}
-		if (!actualOptions!.required_tag) {
-			actualOptions!.required_tag = '';
+		if (!actualOptions.required_tag) {
+			actualOptions.required_tag = '';
 		}
 		greenworks._ugcGetUserItems(
 			actualOptions,
@@ -372,17 +490,16 @@ class SteamworksAPI {
 
 	ugcSynchronizeItems(props: SynchronizeItemsProps) {
 		const { options, sync_dir, success_callback, error_callback } = props;
-		let actualOptions = options;
-		if (!options || Object.keys(options).length === 0) {
-			actualOptions = {
+		const actualOptions: GreenworksSynchronizeOptions = options && Object.keys(options).length > 0
+			? options
+			: {
 				app_id: greenworks.getAppId(),
 				page_num: 1
 			};
-		}
 		greenworks._ugcSynchronizeItems(
 			actualOptions,
 			sync_dir,
-			(results: unknown[]) => {
+			(results: unknown) => {
 				const normalizedResults = Array.isArray(results) ? (results as ExtendedSteamUGCDetails[]) : [];
 				if (!Array.isArray(results)) {
 					log.warn('Steamworks returned synchronize items without an array payload. Treating the response as empty.');
@@ -395,26 +512,24 @@ class SteamworksAPI {
 
 	publishWorkshopFile(props: PublishWorkshopFileProps) {
 		const { options, file_path, image_path, title, description, success_callback, error_callback } = props;
-		let actualOptions = options;
-		if (!options || Object.keys(options).length === 0) {
-			actualOptions = {
+		const actualOptions: GreenworksWorkshopFileOptions = options && Object.keys(options).length > 0
+			? options
+			: {
 				tags: [], // No tags are set,
 				app_id: greenworks.getAppId()
 			};
-		}
 		greenworks._publishWorkshopFile(actualOptions, file_path, image_path, title, description, success_callback, error_callback);
 	}
 
 	updatePublishedWorkshopFile(props: UpdatePublishedWorkshopFileProps) {
 		const { options, published_file_handle, file_path, image_path, title, description, success_callback, error_callback } = props;
-		let actualOptions = options;
-		if (!options || Object.keys(options).length === 0) {
-			actualOptions = {
+		const actualOptions: GreenworksWorkshopFileOptions = options && Object.keys(options).length > 0
+			? options
+			: {
 				app_id: greenworks.getAppId(),
 				tags: [] // No tags are set
 			};
-		}
-		actualOptions!.app_id = greenworks.getAppId();
+		actualOptions.app_id = greenworks.getAppId();
 		greenworks._updatePublishedWorkshopFile(
 			actualOptions,
 			published_file_handle,

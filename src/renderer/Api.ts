@@ -1,8 +1,15 @@
 /* eslint-disable class-methods-use-this */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { AppConfig, LogLevel, ModCollection, ModData, NLogLevel, PathType, SessionMods } from 'model';
-import type { ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
+import type {
+	BlockLookupBuildRequest,
+	BlockLookupBuildResult,
+	BlockLookupIndexStats,
+	BlockLookupSearchRequest,
+	BlockLookupSearchResult,
+	BlockLookupSettings
+} from 'shared/block-lookup';
+import type { ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
 
 const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
@@ -17,14 +24,7 @@ class API {
 
 	userDataPath: string | undefined;
 
-	logger: {
-		info: (...message: any[]) => void;
-		debug: (...message: any[]) => void;
-		warn: (...message: any[]) => void;
-		error: (...message: any[]) => void;
-		silly: (...message: any[]) => void;
-		verbose: (...message: any[]) => void;
-	};
+	logger: ElectronLogFunctions;
 
 	constructor(window: Window) {
 		this.platform = window.electron.platform;
@@ -66,20 +66,21 @@ class API {
 
 	launchGame(
 		gameExec: string,
-		workshopID: string,
+		workshopID: string | bigint,
 		closeOnLaunch: boolean,
 		modList: ModData[],
 		pureVanilla?: boolean,
 		logParams?: { [loggerID: string]: NLogLevel },
 		extraParams?: string
 	): Promise<boolean> {
+		const workshopIDText = workshopID.toString();
 		const actualMods = modList
-			.filter((modData) => modData && modData.workshopID !== BigInt(workshopID))
+			.filter((modData) => modData && modData.workshopID !== BigInt(workshopIDText))
 			.map((mod: ModData) => {
 				return mod ? `[${mod.uid.toString().replaceAll(' ', ':/%20')}]` : '';
 			});
 		let args: string[] = [];
-		let passedWorkshopID: string | null = workshopID;
+		let passedWorkshopID: string | null = workshopIDText;
 
 		let addMods = true;
 		if (actualMods.length === 0 || (actualMods.length === 1 && actualMods[0] === '[workshop:2571814511]')) {
@@ -113,7 +114,7 @@ class API {
 		return window.electron.onProgressChange(callback);
 	}
 
-	onModMetadataUpdate(callback: (uid: string, update: any) => void): Unsubscribe {
+	onModMetadataUpdate(callback: (uid: string, update: Partial<ModData>) => void): Unsubscribe {
 		return window.electron.onModMetadataUpdate(callback);
 	}
 
@@ -163,6 +164,30 @@ class API {
 
 	selectPath(directory: boolean, title: string): Promise<string | null> {
 		return window.electron.selectPath(directory, title);
+	}
+
+	readBlockLookupSettings(): Promise<BlockLookupSettings> {
+		return window.electron.readBlockLookupSettings();
+	}
+
+	saveBlockLookupSettings(settings: BlockLookupSettings): Promise<BlockLookupSettings> {
+		return window.electron.saveBlockLookupSettings(settings);
+	}
+
+	buildBlockLookupIndex(request: BlockLookupBuildRequest): Promise<BlockLookupBuildResult> {
+		return window.electron.buildBlockLookupIndex(request);
+	}
+
+	searchBlockLookup(request: BlockLookupSearchRequest): Promise<BlockLookupSearchResult> {
+		return window.electron.searchBlockLookup(request);
+	}
+
+	getBlockLookupStats(): Promise<BlockLookupIndexStats | null> {
+		return window.electron.getBlockLookupStats();
+	}
+
+	autoDetectBlockLookupWorkshopRoot(request: BlockLookupBuildRequest): Promise<string | null> {
+		return window.electron.autoDetectBlockLookupWorkshopRoot(request);
 	}
 
 	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods> {
