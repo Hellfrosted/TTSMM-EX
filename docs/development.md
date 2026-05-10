@@ -1,12 +1,12 @@
 # Development Notes
 
-Last reviewed: 2026-05-05
+Last reviewed: 2026-05-08
 
 Use this page for details that are useful during source builds, validation, packaging, and maintenance but too bulky for the root README.
 
 ## Linux Runtime Packages
 
-- Debian or Ubuntu: `libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0`
+- Debian or Ubuntu: `libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0 libgbm1 libasound2t64`
 - Arch: `gtk3 libnotify nss libxss libxtst xdg-utils at-spi2-core libsecret alsa-lib libappindicator`
 
 Linux notes:
@@ -16,6 +16,7 @@ Linux notes:
 - Linux launches TerraTech through Steam; the `TerraTech Executable` setting is unused there.
 - Linux builds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough.
 - Source builds that rebuild Block Lookup extraction need `cargo` available on `PATH`.
+- Older Debian/Ubuntu releases may provide `libasound2` instead of `libasound2t64`.
 
 ## WSL Commands
 
