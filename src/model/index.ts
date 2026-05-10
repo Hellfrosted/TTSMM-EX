@@ -3,6 +3,7 @@ export * from './AppConfig';
 export * from './AppState';
 export * from './Mod';
 export * from './CollectionValidation';
+export * from './collection-validator';
 export * from './collection-validation-result';
 export * from './mod-dependency-projection';
 export * from './mod-dependency-target';

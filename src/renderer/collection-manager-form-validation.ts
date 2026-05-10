@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MainColumnTitles, type MainCollectionConfig } from 'model';
 import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
-import { normalizeMainCollectionConfig } from 'renderer/view-config-persistence';
+import { normalizeMainCollectionConfig } from 'renderer/main-view-config-normalize';
 
 export interface MainCollectionTableSettingsFormValues {
 	smallRows: boolean;

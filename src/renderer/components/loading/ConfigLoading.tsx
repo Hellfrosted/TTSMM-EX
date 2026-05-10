@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useReducer } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
+import type { AppState } from 'model/AppState';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { useAppStateSelector } from 'renderer/state/app-state';
@@ -78,6 +79,18 @@ interface ConfigLoadingState {
 	userDataPathError?: string;
 }
 
+const INITIAL_CONFIG_LOADING_STATE: ConfigLoadingState = {
+	bootPersistenceError: undefined,
+	bootResolved: false,
+	configLoadError: undefined,
+	loadedCollections: 0,
+	loadingConfig: true,
+	totalCollections: -1,
+	updatingSteamMod: true,
+	userDataPathLoaded: false,
+	userDataPathError: undefined
+};
+
 type ConfigLoadingAction =
 	| { type: 'user-data-path-failed'; message: string }
 	| { type: 'config-load-failed'; message: string }
@@ -135,34 +148,141 @@ function reduceConfigLoadingState(state: ConfigLoadingState, action: ConfigLoadi
 	}
 }
 
+function getConfigLoadingBootError(state: ConfigLoadingState) {
+	return state.configLoadError || state.bootPersistenceError || state.userDataPathError;
+}
+
+function canResolveStartupBoot(state: ConfigLoadingState) {
+	return (
+		!state.bootResolved &&
+		!state.bootPersistenceError &&
+		!state.configLoadError &&
+		!state.userDataPathError &&
+		state.userDataPathLoaded &&
+		!state.updatingSteamMod &&
+		!state.loadingConfig
+	);
+}
+
+function getConfigLoadingProgress(state: ConfigLoadingState, bootError: string | undefined) {
+	if (bootError) {
+		return 100;
+	}
+	if (state.bootResolved && state.totalCollections > 0) {
+		return Math.ceil((100 * state.loadedCollections) / state.totalCollections);
+	}
+	if (state.bootResolved) {
+		return 88;
+	}
+	if (state.loadingConfig) {
+		return state.userDataPathLoaded ? 42 : 18;
+	}
+	if (state.updatingSteamMod) {
+		return 64;
+	}
+	return 78;
+}
+
+function getConfigLoadingStatusLabel(
+	state: ConfigLoadingState,
+	describedBootError: ReturnType<typeof describeStartupBootError> | undefined
+) {
+	if (describedBootError) {
+		return describedBootError.title || 'Startup needs attention';
+	}
+	if (!state.userDataPathLoaded) {
+		return 'Finding the app data folder';
+	}
+	if (state.loadingConfig) {
+		return 'Reading saved settings';
+	}
+	if (state.updatingSteamMod) {
+		return 'Preparing Steam Workshop defaults';
+	}
+	return 'Resolving saved collections';
+}
+
+function getConfigLoadingStatusDetail(
+	state: ConfigLoadingState,
+	bootError: string | undefined,
+	describedBootError: ReturnType<typeof describeStartupBootError> | undefined
+) {
+	if (bootError) {
+		return describedBootError?.detail || 'Fix the issue below before the app can continue.';
+	}
+	if (state.totalCollections > 0) {
+		return `Loaded ${state.loadedCollections} of ${state.totalCollections} saved collection${state.totalCollections === 1 ? '' : 's'}.`;
+	}
+	if (!state.userDataPathLoaded) {
+		return 'Locating the folder where TTSMM-EX stores settings and collections.';
+	}
+	if (state.loadingConfig) {
+		return 'Checking stored paths and first-launch defaults before the workspace opens.';
+	}
+	return 'Checking the active collection and saved collection files.';
+}
+
+function getConfigLoadingViewModel(state: ConfigLoadingState) {
+	const bootError = getConfigLoadingBootError(state);
+	const describedBootError = bootError ? describeStartupBootError(bootError) : undefined;
+
+	return {
+		bootError,
+		describedBootError,
+		percent: getConfigLoadingProgress(state, bootError),
+		statusLabel: getConfigLoadingStatusLabel(state, describedBootError),
+		statusDetail: getConfigLoadingStatusDetail(state, bootError, describedBootError)
+	};
+}
+
+async function resolveConfigLoadingBoot({
+	config,
+	configErrors,
+	dispatchLoading,
+	haltBootOnPersistenceFailure,
+	navigateApp,
+	queryClient,
+	updateAppState
+}: {
+	config: AppConfig;
+	configErrors: AppState['configErrors'];
+	dispatchLoading: (action: ConfigLoadingAction) => void;
+	haltBootOnPersistenceFailure: (message: string) => void;
+	navigateApp: AppState['navigate'];
+	queryClient: QueryClient;
+	updateAppState: AppState['updateState'];
+}) {
+	try {
+		const result = await api.resolveStartupCollection({ config });
+		if (!result.ok) {
+			haltBootOnPersistenceFailure(result.message);
+			return;
+		}
+
+		dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
+		const navigation = resolveStartupNavigation(result.config, configErrors);
+		const authoritativeResult = {
+			...result,
+			config: navigation.config
+		};
+		applyAuthoritativeCollectionState(authoritativeResult, {
+			syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
+			updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
+		});
+		navigateApp(navigation.path);
+	} catch (error) {
+		api.logger.error(error);
+		haltBootOnPersistenceFailure(formatErrorMessage(error));
+	}
+}
+
 export default function ConfigLoading() {
 	const queryClient = useQueryClient();
 	const config = useAppStateSelector((state) => state.config);
 	const configErrors = useAppStateSelector((state) => state.configErrors);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
 	const updateAppState = useAppStateSelector((state) => state.updateState);
-	const [state, dispatchLoading] = useReducer(reduceConfigLoadingState, {
-		bootPersistenceError: undefined,
-		bootResolved: false,
-		configLoadError: undefined,
-		loadedCollections: 0,
-		loadingConfig: true,
-		totalCollections: -1,
-		updatingSteamMod: true,
-		userDataPathLoaded: false,
-		userDataPathError: undefined
-	});
-	const {
-		bootPersistenceError,
-		bootResolved,
-		configLoadError,
-		loadedCollections,
-		loadingConfig,
-		totalCollections,
-		updatingSteamMod,
-		userDataPathLoaded,
-		userDataPathError
-	} = state;
+	const [state, dispatchLoading] = useReducer(reduceConfigLoadingState, INITIAL_CONFIG_LOADING_STATE);
 
 	const readUserDataPath = useEffectEvent(async () => {
 		try {
@@ -248,6 +368,18 @@ export default function ConfigLoading() {
 		dispatchLoading({ type: 'boot-persistence-failed', message });
 	});
 
+	const resolveBoot = useEffectEvent(async () => {
+		await resolveConfigLoadingBoot({
+			config,
+			configErrors,
+			dispatchLoading,
+			haltBootOnPersistenceFailure,
+			navigateApp,
+			queryClient,
+			updateAppState
+		});
+	});
+
 	useEffect(() => {
 		void readUserDataPath();
 		void readConfig();
@@ -255,92 +387,15 @@ export default function ConfigLoading() {
 	}, []);
 
 	useEffect(() => {
-		if (
-			bootResolved ||
-			bootPersistenceError ||
-			configLoadError ||
-			userDataPathError ||
-			!userDataPathLoaded ||
-			updatingSteamMod ||
-			loadingConfig
-		) {
+		if (!canResolveStartupBoot(state)) {
 			return;
 		}
 
 		dispatchLoading({ type: 'boot-started' });
-		void (async () => {
-			try {
-				const result = await api.resolveStartupCollection({ config });
-				if (!result.ok) {
-					haltBootOnPersistenceFailure(result.message);
-					return;
-				}
+		void resolveBoot();
+	}, [state]);
 
-				dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
-				const navigation = resolveStartupNavigation(result.config, configErrors);
-				const authoritativeResult = {
-					...result,
-					config: navigation.config
-				};
-				applyAuthoritativeCollectionState(authoritativeResult, {
-					syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
-					updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
-				});
-				navigateApp(navigation.path);
-			} catch (error) {
-				api.logger.error(error);
-				haltBootOnPersistenceFailure(formatErrorMessage(error));
-				return;
-			}
-		})();
-	}, [
-		config,
-		configErrors,
-		bootResolved,
-		bootPersistenceError,
-		configLoadError,
-		loadingConfig,
-		navigateApp,
-		queryClient,
-		updateAppState,
-		userDataPathError,
-		userDataPathLoaded,
-		updatingSteamMod
-	]);
-
-	const bootError = configLoadError || bootPersistenceError || userDataPathError;
-	const describedBootError = bootError ? describeStartupBootError(bootError) : undefined;
-	const percent = bootError
-		? 100
-		: bootResolved && totalCollections > 0
-			? Math.ceil((100 * loadedCollections) / totalCollections)
-			: bootResolved
-				? 88
-				: loadingConfig
-					? userDataPathLoaded
-						? 42
-						: 18
-					: updatingSteamMod
-						? 64
-						: 78;
-	const statusLabel = bootError
-		? describedBootError?.title || 'Startup needs attention'
-		: !userDataPathLoaded
-			? 'Finding the app data folder'
-			: loadingConfig
-				? 'Reading saved settings'
-				: updatingSteamMod
-					? 'Preparing Steam Workshop defaults'
-					: 'Resolving saved collections';
-	const statusDetail = bootError
-		? describedBootError?.detail || 'Fix the issue below before the app can continue.'
-		: totalCollections > 0
-			? `Loaded ${loadedCollections} of ${totalCollections} saved collection${totalCollections === 1 ? '' : 's'}.`
-			: !userDataPathLoaded
-				? 'Locating the folder where TTSMM-EX stores settings and collections.'
-				: loadingConfig
-					? 'Checking stored paths and first-launch defaults before the workspace opens.'
-					: 'Checking the active collection and saved collection files.';
+	const { bootError, describedBootError, percent, statusLabel, statusDetail } = getConfigLoadingViewModel(state);
 
 	return (
 		<StartupScreen>

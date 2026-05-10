@@ -1,5 +1,5 @@
 import { MainColumnTitles, type DisplayModData, type MainCollectionConfig } from 'model';
-import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
+import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-selection';
 import { measurePerf } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
 import {

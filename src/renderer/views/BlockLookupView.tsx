@@ -14,7 +14,6 @@ import {
 	type SetStateAction
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useOutletContext } from 'react-router-dom';
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -50,12 +49,12 @@ import { formatErrorMessage } from 'renderer/util/error-message';
 import {
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
-	getConfiguredBlockLookupColumns,
 	moveBlockLookupColumnByKey,
 	setBlockLookupDraftColumnVisibility,
-	setBlockLookupDraftColumnWidth,
-	type BlockLookupColumnConfig
-} from 'renderer/view-config-persistence';
+	setBlockLookupDraftColumnWidth
+} from 'renderer/block-lookup-draft-config';
+import { getConfiguredBlockLookupColumns } from 'renderer/block-lookup-column-config';
+import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 import { useViewConfigCommands } from 'renderer/view-config-command';
 import {
 	BlockLookupHeaderCell,
@@ -1708,7 +1707,3 @@ function BlockLookupViewComponent(props: BlockLookupViewProps) {
 }
 
 export const BlockLookupView = memo(BlockLookupViewComponent);
-
-export default function BlockLookupRoute() {
-	return <BlockLookupView appState={useOutletContext<AppState>()} />;
-}

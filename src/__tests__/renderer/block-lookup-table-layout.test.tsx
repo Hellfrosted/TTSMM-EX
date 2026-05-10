@@ -14,7 +14,7 @@ import {
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
 } from '../../renderer/views/block-lookup-table-layout';
-import type { BlockLookupColumnConfig } from '../../renderer/view-config-persistence';
+import type { BlockLookupColumnConfig } from '../../renderer/block-lookup-column-definitions';
 
 afterEach(() => {
 	cleanup();
@@ -62,16 +62,16 @@ describe('block-lookup-table-layout', () => {
 	it('keeps responsive columns within constrained widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
-				createColumn({ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, width: 92, defaultWidth: 92, minWidth: 76 }),
-				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
 				createColumn({ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, width: 220, defaultWidth: 220, minWidth: 120 }),
+				createColumn({ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, width: 360, defaultWidth: 360, minWidth: 180 }),
+				createColumn({ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, width: 220, defaultWidth: 220, minWidth: 136 }),
 				createColumn({ key: 'modTitle', title: BlockLookupColumnTitles.MOD, width: 200, defaultWidth: 200, minWidth: 120 }),
-				createColumn({ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, width: 220, defaultWidth: 220, minWidth: 136 })
+				createColumn({ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, width: 92, defaultWidth: 92, minWidth: 76 })
 			],
 			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['preview', 'spawnCommand', 'blockName', 'modTitle']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['blockName', 'spawnCommand', 'internalName']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + resolveBlockLookupColumnWidth(column), 32)).toBeLessThanOrEqual(
 			560
 		);

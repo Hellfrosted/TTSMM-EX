@@ -5,16 +5,14 @@ import api from 'renderer/Api';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import { persistConfigChange } from 'renderer/util/config-write';
+import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
+import { moveBlockLookupColumn, setBlockLookupColumnWidth, setBlockLookupColumns } from 'renderer/block-lookup-view-config-commands';
 import {
-	moveBlockLookupColumn,
 	moveMainCollectionColumn,
-	setMainCollectionDetailsOverlaySize,
-	setBlockLookupColumnWidth,
-	setBlockLookupColumns,
 	setMainCollectionColumnVisibility,
-	setMainCollectionColumnWidth,
-	type BlockLookupColumnConfig
-} from 'renderer/view-config-persistence';
+	setMainCollectionColumnWidth
+} from 'renderer/main-view-config-columns';
+import { setMainCollectionDetailsOverlaySize } from 'renderer/main-view-config-size';
 import type { NotificationType } from './hooks/collections/useNotifications';
 
 interface PersistViewConfigChangeOptions {

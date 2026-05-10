@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ModType } from '../../model/Mod';
-import { SessionMods, getDependencies, getDependents, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
+import { validateCollection } from '../../model/collection-validator';
+import { SessionMods, getDependencies, getDependents, getDescriptor, setupDescriptors } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
 	it.each([

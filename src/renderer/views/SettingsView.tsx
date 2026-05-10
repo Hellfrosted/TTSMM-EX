@@ -12,7 +12,6 @@ import {
 } from 'react';
 import type { AppState } from 'model';
 import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
-import { useOutletContext } from 'react-router-dom';
 import { Edit3, Folder, Plus, X } from 'lucide-react';
 import {
 	DesktopButton,
@@ -898,7 +897,3 @@ function SettingsViewComponent(props: SettingsViewProps) {
 }
 
 export const SettingsView = memo(SettingsViewComponent);
-
-export default function SettingsRoute() {
-	return <SettingsView appState={useOutletContext<AppState>()} />;
-}

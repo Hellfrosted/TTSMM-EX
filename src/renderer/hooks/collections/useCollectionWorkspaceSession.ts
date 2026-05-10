@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
 import api from 'renderer/Api';
-import { getCollectionModDataList } from 'renderer/collection-mod-projection';
+import { getCollectionModDataList } from 'renderer/collection-mod-list';
 import {
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceWorkflowState,

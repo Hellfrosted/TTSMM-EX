@@ -20,16 +20,12 @@ import CollectionManagerToolbar from '../components/collections/CollectionManage
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
 import { PerfProfiler, markPerfInteraction } from '../perf';
-import {
-	filterCollectionRowsByTags,
-	getCollectionRowFilterTags,
-	getDisplayedCollectionRecord,
-	projectCollectionRowsWithErrors
-} from '../collection-mod-projection';
+import { filterCollectionRowsByTags, getCollectionRowFilterTags } from '../collection-mod-row-filter';
+import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../collection-mod-display';
 import { getCollectionLaunchCommandState } from '../collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { useViewConfigCommands } from '../view-config-command';
-import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../view-config-persistence';
+import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
 import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');

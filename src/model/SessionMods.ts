@@ -93,4 +93,3 @@ export function getByUID(session: SessionMods, uid: string) {
 export function getRows(session: SessionMods): ModData[] {
 	return [...session.modIdToModDataMap.values()];
 }
-export { validateCollection } from './collection-validator';

@@ -1,0 +1,19 @@
+{
+	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+	"entry": [
+		"scripts/after-pack-set-win-icon.cjs",
+		"scripts/check-native-dep.ts",
+		"scripts/electron-rebuild.ts",
+		"scripts/link-modules.ts",
+		"scripts/vite-dev.ts",
+		"src/__tests__/**/*.{ts,tsx}",
+		"src/main/main.ts",
+		"src/main/preload.ts",
+		"src/renderer/index.html",
+		"src/renderer/index.tsx",
+		"src/renderer/App.tailwind.css",
+		"test-support/**/*.ts"
+	],
+	"ignorePatterns": ["src/main/steamworks/types/**", "src/main/types/vendor.d.ts", "src/renderer/types/global.d.ts"],
+	"ignoreDependencies": ["electron-builder", "greenworks"]
+}

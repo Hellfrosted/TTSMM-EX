@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useState } from 'react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
-import { getCollectionModDataList } from 'renderer/collection-mod-projection';
+import { getCollectionModDataList } from 'renderer/collection-mod-list';
 import { markPerfInteraction } from 'renderer/perf';
 import { useCollectionWorkspaceSession } from 'renderer/hooks/collections/useCollectionWorkspaceSession';
 import { useGameLaunch } from 'renderer/hooks/collections/useGameLaunch';

@@ -1,9 +1,6 @@
 import { ModData, ModDescriptor } from './Mod';
 
 export enum ModErrorType {
-	NOT_SUBSCRIBED = 0,
-	NOT_INSTALLED = 1,
-	NEEDS_UPDATE = 2,
 	INVALID_ID = 3,
 	MISSING_DEPENDENCIES = 4,
 	INCOMPATIBLE_MODS = 5

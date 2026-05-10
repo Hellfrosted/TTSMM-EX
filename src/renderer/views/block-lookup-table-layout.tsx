@@ -10,7 +10,7 @@ import {
 	getVirtualTableScrollWidth,
 	setVirtualTableColumnWidthVariable
 } from 'renderer/virtual-table-geometry';
-import { DEFAULT_BLOCK_LOOKUP_COLUMNS, type BlockLookupColumnConfig } from 'renderer/view-config-persistence';
+import { DEFAULT_BLOCK_LOOKUP_COLUMNS, type BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 
 const BLOCK_LOOKUP_KEYBOARD_RESIZE_STEP = 16;
 const BLOCK_LOOKUP_HEADER_MENU_OPEN_EVENT = 'block-lookup-header-menu-open';
@@ -20,13 +20,13 @@ const BLOCK_LOOKUP_HEADER_MENU_VIEWPORT_PADDING = 8;
 export const BLOCK_LOOKUP_TABLE_PADDING_WIDTH = 32;
 
 const BLOCK_LOOKUP_RESPONSIVE_COLUMN_PRIORITY: BlockLookupColumnKey[] = [
-	'preview',
-	'spawnCommand',
 	'blockName',
+	'spawnCommand',
 	'internalName',
-	'modTitle'
+	'modTitle',
+	'preview'
 ];
-const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['preview', 'spawnCommand', 'blockName']);
+const BLOCK_LOOKUP_CORE_COLUMN_KEYS = new Set<BlockLookupColumnKey>(['blockName', 'spawnCommand']);
 const BLOCK_LOOKUP_FILL_WEIGHTS: Partial<Record<BlockLookupColumnKey, number>> = {
 	spawnCommand: 1.5,
 	blockName: 1,

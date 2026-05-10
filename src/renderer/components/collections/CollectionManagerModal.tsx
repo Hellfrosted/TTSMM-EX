@@ -20,7 +20,7 @@ import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'rende
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { persistConfigChange } from 'renderer/util/config-write';
-import { canSetMainColumnVisibility } from 'renderer/view-config-persistence';
+import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,

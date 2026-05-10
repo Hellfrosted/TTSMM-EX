@@ -15,7 +15,7 @@ import { MainColumnTitles } from 'model';
 import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
-import { canSetMainColumnVisibility } from 'renderer/view-config-persistence';
+import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
 import {
 	DEFAULT_SELECTION_COLUMN_WIDTH,
 	getColumnWidthStyle,

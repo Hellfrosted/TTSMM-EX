@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { BlockLookupColumnTitles, MainColumnTitles, type BlockLookupViewConfig, type MainCollectionConfig } from '../../model';
+import { canSetMainColumnVisibility } from '../../renderer/main-column-visibility';
+import { moveMainCollectionColumn } from '../../renderer/main-view-config-columns';
+import { normalizeMainCollectionConfig } from '../../renderer/main-view-config-normalize';
+import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
+import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
 import {
-	blockLookupColumnsToConfig,
-	canSetMainColumnVisibility,
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
-	getConfiguredBlockLookupColumns,
-	moveMainCollectionColumn,
-	normalizeMainCollectionConfig,
-	setMainCollectionDetailsOverlaySize,
 	setBlockLookupDraftColumnVisibility,
 	setBlockLookupDraftColumnWidth
-} from '../../renderer/view-config-persistence';
+} from '../../renderer/block-lookup-draft-config';
 
 describe('view-config-persistence', () => {
 	it('normalizes main collection config by dropping unknown columns and clamping widths', () => {
@@ -160,14 +159,14 @@ describe('view-config-persistence', () => {
 		const config: BlockLookupViewConfig = {
 			smallRows: true,
 			columnActiveConfig: {
-				[BlockLookupColumnTitles.BLOCK]: false,
+				blockName: false,
 				Legacy: false
 			},
 			columnWidthConfig: {
-				[BlockLookupColumnTitles.BLOCK]: 10,
+				blockName: 10,
 				Legacy: 999
 			},
-			columnOrder: ['Legacy', 'Source', 'Block ID', BlockLookupColumnTitles.INTERNAL_NAME, BlockLookupColumnTitles.BLOCK]
+			columnOrder: ['Legacy', 'source', 'blockId', 'internalName', 'blockName']
 		};
 
 		const columns = getConfiguredBlockLookupColumns(config);
@@ -175,9 +174,9 @@ describe('view-config-persistence', () => {
 		expect(columns.map((column) => column.title)).toEqual([
 			BlockLookupColumnTitles.INTERNAL_NAME,
 			BlockLookupColumnTitles.BLOCK,
-			BlockLookupColumnTitles.PREVIEW,
 			BlockLookupColumnTitles.SPAWN_COMMAND,
-			BlockLookupColumnTitles.MOD
+			BlockLookupColumnTitles.MOD,
+			BlockLookupColumnTitles.PREVIEW
 		]);
 		expect(columns.find((column) => column.title === BlockLookupColumnTitles.BLOCK)).toMatchObject({
 			visible: false,
@@ -209,7 +208,7 @@ describe('view-config-persistence', () => {
 		const draft = createBlockLookupTableOptionsDraft({
 			smallRows: true,
 			columnActiveConfig: {
-				[BlockLookupColumnTitles.BLOCK]: false
+				blockName: false
 			}
 		});
 
@@ -235,7 +234,7 @@ describe('view-config-persistence', () => {
 	it('updates and clears block lookup draft widths', () => {
 		const columns = getConfiguredBlockLookupColumns({
 			columnWidthConfig: {
-				[BlockLookupColumnTitles.BLOCK]: 220
+				blockName: 220
 			}
 		});
 

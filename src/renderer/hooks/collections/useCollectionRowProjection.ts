@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useDeferredValue, useMemo, useState } from 'react';
 import type { ModCollection, ModData, SessionMods } from 'model';
-import { filterCollectionRows, getCollectionRowsWithMissingSelections } from 'renderer/collection-mod-projection';
+import { filterCollectionRows } from 'renderer/collection-mod-row-filter';
+import { getCollectionRowsWithMissingSelections } from 'renderer/collection-mod-row-source';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 
 interface UseCollectionRowProjectionOptions {

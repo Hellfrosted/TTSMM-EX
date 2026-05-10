@@ -217,6 +217,7 @@ function stageSteamworksSdk(steamworksSdkPath: string) {
 	stageSteamworksSdkCompat(steamworksSdkPath);
 }
 
+// fallow-ignore-next-line unused-export
 export function linkModules() {
 	if (!fs.existsSync(releaseAppNodeModulesPath)) {
 		return;

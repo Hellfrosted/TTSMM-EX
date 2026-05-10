@@ -5,15 +5,12 @@ import {
 	filterCollectionRows,
 	filterCollectionRowsByTags,
 	getCollectionRowFilterTags,
-	getCollectionModDataList,
-	getCollectionRows,
-	getCollectionRowsWithMissingSelections,
-	getCollectionSelectionState,
-	getDisplayedCollectionRecord,
-	getVisibleCollectionRows,
-	projectCollectionRowsWithErrors,
-	setVisibleCollectionRowsSelected
-} from '../../renderer/collection-mod-projection';
+	getVisibleCollectionRows
+} from '../../renderer/collection-mod-row-filter';
+import { getCollectionModDataList } from '../../renderer/collection-mod-list';
+import { getCollectionRows, getCollectionRowsWithMissingSelections } from '../../renderer/collection-mod-row-source';
+import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../../renderer/collection-mod-display';
+import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from '../../renderer/collection-mod-selection';
 
 function sessionWithRows(rows: ModData[]) {
 	const session = new SessionMods('', rows);
