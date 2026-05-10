@@ -10,8 +10,8 @@ If you only want to run the app, download a release artifact for your distro and
 
 Windows:
 
-- Run `TerraTech Steam Mod Manager EX Setup <version>.exe`
-- Launch `TerraTech Steam Mod Manager EX` from the Start menu or the desktop shortcut after install
+- Run `TTSMM-EX Setup <version>.exe`
+- Launch `TTSMM-EX` from the Start menu or the desktop shortcut after install
 
 Debian or Ubuntu:
 
@@ -108,8 +108,8 @@ npm run package
 
 This produces:
 
-- `TerraTech Steam Mod Manager EX Setup <version>.exe`
-- `TerraTech Steam Mod Manager EX Setup <version>.exe.blockmap`
+- `TTSMM-EX Setup <version>.exe`
+- `TTSMM-EX Setup <version>.exe.blockmap`
 - `win-unpacked/`
 
 The Windows target is `nsis`. Installer resources come from `assets/icon.ico`.
@@ -120,15 +120,16 @@ Build Linux artifacts on Linux:
 
 ```bash
 npm run package
-npm run package:linux:deb
-npm run package:linux:pacman
+npm run package:linux -- deb
+npm run package:linux -- pacman
 ```
 
 Linux outputs:
 
 - `npm run package` on Linux uses the default configured Linux target, `AppImage`
-- `npm run package:linux:deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
-- `npm run package:linux:pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
+- `npm run package:linux` produces both Linux package formats, `deb` and `pacman`
+- `npm run package:linux -- deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
+- `npm run package:linux -- pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
 
 Install and run:
 
@@ -160,8 +161,8 @@ The pacman target needs `bsdtar`.
 
 ## Scripts
 
+- `npm run help`: list root and `release/app` npm scripts
 - `npm run dev`: development app
-- `npm run start`: alias for `npm run dev`
 - `npm run start:desktop`: build and launch the production desktop entrypoint
 - `npm run lint`: ESLint
 - `npm run lint:fix`: ESLint with autofix
@@ -173,11 +174,12 @@ The pacman target needs `bsdtar`.
 - `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`
 - `npm run package`: package for the current platform default target
-- `npm run package:linux:deb`: build the Debian package
-- `npm run package:linux:pacman`: build the pacman package
 - `npm run package:linux`: build both Linux package formats
+- `npm run package:linux -- deb`: build the Debian package
+- `npm run package:linux -- pacman`: build the pacman package
 - `npm run publish`: package for tag or draft publishing
-- `npm run only-publish`: run Electron Builder publish directly
-- `npm run patch`: patch version bump
-- `npm run minor`: minor version bump
-- `npm run major`: major version bump
+- `npm run bump -- patch`: patch version bump
+- `npm run bump -- minor`: minor version bump
+- `npm run bump -- major`: major version bump
+- `npm --prefix release/app run electron-rebuild`: rebuild the packaged app native modules
+- `npm --prefix release/app run link-modules`: relink packaged app modules

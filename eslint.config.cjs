@@ -7,6 +7,9 @@ const reactHooksPlugin = require('eslint-plugin-react-hooks');
 const jsxA11yPlugin = require('eslint-plugin-jsx-a11y');
 const promisePlugin = require('eslint-plugin-promise');
 const importPlugin = require('eslint-plugin-import');
+const packageJson = require('./package.json');
+
+const reactVersion = packageJson.dependencies?.react?.replace(/^[^\d]*/, '') || 'detect';
 
 module.exports = [
 	{
@@ -27,8 +30,24 @@ module.exports = [
 	...tsPlugin.configs['flat/recommended'],
 	importPlugin.flatConfigs.recommended,
 	importPlugin.flatConfigs.typescript,
-	reactPlugin.configs.flat.recommended,
-	reactPlugin.configs.flat['jsx-runtime'],
+	{
+		...reactPlugin.configs.flat.recommended,
+		settings: {
+			...reactPlugin.configs.flat.recommended.settings,
+			react: {
+				version: reactVersion
+			}
+		}
+	},
+	{
+		...reactPlugin.configs.flat['jsx-runtime'],
+		settings: {
+			...reactPlugin.configs.flat['jsx-runtime'].settings,
+			react: {
+				version: reactVersion
+			}
+		}
+	},
 	reactHooksPlugin.configs.flat.recommended,
 	jsxA11yPlugin.flatConfigs.recommended,
 	promisePlugin.configs['flat/recommended'],
@@ -51,13 +70,13 @@ module.exports = [
 		},
 		settings: {
 			react: {
-				version: 'detect'
+				version: reactVersion
 			},
 			'import/core-modules': ['electron/main', 'electron/common', 'electron/renderer'],
 			'import/resolver': {
 				node: true,
 				typescript: {
-					project: './tsconfig.json'
+					project: ['./tsconfig.renderer.json', './tsconfig.main.json', './tsconfig.preload.json']
 				}
 			}
 		},

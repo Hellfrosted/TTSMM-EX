@@ -4,6 +4,7 @@ import { app, IpcMain } from 'electron';
 import log from 'electron-log';
 
 import { AppConfig, LogLevel, ModDataOverride, ModErrorType, ValidChannel } from '../../model';
+import { writeUtf8FileAtomic } from '../storage';
 
 export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
 	log.transports.file.level = level;
@@ -53,8 +54,9 @@ export function readConfigFile(filepath: string, isDevelopment: boolean): AppCon
 		}
 		return appConfig as AppConfig;
 	} catch (error) {
+		log.error(`Failed to read config file at ${filepath}`);
 		log.error(error);
-		return null;
+		throw new Error(`Failed to load config file "${filepath}"`);
 	}
 }
 
@@ -70,10 +72,7 @@ export function writeConfigFile(filepath: string, config: AppConfig): boolean {
 		if (config.workshopID) {
 			serializedConfig.workshopID = config.workshopID.toString();
 		}
-		fs.writeFileSync(filepath, JSON.stringify(serializedConfig, null, 4), {
-			encoding: 'utf8',
-			flag: 'w'
-		});
+		writeUtf8FileAtomic(filepath, JSON.stringify(serializedConfig, null, 4));
 		return true;
 	} catch (error) {
 		log.error(error);

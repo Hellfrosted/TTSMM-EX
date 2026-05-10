@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { beforeEach, vi } from 'vitest';
+import { SessionMods } from './src/model';
 
 const noop = () => undefined;
 
@@ -31,7 +32,8 @@ function createElectronMock() {
 		selectPath: vi.fn(async () => null),
 		launchGame: vi.fn(async () => true),
 		isGameRunning: vi.fn(async () => false),
-		readModMetadata: vi.fn(async () => null),
+		readModMetadata: vi.fn(async () => new SessionMods('', [])),
+		fetchWorkshopDependencies: vi.fn(async () => true),
 		steamworksInited: vi.fn(async () => ({ inited: true })),
 		downloadMod: vi.fn(async () => true),
 		subscribeMod: vi.fn(async () => true),
@@ -57,6 +59,15 @@ Object.defineProperty(globalThis, 'TextDecoder', {
 });
 
 if (typeof window !== 'undefined') {
+	const originalGetComputedStyle = window.getComputedStyle.bind(window);
+
+	Object.defineProperty(window, 'getComputedStyle', {
+		value: ((element: Element, pseudoElt?: string | null) =>
+			originalGetComputedStyle(element, pseudoElt && pseudoElt.length > 0 ? null : pseudoElt ?? null)) as typeof window.getComputedStyle,
+		writable: true,
+		configurable: true
+	});
+
 	Object.defineProperty(window, 'electron', {
 		value: createElectronMock(),
 		writable: true,

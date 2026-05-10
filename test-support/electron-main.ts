@@ -7,7 +7,7 @@ export const app = {
 	whenReady: vi.fn(() => Promise.resolve()),
 	isPackaged: false,
 	getVersion: vi.fn(() => '2.0.0'),
-	getName: vi.fn(() => 'TerraTech Steam Mod Manager EX')
+	getName: vi.fn(() => 'TTSMM-EX')
 };
 
 export class WebContents {

@@ -170,4 +170,161 @@ describe('useCollections', () => {
 		expect(result.current.madeEdits).toBe(false);
 		expect(appState.activeCollection).toEqual(altCollection);
 	});
+
+	it('does not switch active collections when persisting the new selection fails', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const altCollection = { name: 'alt', mods: ['local:mod-a'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['alt', altCollection]
+			]),
+			allCollectionNames: new Set(['default', 'alt']),
+			activeCollection: defaultCollection
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.changeActiveCollection('alt');
+		});
+
+		expect(appState.activeCollection).toEqual(defaultCollection);
+		expect(appState.config.activeCollection).toBe('default');
+	});
+
+	it('rolls back a new collection when activating it fails to persist', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.createNewCollection('fresh');
+		});
+
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'fresh', mods: [] });
+		expect(window.electron.deleteCollection).toHaveBeenCalledWith('fresh');
+		expect(appState.allCollections.has('fresh')).toBe(false);
+		expect(appState.activeCollection).toEqual(defaultCollection);
+		expect(appState.config.activeCollection).toBe('default');
+	});
+
+	it('rolls back a rename when the active collection config update fails', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.renameCollection('renamed');
+		});
+
+		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(1, { name: 'default', mods: ['local:dirty'] }, 'renamed');
+		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(2, { name: 'renamed', mods: ['local:dirty'] }, 'default');
+		expect(appState.activeCollection).toEqual(defaultCollection);
+		expect(appState.config.activeCollection).toBe('default');
+		expect(appState.allCollections.has('renamed')).toBe(false);
+	});
+
+	it('restores a deleted collection when selecting the replacement fails to persist', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'archived',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['archived', archivedCollection]
+			]),
+			allCollectionNames: new Set(['default', 'archived']),
+			activeCollection: archivedCollection
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.deleteCollection();
+		});
+
+		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'archived', mods: ['local:dirty'] });
+		expect(appState.activeCollection).toEqual(archivedCollection);
+		expect(appState.config.activeCollection).toBe('archived');
+		expect(appState.allCollections.has('archived')).toBe(true);
+	});
+
+	it('deletes the default collection from disk when another collection remains', async () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['archived', archivedCollection]
+			]),
+			allCollectionNames: new Set(['default', 'archived']),
+			activeCollection: defaultCollection
+		});
+
+		const { result } = renderCollectionsHook(appState);
+
+		await act(async () => {
+			await result.current.deleteCollection();
+		});
+
+		expect(window.electron.deleteCollection).toHaveBeenCalledWith('default');
+		expect(appState.activeCollection).toEqual(archivedCollection);
+		expect(appState.config.activeCollection).toBe('archived');
+		expect(appState.allCollections.has('default')).toBe(false);
+	});
 });

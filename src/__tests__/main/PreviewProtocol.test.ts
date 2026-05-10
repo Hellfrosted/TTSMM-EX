@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearPreviewAllowlist, registerPreviewImage, resolvePreviewImageRequest } from '../../main/preview-protocol';
 import { createTempDir } from './test-utils';
 
@@ -46,5 +46,18 @@ describe('preview protocol', () => {
 
 		clearPreviewAllowlist();
 		expect(resolvePreviewImageRequest(previewUrl)).toBeNull();
+	});
+
+	it('rejects preview registrations whose real path escapes the mod directory', () => {
+		const previewPath = path.join(tempDir, 'KnownMod', 'preview.png');
+		const escapedPreviewPath = path.join(tempDir, 'OtherMod', 'preview.png');
+		fs.mkdirSync(path.dirname(previewPath), { recursive: true });
+		fs.writeFileSync(previewPath, 'preview');
+
+		const realpathSpy = vi.spyOn(fs, 'realpathSync').mockReturnValue(escapedPreviewPath);
+
+		expect(registerPreviewImage(previewPath)).toBeUndefined();
+
+		realpathSpy.mockRestore();
 	});
 });

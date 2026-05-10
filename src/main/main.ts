@@ -14,7 +14,13 @@ import { createMainWindow } from './window';
 
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 const FORK_APP_ID = 'com.hellfrosted.ttsmmex';
+// Keep the existing userData directory name so upgrades do not split stored config and collections.
 const FORK_USER_DATA_DIR = 'TerraTech Steam Mod Manager EX';
+const ELECTRON_NODE_MODE_HINT = [
+	'Electron main-process APIs are unavailable.',
+	'This usually means ELECTRON_RUN_AS_NODE leaked into the launch environment.',
+	'Start the app with npm run dev or npm run start:desktop, or unset ELECTRON_RUN_AS_NODE before launching Electron directly.'
+].join(' ');
 
 class ApplicationLogging {
 	constructor() {
@@ -28,6 +34,10 @@ let mainWindow: BrowserWindow | null = null;
 let steamworksInited = false;
 let steamworksError: string | undefined;
 let previewProtocolRegistered = false;
+
+if (!app || typeof app.setPath !== 'function') {
+	throw new Error(ELECTRON_NODE_MODE_HINT);
+}
 
 app.setPath('userData', path.join(app.getPath('appData'), FORK_USER_DATA_DIR));
 if (process.platform === 'win32') {

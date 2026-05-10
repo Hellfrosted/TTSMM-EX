@@ -46,7 +46,8 @@ export function validateCollectionName(name: string): string | undefined {
 		return 'Collection name cannot contain path separators or reserved characters';
 	}
 
-	if (WINDOWS_RESERVED_COLLECTION_NAMES.has(name.toUpperCase())) {
+	const reservedNameCandidate = name.split('.')[0]?.replace(/[ .]+$/g, '').toUpperCase();
+	if (reservedNameCandidate && WINDOWS_RESERVED_COLLECTION_NAMES.has(reservedNameCandidate)) {
 		return 'Collection name cannot use a reserved Windows device name';
 	}
 

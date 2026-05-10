@@ -15,6 +15,7 @@ function ConfigLoadingHarness() {
 			<div data-testid="location">{location.pathname}</div>
 			<div data-testid="active-collection">{appState.activeCollection?.name || ''}</div>
 			<div data-testid="config-active-collection">{appState.config.activeCollection || ''}</div>
+			<div data-testid="config-game-exec">{appState.config.gameExec || ''}</div>
 			<div data-testid="loading-mods">{String(appState.loadingMods)}</div>
 			<ConfigLoading />
 		</>
@@ -32,6 +33,10 @@ function ConfigLoadingAppHarness() {
 }
 
 describe('ConfigLoading', () => {
+	it('uses the corrected default Windows executable path', () => {
+		expect(DEFAULT_CONFIG.gameExec).toBe('C:\\Program Files (x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
+	});
+
 	it('loads config and collections through the provider-owned boot flow', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
@@ -75,9 +80,38 @@ describe('ConfigLoading', () => {
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ gameExec: discoveredExecutable }));
+			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'default', mods: [] });
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'default' }));
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('default');
 		});
+	});
+
+	it('does not keep an auto-discovered executable in memory when persisting it fails', async () => {
+		const discoveredExecutable = 'D:\\SteamLibrary\\steamapps\\common\\TerraTech\\TerraTechWin64.exe';
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(null);
+		vi.mocked(window.electron.discoverGameExecutable).mockResolvedValueOnce(discoveredExecutable);
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['default']);
+		vi.mocked(window.electron.readCollection).mockResolvedValueOnce({ name: 'default', mods: [] });
+		vi.mocked(window.electron.updateConfig)
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(true);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledTimes(2);
+			expect(screen.getAllByTestId('config-game-exec').at(-1)).toHaveTextContent(DEFAULT_CONFIG.gameExec);
+		});
+
+		expect(window.electron.updateConfig).toHaveBeenNthCalledWith(2, expect.objectContaining({ gameExec: DEFAULT_CONFIG.gameExec }));
 	});
 
 	it('boots Linux with a blank game executable without redirecting to settings', async () => {
@@ -240,9 +274,167 @@ describe('ConfigLoading', () => {
 		);
 
 		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'alpha' }));
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
 			expect(screen.getAllByTestId('config-active-collection').at(-1)).toHaveTextContent('alpha');
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
 		});
+	});
+
+	it('starts reading saved collections in parallel during boot', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['zeta', 'alpha']);
+
+		let resolveZeta!: (value: { name: string; mods: never[] }) => void;
+		let resolveAlpha!: (value: { name: string; mods: never[] }) => void;
+		const zetaPromise = new Promise<{ name: string; mods: never[] }>((resolve) => {
+			resolveZeta = resolve;
+		});
+		const alphaPromise = new Promise<{ name: string; mods: never[] }>((resolve) => {
+			resolveAlpha = resolve;
+		});
+		vi.mocked(window.electron.readCollection).mockImplementation((collectionName: string) => {
+			return collectionName === 'zeta' ? zetaPromise : alphaPromise;
+		});
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(window.electron.readCollection).toHaveBeenCalledTimes(2);
+		});
+
+		resolveZeta({ name: 'zeta', mods: [] });
+		resolveAlpha({ name: 'alpha', mods: [] });
+
+		await waitFor(() => {
+			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
+			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
+		});
+	});
+
+	it('halts boot when persisting a repaired active collection fails', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['zeta', 'alpha']);
+		vi.mocked(window.electron.readCollection)
+			.mockResolvedValueOnce({ name: 'zeta', mods: [] })
+			.mockResolvedValueOnce({ name: 'alpha', mods: [] });
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText('Failed to persist repaired active collection alpha')).toBeInTheDocument();
+		});
+
+		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
+		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
+		expect(screen.getAllByTestId('config-active-collection').at(-1)).toHaveTextContent('');
+	});
+
+	it('halts boot when persisting the default collection fails', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
+		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce(false);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText('Failed to persist the default collection during boot')).toBeInTheDocument();
+		});
+
+		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
+		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
+		expect(window.electron.updateConfig).not.toHaveBeenCalled();
+	});
+
+	it('halts boot and surfaces a collection load error instead of creating a fallback collection', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+			...DEFAULT_CONFIG,
+			currentPath: '/collections/main',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		});
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce(['broken']);
+		vi.mocked(window.electron.readCollection).mockRejectedValueOnce(new Error('Failed to load collection "broken"'));
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText('Error: Failed to load collection "broken"')).toBeInTheDocument();
+		});
+
+		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
+		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
+		expect(window.electron.updateCollection).not.toHaveBeenCalled();
+	});
+
+	it('halts boot and surfaces a config load error instead of treating it as first launch', async () => {
+		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"'));
+		vi.mocked(window.electron.readCollectionsList).mockResolvedValueOnce([]);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/config']}>
+				<Routes>
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText('Error: Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')).toBeInTheDocument();
+		});
+
+		expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/loading/config');
+		expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('');
+		expect(window.electron.discoverGameExecutable).not.toHaveBeenCalled();
+		expect(window.electron.updateCollection).not.toHaveBeenCalled();
 	});
 });

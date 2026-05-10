@@ -1,16 +1,36 @@
-@text-color-dark: rgba(242, 237, 230, 0.88);
-@text-color-muted: rgba(242, 237, 230, 0.58);
-@layout-header-background: #131517;
-@surface-color: #1b1f24;
-@surface-color-alt: #171b20;
-@surface-color-elevated: #20252b;
-@border-color: #2b323a;
+@body-font-family: var(--app-font-body);
+@display-font-family: var(--app-font-display);
+@control-height: var(--app-control-height);
+@text-color-dark: var(--app-color-text);
+@text-color-muted: var(--app-color-text-muted);
+@layout-header-background: var(--app-color-background);
+@surface-color: var(--app-color-surface);
+@surface-color-alt: var(--app-color-surface-alt);
+@surface-color-elevated: var(--app-color-surface-elevated);
+@border-color: var(--app-color-border);
 @shadow-color: rgba(255, 255, 255, 0.06);
-@background-color-light: #2f2f2f;
+@background-color-light: color-mix(in srgb, var(--app-color-background) 82%, white);
 @disabled-color: rgba(255, 255, 255, 0.26);
-@accent-color: #b65b47;
-@accent-color-hover: #c9735d;
-@accent-color-active: #9c4d3c;
+@accent-color: var(--app-color-primary);
+@accent-color-hover: var(--app-color-primary-hover);
+@accent-color-active: var(--app-color-primary-active);
+@success-color: var(--app-color-success);
+@warning-color: var(--app-color-warning);
+@error-color: var(--app-color-error);
+@focus-ring-color: color-mix(in srgb, var(--app-color-primary-hover) 34%, transparent);
+@workshop-accent-color: color-mix(in srgb, var(--app-color-primary) 76%, white);
+@tag-blue-text: color-mix(in srgb, var(--app-color-primary) 62%, white);
+@tag-blue-bg: color-mix(in srgb, var(--app-color-primary) 16%, transparent);
+@tag-blue-border: color-mix(in srgb, var(--app-color-primary) 30%, transparent);
+@tag-green-text: color-mix(in srgb, var(--app-color-success) 62%, white);
+@tag-green-bg: color-mix(in srgb, var(--app-color-success) 16%, transparent);
+@tag-green-border: color-mix(in srgb, var(--app-color-success) 30%, transparent);
+@tag-red-text: color-mix(in srgb, var(--app-color-error) 62%, white);
+@tag-red-bg: color-mix(in srgb, var(--app-color-error) 16%, transparent);
+@tag-red-border: color-mix(in srgb, var(--app-color-error) 30%, transparent);
+@tag-warning-text: color-mix(in srgb, var(--app-color-warning) 62%, white);
+@tag-warning-bg: color-mix(in srgb, var(--app-color-warning) 16%, transparent);
+@tag-warning-border: color-mix(in srgb, var(--app-color-warning) 30%, transparent);
 
 html {
 	height: 100vh;
@@ -22,12 +42,19 @@ html {
 	width: 100%;
 }
 
-body {
-	position: relative;
-	color: white;
+.AppRoot {
 	height: 100%;
 	width: 100%;
-	font-family: Bahnschrift, Tahoma, sans-serif;
+}
+
+body {
+	position: relative;
+	color: @text-color-dark;
+	height: 100%;
+	width: 100%;
+	font-family: @body-font-family;
+	font-kerning: normal;
+	text-rendering: optimizeLegibility;
 	margin: 0;
 	overflow-y: hidden;
 	overflow-x: hidden;
@@ -76,7 +103,6 @@ body {
 	transition:
 		opacity 140ms ease,
 		visibility 0s linear 140ms;
-	will-change: opacity;
 }
 
 .AppViewStage.is-active,
@@ -101,7 +127,6 @@ body {
 .CollectionSplitDetailsPane {
 	min-width: 0;
 	min-height: 0;
-	will-change: opacity;
 }
 
 .CollectionSplitDetailsPane--side {
@@ -128,6 +153,59 @@ body {
 	background-color: rgba(255, 255, 255, 0.04);
 }
 
+.CollectionNameButton:focus-visible {
+	outline: none;
+	background-color: color-mix(in srgb, var(--app-color-primary) 12%, transparent);
+	box-shadow: inset 0 0 0 2px @focus-ring-color;
+}
+
+.CollectionTableHeaderCell {
+	min-width: 0;
+	width: 100%;
+}
+
+.CollectionTableHeaderContextTarget {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+.CollectionTableResizeHandle {
+	position: absolute;
+	top: 0;
+	right: -14px;
+	width: 28px;
+	height: 100%;
+	cursor: col-resize;
+	z-index: 2;
+	outline: none;
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
+.CollectionTableResizeHandle::after {
+	content: '';
+	position: absolute;
+	top: 18%;
+	bottom: 18%;
+	left: 50%;
+	width: 2px;
+	background: rgba(242, 237, 230, 0.18);
+	transform: translateX(-50%);
+	transition: background-color 120ms ease;
+}
+
+.CollectionTableResizeHandle:focus-visible {
+	border-radius: 6px;
+	box-shadow: inset 0 0 0 2px @focus-ring-color;
+}
+
+th:hover .CollectionTableResizeHandle::after,
+.CollectionTableResizeHandle:focus-visible::after {
+	background: color-mix(in srgb, var(--app-color-primary-hover) 82%, transparent);
+}
+
 li {
 	list-style: none;
 }
@@ -142,15 +220,6 @@ a {
 a:hover {
 	opacity: 1;
 	text-decoration: none;
-}
-
-.Hello {
-	display: flex;
-	height: 100vh;
-	width: 100vw;
-	justify-content: center;
-	align-items: center;
-	min-width: 0;
 }
 
 .ant-form-item-label label {
@@ -170,7 +239,7 @@ a:hover {
 }
 
 .MenuBar {
-	background: #111315 !important;
+	background: var(--app-color-sider) !important;
 	border-right: 1px solid @border-color;
 }
 
@@ -180,7 +249,8 @@ a:hover {
 }
 
 #MenuBar li.ant-menu-item {
-	height: 44px;
+	height: calc(@control-height + 8px);
+	line-height: calc(@control-height + 8px);
 	margin-block: 4px;
 	margin-inline: 10px;
 	width: auto;
@@ -188,8 +258,11 @@ a:hover {
 }
 
 #MenuBar .ant-menu-item .ant-menu-title-content {
-	font-size: 14px;
-	font-weight: 500;
+	font-family: @display-font-family;
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
 }
 
 #MenuBar .ant-menu-item .anticon {
@@ -213,6 +286,24 @@ a:hover {
 	padding: 20px 24px 0;
 }
 
+.SettingsHeader .ant-typography,
+.CollectionHeader .ant-typography,
+.StartupCard .ant-typography,
+.CollectionSettingsModal .ant-modal-title,
+.CollectionOverrideModal .ant-modal-title,
+.CollectionValidationModal .ant-modal-title,
+.ModDetailFooterHeader .ant-typography {
+	font-family: @display-font-family;
+	font-kerning: normal;
+	letter-spacing: 0.01em;
+}
+
+.SettingsIntro {
+	margin-top: 8px;
+	margin-bottom: 0;
+	max-width: 70ch;
+}
+
 .SettingsForm {
 	margin: 20px 24px 24px;
 	align-content: center;
@@ -224,15 +315,115 @@ a:hover {
 	background: @surface-color;
 	border: 1px solid @border-color;
 	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.SettingsPane .ant-form-item:last-child {
+	margin-bottom: 0;
+}
+
+.SettingsPaneColumn {
+	display: flex;
+}
+
+.SettingsPaneColumn > .SettingsPane {
+	flex: 1 1 auto;
 }
 
 .Settings .ant-form-item-label > label.ant-form-item-required::before {
-	color: #ff4d4f !important;
+	color: @error-color !important;
 }
 
 .MainFooter {
 	background: @surface-color-alt;
 	border-top: 1px solid @border-color;
+}
+
+.StartupShell {
+	display: flex;
+	flex: 1 1 auto;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: @layout-header-background;
+}
+
+.StartupContent {
+	flex: 1 1 auto;
+	display: flex;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 32px 24px;
+	box-sizing: border-box;
+	overflow: auto;
+}
+
+.StartupCard {
+	width: min(680px, 100%);
+	padding: 28px 28px 24px;
+	background: @surface-color;
+	border: 1px solid @border-color;
+	border-radius: 16px;
+	box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+}
+
+.StartupCard--wide {
+	width: min(760px, 100%);
+	padding: 28px;
+}
+
+.StartupIntro {
+	margin-bottom: 20px;
+	color: @text-color-muted;
+}
+
+.StartupStatusCard {
+	padding: 14px 16px;
+	background: @surface-color-alt;
+	border: 1px solid @border-color;
+	border-radius: 12px;
+}
+
+.StartupStatusCard.is-error {
+	border-color: @error-color;
+}
+
+.StartupStatusTitle {
+	display: block;
+	margin-bottom: 4px;
+}
+
+.StartupStatusDetail {
+	color: @text-color-muted;
+}
+
+.StartupProgress {
+	margin-top: 16px;
+}
+
+.StartupActions {
+	margin-top: 16px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-start;
+}
+
+.StartupActions.ant-row {
+	margin-top: 16px !important;
+}
+
+.StartupHeroArtwork {
+	display: flex;
+	align-items: center;
 }
 
 ::-webkit-scrollbar {
@@ -249,17 +440,6 @@ a:hover {
 ::-webkit-scrollbar-thumb {
   background-color: @disabled-color;    /* color of the scroll thumb */
   border-radius: 6px;       /* roundness of the scroll thumb */
-}
-
-.image-hover {
-  transition: .5s ease;
-  opacity: 0;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  -ms-transform: translate(-50%, -50%);
-  text-align: center;
 }
 
 .image {
@@ -303,27 +483,43 @@ a:hover {
 	gap: 12px;
 }
 
+.CollectionToolbarPrimaryBar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12px 16px;
+}
+
+.CollectionToolbarCollectionSelector {
+	flex: 0 1 280px;
+	min-width: 220px;
+	max-width: 360px;
+}
+
 .CollectionToolbarRow {
 	margin: 0 !important;
 }
 
 .CollectionToolbarSearch,
-.CollectionToolbarMeta,
-.CollectionToolbarActionCol {
+.CollectionToolbarMeta {
 	display: flex;
 	align-items: center;
-	min-height: 34px;
-}
-
-.CollectionToolbarActionCol {
-	justify-content: flex-end;
-	align-self: center;
+	min-height: @control-height;
 }
 
 .CollectionToolbarActions {
 	display: inline-flex;
 	align-items: center;
-	min-height: 34px;
+	flex-wrap: wrap;
+	min-height: 38px;
+}
+
+.CollectionToolbarActions--primary {
+	flex: 1 1 auto;
+}
+
+.CollectionToolbarActions--secondary {
+	justify-content: flex-end;
 }
 
 .CollectionToolbarActions .ant-space-item {
@@ -347,12 +543,24 @@ a:hover {
 	align-items: center;
 }
 
+.CollectionToolbarMeta {
+	justify-content: flex-end;
+	color: @text-color-muted;
+}
+
+.CollectionTypeIndicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+}
+
 .CollectionToolbar .ant-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
-	height: 34px;
+	min-height: @control-height;
 	padding-top: 0;
 	padding-bottom: 0;
 	line-height: 1;
@@ -376,7 +584,7 @@ a:hover {
 }
 
 .ant-btn {
-	font-weight: 500;
+	font-weight: 600;
 	box-shadow: none !important;
 }
 
@@ -401,7 +609,7 @@ a:hover {
 }
 
 .ant-btn-dangerous {
-	color: #f1d7d3;
+	color: color-mix(in srgb, var(--app-color-error) 62%, white);
 }
 
 .ant-btn-default,
@@ -434,37 +642,45 @@ a:hover {
 	font-weight: 500;
 }
 
+.CollectionToolbarMeta,
+.StartupStatusDetail,
+.ant-descriptions,
+.ant-table,
+.ant-progress-text {
+	font-variant-numeric: tabular-nums;
+}
+
 .ant-tag-blue,
 .ant-tag-geekblue,
 .ant-tag-cyan {
-	color: #e7d5cf;
-	background: #3a2621;
-	border-color: #5c3a33;
+	color: @tag-blue-text;
+	background: @tag-blue-bg;
+	border-color: @tag-blue-border;
 }
 
 .ant-tag-green,
 .ant-tag-success {
-	color: #dce8da;
-	background: #263327;
-	border-color: #445c45;
+	color: @tag-green-text;
+	background: @tag-green-bg;
+	border-color: @tag-green-border;
 }
 
 .ant-tag-red,
 .ant-tag-error,
 .ant-tag-volcano,
 .ant-tag-magenta {
-	color: #f0d6d3;
-	background: #382423;
-	border-color: #66403d;
+	color: @tag-red-text;
+	background: @tag-red-bg;
+	border-color: @tag-red-border;
 }
 
 .ant-tag-orange,
 .ant-tag-gold,
 .ant-tag-yellow,
 .ant-tag-warning {
-	color: #ecdcc9;
-	background: #392d22;
-	border-color: #6b5440;
+	color: @tag-warning-text;
+	background: @tag-warning-bg;
+	border-color: @tag-warning-border;
 }
 
 .ModDetailFooterPreview .ant-card-body {
@@ -511,7 +727,7 @@ a:hover {
 	h1,
 	h2,
 	h3 {
-		color: #d3b197;
+		color: @workshop-accent-color;
 		font-weight: 400;
 		line-height: 1.15;
 		margin-top: 0;
@@ -531,7 +747,7 @@ a:hover {
 	}
 
 	a {
-		color: #d3b197;
+		color: @workshop-accent-color;
 		text-decoration: underline;
 		margin: 0;
 	}
@@ -541,7 +757,7 @@ a:hover {
 		margin: 12px 0;
 		padding: 12px 16px;
 		background: rgba(255, 255, 255, 0.04);
-		border-left: 3px solid rgba(211, 177, 151, 0.45);
+		border: 1px solid color-mix(in srgb, @workshop-accent-color 32%, transparent);
 		border-radius: 6px;
 	}
 
@@ -605,33 +821,177 @@ a:hover {
 	padding: 0px;
 }
 
-.ModDetailDependenceis .ant-collapse-item .ant-collapse-header {
+.ModDetailDependencies .ant-collapse-item .ant-collapse-header {
 	padding-top: 4px;
 	padding-bottom: 4px;
 	padding-left: 8px;
 }
 
-.CollectionSettings .ant-form-item-control {
-	align-items: flex-end
+.CollectionValidationModal .ant-modal,
+.CollectionSettingsModal .ant-modal,
+.CollectionOverrideModal .ant-modal {
+	max-width: calc(100vw - 32px);
 }
 
-.CollectionColumnSelection .ant-form-item {
-	margin-bottom: 4px;
+.CollectionSettingsModalWrap {
+	padding: 68px 12px 12px;
+}
+
+.CollectionSettingsModalWrap .ant-modal {
+	top: 0;
+	padding-bottom: 0;
+	margin-bottom: 0;
+}
+
+.CollectionSettingsModalWrap .ant-modal-content {
+	max-height: calc(100vh - 92px);
+}
+
+.CollectionModalIntro {
+	margin-bottom: 16px;
+}
+
+.CollectionSettingsForm,
+.ModOverrideForm {
 	margin-top: 4px;
-	margin-left: 4px;
-	padding-left: 12px;
-	padding-right: 12px;
-	border-top-width: 1px;
-	border-top-style: solid;
-	border-top-color: rgba(255, 255, 255, 0.12);
 }
 
-.CollectionColumnSelection .ant-form-item-label label {
-	font-size: 14px;
+.CollectionSettingsForm--dense {
+	margin-top: 0;
+	display: grid;
+	gap: 12px;
+	width: fit-content;
+	max-width: 100%;
 }
 
-.CollectionSettings .MiscAppSettings {
-	margin-bottom: 20px;
+.CollectionSettingsModal .ant-modal-header {
+	margin-bottom: 8px;
+}
+
+.CollectionSettingsModal .ant-modal-body {
+	padding-top: 10px;
+	padding-bottom: 12px;
+}
+
+.CollectionSettingsTopBar {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 16px;
+	width: 100%;
+	margin-bottom: 0;
+}
+
+.CollectionSettingsTopCopy {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.CollectionSettingsTopCopy .ant-typography {
+	margin: 0;
+}
+
+.CollectionSettingsToggleCard {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+}
+
+.CollectionSettingsToggleCopy {
+	min-width: 0;
+}
+
+.CollectionSettingsColumnsHeader {
+	display: grid;
+	grid-template-columns: repeat(2, 336px);
+	gap: 20px;
+	width: max-content;
+	max-width: 100%;
+	padding: 0 0 2px;
+}
+
+.CollectionSettingsColumnsHeaderGroup {
+	display: grid;
+	grid-template-columns: 132px 52px 136px;
+	align-items: center;
+	gap: 8px;
+}
+
+.CollectionSettingsColumnsHeader .ant-typography {
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.CollectionSettingsColumnsHeader .ant-typography:nth-child(2),
+.CollectionSettingsColumnsHeader .ant-typography:nth-child(3) {
+	justify-self: start;
+}
+
+.CollectionSettingsColumnsList {
+	display: grid;
+	grid-template-columns: repeat(2, 336px);
+	gap: 8px 20px;
+	width: max-content;
+	max-width: 100%;
+}
+
+.CollectionSettingsColumnRow {
+	display: grid;
+	grid-template-columns: 132px 52px 136px;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+}
+
+.CollectionSettingsColumnLabel {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.CollectionSettingsColumnLabel .ant-typography {
+	margin: 0;
+}
+
+.CollectionSettingsColumnHint {
+	font-size: 12px;
+	line-height: 1.35;
+}
+
+.CollectionSettingsColumnSwitch {
+	display: flex;
+	justify-content: flex-start;
+	width: 52px;
+}
+
+.CollectionSettingsColumnWidth {
+	width: 136px;
+	max-width: 136px;
+}
+
+.ModOverridesPane {
+	height: 100%;
+	padding: 16px 18px;
+	background: @surface-color-alt;
+	border: 1px solid @border-color;
+	border-radius: 10px;
+}
+
+.ModOverridesPane .ant-form-item:last-child {
+	margin-bottom: 0;
+}
+
+.ModDetailFooterHeaderActions {
+	flex-wrap: wrap;
+	justify-content: flex-end;
 }
 
 .ant-table.ant-table-small td.ant-table-cell.CollectionRowModName {
@@ -643,243 +1003,37 @@ a:hover {
 	}
 }
 
+.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow > td.ant-table-cell {
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow > td.ant-table-cell.CollectionRowModName {
+	padding-top: 3px;
+	padding-bottom: 3px;
+	padding-left: 3px;
+	padding-right: 4px;
+}
+
+.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .CollectionNameButton {
+	font-size: 13.5px !important;
+	line-height: 1.28;
+	padding-top: 1px !important;
+	padding-bottom: 1px !important;
+	padding-left: 6px !important;
+}
+
+.ant-table.ant-table-small .ant-table-tbody > tr.CompactModRow .ant-tag {
+	margin-top: 1px;
+	margin-bottom: 1px;
+	padding-inline: 7px;
+	font-size: 12px;
+	line-height: 19px;
+}
+
 .ant-table-row.CompactModRow .ant-table-cell.CollectionRowTags {
 	padding: 0px;
 	padding-left: 8px;
-}
-
-// Loading Animation. Adapted from: https://codepen.io/colinhorn/pen/zdNMVy
-@-webkit-keyframes outerRotate1 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-@-moz-keyframes outerRotate1 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-@-o-keyframes outerRotate1 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-@keyframes outerRotate1 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
-}
-@-webkit-keyframes outerRotate2 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
-}
-@-moz-keyframes outerRotate2 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
-}
-@-o-keyframes outerRotate2 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
-}
-@keyframes outerRotate2 {
-  0% {
-    transform: translate(-50%, -50%) rotate(0);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
-}
-@-webkit-keyframes textColour {
-  from {
-    color: #fff;
-  }
-  to {
-    color: #8954cf;
-  }
-}
-@-moz-keyframes textColour {
-  from {
-    color: #fff;
-  }
-  to {
-    color: #8954cf;
-  }
-}
-@-o-keyframes textColour {
-  from {
-    color: #fff;
-  }
-  to {
-    color: #8954cf;
-  }
-}
-@keyframes textColour {
-  from {
-    color: #fff;
-  }
-  to {
-    color: #8954cf;
-  }
-}
-.e-loadholder {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  width: 240px;
-  height: 240px;
-  border: 5px solid #471b70;
-  border-radius: 120px;
-  box-sizing: border-box;
-}
-.e-loadholder:after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  content: " ";
-  display: block;
-  background: #222;
-  transform-origin: center;
-  z-index: 0;
-}
-.e-loadholder:after {
-  width: 100px;
-  height: 110%;
-  -webkit-animation: outerRotate2 30s infinite linear;
-  -moz-animation: outerRotate2 30s infinite linear;
-  -o-animation: outerRotate2 30s infinite linear;
-  animation: outerRotate2 30s infinite linear;
-}
-.e-loadholder .m-loader {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  width: 190px;
-  height: 190px;
-  color: #888;
-  text-align: center;
-  border: 5px solid #792aae;
-  border-radius: 100px;
-  box-sizing: border-box;
-  z-index: 20;
-  text-transform: uppercase;
-}
-.e-loadholder .m-loader:after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  content: " ";
-  display: block;
-  background: #222;
-  transform-origin: center;
-  z-index: -1;
-}
-.e-loadholder .m-loader:after {
-  width: 100px;
-  height: 110%;
-  -webkit-animation: outerRotate1 15s infinite linear;
-  -moz-animation: outerRotate1 15s infinite linear;
-  -o-animation: outerRotate1 15s infinite linear;
-  animation: outerRotate1 15s infinite linear;
-}
-.e-loadholder .m-loader .e-text {
-  font-size: 14px;
-  font-size: 1.4rem;
-  line-height: 130px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  -webkit-animation: textColour 1s alternate linear infinite;
-  -moz-animation: textColour 1s alternate linear infinite;
-  -o-animation: textColour 1s alternate linear infinite;
-  animation: textColour 1s alternate linear infinite;
-  display: block;
-  width: 140px;
-  height: 140px;
-  text-align: center;
-  border: 5px solid #7c3bd0;
-  border-radius: 70px;
-  box-sizing: border-box;
-  z-index: 20;
-}
-.e-loadholder .m-loader .e-text:before, .e-loadholder .m-loader .e-text:after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  -webkit-transform: translate(-51%, -50%);
-  -moz-transform: translate(-51%, -50%);
-  -ms-transform: translate(-51%, -50%);
-  -o-transform: translate(-51%, -50%);
-  transform: translate(-51%, -50%);
-  content: " ";
-  display: block;
-  background: #222;
-  transform-origin: center;
-  z-index: -1;
-}
-.e-loadholder .m-loader .e-text:before {
-  width: 110%;
-  height: 40px;
-  -webkit-animation: outerRotate2 3.5s infinite linear;
-  -moz-animation: outerRotate2 3.5s infinite linear;
-  -o-animation: outerRotate2 3.5s infinite linear;
-  animation: outerRotate2 3.5s infinite linear;
-}
-.e-loadholder .m-loader .e-text:after {
-  width: 40px;
-  height: 110%;
-  -webkit-animation: outerRotate1 8s infinite linear;
-  -moz-animation: outerRotate1 8s infinite linear;
-  -o-animation: outerRotate1 8s infinite linear;
-  animation: outerRotate1 8s infinite linear;
 }
 
 @keyframes detailTabFade {
@@ -906,9 +1060,137 @@ a:hover {
 	.CollectionSplitDetailsPane,
 	.ModDetailFooterTabs .ant-tabs-tabpane-active,
 	.CollectionNameButton,
-	.image-hover,
 	.image {
 		animation: none !important;
 		transition: none !important;
+	}
+}
+
+@media (max-width: 992px) {
+	.StartupHeroArtwork {
+		display: none;
+	}
+}
+
+@media (max-width: 1199px) {
+	.CollectionToolbarMeta {
+		justify-content: flex-start;
+	}
+
+	.CollectionToolbarActions--secondary {
+		justify-content: flex-start;
+	}
+}
+
+@media (max-width: 991px) {
+	.SettingsPaneColumn.MiscAppSettings {
+		margin-bottom: 20px;
+	}
+}
+
+@media (max-width: 1100px) {
+	.SettingsForm {
+		margin-inline: 20px;
+	}
+
+	.CollectionToolbarCollectionSelector {
+		flex-basis: 100%;
+		max-width: none;
+	}
+
+	.StartupContent {
+		padding: 24px 16px;
+	}
+
+	.StartupCard,
+	.StartupCard--wide {
+		padding: 22px 20px;
+	}
+
+	.CollectionSettingsModal .ant-modal-body {
+		padding-top: 12px;
+	}
+
+	.CollectionSettingsTopBar {
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: start;
+	}
+
+	.CollectionSettingsColumnsList {
+		grid-template-columns: max-content;
+		gap: 6px;
+	}
+
+	.CollectionSettingsColumnsHeader {
+		grid-template-columns: max-content;
+	}
+
+	.CollectionSettingsColumnsHeaderGroup:last-child {
+		display: none;
+	}
+
+	.ModOverridesPane {
+		padding: 14px 16px;
+	}
+
+	.ModDetailFooterHeader {
+		flex-direction: column;
+		align-items: flex-start !important;
+		justify-content: flex-start !important;
+	}
+
+	.ModDetailFooterHeaderActions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.ModDetailFooterPreviewCol {
+		padding-left: 0 !important;
+	}
+
+	.ModDetailFooterContentCol > .ant-layout-content {
+		padding-right: 0 !important;
+	}
+}
+
+@media (max-width: 720px) {
+	.CollectionToolbar .ant-btn,
+	.CollectionToolbar .ant-input-affix-wrapper,
+	.CollectionToolbar .ant-input-group-addon > button,
+	.CollectionToolbar .ant-input-group .ant-input,
+	.CollectionToolbar .ant-select-selector {
+		min-height: @control-height;
+	}
+
+	.SettingsActions {
+		justify-content: flex-start;
+	}
+
+	.CollectionSettingsTopBar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.CollectionSettingsToggleCard {
+		min-width: 0;
+	}
+
+	.CollectionSettingsColumnsHeader {
+		display: none;
+	}
+
+	.CollectionSettingsColumnRow {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.CollectionSettingsColumnWidth {
+		grid-column: 1 / -1;
+	}
+
+	.SettingsActions > .ant-space-item {
+		flex: 1 1 100%;
+	}
+
+	.SettingsActions .ant-btn {
+		width: 100%;
 	}
 }

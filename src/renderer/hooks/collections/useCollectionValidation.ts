@@ -27,12 +27,43 @@ interface UseCollectionValidationOptions {
 	launchMods: (mods: ModData[]) => Promise<void>;
 }
 
-function getCollectionValidationKey(collection: ModCollection | undefined) {
+interface ValidationOptions {
+	config?: AppState['config'];
+}
+
+function getValidationConfigKey(config: AppState['config']) {
+	const ignoredValidationErrors = [...config.ignoredValidationErrors.entries()]
+		.map(([errorType, ignoredByUid]) => [
+			errorType,
+			Object.entries(ignoredByUid)
+				.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
+				.map(([uid, ignoredIds]) => [uid, [...ignoredIds].sort()])
+		])
+		.sort(([leftType], [rightType]) => Number(leftType) - Number(rightType));
+	const userOverrides = [...config.userOverrides.entries()]
+		.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
+		.map(([uid, override]) => [
+			uid,
+			{
+				id: override.id ?? null,
+				tags: override.tags ? [...override.tags].sort() : []
+			}
+		]);
+
+	return JSON.stringify({
+		workshopID: config.workshopID.toString(),
+		treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent !== false,
+		ignoredValidationErrors,
+		userOverrides
+	});
+}
+
+function getCollectionValidationKey(collection: ModCollection | undefined, config: AppState['config']) {
 	if (!collection) {
 		return undefined;
 	}
 
-	return [...collection.mods].sort().join('\u0000');
+	return `${[...collection.mods].sort().join('\u0000')}\u0001${getValidationConfigKey(config)}`;
 }
 
 export function useCollectionValidation({
@@ -105,31 +136,33 @@ export function useCollectionValidation({
 		);
 	}, []);
 
-	const clearRenderedModErrors = useCallback(() => {
+	const clearRenderedModErrors = useCallback((configOverride?: AppState['config']) => {
 		const nextMods = cloneSessionMods(appState.mods);
-		setupDescriptors(nextMods, appState.config.userOverrides, appState.config);
+		const validationConfig = configOverride ?? appState.config;
+		setupDescriptors(nextMods, validationConfig.userOverrides, validationConfig);
 		getRows(nextMods).forEach((mod: DisplayModData) => {
 			mod.errors = undefined;
 		});
 		appState.updateState({ mods: nextMods });
 	}, [appState]);
 
-	const resetValidationState = useCallback(() => {
+	const resetValidationState = useCallback((options?: ValidationOptions) => {
 		cancelValidation();
 		setValidatingMods(false);
 		setCollectionErrors(undefined);
 		setLastValidationStatus(undefined);
 		setLastValidatedCollectionKey(undefined);
-		clearRenderedModErrors();
+		clearRenderedModErrors(options?.config);
 	}, [cancelValidation, clearRenderedModErrors]);
 
-	const setModErrors = useCallback((nextCollectionErrors: CollectionErrors, launchIfValid: boolean) => {
+	const setModErrors = useCallback((nextCollectionErrors: CollectionErrors, launchIfValid: boolean, configOverride?: AppState['config']) => {
 		const {
-			mods,
-			config: { ignoredValidationErrors }
+			mods
 		} = appState;
+		const validationConfig = configOverride ?? appState.config;
+		const { ignoredValidationErrors } = validationConfig;
 		const nextMods = cloneSessionMods(mods);
-		setupDescriptors(nextMods, appState.config.userOverrides, appState.config);
+		setupDescriptors(nextMods, validationConfig.userOverrides, validationConfig);
 		const rows = getRows(nextMods);
 
 		if (Object.keys(nextCollectionErrors).length > 0) {
@@ -202,9 +235,9 @@ export function useCollectionValidation({
 		return true;
 	}, [appState, setModalType]);
 
-	const processValidationResult = useCallback(async (errors: CollectionErrors, launchIfValid: boolean) => {
+	const processValidationResult = useCallback(async (errors: CollectionErrors, launchIfValid: boolean, options?: ValidationOptions) => {
 		const { activeCollection, mods } = appState;
-		const currentValidationKey = getCollectionValidationKey(activeCollection);
+		const currentValidationKey = getCollectionValidationKey(activeCollection, options?.config ?? appState.config);
 
 		setValidatingMods(false);
 		if (!activeCollection) {
@@ -213,7 +246,7 @@ export function useCollectionValidation({
 		}
 
 		let success = Object.keys(errors).length === 0;
-		success = setModErrors(errors, launchIfValid) || success;
+		success = setModErrors(errors, launchIfValid, options?.config) || success;
 
 		if (!success) {
 			setLastValidationStatus(false);
@@ -222,9 +255,15 @@ export function useCollectionValidation({
 			return;
 		}
 
+		const persisted = await persistCollection(activeCollection);
+		if (!persisted) {
+			setLastValidationStatus(undefined);
+			setLastValidatedCollectionKey(undefined);
+			return;
+		}
+
 		setLastValidationStatus(true);
 		setLastValidatedCollectionKey(currentValidationKey);
-		await persistCollection(activeCollection);
 
 		if (launchIfValid) {
 			const modDataList = activeCollection.mods
@@ -234,7 +273,7 @@ export function useCollectionValidation({
 		}
 	}, [appState, launchMods, logValidationIssues, persistCollection, setModErrors]);
 
-	const validateActiveCollection = useCallback(async (launchIfValid: boolean) => {
+	const validateActiveCollection = useCallback(async (launchIfValid: boolean, options?: ValidationOptions) => {
 		const { activeCollection, mods } = appState;
 		setValidatingMods(true);
 
@@ -250,7 +289,7 @@ export function useCollectionValidation({
 
 		try {
 			const result = await validationPromise.promise;
-			await processValidationResult(result, launchIfValid);
+			await processValidationResult(result, launchIfValid, options);
 		} catch (error) {
 			const wrappedError = error as { cancelled?: boolean; error?: unknown };
 			if (!wrappedError.cancelled) {
@@ -264,10 +303,10 @@ export function useCollectionValidation({
 
 	const isValidationCurrentForCollection = useCallback(
 		(collection: ModCollection | undefined) => {
-			const collectionValidationKey = getCollectionValidationKey(collection);
-			return !!collectionValidationKey && collectionValidationKey === lastValidatedCollectionKey;
+			const collectionValidationKey = getCollectionValidationKey(collection, appState.config);
+			return collectionValidationKey !== undefined && collectionValidationKey === lastValidatedCollectionKey;
 		},
-		[lastValidatedCollectionKey]
+		[appState.config, lastValidatedCollectionKey]
 	);
 
 	return {

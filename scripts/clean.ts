@@ -1,6 +1,3 @@
-import { sync as rimrafSync } from 'rimraf';
-import { releaseAppDistPath, releaseBuildPath } from './lib/paths';
+import { cleanReleaseArtifacts } from './lib/release';
 
-[releaseAppDistPath, releaseBuildPath].forEach((targetPath) => {
-	rimrafSync(targetPath);
-});
+cleanReleaseArtifacts();

@@ -27,6 +27,9 @@ export function cloneAppConfig(config: AppConfig): AppConfig {
 						...config.viewConfigs.main,
 						columnActiveConfig: config.viewConfigs.main.columnActiveConfig
 							? { ...config.viewConfigs.main.columnActiveConfig }
+							: undefined,
+						columnWidthConfig: config.viewConfigs.main.columnWidthConfig
+							? { ...config.viewConfigs.main.columnWidthConfig }
 							: undefined
 				  }
 				: undefined

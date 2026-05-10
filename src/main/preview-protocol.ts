@@ -14,6 +14,34 @@ function normalizePreviewPath(previewPath: string): string {
 	return path.normalize(path.resolve(previewPath));
 }
 
+function resolveRegisteredPreviewPath(previewPath: string): string | null {
+	const normalizedPath = normalizePreviewPath(previewPath);
+	if (path.basename(normalizedPath).toLowerCase() !== 'preview.png') {
+		return null;
+	}
+	if (!fs.existsSync(normalizedPath)) {
+		return null;
+	}
+
+	try {
+		const realPath = normalizePreviewPath(fs.realpathSync(normalizedPath));
+		const owningDirectory = path.dirname(normalizedPath);
+		const relativeRealPath = path.relative(owningDirectory, realPath);
+		if (relativeRealPath.startsWith('..') || path.isAbsolute(relativeRealPath)) {
+			log.warn(`Rejected preview path outside mod directory: ${previewPath}`);
+			return null;
+		}
+		if (path.basename(realPath).toLowerCase() !== 'preview.png') {
+			return null;
+		}
+		return realPath;
+	} catch (error) {
+		log.warn(`Failed to resolve preview path ${previewPath}`);
+		log.warn(error);
+		return null;
+	}
+}
+
 export function clearPreviewAllowlist() {
 	previousPreviewTokens.clear();
 	activePreviewTokens.forEach((resolvedPath, token) => {
@@ -22,10 +50,14 @@ export function clearPreviewAllowlist() {
 	activePreviewTokens.clear();
 }
 
-export function registerPreviewImage(previewPath: string): string {
-	const normalizedPath = normalizePreviewPath(previewPath);
-	const token = crypto.createHash('sha256').update(normalizedPath).digest('hex');
-	activePreviewTokens.set(token, normalizedPath);
+export function registerPreviewImage(previewPath: string): string | undefined {
+	const resolvedPath = resolveRegisteredPreviewPath(previewPath);
+	if (!resolvedPath) {
+		return undefined;
+	}
+
+	const token = crypto.createHash('sha256').update(resolvedPath).digest('hex');
+	activePreviewTokens.set(token, resolvedPath);
 	return `image://${PREVIEW_HOST}/${token}`;
 }
 

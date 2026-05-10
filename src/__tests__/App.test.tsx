@@ -2,7 +2,7 @@ import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import App from '../renderer/App';
+import App, { AppViewStage } from '../renderer/App';
 import { useAppState } from '../renderer/state/app-state';
 
 function AppFlowProbe() {
@@ -19,6 +19,15 @@ function AppFlowProbe() {
 }
 
 describe('App', () => {
+	it('marks inactive view stages as hidden to assistive tech', () => {
+		render(<AppViewStage active={false} name="settings">Hidden settings</AppViewStage>);
+
+		const stage = screen.getByText('Hidden settings').closest('[data-view-stage="settings"]');
+		expect(stage).toHaveAttribute('aria-hidden', 'true');
+		expect(stage).toHaveAttribute('data-active', 'false');
+		expect(stage).toHaveAttribute('inert');
+	});
+
 	it('should render', async () => {
 		render(
 			<MemoryRouter initialEntries={['/loading/steamworks']}>

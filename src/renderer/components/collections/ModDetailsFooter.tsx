@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState, type Key } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react';
 import {
 	Empty,
 	Layout,
@@ -42,16 +42,22 @@ import {
 	getDescriptor,
 	getModDescriptorDisplayName,
 	getModDescriptorKey,
+	getModDataDisplayName,
 	ModCollection,
 	ModErrors,
 	ModErrorType,
 	ModType,
 	NotificationProps,
+	getModDataDisplayId,
 	getModDataId,
+	compareModDataDisplayName,
+	compareModDataDisplayId,
 	CollectionManagerModalType
 } from 'model';
+import { isWorkshopDependencyLookupStale } from 'shared/workshop-dependency-lookup';
 import { formatDateStr } from 'util/Date';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import { writeConfig } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 
 import missing from '../../../../assets/missing.png';
@@ -63,24 +69,40 @@ const { Text, Title } = Typography;
 const DESCRIPTION_LABEL_STYLES = { label: { width: 150 } };
 const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
 
+function getModTypeLabel(type: ModType) {
+	switch (type) {
+		case ModType.LOCAL:
+			return 'Local mod';
+		case ModType.TTQMM:
+			return 'TTMM mod';
+		case ModType.WORKSHOP:
+			return 'Steam Workshop mod';
+		default:
+			return 'Mod';
+	}
+}
+
 function getImageSrcFromType(type: ModType, size = 15) {
+	const label = getModTypeLabel(type);
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title="This is a local mod">
-					<HddFilled width={size} />
+				<Tooltip title={label}>
+					<span role="img" aria-label={label}>
+						<HddFilled width={size} />
+					</span>
 				</Tooltip>
 			);
 		case ModType.TTQMM:
 			return (
-				<Tooltip title="This is a TTMM mod">
-					<img src={ttmm} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={ttmm} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		case ModType.WORKSHOP:
 			return (
-				<Tooltip title="This is a Steam mod">
-					<img src={steam} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={steam} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		default:
@@ -88,10 +110,10 @@ function getImageSrcFromType(type: ModType, size = 15) {
 	}
 }
 
-function getImagePreview(path?: string) {
+function getImagePreview(path?: string, altText = 'Mod preview image') {
 	return (
 		<Card className="ModDetailFooterPreview" style={{ width: '100%', padding: 10 }}>
-			<Image src={path} fallback={missing} width="100%" />
+			<Image src={path} fallback={missing} alt={altText} width="100%" />
 		</Card>
 	);
 }
@@ -141,7 +163,7 @@ interface ModDetailsFooterProps {
 	disableModCallback: (uid: string) => void;
 	setModSubsetCallback: (changes: { [uid: string]: boolean }) => void;
 	openNotification: (props: NotificationProps, type?: 'info' | 'error' | 'success' | 'warn') => void;
-	validateCollection: () => void;
+	validateCollection: (options?: { config?: AppState['config'] }) => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
 }
 
@@ -149,23 +171,13 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 	title: 'Name',
 	dataIndex: 'name',
 	defaultSortOrder: 'ascend',
-	sorter: (a: DisplayModData, b: DisplayModData) => {
-		if (a.name) {
-			if (b.name) {
-				return a.name > b.name ? 1 : -1;
-			}
-			return 1;
-		}
-		if (b.name) {
-			return -1;
-		}
-		return 0;
-	},
-	render: (name: string, record: DisplayModData) => {
+	sorter: compareModDataDisplayName,
+	render: (_name: string, record: DisplayModData) => {
+		const displayName = getModDataDisplayName(record) || record.uid;
 		if (record.type === ModType.DESCRIPTOR && record.children && record.children.length > 0) {
 			return (
 				<span>
-					<FolderOpenFilled /> {name}
+					<FolderOpenFilled /> {displayName}
 				</span>
 			);
 		}
@@ -198,7 +210,7 @@ const NAME_SCHEMA: ColumnType<DisplayModData> = {
 		return (
 			<span>
 				{updateIcon}
-				<Text strong={record.needsUpdate} type={updateType}>{` ${name}`}</Text>
+				<Text strong={record.needsUpdate} type={updateType}>{` ${displayName}`}</Text>
 			</span>
 		);
 	}
@@ -253,19 +265,16 @@ const AUTHORS_SCHEMA: ColumnType<DisplayModData> = {
 const ID_SCHEMA: ColumnType<DisplayModData> = {
 	title: 'ID',
 	dataIndex: 'id',
-	sorter: (a, b) => {
-		const aID = getModDataId(a);
-		const bID = getModDataId(b);
-		if (aID) {
-			if (bID) {
-				return aID > bID ? 1 : -1;
-			}
-			return 1;
+	sorter: compareModDataDisplayId,
+	render: (_: string | null, record: DisplayModData) => {
+		const displayID = getModDataDisplayId(record);
+		if (!displayID) {
+			return null;
 		}
-		if (bID) {
-			return -1;
+		if (record.workshopID === undefined && record.overrides?.id) {
+			return <Tag color="gray">{displayID}</Tag>;
 		}
-		return 0;
+		return displayID;
 	}
 };
 
@@ -287,40 +296,86 @@ function ModDetailsFooter({
 	openModal,
 	lastValidationStatus
 }: ModDetailsFooterProps) {
-	const [requestedDependencyLookupUid, setRequestedDependencyLookupUid] = useState<string | null>(null);
+	const requestedDependencyLookupUidRef = useRef<string | null>(null);
 	const [loadingDependencies, setLoadingDependencies] = useState(false);
+	const [dependencyLookupError, setDependencyLookupError] = useState<string>();
 	const { activeCollection, config: appConfig, updateState: updateAppState } = appState;
+	const currentRecordUid = currentRecord.uid;
+	const currentRecordType = currentRecord.type;
+	const currentRecordWorkshopID = currentRecord.workshopID;
+	const currentRecordSteamDependencies = currentRecord.steamDependencies;
+	const currentRecordSteamDependenciesFetchedAt = currentRecord.steamDependenciesFetchedAt;
 
 	useEffect(() => {
+		if (requestedDependencyLookupUidRef.current === null) {
+			return;
+		}
+
+		if (activeTabKey === 'dependencies' && requestedDependencyLookupUidRef.current === currentRecordUid) {
+			return;
+		}
+
+		requestedDependencyLookupUidRef.current = null;
+		setLoadingDependencies(false);
+	}, [activeTabKey, currentRecordUid]);
+
+	useEffect(() => {
+		setDependencyLookupError(undefined);
+	}, [currentRecordUid]);
+
+	useEffect(() => {
+		if (activeTabKey !== 'dependencies') {
+			setDependencyLookupError(undefined);
+		}
+	}, [activeTabKey]);
+
+	useEffect(() => {
+		const shouldRefreshWorkshopDependencies =
+			currentRecordSteamDependencies === undefined ||
+			isWorkshopDependencyLookupStale(currentRecordSteamDependenciesFetchedAt);
+
 		if (
 			activeTabKey !== 'dependencies' ||
-			currentRecord.type !== ModType.WORKSHOP ||
-			currentRecord.workshopID === undefined ||
-			currentRecord.steamDependencies !== undefined ||
-			requestedDependencyLookupUid === currentRecord.uid
+			currentRecordType !== ModType.WORKSHOP ||
+			currentRecordWorkshopID === undefined ||
+			!shouldRefreshWorkshopDependencies ||
+			requestedDependencyLookupUidRef.current === currentRecordUid ||
+			!!dependencyLookupError
 		) {
 			return;
 		}
 
 		let cancelled = false;
 		const loadDependencies = async () => {
-			const { uid, workshopID } = currentRecord;
-			if (workshopID === undefined) {
+			if (currentRecordWorkshopID === undefined) {
 				return;
 			}
 
-			setRequestedDependencyLookupUid(uid);
+			requestedDependencyLookupUidRef.current = currentRecordUid;
 			setLoadingDependencies(true);
 			try {
-				const loaded = await api.fetchWorkshopDependencies(workshopID);
+				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
 				if (!loaded) {
-					api.logger.warn(`Failed to load workshop dependencies for ${workshopID}`);
+					const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
+					api.logger.warn(message);
+					if (!cancelled) {
+						setDependencyLookupError(message);
+					}
+					return;
+				}
+				if (!cancelled) {
+					setDependencyLookupError(undefined);
 				}
 			} catch (error) {
-				api.logger.error(`Failed to load workshop dependencies for ${workshopID}`);
+				const message = `Failed to load workshop dependencies for ${currentRecordWorkshopID}`;
+				api.logger.error(message);
 				api.logger.error(error);
+				if (!cancelled) {
+					setDependencyLookupError(message);
+				}
 			} finally {
 				if (!cancelled) {
+					requestedDependencyLookupUidRef.current = null;
 					setLoadingDependencies(false);
 				}
 			}
@@ -330,8 +385,20 @@ function ModDetailsFooter({
 
 		return () => {
 			cancelled = true;
+			if (requestedDependencyLookupUidRef.current === currentRecordUid) {
+				requestedDependencyLookupUidRef.current = null;
+				setLoadingDependencies(false);
+			}
 		};
-	}, [activeTabKey, currentRecord, requestedDependencyLookupUid]);
+	}, [
+		activeTabKey,
+		currentRecordUid,
+		currentRecordType,
+		currentRecordWorkshopID,
+		currentRecordSteamDependencies,
+		currentRecordSteamDependenciesFetchedAt,
+		dependencyLookupError
+	]);
 
 	const getIgnoredRenderer = useCallback((type: DependenciesTableType) => {
 		const { uid: currentRecordUid } = currentRecord;
@@ -355,13 +422,14 @@ function ModDetailsFooter({
 			const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
 			const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
 			const dependencyKey = getRequiredDependencyKey(record);
-			const { type: recordType, uid: recordUid } = record;
+			const { name: recordName, type: recordType, uid: recordUid } = record;
 			const isSelected =
 				(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
 				(type === DependenciesTableType.CONFLICT && myIgnoredErrors.includes(recordUid));
 
 			return (
 				<Checkbox
+					aria-label={`Ignore validation error for ${recordName || recordUid}`}
 					checked={isSelected}
 					disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
 					onChange={(event) => {
@@ -382,16 +450,12 @@ function ModDetailsFooter({
 							? [...new Set([...existingValues, targetValue])]
 							: existingValues.filter((ignoredID) => ignoredID !== targetValue);
 
-						updateAppState({ config: nextConfig });
-						validateCollection();
-						api.updateConfig(nextConfig)
-							.then((updateSuccess) => {
-								if (!updateSuccess) {
-									throw new Error('Config write was rejected');
-								}
-								return updateSuccess;
-							})
-							.catch((error) => {
+						void (async () => {
+							try {
+								await writeConfig(nextConfig);
+								updateAppState({ config: nextConfig });
+								validateCollection({ config: nextConfig });
+							} catch (error) {
 								api.logger.error(error);
 								openNotification(
 									{
@@ -401,7 +465,8 @@ function ModDetailsFooter({
 									},
 									'error'
 								);
-							});
+							}
+						})();
 					}}
 				/>
 			);
@@ -462,7 +527,7 @@ function ModDetailsFooter({
 					));
 				}
 
-				if (lastValidationStatus !== undefined && !!errors) {
+				if (lastValidationStatus !== undefined) {
 					return (
 						<Tag key="OK" color="green">
 							OK
@@ -470,14 +535,16 @@ function ModDetailsFooter({
 					);
 				}
 
-				return null;
+				return <Tag key="Pending">Pending</Tag>;
 			}
 		};
 
 		const AUTHOR_SPECIFIED_DEPENDENCY_SCHEMA: ColumnType<DisplayModData> = {
 			title: (
 				<Tooltip title="Which version of the mod did the author say is the canonical dependency?">
-					<QuestionCircleFilled />
+					<span role="img" aria-label="Author-specified dependency column">
+						<QuestionCircleFilled />
+					</span>
 				</Tooltip>
 			),
 			dataIndex: 'workshopID',
@@ -485,7 +552,9 @@ function ModDetailsFooter({
 				if (!!workshopID && currentRecord.steamDependencies?.includes(workshopID)) {
 					return (
 						<Tooltip title="This is the mod the author specified as the canonical dependency">
-							<CheckSquareFilled />
+							<span role="img" aria-label="Author-specified dependency">
+								<CheckSquareFilled />
+							</span>
 						</Tooltip>
 					);
 				}
@@ -585,6 +654,7 @@ function ModDetailsFooter({
 	}, [activeCollection, disableModCallback, enableModCallback, setModSubsetCallback]);
 
 	const renderInfoTab = () => {
+		const descriptionColumns = bigDetails && halfLayoutMode === 'bottom' ? 2 : 1;
 		const steamTags = currentRecord.tags?.map((tag) => <Tag key={tag}>{tag}</Tag>) || [];
 		const userTags =
 			currentRecord.overrides?.tags?.map((tag) => (
@@ -594,12 +664,12 @@ function ModDetailsFooter({
 			)) || [];
 
 		return (
-			<Descriptions column={2} bordered size="small">
+			<Descriptions column={descriptionColumns} bordered size="small">
 				<Descriptions.Item label="Author">{currentRecord.authors}</Descriptions.Item>
 				<Descriptions.Item label="Tags">{steamTags.concat(userTags)}</Descriptions.Item>
 				<Descriptions.Item label="Created">{formatDateStr(currentRecord.dateCreated)}</Descriptions.Item>
 				<Descriptions.Item label="Installed">{formatDateStr(currentRecord.dateAdded)}</Descriptions.Item>
-				<Descriptions.Item label="Description" span={2}>
+				<Descriptions.Item label="Description" span={descriptionColumns}>
 					<WorkshopDescription description={currentRecord.description} />
 				</Descriptions.Item>
 			</Descriptions>
@@ -621,10 +691,11 @@ function ModDetailsFooter({
 						children: (
 					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
 						<Descriptions.Item label="ID">
-							{!!currentRecord.id || !!currentRecord?.overrides?.id ? (
-								currentRecord.id
+							{currentRecordID ? (
+								currentRecordID
 							) : (
 								<Button
+									aria-label={`Edit the override ID for ${currentRecord.name}`}
 									icon={<EditFilled />}
 									onClick={() => {
 										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
@@ -632,9 +703,13 @@ function ModDetailsFooter({
 								/>
 							)}
 						</Descriptions.Item>
+						{currentRecord.workshopID !== undefined && !!currentRecord.id ? (
+							<Descriptions.Item label="Mod ID">{currentRecord.id}</Descriptions.Item>
+						) : null}
 						{currentRecord?.overrides?.id ? (
-							<Descriptions.Item label="ID (Override)">
+							<Descriptions.Item label={currentRecord.workshopID !== undefined ? 'Mod ID (Override)' : 'ID (Override)'}>
 								<Button
+									aria-label={`Edit the override ID for ${currentRecord.name}`}
 									icon={<EditFilled />}
 									onClick={() => {
 										openModal(CollectionManagerModalType.EDIT_OVERRIDES);
@@ -660,7 +735,7 @@ function ModDetailsFooter({
 						children: (
 					<Descriptions column={1} bordered size="small" styles={DESCRIPTION_LABEL_STYLES}>
 						<Descriptions.Item label="Name">{modDescriptor?.name}</Descriptions.Item>
-						<Descriptions.Item label="ID">{modDescriptor?.modID}</Descriptions.Item>
+						<Descriptions.Item label="Mod ID">{modDescriptor?.modID}</Descriptions.Item>
 						<Descriptions.Item label="Equivalent UIDs">{[...(modDescriptor?.UIDs || [])].join(', ')}</Descriptions.Item>
 					</Descriptions>
 						)
@@ -685,7 +760,7 @@ function ModDetailsFooter({
 						<Descriptions.Item label="SteamLink">
 							{currentRecord.workshopID ? `steam://url/CommunityFilePage/${currentRecord.workshopID}` : null}
 						</Descriptions.Item>
-						<Descriptions.Item label="WorkshopID">
+						<Descriptions.Item label="Workshop ID">
 							{currentRecord.workshopID ? currentRecord.workshopID.toString() : null}
 						</Descriptions.Item>
 					</Descriptions>
@@ -719,6 +794,19 @@ function ModDetailsFooter({
 					return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 5, marginBottom: 5 }} />;
 				}}
 			>
+				{dependencyLookupError ? (
+					<Space orientation="vertical" size={8} style={{ width: '100%', marginBottom: 12 }}>
+						<Text type="warning">{dependencyLookupError}</Text>
+						<Button
+							size="small"
+							onClick={() => {
+								setDependencyLookupError(undefined);
+							}}
+						>
+							Retry Dependency Lookup
+						</Button>
+					</Space>
+				) : null}
 				<Collapse
 					className="ModDetailDependencies"
 					defaultActiveKey={['required']}
@@ -868,7 +956,7 @@ function ModDetailsFooter({
 		[getDependenciesRowSelection, conflictingModData]
 	);
 
-	const currentRecordID = getModDataId(currentRecord);
+	const currentRecordID = getModDataDisplayId(currentRecord);
 	const activeTabContent =
 		activeTabKey === 'inspect'
 			? renderInspectTab()
@@ -896,6 +984,7 @@ function ModDetailsFooter({
 	return (
 		<Content className="ModDetailFooter" style={bigDetails ? expandedStyle : compactStyle}>
 			<div
+				className="ModDetailFooterHeader"
 				style={{
 					width: '100%',
 					minHeight: 48,
@@ -910,31 +999,39 @@ function ModDetailsFooter({
 					<Title level={5} style={{ margin: 0 }}>
 						{currentRecord.name}
 					</Title>
-					<Text type="secondary">{`${currentRecordID} (${currentRecord.uid})`}</Text>
+					<Text type="secondary">{currentRecordID ? `${currentRecordID} (${currentRecord.uid})` : currentRecord.uid}</Text>
 				</div>
-				<Space>
+				<Space className="ModDetailFooterHeaderActions">
 					<Tooltip title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}>
 						<Button
+							aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
+							aria-pressed={halfLayoutMode === 'side'}
 							icon={halfLayoutMode === 'side' ? <ColumnHeightOutlined /> : <ColumnWidthOutlined />}
 							type="text"
 							onClick={toggleHalfLayoutCallback}
 						/>
 					</Tooltip>
-					<Button
-						icon={bigDetails ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-						type="text"
-						onClick={() => {
-							expandFooterCallback(!bigDetails);
-						}}
-					/>
-					<Button icon={<CloseOutlined />} type="text" onClick={closeFooterCallback} />
+					<Tooltip title={bigDetails ? 'Return to split details' : 'Expand details to full view'}>
+						<Button
+							aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
+							aria-pressed={bigDetails}
+							icon={bigDetails ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+							type="text"
+							onClick={() => {
+								expandFooterCallback(!bigDetails);
+							}}
+						/>
+					</Tooltip>
+					<Tooltip title="Close details">
+						<Button aria-label="Close details" icon={<CloseOutlined />} type="text" onClick={closeFooterCallback} />
+					</Tooltip>
 				</Space>
 			</div>
-			<Row key="mod-details" justify="space-between" gutter={16} style={{ flex: 1, minHeight: 0 }}>
-				<Col span={2} lg={4} style={{ paddingLeft: 10, minHeight: 0 }}>
-					{getImagePreview(currentRecord.preview)}
+			<Row key="mod-details" className="ModDetailFooterBody" justify="space-between" gutter={16} style={{ flex: 1, minHeight: 0 }}>
+				<Col xs={24} md={7} xl={4} className="ModDetailFooterPreviewCol" style={{ paddingLeft: 10, minHeight: 0 }}>
+					{getImagePreview(currentRecord.preview, `${currentRecord.name} preview image`)}
 				</Col>
-				<Col span={22} lg={20} style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+				<Col xs={24} md={17} xl={20} className="ModDetailFooterContentCol" style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 					<Content
 						style={{
 							paddingBottom: 10,

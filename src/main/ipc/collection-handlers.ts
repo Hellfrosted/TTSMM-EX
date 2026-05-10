@@ -5,7 +5,7 @@ import log from 'electron-log';
 
 import { ModCollection, ValidChannel } from '../../model';
 import { validateCollectionName } from '../../shared/collection-name';
-import { ensureCollectionsDirectory, readJsonFile } from '../storage';
+import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from '../storage';
 
 function resolveCollectionFilePath(userDataPath: string, collectionName: string): string | null {
 	const validationError = validateCollectionName(collectionName);
@@ -25,33 +25,53 @@ function resolveCollectionFilePath(userDataPath: string, collectionName: string)
 	return filepath;
 }
 
+export function refersToSameCollectionPath(oldpath: string, newpath: string): boolean {
+	if (oldpath === newpath) {
+		return true;
+	}
+
+	if (!fs.existsSync(oldpath) || !fs.existsSync(newpath)) {
+		return false;
+	}
+
+	try {
+		return fs.realpathSync.native(oldpath) === fs.realpathSync.native(newpath);
+	} catch (error) {
+		log.error(`Failed to compare collection paths ${oldpath} and ${newpath}`);
+		log.error(error);
+		return false;
+	}
+}
+
 export function readCollectionFile(userDataPath: string, collection: string): ModCollection | null {
 	const collectionPath = resolveCollectionFilePath(userDataPath, collection);
 	if (!collectionPath) {
 		return null;
 	}
 
-	const data = readJsonFile<ModCollection>(collectionPath);
-	if (!data) {
+	if (!fs.existsSync(collectionPath)) {
 		return null;
 	}
-	data.name = collection;
-	return data;
+
+	try {
+		const data = readJsonFile<ModCollection>(collectionPath);
+		data.name = collection;
+		return data;
+	} catch (error) {
+		log.error(`Failed to read collection file ${collectionPath}`);
+		log.error(error);
+		throw new Error(`Failed to load collection "${collection}"`);
+	}
 }
 
 export function listCollections(userDataPath: string): string[] {
 	const collectionsDirectory = ensureCollectionsDirectory(userDataPath);
 	try {
-		const dirContents: string[] | Buffer[] | fs.Dirent[] = fs.readdirSync(collectionsDirectory);
+		const dirContents = fs.readdirSync(collectionsDirectory, { withFileTypes: true });
 		return dirContents
-			.map((elem) => {
-				const matches = elem.toString().match(/(.*)\.json/);
-				if (matches && matches[1]) {
-					return matches[1];
-				}
-				return null;
-			})
-			.filter((elem: string | null): elem is string => !!elem);
+			.filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.json')
+			.map((entry) => path.parse(entry.name).name)
+			.filter((collectionName) => validateCollectionName(collectionName) === undefined);
 	} catch (error) {
 		log.error(error);
 		return [];
@@ -65,7 +85,7 @@ export function updateCollectionFile(userDataPath: string, collection: ModCollec
 	}
 
 	try {
-		fs.writeFileSync(filepath, JSON.stringify({ ...collection, mods: [...collection.mods] }, null, 4), { encoding: 'utf8', flag: 'w' });
+		writeUtf8FileAtomic(filepath, JSON.stringify({ ...collection, mods: [...collection.mods] }, null, 4));
 		return true;
 	} catch (error) {
 		log.error(error);
@@ -87,10 +107,31 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 			name: newName,
 			mods: [...collection.mods]
 		};
-		if (fs.existsSync(oldpath)) {
-			fs.renameSync(oldpath, newpath);
+		const serializedCollection = JSON.stringify(renamedCollection, null, 4);
+		const oldCollectionExists = fs.existsSync(oldpath);
+		const newCollectionExists = fs.existsSync(newpath);
+		const sameCollectionPath = oldCollectionExists && newCollectionExists && refersToSameCollectionPath(oldpath, newpath);
+		if (oldpath !== newpath && newCollectionExists && !sameCollectionPath) {
+			log.warn(`Refusing to rename collection ${collection.name} because ${newName} already exists`);
+			return false;
 		}
-		fs.writeFileSync(newpath, JSON.stringify(renamedCollection, null, 4), { encoding: 'utf8', flag: 'w' });
+
+		writeUtf8FileAtomic(newpath, serializedCollection);
+		if (oldCollectionExists && oldpath !== newpath && !sameCollectionPath) {
+			try {
+				fs.unlinkSync(oldpath);
+			} catch (error) {
+				try {
+					if (fs.existsSync(newpath)) {
+						fs.unlinkSync(newpath);
+					}
+				} catch (rollbackError) {
+					log.error(`Failed to roll back rename for ${newpath}`);
+					log.error(rollbackError);
+				}
+				throw error;
+			}
+		}
 		return true;
 	} catch (error) {
 		log.error(error);

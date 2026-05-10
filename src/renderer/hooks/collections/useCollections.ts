@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef, useState } from 'react
 import { AppConfig, AppState, CollectionManagerModalType, ModCollection, ModData, ModType, filterRows } from 'model';
 import api from 'renderer/Api';
 import type { NotificationProps } from 'model';
+import { writeConfig } from 'renderer/util/config-write';
 import { validateCollectionName } from 'shared/collection-name';
 import type { NotificationType } from './useNotifications';
 import { cloneCollection, copyCollectionsMap, updateAppCollectionState, withActiveCollection } from './utils';
@@ -279,19 +280,16 @@ export function useCollections({
 		[appState.mods]
 	);
 
-	const updateConfigAndReportFailure = useCallback(
-		async (nextConfig: AppConfig) => {
+	const persistConfigAndReportFailure = useCallback(
+		async (nextConfig: AppConfig, message = 'Failed to update config') => {
 			try {
-				const updateSuccess = await api.updateConfig(nextConfig);
-				if (!updateSuccess) {
-					throw new Error('Config write was rejected');
-				}
+				await writeConfig(nextConfig);
 				return true;
 			} catch (error) {
 				api.logger.error(error);
 				openNotification(
 					{
-						message: 'Failed to update config',
+						message,
 						placement: 'bottomLeft',
 						duration: null
 					},
@@ -299,6 +297,20 @@ export function useCollections({
 				);
 				return false;
 			}
+		},
+		[openNotification]
+	);
+
+	const notifyRollbackFailure = useCallback(
+		(message: string) => {
+			openNotification(
+				{
+					message,
+					placement: 'bottomLeft',
+					duration: null
+				},
+				'error'
+			);
 		},
 		[openNotification]
 	);
@@ -344,8 +356,16 @@ export function useCollections({
 					nextCollectionNames.add(name);
 					const nextConfig = withActiveCollection(appState.config, name);
 
+					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Created collection ${name} but failed to activate it`);
+					if (!configPersisted) {
+						const rolledBack = await api.deleteCollection(name);
+						if (!rolledBack) {
+							notifyRollbackFailure(`Failed to roll back collection ${name} after the config update failed`);
+						}
+						return;
+					}
+
 					commitCollectionState(nextCollections, nextCollectionNames, newCollection, nextConfig);
-					void updateConfigAndReportFailure(nextConfig);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -374,10 +394,11 @@ export function useCollections({
 			appState,
 			commitCollectionState,
 			madeEdits,
+			notifyRollbackFailure,
 			openNotification,
+			persistConfigAndReportFailure,
 			rawPersistCollection,
 			runQueuedCollectionWrite,
-			updateConfigAndReportFailure,
 			validateCollectionNameOrNotify
 		]
 	);
@@ -428,8 +449,16 @@ export function useCollections({
 					nextCollectionNames.add(name);
 					const nextConfig = withActiveCollection(appState.config, name);
 
+					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Duplicated collection ${oldName} but failed to activate ${name}`);
+					if (!configPersisted) {
+						const rolledBack = await api.deleteCollection(name);
+						if (!rolledBack) {
+							notifyRollbackFailure(`Failed to roll back duplicated collection ${name} after the config update failed`);
+						}
+						return;
+					}
+
 					commitCollectionState(nextCollections, nextCollectionNames, newCollection, nextConfig);
-					void updateConfigAndReportFailure(nextConfig);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -458,10 +487,11 @@ export function useCollections({
 			appState,
 			commitCollectionState,
 			madeEdits,
+			notifyRollbackFailure,
 			openNotification,
+			persistConfigAndReportFailure,
 			rawPersistCollection,
 			runQueuedCollectionWrite,
-			updateConfigAndReportFailure,
 			validateCollectionNameOrNotify
 		]
 	);
@@ -507,8 +537,16 @@ export function useCollections({
 					nextCollectionNames.add(name);
 					const nextConfig = withActiveCollection(appState.config, name);
 
+					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Renamed collection ${oldName} but failed to persist the active collection change`);
+					if (!configPersisted) {
+						const rolledBack = await api.renameCollection(renamedCollection, oldName);
+						if (!rolledBack) {
+							notifyRollbackFailure(`Failed to restore collection ${oldName} after the config update failed`);
+						}
+						return;
+					}
+
 					commitCollectionState(nextCollections, nextCollectionNames, renamedCollection, nextConfig);
-					void updateConfigAndReportFailure(nextConfig);
 					setMadeEdits(false);
 					openNotification(
 						{
@@ -533,7 +571,15 @@ export function useCollections({
 				}
 			});
 		},
-		[appState, commitCollectionState, openNotification, runQueuedCollectionWrite, updateConfigAndReportFailure, validateCollectionNameOrNotify]
+		[
+			appState,
+			commitCollectionState,
+			notifyRollbackFailure,
+			openNotification,
+			persistConfigAndReportFailure,
+			runQueuedCollectionWrite,
+			validateCollectionNameOrNotify
+		]
 	);
 
 	const deleteCollection = useCallback(async () => {
@@ -545,9 +591,10 @@ export function useCollections({
 
 			setSavingCollection(true);
 			const { name } = activeCollection;
+			const deletedCollection = cloneCollection(activeCollection);
 
 			try {
-				const deleteSuccess = name === 'default' ? true : await api.deleteCollection(name);
+				const deleteSuccess = await api.deleteCollection(name);
 				if (!deleteSuccess) {
 					openNotification(
 						{
@@ -571,6 +618,7 @@ export function useCollections({
 					nextActiveCollection = nextCollections.get(nextCollectionName);
 				}
 
+				let createdFallbackCollection = false;
 				if (!nextActiveCollection) {
 					nextActiveCollection = {
 						name: 'default',
@@ -582,12 +630,27 @@ export function useCollections({
 					if (!createdDefaultCollection) {
 						return;
 					}
+					createdFallbackCollection = true;
 				}
 
 				const nextConfig = withActiveCollection(appState.config, nextActiveCollection.name);
 
+				const configPersisted = await persistConfigAndReportFailure(nextConfig, `Deleted collection ${name} but failed to persist the replacement selection`);
+				if (!configPersisted) {
+					if (createdFallbackCollection) {
+						const deletedFallbackCollection = await api.deleteCollection(nextActiveCollection.name);
+						if (!deletedFallbackCollection) {
+							notifyRollbackFailure(`Failed to remove the fallback collection after the config update failed`);
+						}
+					}
+					const restoredCollection = await rawPersistCollection(deletedCollection);
+					if (!restoredCollection) {
+						notifyRollbackFailure(`Failed to restore collection ${name} after the config update failed`);
+					}
+					return;
+				}
+
 				commitCollectionState(nextCollections, nextCollectionNames, nextActiveCollection, nextConfig);
-				void updateConfigAndReportFailure(nextConfig);
 				setMadeEdits(false);
 				openNotification(
 					{
@@ -611,7 +674,7 @@ export function useCollections({
 				setSavingCollection(false);
 			}
 		});
-	}, [appState, commitCollectionState, openNotification, rawPersistCollection, runQueuedCollectionWrite, updateConfigAndReportFailure]);
+	}, [appState, commitCollectionState, notifyRollbackFailure, openNotification, persistConfigAndReportFailure, rawPersistCollection, runQueuedCollectionWrite]);
 
 	const changeActiveCollection = useCallback(
 		async (name: string) => {
@@ -631,11 +694,14 @@ export function useCollections({
 						}
 					}
 
-					resetValidationState();
-
 					const nextConfig = withActiveCollection(appState.config, name);
+					const configPersisted = await persistConfigAndReportFailure(nextConfig, `Failed to switch to collection ${name}`);
+					if (!configPersisted) {
+						return;
+					}
+
+					resetValidationState();
 					commitCollectionState(appState.allCollections, appState.allCollectionNames, cloneCollection(nextActiveCollection), nextConfig);
-					void updateConfigAndReportFailure(nextConfig);
 					setMadeEdits(false);
 				} finally {
 					setSavingCollection(false);
@@ -646,10 +712,10 @@ export function useCollections({
 			appState,
 			commitCollectionState,
 			madeEdits,
+			persistConfigAndReportFailure,
 			rawPersistCollection,
 			resetValidationState,
-			runQueuedCollectionWrite,
-			updateConfigAndReportFailure
+			runQueuedCollectionWrite
 		]
 	);
 

@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AppConfigKeys, SettingsViewModalType } from '../../model';
+import { AppConfigKeys, LogLevel, SettingsViewModalType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
 import { createAppState } from './test-utils';
@@ -67,8 +67,9 @@ describe('useSettingsForm', () => {
 			result.current.setField(AppConfigKeys.GAME_EXEC, 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
 		});
 
+		let saveResult;
 		await act(async () => {
-			await result.current.saveChanges();
+			saveResult = await result.current.saveChanges();
 		});
 
 		expect(window.electron.updateConfig).toHaveBeenCalledWith(
@@ -76,6 +77,94 @@ describe('useSettingsForm', () => {
 				gameExec: 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe'
 			})
 		);
+		expect(saveResult).toEqual({
+			ok: true,
+			reloadRequired: false,
+			descriptorsRebuilt: false
+		});
 		expect(appState.configErrors).toEqual({});
+	});
+
+	it('does not mark mods for reload when saving settings fails', async () => {
+		const appState = createAppState({
+			firstModLoad: true,
+			config: {
+				...DEFAULT_CONFIG,
+				localDir: 'C:\\TerraTech\\LocalMods',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		act(() => {
+			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Other\\LocalMods');
+		});
+
+		let saveResult;
+		await act(async () => {
+			saveResult = await result.current.saveChanges();
+		});
+
+		expect(saveResult).toEqual({
+			ok: false,
+			message: 'Config write was rejected'
+		});
+		expect(appState.firstModLoad).toBe(true);
+		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
+		expect(appState.madeConfigEdits).toBe(true);
+	});
+
+	it('applies log level only after a successful save', async () => {
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				logLevel: LogLevel.WARN,
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		const updateLogLevel = vi.fn();
+		window.electron.updateLogLevel = updateLogLevel;
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		act(() => {
+			result.current.setField('logLevel', LogLevel.DEBUG);
+		});
+
+		expect(updateLogLevel).not.toHaveBeenCalled();
+
+		await act(async () => {
+			await result.current.saveChanges();
+		});
+
+		expect(updateLogLevel).not.toHaveBeenCalled();
+		expect(appState.config.logLevel).toBe(LogLevel.WARN);
+
+		await act(async () => {
+			await result.current.saveChanges();
+		});
+
+		expect(updateLogLevel).toHaveBeenCalledWith(LogLevel.DEBUG);
+		expect(appState.config.logLevel).toBe(LogLevel.DEBUG);
+	});
+
+	it('normalizes non-error browse failures into a user-safe error', async () => {
+		const appState = createAppState();
+		vi.mocked(window.electron.selectPath).mockRejectedValueOnce('exploded');
+
+		const { result } = renderHook(() => useSettingsForm(appState));
+
+		await act(async () => {
+			await expect(
+				result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')
+			).rejects.toThrow('Failed to browse for a path');
+		});
+
+		expect(result.current.selectingDirectory).toBe(false);
 	});
 });

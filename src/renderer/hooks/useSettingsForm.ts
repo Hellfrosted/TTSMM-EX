@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppConfig, AppConfigKeys, AppState, NLogLevel, SettingsViewModalType, cloneSessionMods, setupDescriptors } from 'model';
 import api from 'renderer/Api';
+import { writeConfig } from 'renderer/util/config-write';
 
 export interface LogConfig {
 	level: NLogLevel;
@@ -10,6 +11,17 @@ export interface LogConfig {
 export interface EditingConfig extends AppConfig {
 	editingLogConfig: LogConfig[];
 }
+
+export type SaveSettingsResult =
+	| {
+			ok: true;
+			reloadRequired: boolean;
+			descriptorsRebuilt: boolean;
+	  }
+	| {
+			ok: false;
+			message: string;
+	  };
 
 export function createEditingConfig(config: AppConfig): EditingConfig {
 	const editingLogConfig = Object.entries(config.logParams || {}).map(([loggerID, level]) => ({
@@ -124,7 +136,7 @@ export function useSettingsForm(appState: AppState) {
 				return selectedPath;
 			} catch (error) {
 				api.logger.error(error);
-				return null;
+				throw error instanceof Error ? error : new Error('Failed to browse for a path');
 			} finally {
 				setSelectingDirectory(false);
 			}
@@ -132,7 +144,7 @@ export function useSettingsForm(appState: AppState) {
 		[markConfigEdited, selectingDirectory]
 	);
 
-	const saveChanges = useCallback(async () => {
+	const saveChanges = useCallback(async (): Promise<SaveSettingsResult> => {
 		const { editingLogConfig, logParams: _unusedLogParams, ...nextConfig } = editingConfig;
 		const configToSave: AppConfig = {
 			...nextConfig
@@ -145,27 +157,29 @@ export function useSettingsForm(appState: AppState) {
 		const shouldReloadMods = appState.config.localDir !== configToSave.localDir || appState.config.workshopID !== configToSave.workshopID;
 		const shouldRebuildDescriptors =
 			appState.config.treatNuterraSteamBetaAsEquivalent !== configToSave.treatNuterraSteamBetaAsEquivalent;
-
-		if (shouldReloadMods) {
-			appState.updateState({ firstModLoad: false });
-		}
+		const nextLogLevel = configToSave.logLevel;
+		const shouldUpdateLogLevel = appState.config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 
 		appState.updateState({ savingConfig: true });
 		try {
-			const updateSuccess = await api.updateConfig(configToSave);
-			if (!updateSuccess) {
-				throw new Error('Config write was rejected');
+			await writeConfig(configToSave);
+			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
+				api.updateLogLevel(nextLogLevel);
 			}
 			const nextState: {
 				config: AppConfig;
 				madeConfigEdits: boolean;
 				configErrors: {};
 				mods?: AppState['mods'];
+				firstModLoad?: boolean;
 			} = {
 				config: { ...configToSave },
 				madeConfigEdits: false,
 				configErrors: {}
 			};
+			if (shouldReloadMods) {
+				nextState.firstModLoad = false;
+			}
 			if (shouldRebuildDescriptors && !shouldReloadMods) {
 				const nextMods = cloneSessionMods(appState.mods);
 				setupDescriptors(nextMods, configToSave.userOverrides, configToSave);
@@ -174,9 +188,17 @@ export function useSettingsForm(appState: AppState) {
 			appState.updateState({
 				...nextState
 			});
+			return {
+				ok: true,
+				reloadRequired: shouldReloadMods,
+				descriptorsRebuilt: shouldRebuildDescriptors && !shouldReloadMods
+			};
 		} catch (error) {
 			api.logger.error(error);
-			appState.updateState({ config: appState.config });
+			return {
+				ok: false,
+				message: error instanceof Error ? error.message : 'Failed to save settings'
+			};
 		} finally {
 			appState.updateState({ savingConfig: false });
 		}

@@ -17,6 +17,7 @@ const readDependencies = (relativePath: string) => {
 
 const releaseAppDependencies = new Set(readDependencies('release/app/package.json'));
 const bundledRootDependencies = readDependencies('package.json').filter((dependency) => !releaseAppDependencies.has(dependency));
+const rendererPort = Number.parseInt(process.env.PORT || '1212', 10);
 
 const alias = {
 	model: resolvePath('src/model'),
@@ -69,7 +70,7 @@ export default defineConfig({
 		},
 		plugins: react(),
 		server: {
-			port: 1212,
+			port: Number.isNaN(rendererPort) ? 1212 : rendererPort,
 			strictPort: true
 		},
 		css: {

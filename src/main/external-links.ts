@@ -8,11 +8,15 @@ const ALLOWED_HTTPS_HOSTS = new Set([
 	'steamcommunity.com'
 ]);
 
+function isAllowedSteamUrl(parsedUrl: URL): boolean {
+	return parsedUrl.hostname === 'url' && /^\/CommunityFilePage\/\d+\/?$/i.test(parsedUrl.pathname);
+}
+
 export function isAllowedExternalUrl(rawUrl: string): boolean {
 	try {
 		const parsedUrl = new URL(rawUrl);
 		if (parsedUrl.protocol === 'steam:') {
-			return true;
+			return isAllowedSteamUrl(parsedUrl);
 		}
 
 		if (parsedUrl.protocol !== 'https:') {
@@ -33,6 +37,9 @@ export function openExternalUrl(rawUrl: string): boolean {
 		return false;
 	}
 
-	void shell.openExternal(rawUrl);
+	void shell.openExternal(rawUrl).catch((error) => {
+		log.error(`Failed to open external URL: ${rawUrl}`);
+		log.error(error);
+	});
 	return true;
 }

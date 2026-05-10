@@ -165,7 +165,7 @@ class API {
 		return window.electron.selectPath(directory, title);
 	}
 
-	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods | null> {
+	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods> {
 		return window.electron.readModMetadata(localDir, [...allKnownMods]);
 	}
 

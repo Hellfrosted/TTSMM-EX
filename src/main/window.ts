@@ -1,25 +1,63 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow, WebContents } from 'electron';
+import { app, BrowserWindow, WebContents, type WebContentsConsoleMessageEventParams } from 'electron';
 import log from 'electron-log';
 
 import { openExternalUrl } from './external-links';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 
+const STEAM_APP_ID = '285920\n';
+const STEAM_APP_ID_VALUE = '285920';
+
 export interface WindowOptions {
 	isDevelopment: boolean;
 	onDidFinishLoad: () => void;
 }
 
-export function ensureSteamAppIdFile() {
-	if (fs.existsSync('steam_appid.txt')) {
-		const appID = fs.readFileSync('steam_appid.txt', 'utf8');
-		if (!appID.toString().startsWith('285920')) {
-			fs.writeFileSync('steam_appid.txt', '285920\n', 'utf8');
+type RendererConsoleLogLevel = 'error' | 'warn' | 'info';
+
+interface SteamAppIdFileOptions {
+	isPackaged?: boolean;
+	cwd?: string;
+	exePath?: string;
+	fsImpl?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'writeFileSync'>;
+	logger?: Pick<typeof log, 'error'>;
+}
+
+interface RendererConsoleForwardOptions {
+	consoleImpl?: Pick<Console, 'error' | 'warn' | 'info'>;
+	logger?: Pick<typeof log, 'processMessage' | 'transports'>;
+	mirrorToConsole?: boolean;
+}
+
+export function resolveSteamAppIdFilePath({
+	isPackaged = app.isPackaged,
+	cwd = process.cwd(),
+	exePath = app.getPath('exe')
+}: Pick<SteamAppIdFileOptions, 'isPackaged' | 'cwd' | 'exePath'> = {}) {
+	const basePath = isPackaged ? path.dirname(exePath) : cwd;
+	return path.join(basePath, 'steam_appid.txt');
+}
+
+export function ensureSteamAppIdFile(options: SteamAppIdFileOptions = {}) {
+	const { fsImpl = fs, logger = log } = options;
+	const steamAppIdPath = resolveSteamAppIdFilePath(options);
+
+	try {
+		if (fsImpl.existsSync(steamAppIdPath)) {
+			const appID = fsImpl.readFileSync(steamAppIdPath, 'utf8');
+			if (appID.toString().trim() !== STEAM_APP_ID_VALUE) {
+				fsImpl.writeFileSync(steamAppIdPath, STEAM_APP_ID, 'utf8');
+			}
+		} else {
+			fsImpl.writeFileSync(steamAppIdPath, STEAM_APP_ID, 'utf8');
 		}
-	} else {
-		fs.writeFileSync('steam_appid.txt', '285920\n', 'utf8');
+		return true;
+	} catch (error) {
+		logger.error(`Failed to ensure steam_appid.txt at ${steamAppIdPath}`);
+		logger.error(error);
+		return false;
 	}
 }
 
@@ -37,6 +75,58 @@ export async function installExtensions() {
 		log.error('Failed to install devtools extensions');
 		log.error(error);
 		return undefined;
+	}
+}
+
+function resolveRendererConsoleLogLevel(level: WebContentsConsoleMessageEventParams['level']): RendererConsoleLogLevel {
+	if (level === 'error') {
+		return 'error';
+	}
+	if (level === 'warning') {
+		return 'warn';
+	}
+	return 'info';
+}
+
+function isBrokenPipeError(error: unknown) {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	const errorCode = 'code' in error ? (error as NodeJS.ErrnoException).code : undefined;
+	return errorCode === 'EPIPE' || error.message.toLowerCase().includes('broken pipe');
+}
+
+export function forwardRendererConsoleMessage(
+	{ level, message, lineNumber, sourceId }: WebContentsConsoleMessageEventParams,
+	{
+		consoleImpl = console,
+		logger = log,
+		mirrorToConsole = false
+	}: RendererConsoleForwardOptions = {}
+) {
+	const formattedMessage = `[renderer console:${level}] ${message} (${sourceId}:${lineNumber})`;
+	const logLevel = resolveRendererConsoleLogLevel(level);
+
+	logger.processMessage(
+		{
+			date: new Date(),
+			data: [formattedMessage],
+			level: logLevel
+		},
+		{ transports: [logger.transports.file] }
+	);
+
+	if (!mirrorToConsole) {
+		return;
+	}
+
+	try {
+		consoleImpl[logLevel](formattedMessage);
+	} catch (error) {
+		if (!isBrokenPipeError(error)) {
+			throw error;
+		}
 	}
 }
 
@@ -67,17 +157,10 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 
 	mainWindow.loadURL(resolveHtmlPath('index.html'));
 
-	mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-		const formattedMessage = `[renderer console:${level}] ${message} (${sourceId}:${line})`;
-		if (level >= 3) {
-			console.error(formattedMessage);
-			return;
-		}
-		if (level === 2) {
-			console.warn(formattedMessage);
-			return;
-		}
-		console.info(formattedMessage);
+	mainWindow.webContents.on('console-message', (event) => {
+		forwardRendererConsoleMessage(event, {
+			mirrorToConsole: isDevelopment
+		});
 	});
 
 	mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -114,7 +197,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 	});
 
 	mainWindow.webContents.on('did-finish-load', () => {
-		const name = 'TerraTech Steam Mod Manager';
+		const name = 'TTSMM-EX';
 		log.info(`App Version: ${app.getVersion()}`);
 		log.info(`App Name: ${app.getName()}`);
 		mainWindow.setTitle(`${name} v${app.getVersion()}`);

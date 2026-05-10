@@ -1,38 +1,33 @@
 {
 	"name": "terratech-steam-mod-manager-ex",
 	"main": "./release/app/dist/main/main.js",
-	"productName": "TerraTech Steam Mod Manager EX",
+	"productName": "TTSMM-EX",
 	"description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
-	"version": "2.0.2",
+	"version": "2.1.0",
 	"scripts": {
-		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && electron-vite dev",
-		"start": "npm run dev",
-		"start:desktop": "npm run build && cross-env NODE_ENV=production electron .",
+		"help": "node --import=tsx ./scripts/help.ts",
+		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts electron-vite dev",
+		"start:desktop": "npm run build && cross-env NODE_ENV=production node --import=tsx ./scripts/run-with-clean-electron-env.ts electron .",
 		"build": "electron-vite build",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
 		"lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:fix": "npm run lint -- --fix",
-		"package": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never",
-		"package:linux": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb && electron-builder build --publish never --linux pacman",
-		"package:linux:deb": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb",
-		"package:linux:pacman": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux pacman",
+		"package": "node --import=tsx ./scripts/package.ts",
+		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
 		"test": "vitest run",
 		"typecheck": "tsc -b",
 		"validate": "npm run lint && npm run typecheck && npm test && npm run build",
-		"publish": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish onTagOrDraft",
-		"only-publish": "electron-builder build --publish onTagOrDraft",
-		"patch": "bash bin/version.sh patch",
-		"minor": "bash bin/version.sh minor",
-		"major": "bash bin/version.sh major"
+		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
+		"bump": "node --import=tsx ./scripts/version.ts"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
 			"cross-env NODE_ENV=development eslint --cache --fix"
 		],
-		"*.json,.{babelrc,eslintrc,prettierrc}": [
+		"{*.json,.babelrc,.eslintrc,.prettierrc}": [
 			"prettier --ignore-path .prettierignore --parser json --write"
 		],
 		"*.{css,scss}": [
@@ -43,7 +38,7 @@
 		]
 	},
 	"build": {
-		"productName": "TerraTech Steam Mod Manager EX",
+		"productName": "TTSMM-EX",
 		"appId": "com.hellfrosted.ttsmmex",
 		"afterPack": "./scripts/after-pack-set-win-icon.cjs",
 		"asar": true,
@@ -61,8 +56,8 @@
 			]
 		},
 		"nsis": {
-			"shortcutName": "TerraTech Steam Mod Manager EX",
-			"uninstallDisplayName": "TerraTech Steam Mod Manager EX",
+			"shortcutName": "TTSMM-EX",
+			"uninstallDisplayName": "TTSMM-EX",
 			"installerIcon": "assets/icon.ico",
 			"uninstallerIcon": "assets/icon.ico",
 			"installerHeaderIcon": "assets/icon.ico"
@@ -93,6 +88,9 @@
 			"buildResources": "assets",
 			"output": "release/build"
 		},
+		"extraFiles": [
+			"./steam_appid.txt"
+		],
 		"extraResources": [
 			"./assets/**"
 		],
@@ -141,7 +139,6 @@
 		"@typescript-eslint/eslint-plugin": "^8.58.1",
 		"@typescript-eslint/parser": "^8.58.1",
 		"@vitejs/plugin-react": "^5.0.4",
-		"async": ">=3.2.6",
 		"chalk": "^5.6.2",
 		"cross-env": "^10.1.0",
 		"detect-port": "^2.1.0",
@@ -151,7 +148,6 @@
 		"electron-vite": "^4.0.0",
 		"eslint": "^9.39.4",
 		"eslint-import-resolver-typescript": "^4.4.4",
-		"eslint-plugin-compat": "^7.0.1",
 		"eslint-plugin-import": "^2.32.0",
 		"eslint-plugin-jsx-a11y": "^6.10.2",
 		"eslint-plugin-promise": "^7.2.1",
@@ -170,7 +166,6 @@
 	},
 	"dependencies": {
 		"@ant-design/icons": "^6.1.1",
-		"@fontsource/roboto": "^5.2.10",
 		"antd": "^6.3.5",
 		"async-mutex": "^0.5.0",
 		"axios": "^1.14.0",
@@ -180,11 +175,9 @@
 		"electron-updater": "^6.8.3",
 		"less": "^4.6.4",
 		"node-html-parser": "^7.1.0",
-		"open": "^11.0.0",
 		"ps-list": "^9.0.0",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
-		"react-loading": "^2.0.3",
 		"react-router-dom": "^7.14.0"
 	},
 	"engines": {

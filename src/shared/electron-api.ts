@@ -36,7 +36,7 @@ export interface ElectronApi {
 	selectPath: (directory: boolean, title: string) => Promise<string | null>;
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => Promise<boolean>;
 	isGameRunning: () => Promise<boolean>;
-	readModMetadata: (localDir: string | undefined, allKnownMods: string[]) => Promise<SessionMods | null>;
+	readModMetadata: (localDir: string | undefined, allKnownMods: string[]) => Promise<SessionMods>;
 	fetchWorkshopDependencies: (workshopID: bigint) => Promise<boolean>;
 	steamworksInited: () => Promise<SteamworksStatus>;
 	downloadMod: (workshopID: bigint) => Promise<boolean>;

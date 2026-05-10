@@ -4,12 +4,12 @@ import { Layout, Form, Input, InputNumber, Switch, Button, Space, Select, Row, C
 import { useOutletContext } from 'react-router-dom';
 import { CloseOutlined, EditFilled, FolderOutlined, PlusOutlined } from '@ant-design/icons';
 import { createEditingConfig, useSettingsForm } from 'renderer/hooks/useSettingsForm';
-import api from 'renderer/Api';
+import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { validateSettingsPath } from 'util/Validation';
 
 const { Content } = Layout;
 const { Search } = Input;
-const { Title } = Typography;
+const { Paragraph, Title } = Typography;
 
 interface SettingsViewProps {
 	appState: AppState;
@@ -19,6 +19,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 	const [form] = Form.useForm();
 	const { madeConfigEdits, savingConfig, configErrors } = appState;
 	const isLinux = window.electron.platform === 'linux';
+	const { openNotification } = useNotifications();
 	const {
 		editingConfig,
 		selectingDirectory,
@@ -62,7 +63,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 	const validateFile = useCallback(
 		async (field: string, value: string) => {
 			if (!value || value.length === 0) {
-				if (field === AppConfigKeys.LOCAL_DIR) {
+				if (field === AppConfigKeys.LOCAL_DIR || field === AppConfigKeys.LOGS_DIR) {
 					updateConfigErrors(field);
 					return;
 				}
@@ -81,7 +82,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 
 				updateConfigErrors(field);
 			} catch (error) {
-				const message = String(error);
+				const message = error instanceof Error ? error.message : String(error);
 				updateConfigErrors(field, message);
 				throw new Error(message);
 			}
@@ -101,23 +102,65 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 
 	const handleSelectPath = useCallback(
 		async (target: AppConfigKeys.LOCAL_DIR | AppConfigKeys.LOGS_DIR | AppConfigKeys.GAME_EXEC, directory: boolean, title: string) => {
-			const selectedPath = await selectPath(target, directory, title);
-			if (!selectedPath) {
-				return;
-			}
+			try {
+				const selectedPath = await selectPath(target, directory, title);
+				if (!selectedPath) {
+					return;
+				}
 
-			form.setFieldValue(target, selectedPath);
-			void form.validateFields([target]).catch(() => undefined);
+				form.setFieldValue(target, selectedPath);
+				void form.validateFields([target]).catch(() => undefined);
+			} catch (error) {
+				openNotification(
+					{
+						message: 'Could not open the file picker',
+						description: error instanceof Error ? error.message : String(error),
+						placement: 'bottomLeft',
+						duration: null
+					},
+					'error'
+				);
+			}
 		},
-		[form, selectPath]
+		[form, openNotification, selectPath]
 	);
+
+	const handleSaveChanges = useCallback(async () => {
+		const result = await saveChanges();
+		if (result.ok) {
+			openNotification(
+				{
+					message: 'Settings saved',
+					description: result.reloadRequired
+						? 'Mod data will refresh using the updated paths and manager settings.'
+						: result.descriptorsRebuilt
+							? 'Dependency descriptors were rebuilt using the updated settings.'
+							: 'Your changes are available now.',
+					placement: 'bottomLeft',
+					duration: 2
+				},
+				'success'
+			);
+			return;
+		}
+
+		openNotification(
+			{
+				message: 'Could not save settings',
+				description: result.message,
+				placement: 'bottomLeft',
+				duration: null
+			},
+			'error'
+		);
+	}, [openNotification, saveChanges]);
 
 	return (
 		<Layout style={{ width: '100%' }}>
 			{modalType === SettingsViewModalType.LOG_EDIT && editingContext ? (
 				<Modal
 					key="logger-name-modal"
-					title="Edit Logger Name"
+					title="Edit Logger ID"
 					open
 					closable={false}
 					footer={[
@@ -128,7 +171,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								closeModal();
 							}}
 						>
-							Save Settings
+							Done
 						</Button>
 					]}
 				>
@@ -151,7 +194,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 			{modalType === SettingsViewModalType.WORKSHOP_ID_EDIT ? (
 				<Modal
 					key="workshop-id-modal"
-					title="Select Mod Manager"
+					title="Select Mod Manager Workshop Item"
 					open
 					closable={false}
 					footer={[
@@ -163,22 +206,21 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								closeModal();
 							}}
 						>
-							Make No Changes
+							Keep Current Manager
 						</Button>,
 						<Button
 							key="save-settings"
 							type="primary"
-							danger
 							onClick={() => {
 								closeModal();
 							}}
 						>
-							Save Settings
+							Save Manager ID
 						</Button>
 					]}
 				>
 					<Form className="WorkshopIDForm">
-						<Form.Item key="workshop-id" name="workshop-id" label="Workshop ID">
+						<Form.Item key="workshop-id" name="workshop-id" label="Workshop item ID">
 							<InputNumber
 								value={editingConfig.workshopID.toString()}
 								onChange={(value) => {
@@ -195,20 +237,26 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 					<Title level={3} style={{ marginBottom: 0 }}>
 						Settings
 					</Title>
+					<Paragraph type="secondary" className="SettingsIntro">
+						Manage game paths, launch behavior, and logging for this TerraTech install.
+					</Paragraph>
 				</div>
 				<Form
 					form={form}
-					onFinish={saveChanges}
+					onFinish={() => {
+						void handleSaveChanges();
+					}}
 					labelWrap
-					labelCol={{ span: 12, lg: 12, xl: 9, xxl: 6 }}
-					wrapperCol={{ span: 12, lg: 12, xl: 15, xxl: 18 }}
+					labelCol={{ xs: 24, sm: 24, lg: 10, xl: 9, xxl: 6 }}
+					wrapperCol={{ xs: 24, sm: 24, lg: 14, xl: 15, xxl: 18 }}
 					initialValues={{ remember: true }}
 					autoComplete="off"
 					className="SettingsForm"
 					name="control-ref"
 				>
-					<Row justify="space-between" gutter={40} className="CollectionSettings" style={{ marginBottom: 10 }}>
-						<Col span={12} key="misc-app-settings" className="SettingsPane MiscAppSettings">
+					<Row align="stretch" gutter={[40, 24]} className="CollectionSettings SettingsPaneGrid" style={{ marginBottom: 10 }}>
+						<Col xs={24} lg={12} key="misc-app-settings" className="SettingsPaneColumn MiscAppSettings">
+							<div className="SettingsPane">
 							<Form.Item
 								name="localDir"
 								label="Local Mods Directory"
@@ -216,10 +264,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									styles: { container: { minWidth: 300 } },
 									title: (
 										<div>
-											<p>Path to TT Local Mods directory</p>
-											<p>It will be called &quot;LocalMods&quot;, and be under Steam/steamapps/common/TerraTech</p>
-											<p>YOU CAN LEAVE THIS BLANK</p>
-											<p>This is for mod developer testing purposes</p>
+											<p>Optional. Use this only when you develop or test local mods.</p>
+											<p>Point it to TerraTech&apos;s LocalMods folder under Steam/steamapps/common/TerraTech.</p>
 										</div>
 									)
 								}}
@@ -234,7 +280,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								<Search
 									disabled={selectingDirectory}
 									value={editingConfig.localDir}
-									enterButton={<FolderOutlined />}
+									enterButton={<Button aria-label="Browse for the Local Mods directory" icon={<FolderOutlined />} />}
 									onChange={(event) => {
 										setField(AppConfigKeys.LOCAL_DIR, event.target.value);
 									}}
@@ -256,8 +302,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												</>
 											) : (
 												<>
-													<p>Path to TT executable</p>
-													<p>Generally, it should be under: Steam/steamapps/common/TerraTech. It varies by platform</p>
+													<p>Path to TerraTech&apos;s main executable.</p>
+													<p>It is usually under Steam/steamapps/common/TerraTech, but the exact file varies by platform.</p>
 												</>
 											)}
 										</div>
@@ -285,7 +331,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									<Search
 										disabled={selectingDirectory}
 										value={editingConfig.gameExec}
-										enterButton={<FolderOutlined />}
+										enterButton={<Button aria-label="Browse for the TerraTech executable" icon={<FolderOutlined />} />}
 										onSearch={() => {
 											void handleSelectPath(AppConfigKeys.GAME_EXEC, false, 'Select TerraTech Executable');
 										}}
@@ -295,11 +341,33 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									/>
 								)}
 							</Form.Item>
-							<Form.Item name="logsDir" label="Logs Directory">
+							<Form.Item
+								name="logsDir"
+								label="Logs Directory"
+								tooltip={{
+									styles: { container: { minWidth: 300 } },
+									title: (
+										<div>
+											<p>Optional. Use this if you want TTSMM-EX to write logs somewhere other than the default app data folder.</p>
+											<p>Point it at a folder you can keep between launches while troubleshooting.</p>
+										</div>
+									)
+								}}
+								rules={[
+									{
+										validator: async (_, value) => validateFile(AppConfigKeys.LOGS_DIR, value)
+									}
+								]}
+								help={configErrors?.logsDir}
+								validateStatus={configErrors?.logsDir ? 'error' : undefined}
+							>
 								<Search
-									disabled
+									disabled={selectingDirectory}
 									value={editingConfig.logsDir}
-									enterButton={<FolderOutlined />}
+									enterButton={<Button aria-label="Browse for the logs directory" icon={<FolderOutlined />} />}
+									onChange={(event) => {
+										setField(AppConfigKeys.LOGS_DIR, event.target.value);
+									}}
 									onSearch={() => {
 										void handleSelectPath(AppConfigKeys.LOGS_DIR, true, 'Select directory for logs');
 									}}
@@ -320,7 +388,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									styles: { container: { minWidth: 300 } },
 									title: (
 										<div>
-											<p>Should TTSMM launch the game without the integrated mod loader if no other mods are selected?</p>
+											<p>Launch TerraTech without the integrated mod loader when no other mods are enabled.</p>
 										</div>
 									)
 								}}
@@ -339,8 +407,8 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									styles: { container: { minWidth: 320 } },
 									title: (
 										<div>
-											<p>Treat NuterraSteam, NuterraSteam(beta), and NuterraSteam (Beta) as the same dependency target during validation.</p>
-											<p>Disable this only if you need the older strict ID matching behavior.</p>
+											<p>Treat NuterraSteam and NuterraSteam (Beta) as the same dependency during validation.</p>
+											<p>Turn this off only if you need strict legacy ID matching.</p>
 										</div>
 									)
 								}}
@@ -354,14 +422,14 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</Form.Item>
 							<Form.Item
 								name="logLevel"
-								label="TTSMM Logging Level"
+								label="App Logging Level"
 								tooltip={{
 									styles: { container: { minWidth: 300 } },
 									title: (
 										<div>
-											<p>How much TTSMM logs. Recommend leaving it at Warn or Error, unless specifically requested for debugging reasons</p>
-											<p>This is NOT the same as the 0ModManager logging level. This will only impact how much this external application logs</p>
-											<p>Changing this will NOT impact TerraTech logging. Only change this if you were EXPLICITLY TOLD to do so.</p>
+											<p>Controls how much this desktop app logs.</p>
+											<p>It does not change TerraTech logging or the in-game mod manager&apos;s logging.</p>
+											<p>Use Warn or Error unless you are troubleshooting a specific issue.</p>
 										</div>
 									)
 								}}
@@ -371,7 +439,6 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									value={editingConfig.logLevel}
 									onChange={(value) => {
 										setField('logLevel', value);
-										api.updateLogLevel(value);
 									}}
 									style={{ width: 125 }}
 								>
@@ -397,13 +464,13 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 							</Form.Item>
 							<Form.Item
 								name="workshopID"
-								label="Workshop ID"
+								label="Mod Manager Workshop Item ID"
 								rules={[{ required: true }]}
 								tooltip={{
 									styles: { container: { minWidth: 300 } },
 									title: (
 										<div>
-											<p>Which workshop mod is used as the underlying mod manager</p>
+											<p>The Steam Workshop item ID for the mod manager package this app should launch with.</p>
 										</div>
 									)
 								}}
@@ -411,18 +478,20 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 								<Space.Compact style={{ width: '100%' }}>
 									<InputNumber value={editingConfig.workshopID.toString()} disabled style={{ width: 175 }} />
 									<Button
+										aria-label="Edit the mod manager workshop item ID"
 										icon={<EditFilled />}
 										type="primary"
-										danger
 										onClick={() => {
 											openWorkshopIdModal();
 										}}
 									/>
 								</Space.Compact>
 							</Form.Item>
+							</div>
 						</Col>
-						<Col span={12} key="additional-commands" className="SettingsPane">
-							<Form.Item name="extraParams" label="Additional launch Arguments">
+						<Col xs={24} lg={12} key="additional-commands" className="SettingsPaneColumn">
+							<div className="SettingsPane">
+							<Form.Item name="extraParams" label="Additional Launch Arguments">
 								<Input
 									value={editingConfig.extraParams}
 									onChange={(event) => {
@@ -430,7 +499,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									}}
 								/>
 							</Form.Item>
-							<Divider>TTLogManager Logging Configs</Divider>
+							<Divider>TTLogManager Logger Overrides</Divider>
 							{editingConfig.editingLogConfig.map((config, index) => {
 								const id = ['editingLogConfig', index, 'loggerID'];
 
@@ -438,7 +507,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									<Form.Item
 										name={id}
 										key={`${config.loggerID}-${index}`}
-										label={`Config ${index}`}
+										label={`Override ${index + 1}`}
 										rules={[
 											{
 												validator: async () => validateLoggerID(config.loggerID)
@@ -479,6 +548,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 											<Space.Compact style={{ width: '100%' }}>
 												<Input style={{ width: 'calc(100% - 50px)' }} value={config.loggerID} disabled />
 												<Button
+													aria-label={`Edit logger override ${index + 1}`}
 													icon={<EditFilled />}
 													type="primary"
 													onClick={() => {
@@ -487,6 +557,7 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 												/>
 											</Space.Compact>
 											<Button
+												aria-label={`Remove logger override ${index + 1}`}
 												icon={<CloseOutlined />}
 												danger
 												type="primary"
@@ -506,12 +577,13 @@ function SettingsViewComponent({ appState }: SettingsViewProps) {
 									}}
 									type="primary"
 								>
-									Add New Logging Config
+									Add Logger Override
 								</Button>
 							</span>
+							</div>
 						</Col>
 					</Row>
-					<Space size="middle" align="center" className="SettingsActions">
+					<Space size="middle" align="center" className="SettingsActions" wrap>
 						<Button disabled={!madeConfigEdits} htmlType="button" onClick={cancelChanges}>
 							Reset Changes
 						</Button>

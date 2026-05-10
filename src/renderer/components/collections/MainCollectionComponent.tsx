@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Layout, Table, Tag, Tooltip, Typography, Button } from 'antd';
+import { Dropdown, Layout, Table, Tag, Tooltip, Typography } from 'antd';
 import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useMemo } from 'react';
-import type { Key, ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import type { MenuProps } from 'antd';
 import { ColumnType } from 'antd/lib/table';
-import { CompareFn, TableRowSelection } from 'antd/lib/table/interface';
+import { CompareFn, SortOrder, TableRowSelection } from 'antd/lib/table/interface';
 import api from 'renderer/Api';
+import { APP_THEME_COLORS } from 'renderer/theme';
 import {
 	CollectionViewProps,
 	DisplayModData,
@@ -13,7 +15,11 @@ import {
 	MainColumnTitles,
 	ModErrors,
 	ModType,
-	getModDataId,
+	getMainColumnMinWidth,
+	getModDataDisplayName,
+	compareModDataDisplayName,
+	getModDataDisplayId,
+	compareModDataDisplayId,
 	CorpType,
 	getCorpType
 } from 'model';
@@ -35,25 +41,57 @@ import Icon_Corps from '../../../../assets/faction-flag.svg';
 
 const { Content } = Layout;
 const { Text } = Typography;
+const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
+const KEYBOARD_RESIZE_STEP = 16;
+const COLUMN_MEASUREMENT_HOST_CLASS = 'MainCollectionTableMeasureHost';
+const COLUMN_MEASUREMENT_SAMPLE_SIZE = 24;
+const COLUMN_AUTO_MEASURE_MAX_ROWS = 120;
+const TABLE_SORT_DIRECTIONS: SortOrder[] = ['ascend', 'descend', 'ascend'];
+const ALL_MAIN_COLUMN_TITLES = Object.values(MainColumnTitles) as MainColumnTitles[];
+const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
+	[MainColumnTitles.AUTHORS]: 760,
+	[MainColumnTitles.STATE]: 860,
+	[MainColumnTitles.SIZE]: 960,
+	[MainColumnTitles.LAST_UPDATE]: 1080,
+	[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 1180,
+	[MainColumnTitles.DATE_ADDED]: 1280,
+	[MainColumnTitles.TAGS]: 1380
+};
+
+function getModTypeLabel(type: ModType) {
+	switch (type) {
+		case ModType.LOCAL:
+			return 'Local mod';
+		case ModType.TTQMM:
+			return 'TTMM mod';
+		case ModType.WORKSHOP:
+			return 'Steam Workshop mod';
+		default:
+			return 'Mod';
+	}
+}
 
 function getImageSrcFromType(type: ModType, size = 15) {
+	const label = getModTypeLabel(type);
 	switch (type) {
 		case ModType.LOCAL:
 			return (
-				<Tooltip title="This is a local mod">
-					<HddFilled style={{ fontSize: size }} />
+				<Tooltip title={label}>
+					<span role="img" aria-label={label}>
+						<HddFilled style={{ fontSize: size }} />
+					</span>
 				</Tooltip>
 			);
 		case ModType.TTQMM:
 			return (
-				<Tooltip title="This is a TTMM mod">
-					<img src={ttmm} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={ttmm} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		case ModType.WORKSHOP:
 			return (
-				<Tooltip title="This is a Steam mod">
-					<img src={steam} width={size} alt="" key="type" />
+				<Tooltip title={label}>
+					<img src={steam} width={size} alt={label} key="type" />
 				</Tooltip>
 			);
 		default:
@@ -68,23 +106,25 @@ enum TypeTag {
 }
 
 function getTypeIcon(type: TypeTag, size = 15) {
+	const label =
+		type === TypeTag.SKINS ? 'Skins' : type === TypeTag.BLOCKS ? 'Blocks' : type === TypeTag.CORPS ? 'Custom corps' : 'Tag';
 	switch (type) {
 		case TypeTag.SKINS:
 			return (
-				<Tooltip title="Skins" key={type}>
-					<img src={Icon_Skins} width={size - 14} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Skins} width={size - 14} alt={label} key={type} />
 				</Tooltip>
 			);
 		case TypeTag.BLOCKS:
 			return (
-				<Tooltip title="Blocks" key={type}>
-					<img src={Icon_Blocks} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Blocks} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case TypeTag.CORPS:
 			return (
-				<Tooltip title="Custom Corps" key={type}>
-					<img src={Icon_Corps} width={size - 10} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Icon_Corps} width={size - 10} alt={label} key={type} />
 				</Tooltip>
 			);
 		default:
@@ -93,47 +133,63 @@ function getTypeIcon(type: TypeTag, size = 15) {
 }
 
 function getCorpIcon(type: CorpType, size = 15) {
+	const label =
+		type === CorpType.HE
+			? 'Hawkeye (HE)'
+			: type === CorpType.GSO
+				? 'Galactic Survey Organization (GSO)'
+				: type === CorpType.GC
+					? 'GeoCorp (GC)'
+					: type === CorpType.BF
+						? 'Better Future (BF)'
+						: type === CorpType.RR
+							? 'Reticule Research (EXP)'
+							: type === CorpType.SPE
+								? 'Special (SPE)'
+								: type === CorpType.VEN
+									? 'Venture (VEN)'
+									: 'Corporation';
 	switch (type) {
 		case CorpType.HE:
 			return (
-				<Tooltip title="Hawkeye (HE)" key={type}>
-					<img src={Corp_Icon_HE} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_HE} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.GSO:
 			return (
-				<Tooltip title="Galactic Survey Organization (GSO)" key={type}>
-					<img src={Corp_Icon_GSO} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_GSO} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.GC:
 			return (
-				<Tooltip title="GeoCorp (GC)" key={type}>
-					<img src={Corp_Icon_GC} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_GC} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.BF:
 			return (
-				<Tooltip title="Better Future (BF)" key={type}>
-					<img src={Corp_Icon_BF} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_BF} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.RR:
 			return (
-				<Tooltip title="Reticule Research (EXP)" key={type}>
-					<img src={Corp_Icon_RR} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_RR} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.SPE:
 			return (
-				<Tooltip title="Special (SPE)" key={type}>
-					<img src={Corp_Icon_SPE} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_SPE} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		case CorpType.VEN:
 			return (
-				<Tooltip title="Venture (VEN)" key={type}>
-					<img src={Corp_Icon_VEN} width={size} alt="" key={type} />
+				<Tooltip title={label} key={type}>
+					<img src={Corp_Icon_VEN} width={size} alt={label} key={type} />
 				</Tooltip>
 			);
 		default:
@@ -163,7 +219,7 @@ interface ColumnSchema<T> {
 	align?: 'center';
 	defaultSortOrder?: 'ascend';
 	filters?: ColumnType<DisplayModData>['filters'];
-	filtersSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['filters'];
+	filtersSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['filters'];
 	onFilter?: ColumnType<DisplayModData>['onFilter'];
 	sorter?:
 		| boolean
@@ -173,9 +229,11 @@ interface ColumnSchema<T> {
 				multiple?: number | undefined;
 		  }
 		| undefined;
-	sorterSetup?: (props: CollectionViewProps) => ColumnType<DisplayModData>['sorter'];
-	renderSetup?: (props: CollectionViewProps) => (value: any, record: T, index: number) => ReactNode;
+	sorterSetup?: (props: MainCollectionSchemaProps) => ColumnType<DisplayModData>['sorter'];
+	renderSetup?: (props: MainCollectionSchemaProps) => (value: any, record: T, index: number) => ReactNode;
 }
+
+type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
 
 interface StateTagConfig {
 	color?: string;
@@ -193,7 +251,151 @@ function getAllTags(record: DisplayModData) {
 	return [...new Set([...(record.tags || []), ...(record.overrides?.tags || [])])].filter((tag) => tag.toLowerCase() !== 'mods');
 }
 
-function getStateTags(props: CollectionViewProps, record: DisplayModData): StateTagConfig[] {
+interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
+	'data-column-title'?: string;
+	headerMenu?: MenuProps;
+	label?: string;
+	width?: number | string;
+	resizeWidth?: number;
+	minWidth?: number;
+	onResize?: (nextWidth: number) => void;
+	onResizeEnd?: (nextWidth: number) => void;
+}
+
+function ResizableHeaderCell({
+	headerMenu,
+	label,
+	width,
+	resizeWidth,
+	minWidth = 80,
+	onResize,
+	onResizeEnd,
+	children,
+	style,
+	...rest
+}: ResizableHeaderCellProps) {
+	const cleanupRef = useRef<(() => void) | null>(null);
+	const widthRef = useRef(resizeWidth ?? (typeof width === 'number' ? width : minWidth));
+	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
+
+	useEffect(() => {
+		widthRef.current = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	}, [minWidth, resizeWidth, width]);
+
+	useEffect(() => {
+		return () => {
+			cleanupRef.current?.();
+		};
+	}, []);
+
+	const startResize = useCallback(
+		(startX: number) => {
+			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
+			let nextWidth = startWidth;
+			const previousCursor = document.body.style.cursor;
+			const previousUserSelect = document.body.style.userSelect;
+
+			const updateWidth = (clientX: number) => {
+				nextWidth = Math.max(minWidth, Math.round(startWidth + clientX - startX));
+				onResize?.(nextWidth);
+			};
+
+			const stopResize = () => {
+				window.removeEventListener('mousemove', handleMouseMove);
+				window.removeEventListener('mouseup', handleMouseUp);
+				document.body.style.cursor = previousCursor;
+				document.body.style.userSelect = previousUserSelect;
+				cleanupRef.current = null;
+				onResizeEnd?.(nextWidth);
+			};
+
+			const handleMouseMove = (event: MouseEvent) => {
+				updateWidth(event.clientX);
+			};
+
+			const handleMouseUp = () => {
+				stopResize();
+			};
+
+			document.body.style.cursor = 'col-resize';
+			document.body.style.userSelect = 'none';
+			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('mouseup', handleMouseUp);
+			cleanupRef.current = stopResize;
+		},
+		[minWidth, onResize, onResizeEnd]
+	);
+
+	const handleMouseDown = useCallback(
+		(event: ReactMouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			startResize(event.clientX);
+		},
+		[startResize]
+	);
+
+	const handleKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			const direction = event.key === 'ArrowRight' ? 1 : -1;
+			const nextWidth = Math.max(minWidth, Math.round((widthRef.current || minWidth) + direction * KEYBOARD_RESIZE_STEP));
+			onResize?.(nextWidth);
+			onResizeEnd?.(nextWidth);
+		},
+		[minWidth, onResize, onResizeEnd]
+	);
+
+	return (
+		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
+			{headerMenu ? (
+				<Dropdown menu={headerMenu} trigger={['contextMenu']}>
+					<div className="CollectionTableHeaderContextTarget">
+						<div className="CollectionTableHeaderCell">{children}</div>
+					</div>
+				</Dropdown>
+			) : (
+				<div className="CollectionTableHeaderCell">{children}</div>
+			)}
+			{width ? (
+				<button
+					type="button"
+					className="CollectionTableResizeHandle"
+					aria-label={`Resize ${resizeLabel}`}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+					}}
+					onMouseDown={handleMouseDown}
+					onKeyDown={handleKeyDown}
+				/>
+			) : null}
+		</th>
+	);
+}
+
+function canSetMainColumnVisibility(columnTitle: MainColumnTitles, visible: boolean, columnActiveConfig?: Record<string, boolean>) {
+	if (visible) {
+		return true;
+	}
+
+	if (columnTitle === MainColumnTitles.ID && columnActiveConfig?.[MainColumnTitles.NAME] === false) {
+		return false;
+	}
+
+	if (columnTitle === MainColumnTitles.NAME && columnActiveConfig?.[MainColumnTitles.ID] === false) {
+		return false;
+	}
+
+	return true;
+}
+
+function getStateTags(props: Pick<MainCollectionSchemaProps, 'collection' | 'lastValidationStatus'>, record: DisplayModData): StateTagConfig[] {
 	const { lastValidationStatus, collection } = props;
 	const selectedMods = collection.mods;
 	const { uid, subscribed, workshopID, installed, id } = record;
@@ -242,6 +444,10 @@ function getStateTags(props: CollectionViewProps, record: DisplayModData): State
 		return [{ text: 'OK', color: 'green', rank: 7 }];
 	}
 
+	if (selectedMods.includes(uid)) {
+		return [{ text: 'Pending', rank: 8 }];
+	}
+
 	return [];
 }
 
@@ -257,42 +463,41 @@ function compareStateTags(leftTags: StateTagConfig[], rightTags: StateTagConfig[
 	return leftLabel.localeCompare(rightLabel);
 }
 
+function getMeasurementRowSignature(rows: DisplayModData[]) {
+	if (rows.length === 0) {
+		return 'empty';
+	}
+
+	return rows
+		.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE)
+		.map((row) => row.uid)
+		.sort((left, right) => left.localeCompare(right))
+		.join('|');
+}
+
 const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.TYPE,
 		dataIndex: 'type',
 		className: 'CollectionRowModType',
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
-			return (type: ModType) => (
-				<Button type="text">
-					{getImageSrcFromType(type, small ? 20 : 30)}
-				</Button>
-			);
+			return (type: ModType) => <span className="CollectionTypeIndicator">{getImageSrcFromType(type, small ? 22 : 30)}</span>;
 		},
-		width: 65,
+		width: 56,
 		align: 'center'
 	},
 	{
 		title: MainColumnTitles.NAME,
 		dataIndex: 'name',
 		className: 'CollectionRowModName',
+		width: 288,
 		defaultSortOrder: 'ascend',
-		sorter: (a: DisplayModData, b: DisplayModData) => {
-			if (a.name) {
-				if (b.name) {
-					return a.name > b.name ? 1 : -1;
-				}
-				return 1;
-			}
-			if (b.name) {
-				return -1;
-			}
-			return 0;
-		},
-		renderSetup: (props: CollectionViewProps) => {
-			return (name: string, record: DisplayModData) => {
+		sorter: compareModDataDisplayName,
+		renderSetup: (props: MainCollectionSchemaProps) => {
+			const small = (props.config as MainCollectionConfig | undefined)?.smallRows;
+			return (_name: string, record: DisplayModData) => {
 				let updateIcon = null;
 				let updateType: 'danger' | 'warning' | undefined;
 				const { needsUpdate, downloadPending, downloading, uid, hasCode } = record;
@@ -320,23 +525,20 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 						updateType = 'warning';
 					}
 				}
-				let correctedName = name;
-				const matches = name.match(/(.*)\s*\(([^()]*[Tt][Tt][Ss][Mm][Mm][^()]*)\)$/);
-				if (matches && matches[1]) {
-					correctedName = matches[1].trim();
-				}
+				const displayName = getModDataDisplayName(record) || record.uid;
 				return (
 					<button
-						type="submit"
+						type="button"
 						className="CollectionNameButton"
+						aria-label={`Open details for ${displayName}`}
 						style={{
-							fontSize: 14,
+							fontSize: small ? 13.5 : 14,
 							backgroundColor: 'transparent',
 							borderRadius: 0,
 							width: '100%',
 							padding: 2,
-							paddingLeft: 6,
-							paddingRight: 4,
+							paddingLeft: small ? 6 : 6,
+							paddingRight: small ? 3 : 4,
 							margin: 0,
 							verticalAlign: 'middle',
 							textAlign: 'left',
@@ -346,10 +548,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 						onClick={() => {
 							props.getModDetails(uid, record);
 						}}
-					>
-						{updateIcon}
-						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${correctedName} `}</Text>
-						{hasCode && <CodeFilled style={{ color: '#6abe39', fontSize: 16, verticalAlign: 'middle' }} />}
+						>
+							{updateIcon}
+						<Text strong={needsUpdate} type={updateType} style={{ whiteSpace: 'normal', width: '100%', verticalAlign: 'middle' }}>{` ${displayName} `}</Text>
+						{hasCode ? (
+							<Tooltip title="Contains code">
+								<CodeFilled style={{ color: APP_THEME_COLORS.success, fontSize: small ? 16 : 16, verticalAlign: 'middle' }} />
+							</Tooltip>
+						) : null}
 					</button>
 				);
 			};
@@ -358,8 +564,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.AUTHORS,
 		dataIndex: 'authors',
-		width: 150,
-		defaultSortOrder: 'ascend',
+		width: 120,
 		sorter: (a, b) => {
 			const v1 = a;
 			const v2 = b;
@@ -398,11 +603,11 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.STATE,
 		dataIndex: 'errors',
-		width: 250,
-		sorterSetup: (props: CollectionViewProps) => {
+		width: 112,
+		sorterSetup: (props: MainCollectionSchemaProps) => {
 			return (a: DisplayModData, b: DisplayModData) => compareStateTags(getStateTags(props, a), getStateTags(props, b));
 		},
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			return (_errors: ModErrors | undefined, record: DisplayModData) => {
 				const stateTags = getStateTags(props, record);
 				if (stateTags.length > 0) {
@@ -419,37 +624,30 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.ID,
 		dataIndex: 'id',
-		sorter: (a, b) => {
-			const aID = getModDataId(a);
-			const bID = getModDataId(b);
-			if (aID) {
-				if (bID) {
-					return aID > bID ? 1 : -1;
-				}
-				return 1;
-			}
-			if (bID) {
-				return -1;
-			}
-			return 0;
-		},
+		width: 132,
+		sorter: compareModDataDisplayId,
 		renderSetup: () => {
 			return (_: string, record: DisplayModData) => {
-				if (record.overrides?.id) {
+				const displayID = getModDataDisplayId(record);
+				if (!displayID) {
+					return null;
+				}
+				if (record.workshopID === undefined && record.overrides?.id) {
 					return (
 						<Tag color="gray" key="id">
-							{record.overrides.id}
+							{displayID}
 						</Tag>
 					);
 				}
-				return record.id;
+				return displayID;
 			};
 		}
 	},
 	{
 		title: MainColumnTitles.SIZE,
 		dataIndex: 'size',
-		width: 80,
+		width: 72,
+		sorter: (a, b) => (a.size || 0) - (b.size || 0),
 		renderSetup: () => {
 			return (size?: number) => {
 				if (!size || size <= 0) {
@@ -511,7 +709,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.LAST_UPDATE,
 		dataIndex: 'lastUpdate',
-		width: 130,
+		width: 116,
 		sorter: (a, b) => compareOptionalDates(a.lastUpdate, b.lastUpdate),
 		renderSetup: () => {
 			return (date: Date) => formatDateStr(date);
@@ -520,7 +718,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.LAST_WORKSHOP_UPDATE,
 		dataIndex: 'lastWorkshopUpdate',
-		width: 130,
+		width: 116,
 		sorter: (a, b) => compareOptionalDates(a.lastWorkshopUpdate, b.lastWorkshopUpdate),
 		renderSetup: () => {
 			return (date: Date) => formatDateStr(date);
@@ -529,7 +727,8 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 	{
 		title: MainColumnTitles.DATE_ADDED,
 		dataIndex: 'dateAdded',
-		width: 130,
+		width: 116,
+		sorter: (a, b) => compareOptionalDates(a.dateAdded, b.dateAdded),
 		renderSetup: () => {
 			return (date: Date) => formatDateStr(date);
 		}
@@ -538,7 +737,8 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		title: MainColumnTitles.TAGS,
 		dataIndex: 'tags',
 		className: 'CollectionRowTags',
-		filtersSetup: (props: CollectionViewProps) => {
+		width: 180,
+		filtersSetup: (props: MainCollectionSchemaProps) => {
 			return [...new Set(props.rows.flatMap((record) => getAllTags(record)))]
 				.sort((left, right) => left.localeCompare(right))
 				.map((tag) => ({ text: tag, value: tag }));
@@ -546,7 +746,7 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 		onFilter: (value, record) => {
 			return getAllTags(record).includes(value.toString());
 		},
-		renderSetup: (props: CollectionViewProps) => {
+		renderSetup: (props: MainCollectionSchemaProps) => {
 			const { config } = props;
 			const small = (config as MainCollectionConfig | undefined)?.smallRows;
 			return (tags: string[] | undefined, record: DisplayModData) => {
@@ -568,20 +768,46 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema<DisplayModData>[] = [
 					}
 				});
 				return [
-					...typeTags.map((type) => getTypeIcon(type, small ? 35 : 40)),
+					...typeTags.map((type) => getTypeIcon(type, small ? 30 : 40)),
 					...actualTags.map((tag) => (
 						<Tag color="blue" key={tag}>
 							{tag}
 						</Tag>
 					)),
-					...iconTags.map((corp) => getCorpIcon(corp, small ? 35 : 40))
+					...iconTags.map((corp) => getCorpIcon(corp, small ? 30 : 40))
 				];
 			};
 		}
 	}
 ];
 
-function getRowSelection(props: CollectionViewProps) {
+function getActiveColumnSchemas(config: MainCollectionConfig | undefined) {
+	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
+	const columnActiveConfig = config?.columnActiveConfig;
+	if (columnActiveConfig) {
+		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
+	}
+	return activeColumns;
+}
+
+function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0) {
+	const activeColumns = getActiveColumnSchemas(config);
+	if (availableTableWidth <= 0) {
+		return activeColumns;
+	}
+
+	return activeColumns.filter((column) => {
+		const minimumResponsiveWidth = RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS[column.title as MainColumnTitles];
+		return minimumResponsiveWidth === undefined || availableTableWidth >= minimumResponsiveWidth;
+	});
+}
+
+function getRowSelection(
+	props: Pick<
+		CollectionViewProps,
+		'collection' | 'rows' | 'filteredRows' | 'setEnabledModsCallback' | 'setEnabledCallback' | 'setDisabledCallback'
+	>
+) {
 	const { collection, rows, filteredRows, setEnabledModsCallback, setEnabledCallback, setDisabledCallback } = props;
 
 	const rowSelection: TableRowSelection<DisplayModData> = {
@@ -639,21 +865,148 @@ function getRowSelection(props: CollectionViewProps) {
 	return rowSelection;
 }
 
-function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>[] {
-	const { config } = props;
-	let activeColumns: ColumnSchema<DisplayModData>[] = MAIN_COLUMN_SCHEMA;
-	const columnActiveConfig = (config as MainCollectionConfig | undefined)?.columnActiveConfig;
-	if (columnActiveConfig) {
-		activeColumns = activeColumns.filter((colSchema) => columnActiveConfig[colSchema.title] || columnActiveConfig[colSchema.title] === undefined);
+export function getColumnWidths(config: MainCollectionConfig | undefined, autoColumnWidths: Record<string, number> = {}, availableTableWidth = 0) {
+	const configuredWidths = config?.columnWidthConfig || {};
+	const columnWidths = getResponsiveActiveColumnSchemas(config, availableTableWidth).reduce(
+		(acc, column) => {
+			if (column.width) {
+				const minWidth = getMainColumnMinWidth(column.title as MainColumnTitles);
+				const configuredWidth = configuredWidths[column.title] ?? autoColumnWidths[column.title] ?? column.width;
+				acc[column.title] = Math.max(minWidth, configuredWidth);
+			}
+			return acc;
+		},
+		{} as Record<string, number>
+	);
+
+	const nameWidth = columnWidths[MainColumnTitles.NAME];
+	const nameWidthIsConfigured = configuredWidths[MainColumnTitles.NAME] !== undefined;
+	if (availableTableWidth > 0 && nameWidth !== undefined && !nameWidthIsConfigured) {
+		const currentTableWidth = Object.values(columnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, 0);
+		const targetTableWidth = Math.max(0, Math.floor(availableTableWidth - DEFAULT_SELECTION_COLUMN_WIDTH));
+		if (currentTableWidth < targetTableWidth) {
+			columnWidths[MainColumnTitles.NAME] += targetTableWidth - currentTableWidth;
+		}
 	}
+
+	return columnWidths;
+}
+
+function createColumnMeasurementHost() {
+	const measurementHost = document.createElement('div');
+	measurementHost.className = COLUMN_MEASUREMENT_HOST_CLASS;
+	Object.assign(measurementHost.style, {
+		position: 'fixed',
+		left: '-100000px',
+		top: '0',
+		visibility: 'hidden',
+		pointerEvents: 'none',
+		whiteSpace: 'nowrap',
+		width: 'max-content',
+		maxWidth: 'none',
+		overflow: 'visible',
+		contain: 'layout style size'
+	});
+	document.body.appendChild(measurementHost);
+	return measurementHost;
+}
+
+function prepareMeasurementClone(root: HTMLElement) {
+	root.querySelectorAll('.CollectionTableResizeHandle').forEach((handle) => handle.remove());
+	const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+	elements.forEach((element) => {
+		element.style.width = element.classList.contains('CollectionNameButton') || element.style.width === '100%' ? 'auto' : element.style.width;
+		element.style.minWidth = '0';
+		element.style.maxWidth = 'none';
+		element.style.whiteSpace = 'nowrap';
+		element.style.overflow = 'visible';
+		if (element === root) {
+			element.style.position = 'static';
+			element.style.left = 'auto';
+			element.style.right = 'auto';
+			element.style.top = 'auto';
+			element.style.bottom = 'auto';
+			element.style.transform = 'none';
+			if (element.tagName === 'TH' || element.tagName === 'TD') {
+				element.style.display = 'inline-block';
+			}
+		}
+		if (element.classList.contains('CollectionNameButton')) {
+			element.style.display = 'inline-block';
+		}
+	});
+}
+
+function measureNaturalCellWidth(cell: HTMLElement, measurementHost: HTMLElement) {
+	const clone = cell.cloneNode(true) as HTMLElement;
+	prepareMeasurementClone(clone);
+	measurementHost.appendChild(clone);
+	const width = Math.ceil(clone.getBoundingClientRect().width);
+	measurementHost.removeChild(clone);
+	return width;
+}
+
+function getRenderedColumnCells(tableRoot: HTMLElement, activeColumnTitles: string[]) {
+	const headerRow = tableRoot.querySelector<HTMLElement>('.ant-table-header thead tr:last-child');
+	const headerCells = headerRow ? Array.from(headerRow.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const body = tableRoot.querySelector<HTMLElement>('.ant-table-tbody');
+	const bodyRows = body ? Array.from(body.children).filter((element): element is HTMLElement => element instanceof HTMLElement) : [];
+	const sampledBodyRows = bodyRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE);
+	const sampledBodyCells = sampledBodyRows.map((row) => Array.from(row.querySelectorAll<HTMLElement>('td')));
+	const leadingCellCount = Math.max(0, headerCells.length - activeColumnTitles.length);
+
+	return activeColumnTitles.reduce(
+		(acc, columnTitle, columnIndex) => {
+			const renderedColumnIndex = columnIndex + leadingCellCount;
+			const renderedCells: HTMLElement[] = [];
+			const headerCell = headerCells[renderedColumnIndex];
+			if (headerCell) {
+				renderedCells.push(headerCell);
+			}
+			sampledBodyCells.forEach((bodyCells) => {
+				const bodyCell = bodyCells[renderedColumnIndex];
+				if (bodyCell) {
+					renderedCells.push(bodyCell);
+				}
+			});
+			acc[columnTitle] = renderedCells;
+			return acc;
+		},
+		{} as Record<string, HTMLElement[]>
+	);
+}
+
+function getColumnWidthVariableName(columnTitle: string) {
+	return `--main-collection-column-width-${columnTitle
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')}`;
+}
+
+function getColumnWidthStyle(columnTitle: string, width: number) {
+	return `var(${getColumnWidthVariableName(columnTitle)}, ${width}px)`;
+}
+
+function setColumnWidthVariable(container: HTMLElement | null, columnTitle: string, width: number) {
+	container?.style.setProperty(getColumnWidthVariableName(columnTitle), `${width}px`);
+}
+
+function getColumnSchema(
+	props: MainCollectionSchemaProps,
+	columnWidthConfig?: Record<string, number>,
+	availableTableWidth = 0
+): ColumnType<DisplayModData>[] {
+	const { config } = props;
+	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
+	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME) ? MainColumnTitles.NAME : MainColumnTitles.ID;
 	return activeColumns.map((colSchema: ColumnSchema<DisplayModData>) => {
 		const { title, dataIndex, className, width, defaultSortOrder, sorter, sorterSetup, filters, filtersSetup, onFilter, align, renderSetup } = colSchema;
 		return {
 			title,
 			dataIndex,
 			className,
-			width,
-			defaultSortOrder,
+			width: columnWidthConfig?.[title] ?? width,
+			defaultSortOrder: title === defaultSortColumnTitle ? defaultSortOrder || 'ascend' : undefined,
 			filters: filtersSetup ? filtersSetup(props) : filters,
 			onFilter,
 			sorter: sorterSetup ? sorterSetup(props) : sorter,
@@ -664,11 +1017,315 @@ function getColumnSchema(props: CollectionViewProps): ColumnType<DisplayModData>
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
-	const { config, filteredRows, launchingGame, width, height } = props;
-	const small = (config as MainCollectionConfig | undefined)?.smallRows;
+	const {
+		collection,
+		config,
+		filteredRows,
+		getModDetails,
+		height,
+		launchingGame,
+		lastValidationStatus,
+		openMainViewSettingsCallback,
+		rows,
+		setDisabledCallback,
+		setEnabledCallback,
+		setEnabledModsCallback,
+		setMainColumnVisibilityCallback,
+		setMainColumnWidthCallback,
+		width
+	} = props;
+	const mainConfig = config as MainCollectionConfig | undefined;
+	const small = mainConfig?.smallRows;
+	const columnActiveConfig = mainConfig?.columnActiveConfig;
+	const columnWidthConfig = mainConfig?.columnWidthConfig;
 	const deferredRows = useDeferredValue(filteredRows);
-	const rowSelection = useMemo(() => getRowSelection({ ...props, filteredRows: deferredRows }), [props, deferredRows]);
-	const columns = useMemo(() => getColumnSchema(props), [props]);
+	const configuredColumnWidths = useMemo(() => columnWidthConfig || {}, [columnWidthConfig]);
+	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
+	const [availableTableWidth, setAvailableTableWidth] = useState(0);
+	const manuallyActiveColumnTitles = useMemo(
+		() => getActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined).map((column) => column.title),
+		[columnActiveConfig]
+	);
+	const activeColumnTitles = useMemo(
+		() => getResponsiveActiveColumnSchemas(columnActiveConfig ? { columnActiveConfig } : undefined, availableTableWidth).map((column) => column.title),
+		[availableTableWidth, columnActiveConfig]
+	);
+	const hiddenColumnTitles = useMemo(
+		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !manuallyActiveColumnTitles.includes(columnTitle)),
+		[manuallyActiveColumnTitles]
+	);
+	const measurementInputKey = useMemo(
+		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
+		[deferredRows, small]
+	);
+	const resolvedColumnWidths = useMemo(
+		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
+		[autoColumnWidths, availableTableWidth, config]
+	);
+	const tableRootRef = useRef<HTMLDivElement | null>(null);
+	const syncedColumnTitlesRef = useRef<string[]>([]);
+
+	useEffect(() => {
+		const tableRoot = tableRootRef.current;
+		if (!tableRoot) {
+			return;
+		}
+
+		const syncAvailableWidth = (nextWidth: number) => {
+			setAvailableTableWidth((currentWidth) => (currentWidth === nextWidth ? currentWidth : nextWidth));
+		};
+
+		syncAvailableWidth(Math.round(tableRoot.clientWidth));
+
+		if (typeof ResizeObserver === 'undefined') {
+			const handleWindowResize = () => {
+				syncAvailableWidth(Math.round(tableRoot.clientWidth));
+			};
+			window.addEventListener('resize', handleWindowResize);
+			return () => {
+				window.removeEventListener('resize', handleWindowResize);
+			};
+		}
+
+		const resizeObserver = new ResizeObserver((entries) => {
+			const nextWidth = Math.round(entries[0]?.contentRect.width ?? tableRoot.clientWidth);
+			syncAvailableWidth(nextWidth);
+		});
+		resizeObserver.observe(tableRoot);
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
+
+	useEffect(() => {
+		const nextColumnTitles = Object.keys(resolvedColumnWidths);
+		const activeColumnTitles = new Set(nextColumnTitles);
+		syncedColumnTitlesRef.current.forEach((columnTitle) => {
+			if (!activeColumnTitles.has(columnTitle)) {
+				tableRootRef.current?.style.removeProperty(getColumnWidthVariableName(columnTitle));
+			}
+		});
+		nextColumnTitles.forEach((columnTitle) => {
+			setColumnWidthVariable(tableRootRef.current, columnTitle, resolvedColumnWidths[columnTitle]);
+		});
+		syncedColumnTitlesRef.current = nextColumnTitles;
+	}, [resolvedColumnWidths]);
+
+	useEffect(() => {
+		const tableRoot = tableRootRef.current;
+		const missingColumnTitles = activeColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
+		const shouldAutoMeasureColumns = deferredRows.length > 0 && deferredRows.length <= COLUMN_AUTO_MEASURE_MAX_ROWS;
+
+		if (!tableRoot) {
+			return;
+		}
+
+		if (!shouldAutoMeasureColumns) {
+			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			return;
+		}
+
+		if (missingColumnTitles.length === 0) {
+			setAutoColumnWidths((currentWidths) => (Object.keys(currentWidths).length === 0 ? currentWidths : {}));
+			return;
+		}
+
+		const animationFrame = window.requestAnimationFrame(() => {
+			const measurementHost = createColumnMeasurementHost();
+
+			try {
+				const renderedColumnCells = getRenderedColumnCells(tableRoot, activeColumnTitles);
+				const nextMeasuredWidths: Record<string, number> = {};
+
+				missingColumnTitles.forEach((columnTitle) => {
+					const matchingCells = renderedColumnCells[columnTitle] || [];
+					const measuredWidth = matchingCells.reduce((largestWidth, cell) => {
+						return Math.max(largestWidth, measureNaturalCellWidth(cell, measurementHost));
+					}, 0);
+
+					if (measuredWidth > 0) {
+						nextMeasuredWidths[columnTitle] = Math.max(getMainColumnMinWidth(columnTitle as MainColumnTitles), measuredWidth);
+					}
+				});
+
+				setAutoColumnWidths((currentWidths) => {
+					const nextWidths: Record<string, number> = {};
+					let changed = false;
+
+					missingColumnTitles.forEach((columnTitle) => {
+						const nextWidth = nextMeasuredWidths[columnTitle] ?? currentWidths[columnTitle];
+						if (nextWidth !== undefined) {
+							nextWidths[columnTitle] = nextWidth;
+							if (currentWidths[columnTitle] !== nextWidth) {
+								changed = true;
+							}
+						}
+					});
+
+					if (!changed && Object.keys(currentWidths).length === Object.keys(nextWidths).length) {
+						return currentWidths;
+					}
+
+					return nextWidths;
+				});
+			} finally {
+				measurementHost.remove();
+			}
+		});
+
+		return () => {
+			window.cancelAnimationFrame(animationFrame);
+		};
+	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measurementInputKey]);
+
+	const rowSelection = useMemo(
+		() =>
+			getRowSelection({
+				collection,
+				filteredRows: deferredRows,
+				rows,
+				setDisabledCallback,
+				setEnabledCallback,
+				setEnabledModsCallback
+			}),
+		[collection, deferredRows, rows, setDisabledCallback, setEnabledCallback, setEnabledModsCallback]
+	);
+	const tableComponents = useMemo(
+		() => ({
+			header: {
+				cell: ResizableHeaderCell
+			}
+		}),
+		[]
+	);
+	const columnSchemaProps = useMemo<MainCollectionSchemaProps>(
+		() => ({
+			collection,
+			config,
+			getModDetails,
+			lastValidationStatus,
+			rows
+		}),
+		[collection, config, getModDetails, lastValidationStatus, rows]
+	);
+	const columns = useMemo(() => {
+		return getColumnSchema(columnSchemaProps, resolvedColumnWidths, availableTableWidth).map((column) => {
+			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
+			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
+			if (!columnTitle || !currentWidth) {
+				return column;
+			}
+
+			const typedColumnTitle = columnTitle as MainColumnTitles;
+			const canHideColumn = canSetMainColumnVisibility(typedColumnTitle, false, columnActiveConfig);
+			const contextMenuItems: NonNullable<MenuProps['items']> = [
+				{
+					key: `hide:${typedColumnTitle}`,
+					label: `Hide ${typedColumnTitle}`,
+					disabled: !canHideColumn
+				}
+			];
+
+			if (hiddenColumnTitles.length > 0) {
+				contextMenuItems.push({
+					type: 'divider'
+				});
+				hiddenColumnTitles.forEach((hiddenColumnTitle) => {
+					contextMenuItems.push({
+						key: `show:${hiddenColumnTitle}`,
+						label: `Show ${hiddenColumnTitle}`
+					});
+				});
+			}
+
+			if (openMainViewSettingsCallback) {
+				contextMenuItems.push({
+					type: 'divider'
+				});
+				contextMenuItems.push({
+					key: 'view-options',
+					label: 'View Options'
+				});
+			}
+
+			const restorePersistedColumnWidth = () => {
+				const persistedWidth = resolvedColumnWidths[columnTitle];
+				if (persistedWidth === undefined) {
+					tableRootRef.current?.style.removeProperty(getColumnWidthVariableName(columnTitle));
+					return;
+				}
+				setColumnWidthVariable(tableRootRef.current, columnTitle, persistedWidth);
+			};
+
+			return {
+				...column,
+				width: getColumnWidthStyle(columnTitle, currentWidth),
+				onHeaderCell: () =>
+					({
+						label: columnTitle,
+						'data-column-title': columnTitle,
+						width: getColumnWidthStyle(columnTitle, currentWidth),
+						resizeWidth: currentWidth,
+						minWidth: getMainColumnMinWidth(columnTitle as MainColumnTitles),
+						headerMenu: {
+							items: contextMenuItems,
+							onClick: (info: { key: Key }) => {
+								const key = info.key.toString();
+								if (key === 'view-options') {
+									openMainViewSettingsCallback?.();
+									return;
+								}
+
+								if (key.startsWith('hide:')) {
+									const targetColumn = key.slice('hide:'.length) as MainColumnTitles;
+									if (!canSetMainColumnVisibility(targetColumn, false, columnActiveConfig)) {
+										return;
+									}
+									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, false));
+									return;
+								}
+
+								if (key.startsWith('show:')) {
+									const targetColumn = key.slice('show:'.length) as MainColumnTitles;
+									void Promise.resolve(setMainColumnVisibilityCallback?.(targetColumn, true));
+								}
+							}
+						},
+						onResize: (nextWidth: number) => {
+							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+						},
+						onResizeEnd: (nextWidth: number) => {
+							setColumnWidthVariable(tableRootRef.current, columnTitle, nextWidth);
+							void (async () => {
+								try {
+									const persisted = await Promise.resolve(setMainColumnWidthCallback?.(columnTitle as MainColumnTitles, nextWidth));
+									if (persisted !== false) {
+										return;
+									}
+								} catch {
+									// The caller reports write failures separately; this only restores the local preview width.
+								}
+
+								restorePersistedColumnWidth();
+							})();
+						}
+					}) as any,
+				onCell: () =>
+					({
+						'data-column-title': columnTitle
+					}) as any
+			};
+		});
+	}, [
+		columnActiveConfig,
+		columnSchemaProps,
+		hiddenColumnTitles,
+		openMainViewSettingsCallback,
+		availableTableWidth,
+		resolvedColumnWidths,
+		setMainColumnVisibilityCallback,
+		setMainColumnWidthCallback
+	]);
 	const handleRow = useCallback((record: DisplayModData) => {
 		return {
 			onContextMenu: () => {
@@ -678,23 +1335,28 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	}, []);
 
 	return (
-		<Layout style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-			<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
-				<Table
-					dataSource={deferredRows}
-					pagination={false}
-					loading={launchingGame}
-					size="small"
-					rowKey="uid"
-					rowSelection={rowSelection}
-					columns={columns}
-					sticky
-					scroll={{ x: 'max-content' }}
-					onRow={handleRow}
-					rowClassName={() => (small ? 'CompactModRow' : 'LargeModRow')}
-				/>
-			</Content>
-		</Layout>
+		<div ref={tableRootRef} className="MainCollectionTableRoot" style={{ width: width ?? '100%', height: height ?? '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+			<Layout style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+				<Content key="main table" style={{ padding: '0px', minWidth: 0, minHeight: 0, overflow: 'auto', scrollbarWidth: 'none' }}>
+					<Table
+						dataSource={deferredRows}
+						pagination={false}
+						loading={launchingGame}
+						size="small"
+						tableLayout="fixed"
+						rowKey="uid"
+						rowSelection={rowSelection}
+						components={tableComponents}
+						columns={columns}
+						sortDirections={TABLE_SORT_DIRECTIONS}
+						sticky
+						scroll={{ x: 'max-content' }}
+						onRow={handleRow}
+						rowClassName={() => (small ? 'CompactModRow' : '')}
+					/>
+				</Content>
+			</Layout>
+		</div>
 	);
 }
 
