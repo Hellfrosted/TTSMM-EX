@@ -1,18 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useReducer } from 'react';
 import type { KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
-import type { NotificationProps } from 'model';
-import type { NotificationType } from 'renderer/hooks/collections/useNotifications';
-
-export const APP_NOTIFICATION_EVENT = 'ttsmm:notification';
-
-interface AppNotification {
-	id: string;
-	props: NotificationProps;
-	type: NotificationType;
-}
-
-export type AppNotificationEvent = CustomEvent<AppNotification>;
+import {
+	APP_NOTIFICATION_EVENT,
+	type AppNotification,
+	type AppNotificationEvent,
+	type NotificationType
+} from 'renderer/notification-channel';
+import { getStatusSurfaceClassName } from './status-surface-classes';
 
 function getNotificationTone(type: NotificationType) {
 	switch (type) {
@@ -41,14 +36,7 @@ function getViewportClassName(placement: string) {
 }
 
 function getToastClassName(tone: ReturnType<typeof getNotificationTone>, className?: string) {
-	const toneClassName =
-		tone === 'error'
-			? 'border-[color-mix(in_srgb,var(--app-color-error)_40%,var(--app-color-border))] bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
-			: tone === 'warning'
-				? 'border-[color-mix(in_srgb,var(--app-color-warning)_38%,var(--app-color-border))] bg-[color-mix(in_srgb,var(--app-color-warning)_16%,var(--app-color-surface-alt))]'
-				: tone === 'success'
-					? 'border-[color-mix(in_srgb,var(--app-color-success)_42%,var(--app-color-border))] bg-surface-elevated'
-					: 'border-border bg-surface-elevated';
+	const toneClassName = getStatusSurfaceClassName(tone);
 
 	return [
 		'pointer-events-auto grid grid-cols-[minmax(0,1fr)_28px] gap-2.5 rounded-md border p-3 text-text shadow-[0_14px_32px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
@@ -59,29 +47,61 @@ function getToastClassName(tone: ReturnType<typeof getNotificationTone>, classNa
 		.join(' ');
 }
 
+function getAnnouncementProps(type: NotificationType, interactive: boolean) {
+	const liveProps = {
+		'aria-atomic': true,
+		'aria-live': type === 'error' ? 'assertive' : 'polite'
+	} as const;
+
+	if (interactive) {
+		return liveProps;
+	}
+
+	return {
+		...liveProps,
+		role: type === 'error' ? 'alert' : 'status'
+	} as const;
+}
+
+type NotificationAction =
+	| {
+			notification: AppNotification;
+			type: 'add';
+	  }
+	| {
+			id: string;
+			type: 'close';
+	  };
+
+function reduceNotifications(notifications: AppNotification[], action: NotificationAction) {
+	switch (action.type) {
+		case 'add': {
+			const nextNotification = action.notification;
+			if (nextNotification.props.key) {
+				return [...notifications.filter((notification) => notification.props.key !== nextNotification.props.key), nextNotification];
+			}
+			return [...notifications, nextNotification];
+		}
+		case 'close':
+			return notifications.filter((notification) => notification.id !== action.id);
+	}
+}
+
 export function NotificationViewport() {
-	const [notifications, setNotifications] = useState<AppNotification[]>([]);
-	const closeNotification = useCallback((id: string) => {
-		setNotifications((currentNotifications) => {
-			const target = currentNotifications.find((notification) => notification.id === id);
+	const [notifications, dispatchNotifications] = useReducer(reduceNotifications, []);
+	const closeNotification = useCallback(
+		(id: string) => {
+			const target = notifications.find((notification) => notification.id === id);
 			target?.props.onClose?.();
-			return currentNotifications.filter((notification) => notification.id !== id);
-		});
-	}, []);
+			dispatchNotifications({ type: 'close', id });
+		},
+		[notifications]
+	);
 
 	useEffect(() => {
 		const handleNotification = (event: Event) => {
 			const notificationEvent = event as AppNotificationEvent;
-			const nextNotification = notificationEvent.detail;
-			setNotifications((currentNotifications) => {
-				if (nextNotification.props.key) {
-					return [
-						...currentNotifications.filter((notification) => notification.props.key !== nextNotification.props.key),
-						nextNotification
-					];
-				}
-				return [...currentNotifications, nextNotification];
-			});
+			dispatchNotifications({ type: 'add', notification: notificationEvent.detail });
 		};
 
 		window.addEventListener(APP_NOTIFICATION_EVENT, handleNotification);
@@ -91,14 +111,18 @@ export function NotificationViewport() {
 	}, []);
 
 	useEffect(() => {
-		const timeoutIds = notifications
-			.filter((notification) => notification.props.duration !== null)
-			.map((notification) => {
-				const durationSeconds = notification.props.duration ?? 4.5;
-				return window.setTimeout(() => {
+		const timeoutIds = notifications.reduce<number[]>((ids, notification) => {
+			if (notification.props.duration === null) {
+				return ids;
+			}
+			const durationSeconds = notification.props.duration ?? 4.5;
+			ids.push(
+				window.setTimeout(() => {
 					closeNotification(notification.id);
-				}, durationSeconds * 1000);
-			});
+				}, durationSeconds * 1000)
+			);
+			return ids;
+		}, []);
 
 		return () => {
 			timeoutIds.forEach((timeoutId) => {
@@ -120,6 +144,8 @@ export function NotificationViewport() {
 					{placementNotifications.map((notification) => {
 						const { props: notificationProps, type, id } = notification;
 						const tone = getNotificationTone(type);
+						const notificationInteractive = !!notificationProps.onClick;
+						const announcementProps = getAnnouncementProps(type, notificationInteractive);
 						const interactiveProps = notificationProps.onClick
 							? {
 									role: 'button',
@@ -142,18 +168,19 @@ export function NotificationViewport() {
 									top: notificationProps.top,
 									bottom: notificationProps.bottom
 								}}
+								{...announcementProps}
 								{...interactiveProps}
 							>
 								<div className="min-w-0">
-									<strong className="block break-words leading-[1.35]">{notificationProps.message}</strong>
+									<strong className="block wrap-break-word leading-[1.35]">{notificationProps.message}</strong>
 									{notificationProps.description ? (
-										<div className="mt-1 block break-words leading-[1.35] text-text-muted">{notificationProps.description}</div>
+										<div className="mt-1 block wrap-break-word leading-[1.35] text-text-muted">{notificationProps.description}</div>
 									) : null}
 									{notificationProps.btn ? <div className="mt-2.5">{notificationProps.btn}</div> : null}
 								</div>
 								<button
 									type="button"
-									className="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text focus-visible:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] focus-visible:text-text focus-visible:outline-none"
+									className="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent text-text-muted hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text focus-visible:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] focus-visible:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 									aria-label="Close notification"
 									onClick={(event) => {
 										event.stopPropagation();

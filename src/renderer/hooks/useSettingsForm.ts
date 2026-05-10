@@ -1,21 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useFormState, useWatch } from 'react-hook-form';
 import type { Path, PathValue } from 'react-hook-form';
 import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import api from 'renderer/Api';
 import { useWriteConfigMutation } from 'renderer/async-cache';
-import { settingsFormSchema } from 'renderer/settings-validation';
-
-interface LogConfig {
-	level: NLogLevel;
-	loggerID: string;
-}
-
-export interface EditingConfig extends AppConfig {
-	editingLogConfig: LogConfig[];
-}
+import { settingsFormSchema, type EditingConfig, type LogConfig } from 'renderer/settings-validation';
 
 function cloneEditingConfig(config: EditingConfig): EditingConfig {
 	return {
@@ -68,6 +59,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		resolver: zodResolver(settingsFormSchema)
 	});
 	const watchedEditingConfig = useWatch({ control: form.control });
+	const { isDirty } = useFormState({ control: form.control });
 	const editingConfig = useMemo(
 		() =>
 			({
@@ -90,17 +82,16 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		setModalSnapshot(undefined);
 	}, [config, form]);
 
-	const markConfigEdited = useCallback(() => {
-		updateState({ madeConfigEdits: true });
-	}, [updateState]);
+	useEffect(() => {
+		updateState({ madeConfigEdits: isDirty });
+	}, [isDirty, updateState]);
 
 	const setField = useCallback(
 		<K extends keyof EditingConfig>(field: K, value: EditingConfig[K]) => {
 			const formField = field as Path<EditingConfig>;
 			form.setValue(formField, value as PathValue<EditingConfig, typeof formField>, { shouldDirty: true, shouldValidate: false });
-			markConfigEdited();
 		},
-		[form, markConfigEdited]
+		[form]
 	);
 
 	const updateLogConfig = useCallback(
@@ -120,9 +111,8 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				}),
 				{ shouldDirty: true, shouldValidate: false }
 			);
-			markConfigEdited();
 		},
-		[form, markConfigEdited]
+		[form]
 	);
 
 	const addLogConfig = useCallback(() => {
@@ -133,8 +123,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		});
 		setModalType(SettingsViewModalType.NONE);
 		setEditingContextIndex(undefined);
-		markConfigEdited();
-	}, [form, markConfigEdited]);
+	}, [form]);
 
 	const removeLogConfig = useCallback(
 		(index: number) => {
@@ -146,9 +135,8 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			);
 			setModalType(SettingsViewModalType.NONE);
 			setEditingContextIndex(undefined);
-			markConfigEdited();
 		},
-		[form, markConfigEdited]
+		[form]
 	);
 
 	const selectPath = useCallback(
@@ -162,7 +150,6 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				const selectedPath = await api.selectPath(directory, title);
 				if (selectedPath) {
 					form.setValue(target, selectedPath, { shouldDirty: true, shouldValidate: false });
-					markConfigEdited();
 				}
 				return selectedPath;
 			} catch (error) {
@@ -172,7 +159,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				setSelectingDirectory(false);
 			}
 		},
-		[form, markConfigEdited, selectingDirectory]
+		[form, selectingDirectory]
 	);
 
 	const saveChanges = useCallback(async (): Promise<SaveSettingsResult> => {
@@ -195,15 +182,18 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			configToSave.logParams = nextLogParams;
 		}
 
-		const shouldReloadMods = config.localDir !== configToSave.localDir || config.workshopID !== configToSave.workshopID;
+		const shouldReloadMods =
+			config.localDir !== configToSave.localDir ||
+			config.workshopID !== configToSave.workshopID ||
+			(config.treatNuterraSteamBetaAsEquivalent ?? true) !== (configToSave.treatNuterraSteamBetaAsEquivalent ?? true);
 		const nextLogLevel = configToSave.logLevel;
 		const shouldUpdateLogLevel = config.logLevel !== nextLogLevel && nextLogLevel !== undefined;
 
 		updateState({ savingConfig: true });
 		try {
-			await writeConfigMutation.mutateAsync(configToSave);
-			if (shouldUpdateLogLevel && nextLogLevel !== undefined) {
-				api.updateLogLevel(nextLogLevel);
+			const persistedConfig = await writeConfigMutation.mutateAsync(configToSave);
+			if (shouldUpdateLogLevel && persistedConfig.logLevel !== undefined) {
+				api.updateLogLevel(persistedConfig.logLevel);
 			}
 			const nextState: {
 				config: AppConfig;
@@ -211,7 +201,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				configErrors: {};
 				firstModLoad?: boolean;
 			} = {
-				config: { ...configToSave },
+				config: persistedConfig,
 				madeConfigEdits: false,
 				configErrors: {}
 			};
@@ -234,7 +224,15 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		} finally {
 			updateState({ savingConfig: false });
 		}
-	}, [config.localDir, config.logLevel, config.workshopID, form, updateState, writeConfigMutation]);
+	}, [
+		config.localDir,
+		config.logLevel,
+		config.treatNuterraSteamBetaAsEquivalent,
+		config.workshopID,
+		form,
+		updateState,
+		writeConfigMutation
+	]);
 
 	const cancelChanges = useCallback(() => {
 		form.reset(createEditingConfig(config));

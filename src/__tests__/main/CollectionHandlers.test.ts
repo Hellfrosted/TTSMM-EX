@@ -206,20 +206,69 @@ describe('collection handlers', () => {
 	it('rejects malformed update payloads at the ipc seam', async () => {
 		const { invoke } = createCollectionHandlerHarness(tempDir);
 
-		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { name: 'default', mods: 'not-array' })).rejects.toThrow(
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'default', mods: 'not-array' })).rejects.toThrow(
 			'Invalid IPC payload for update-collection'
 		);
 
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(false);
 	});
 
+	it('only updates content for an existing collection at the ipc seam', async () => {
+		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+
+		await expect(
+			invoke(ValidChannel.UPDATE_COLLECTION, {
+				collectionName: 'default',
+				mods: ['local:new']
+			})
+		).resolves.toEqual({ ok: true });
+		await expect(
+			invoke(ValidChannel.UPDATE_COLLECTION, {
+				collectionName: 'fresh',
+				mods: ['local:fresh']
+			})
+		).resolves.toEqual({
+			ok: false,
+			code: 'missing-collection',
+			message: 'Collection fresh does not exist'
+		});
+
+		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:new'] });
+		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
+	});
+
 	it('rejects malformed collection names at the ipc seam', async () => {
 		const { invoke } = createCollectionHandlerHarness(tempDir);
 
 		await expect(invoke(ValidChannel.READ_COLLECTION, 42)).rejects.toThrow('Invalid IPC payload for read-collection');
-		await expect(invoke(ValidChannel.DELETE_COLLECTION, { name: 'default' })).rejects.toThrow('Invalid IPC payload for delete-collection');
-		await expect(invoke(ValidChannel.RENAME_COLLECTION, { name: 'default', mods: [] }, [])).rejects.toThrow(
-			'Invalid IPC payload for rename-collection'
-		);
+	});
+
+	it('resolves startup collection state at the main-process ipc seam', async () => {
+		expect(updateCollectionFile(tempDir, { name: 'alpha', mods: ['local:a'] })).toBe(true);
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+
+		const result = await invoke(ValidChannel.RESOLVE_STARTUP_COLLECTION, {
+			config: {
+				closeOnLaunch: false,
+				language: 'english',
+				gameExec: '',
+				workshopID: BigInt(0),
+				logsDir: '',
+				activeCollection: 'missing',
+				steamMaxConcurrency: 5,
+				currentPath: '/collections/main',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			activeCollection: { name: 'alpha', mods: ['local:a'] },
+			collectionNames: ['alpha'],
+			config: { activeCollection: 'alpha' }
+		});
 	});
 });

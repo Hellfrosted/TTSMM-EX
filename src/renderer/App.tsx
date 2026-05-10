@@ -12,7 +12,7 @@ import {
 } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
-import { AppStateProvider, useAppStateSelector, type CollectionWorkspaceAppState } from './state/app-state';
+import { AppStateProvider, useAppStateSelector, type CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { appCssVariables } from './theme';
 import { AppQueryProvider } from './query-client';
 
@@ -131,6 +131,11 @@ function LoadingStageOutlet() {
 	return <Outlet />;
 }
 
+function preloadWorkspaceRoutes() {
+	void loadSettingsView();
+	void loadBlockLookupView();
+}
+
 function MenuBarStageView({ disableNavigation }: { disableNavigation: boolean }) {
 	const config = useAppStateSelector((state) => state.config);
 	const firstModLoad = useAppStateSelector((state) => Boolean(state.firstModLoad));
@@ -150,9 +155,11 @@ function AppShell() {
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
 	const initialRouteKind = getAppRouteKind(location.pathname);
-	const [mountedSettings, setMountedSettings] = useState(initialRouteKind === 'settings');
-	const [mountedBlockLookup, setMountedBlockLookup] = useState(initialRouteKind === 'block-lookup');
-	const [mountedCollections, setMountedCollections] = useState(initialRouteKind === 'collections');
+	const [mountedStages, setMountedStages] = useState({
+		blockLookup: initialRouteKind === 'block-lookup',
+		collections: initialRouteKind === 'collections',
+		settings: initialRouteKind === 'settings'
+	});
 	const appShell = createAppShellViewModel({
 		activeCollection,
 		configErrorCount,
@@ -170,6 +177,10 @@ function AppShell() {
 	});
 
 	useEffect(() => {
+		if (window.electron.uiSmokeMode) {
+			return undefined;
+		}
+
 		navigateToSteamworks();
 		const unsubscribeModRefresh = api.onModRefreshRequested(() => {
 			startForcedModReload();
@@ -190,23 +201,32 @@ function AppShell() {
 		}
 
 		const timeoutId = window.setTimeout(() => {
-			if (appShell.isSettingsRoute) {
-				setMountedSettings(true);
-				return;
-			}
-
-			if (appShell.isBlockLookupRoute) {
-				setMountedBlockLookup(true);
-				return;
-			}
-
-			setMountedCollections(true);
+			const stageKey = appShell.isSettingsRoute ? 'settings' : appShell.isBlockLookupRoute ? 'blockLookup' : 'collections';
+			setMountedStages((current) => (current[stageKey] ? current : { ...current, [stageKey]: true }));
 		}, 0);
 
 		return () => {
 			window.clearTimeout(timeoutId);
 		};
 	}, [appShell.isBlockLookupRoute, appShell.isLoadingRoute, appShell.isSettingsRoute]);
+
+	useEffect(() => {
+		if (appShell.isLoadingRoute) {
+			return undefined;
+		}
+
+		if (typeof window.requestIdleCallback === 'function') {
+			const idleId = window.requestIdleCallback(preloadWorkspaceRoutes, { timeout: 1000 });
+			return () => {
+				window.cancelIdleCallback(idleId);
+			};
+		}
+
+		const timeoutId = window.setTimeout(preloadWorkspaceRoutes, 250);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}, [appShell.isLoadingRoute]);
 
 	return (
 		<div className="AppLayout">
@@ -231,7 +251,7 @@ function AppShell() {
 				<AppViewStage active={appShell.isLoadingRoute} name="loading">
 					{appShell.isLoadingRoute ? <LoadingStageOutlet /> : null}
 				</AppViewStage>
-				{mountedCollections && appShell.hasCollectionWorkspace ? (
+				{mountedStages.collections && appShell.hasCollectionWorkspace ? (
 					<AppViewStage active={appShell.showCollections} name="collections">
 						<Suspense
 							fallback={
@@ -242,7 +262,7 @@ function AppShell() {
 						</Suspense>
 					</AppViewStage>
 				) : null}
-				{mountedSettings ? (
+				{mountedStages.settings ? (
 					<AppViewStage active={appShell.showSettings} name="settings" overflow="auto">
 						<Suspense
 							fallback={
@@ -253,7 +273,7 @@ function AppShell() {
 						</Suspense>
 					</AppViewStage>
 				) : null}
-				{mountedBlockLookup ? (
+				{mountedStages.blockLookup ? (
 					<AppViewStage active={appShell.showBlockLookup} name="block-lookup">
 						<Suspense
 							fallback={
@@ -273,7 +293,7 @@ export default function App() {
 	const navigate = useNavigate();
 	const navigateApp = useCallback(
 		(path: string) => {
-			navigate(path);
+			void navigate(path);
 		},
 		[navigate]
 	);

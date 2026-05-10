@@ -1,9 +1,8 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AppConfig } from 'model/AppConfig';
 import { ModType } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
-import { setupDescriptors, type SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
 import { modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -30,14 +29,49 @@ interface ModLoadingProps {
 	modLoadCompleteCallback: () => void;
 }
 
+interface ModLoadingState {
+	loadError?: string;
+	progress: number;
+	progressMessage: string;
+	retryCount: number;
+}
+
+type ModLoadingAction = { type: 'progress'; progress: number; message: string } | { type: 'failed'; message: string } | { type: 'retry' };
+
+function reduceModLoadingState(state: ModLoadingState, action: ModLoadingAction): ModLoadingState {
+	switch (action.type) {
+		case 'progress':
+			return {
+				...state,
+				progress: action.progress,
+				progressMessage: action.message
+			};
+		case 'failed':
+			return {
+				...state,
+				loadError: action.message
+			};
+		case 'retry':
+			return {
+				loadError: undefined,
+				progress: 0,
+				progressMessage: 'Counting mods',
+				retryCount: state.retryCount + 1
+			};
+	}
+}
+
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
 	const queryClient = useQueryClient();
 	const { allCollections, config: rawConfig, forceReloadMods, updateState: updateAppState } = appState;
 	const config = rawConfig as AppConfig;
-	const [progress, setProgress] = useState(0);
-	const [progressMessage, setProgressMessage] = useState('Counting mods');
-	const [loadError, setLoadError] = useState<string>();
-	const [retryCount, setRetryCount] = useState(0);
+	const [state, dispatchLoading] = useReducer(reduceModLoadingState, {
+		loadError: undefined,
+		progress: 0,
+		progressMessage: 'Counting mods',
+		retryCount: 0
+	});
+	const { loadError, progress, progressMessage, retryCount } = state;
 	const loadRequestIdRef = useRef(0);
 	const completeModLoad = useEffectEvent(() => {
 		modLoadCompleteCallback();
@@ -52,8 +86,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			}
 			if (type === ProgressTypes.MOD_LOAD) {
 				api.logger.silly(`Mod loading progress: ${nextProgress}`);
-				setProgress(nextProgress);
-				setProgressMessage(nextProgressMessage);
+				dispatchLoading({ type: 'progress', progress: nextProgress, message: nextProgressMessage });
 			}
 		});
 
@@ -64,20 +97,21 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 
 		void queryClient
 			.fetchQuery(
-				modMetadataQueryOptions({
-					localDir: config.localDir,
-					knownMods: allKnownMods,
-					forceReload: !!forceReloadMods,
-					attempt: retryCount
-				})
-			)
-			.then((mods) => {
-				if (loadRequestIdRef.current !== requestId) {
-					return mods;
-				}
-				setupDescriptors(mods as SessionMods, config.userOverrides);
-				updateAppState({
-					mods,
+					modMetadataQueryOptions({
+						localDir: config.localDir,
+						knownMods: allKnownMods,
+						forceReload: !!forceReloadMods,
+						attempt: retryCount,
+						userOverrides: config.userOverrides,
+						treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
+					})
+				)
+				.then((mods) => {
+					if (loadRequestIdRef.current !== requestId) {
+						return mods;
+					}
+					updateAppState({
+						mods,
 					firstModLoad: true,
 					loadingMods: false,
 					forceReloadMods: false
@@ -90,7 +124,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 					return;
 				}
 				api.logger.error(error);
-				setLoadError(error instanceof Error ? error.message : String(error));
+				dispatchLoading({ type: 'failed', message: error instanceof Error ? error.message : String(error) });
 			});
 
 		return () => {
@@ -99,7 +133,17 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				loadRequestIdRef.current += 1;
 			}
 		};
-	}, [allCollections, config.localDir, config.userOverrides, config.workshopID, forceReloadMods, queryClient, retryCount, updateAppState]);
+	}, [
+		allCollections,
+		config.localDir,
+		config.treatNuterraSteamBetaAsEquivalent,
+		config.userOverrides,
+		config.workshopID,
+		forceReloadMods,
+		queryClient,
+		retryCount,
+		updateAppState
+	]);
 
 	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';
@@ -128,10 +172,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 						<StartupButton
 							variant="primary"
 							onClick={() => {
-								setLoadError(undefined);
-								setProgress(0);
-								setProgressMessage('Counting mods');
-								setRetryCount((current) => current + 1);
+								dispatchLoading({ type: 'retry' });
 							}}
 						>
 							Retry Mod Scan

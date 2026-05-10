@@ -1,36 +1,30 @@
-import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useState } from 'react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
-import api from 'renderer/Api';
 import { getCollectionModDataList } from 'renderer/collection-mod-projection';
 import { markPerfInteraction } from 'renderer/perf';
-import { useCollections } from 'renderer/hooks/collections/useCollections';
-import { useCollectionValidation } from 'renderer/hooks/collections/useCollectionValidation';
+import { useCollectionWorkspaceSession } from 'renderer/hooks/collections/useCollectionWorkspaceSession';
 import { useGameLaunch } from 'renderer/hooks/collections/useGameLaunch';
 import { useGameRunning } from 'renderer/hooks/collections/useGameRunning';
-import { useModMetadata } from 'renderer/hooks/collections/useModMetadata';
 import type { NotificationType } from 'renderer/hooks/collections/useNotifications';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-
-interface ValidationCallbacks {
-	cancelValidation: () => void;
-	resetValidationState: () => void;
-	validateActiveCollection: (launchIfValid: boolean, options?: { config?: CollectionWorkspaceAppState['config'] }) => Promise<void>;
-}
 
 interface UseCollectionWorkspaceOptions {
 	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 }
 
+type CollectionWorkspaceSessionController = ReturnType<typeof useCollectionWorkspaceSession>;
+
 interface CollectionWorkspaceResult {
 	clearGameLaunchOverrideTimeout: ReturnType<typeof useGameRunning>['clearGameLaunchOverrideTimeout'];
 	clearGameRunningPoll: ReturnType<typeof useGameRunning>['clearGameRunningPoll'];
 	closeLaunchModal: (mods: ModData[]) => Promise<void>;
 	closeModal: () => void;
-	collections: ReturnType<typeof useCollections>;
+	collections: CollectionWorkspaceSessionController['collections'];
+	collectionWorkspaceSession: CollectionWorkspaceSessionController['collectionWorkspaceSession'];
 	currentRecord: ModData | undefined;
-	currentCollectionErrors: ReturnType<typeof useCollectionValidation>['collectionErrors'];
-	currentValidationStatus: ReturnType<typeof useCollectionValidation>['lastValidationStatus'];
+	currentCollectionErrors: CollectionWorkspaceSessionController['currentCollectionErrors'];
+	currentValidationStatus: CollectionWorkspaceSessionController['currentValidationStatus'];
 	detailsActiveTabKey: string;
 	getModDetails: (uid: string, record: ModData, showBigDetails?: boolean) => void;
 	gameRunning: ReturnType<typeof useGameRunning>['gameRunning'];
@@ -51,19 +45,17 @@ interface CollectionWorkspaceResult {
 	setModalType: (modalType: CollectionManagerModalType) => void;
 	setOverrideGameRunning: ReturnType<typeof useGameRunning>['setOverrideGameRunning'];
 	setPrewarmAlternateDetails: (prewarmAlternateDetails: boolean) => void;
-	validation: ReturnType<typeof useCollectionValidation>;
+	validation: CollectionWorkspaceSessionController['validation'];
 	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
 }
 
 export function useCollectionWorkspace({ appState, openNotification }: UseCollectionWorkspaceOptions): CollectionWorkspaceResult {
-	const validationCallbacksRef = useRef<ValidationCallbacks | undefined>(undefined);
-	const hasValidatedLoadedModsRef = useRef(false);
 	const [modalType, setModalType] = useState(CollectionManagerModalType.NONE);
 	const [currentRecord, setCurrentRecord] = useState<ModData>();
-	const [bigDetails, setBigDetailsState] = useState(true);
+	const [bigDetails, setBigDetailsState] = useState(false);
 	const [detailsActiveTabKey, setDetailsActiveTabKey] = useState('info');
 	const [prewarmAlternateDetails, setPrewarmAlternateDetails] = useState(false);
-	const { activeCollection, loadingMods } = appState;
+	const { activeCollection } = appState;
 
 	const {
 		gameRunning,
@@ -90,64 +82,26 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 			await launchMods(mods);
 			setModalType(CollectionManagerModalType.NONE);
 		},
-		[launchMods, setModalType]
+		[launchMods]
 	);
 
-	const collections = useCollections({
+	const {
+		collections,
+		collectionWorkspaceSession,
+		currentCollectionErrors,
+		currentValidationStatus,
+		launchGame,
+		validateCollection,
+		validation
+	} = useCollectionWorkspaceSession({
 		appState,
+		gameRunning,
+		launchMods: closeLaunchModal,
+		modalOpen: modalType !== CollectionManagerModalType.NONE,
 		openNotification,
-		cancelValidation: () => validationCallbacksRef.current?.cancelValidation(),
-		resetValidationState: () => validationCallbacksRef.current?.resetValidationState(),
-		validateActiveCollection: async (launchIfValid: boolean) => {
-			await validationCallbacksRef.current?.validateActiveCollection(launchIfValid);
-		},
+		overrideGameRunning,
 		setModalType
 	});
-
-	const validation = useCollectionValidation({
-		appState,
-		openNotification,
-		setModalType,
-		persistCollection: collections.persistCollection,
-		launchMods: closeLaunchModal
-	});
-	const { recalculateModData } = collections;
-	const { setCollectionErrors, validateActiveCollection } = validation;
-
-	useEffect(() => {
-		validationCallbacksRef.current = {
-			cancelValidation: validation.cancelValidation,
-			resetValidationState: validation.resetValidationState,
-			validateActiveCollection: validation.validateActiveCollection
-		};
-	}, [validation.cancelValidation, validation.resetValidationState, validation.validateActiveCollection]);
-
-	useEffect(() => {
-		if (loadingMods) {
-			hasValidatedLoadedModsRef.current = false;
-			return;
-		}
-
-		recalculateModData();
-		if (!hasValidatedLoadedModsRef.current) {
-			hasValidatedLoadedModsRef.current = true;
-			void validateActiveCollection(false);
-		}
-	}, [loadingMods, recalculateModData, validateActiveCollection]);
-
-	const refreshModMetadata = useCallback(() => {
-		recalculateModData();
-		if (!loadingMods) {
-			void validateActiveCollection(false);
-		}
-	}, [loadingMods, recalculateModData, validateActiveCollection]);
-
-	useModMetadata(appState, refreshModMetadata);
-
-	const currentValidationStatus = validation.isValidationCurrentForCollection(activeCollection)
-		? validation.lastValidationStatus
-		: undefined;
-	const currentCollectionErrors = validation.isValidationCurrentForCollection(activeCollection) ? validation.collectionErrors : undefined;
 	const closeModal = useCallback(() => {
 		setModalType(CollectionManagerModalType.NONE);
 	}, []);
@@ -169,56 +123,22 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 	const getModDetails = useCallback(
 		(uid: string, record: ModData, showBigDetails?: boolean) => {
 			const isClosingCurrentRecord = currentRecord?.uid === uid;
+			const nextBigDetails = showBigDetails ?? false;
 			markPerfInteraction(isClosingCurrentRecord ? 'collection.details.close' : 'collection.details.open', {
 				uid,
-				showBigDetails: showBigDetails ?? bigDetails
+				showBigDetails: nextBigDetails
 			});
 			startTransition(() => {
 				setCurrentRecord(isClosingCurrentRecord ? undefined : record);
 				if (!isClosingCurrentRecord) {
 					setDetailsActiveTabKey('info');
 					setPrewarmAlternateDetails(false);
-				}
-				if (!isClosingCurrentRecord && showBigDetails !== undefined) {
-					setBigDetailsState(showBigDetails);
+					setBigDetailsState(nextBigDetails);
 				}
 			});
 		},
-		[bigDetails, currentRecord?.uid]
+		[currentRecord?.uid]
 	);
-	const validateCollection = useCallback(
-		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
-			setCollectionErrors(undefined);
-			void validateActiveCollection(false, options);
-		},
-		[setCollectionErrors, validateActiveCollection]
-	);
-	const launchGame = useCallback(async () => {
-		api.logger.info('validating and launching game');
-
-		if (loadingMods) {
-			return;
-		}
-
-		if (currentValidationStatus && !collections.madeEdits && activeCollection) {
-			const modDataList = getCollectionModDataList(appState.mods, activeCollection);
-			await closeLaunchModal(modDataList);
-			return;
-		}
-
-		appState.updateState({ launchingGame: true });
-		setCollectionErrors(undefined);
-		await validateActiveCollection(true);
-	}, [
-		activeCollection,
-		appState,
-		closeLaunchModal,
-		collections.madeEdits,
-		currentValidationStatus,
-		loadingMods,
-		setCollectionErrors,
-		validateActiveCollection
-	]);
 	const launchAnyway = useCallback(() => {
 		setLaunchGameWithErrors(true);
 		const modList = getCollectionModDataList(appState.mods, activeCollection);
@@ -233,6 +153,7 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		closeLaunchModal,
 		closeModal,
 		collections,
+		collectionWorkspaceSession,
 		currentRecord,
 		currentCollectionErrors,
 		currentValidationStatus,

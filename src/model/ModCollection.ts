@@ -7,6 +7,13 @@ export interface ModCollection {
 	mods: string[];
 }
 
+export function cloneCollection(collection: ModCollection): ModCollection {
+	return {
+		...collection,
+		mods: [...collection.mods]
+	};
+}
+
 export enum CollectionViewType {
 	MAIN = 'main'
 }
@@ -29,10 +36,14 @@ export interface CollectionViewProps {
 	height?: number | string;
 	width?: number | string;
 	madeEdits?: boolean;
+	detailsOpen?: boolean;
 	lastValidationStatus?: boolean;
 	launchingGame?: boolean;
 	config?: MainCollectionConfig;
+	availableTags?: string[];
+	selectedTags?: string[];
 	tableCommands?: MainCollectionTableCommands;
+	onSelectedTagsChange?: (tags: string[]) => void;
 	setEnabledModsCallback?: (mods: Set<string>) => void;
 	setEnabledCallback?: (mod: string) => void;
 	setDisabledCallback?: (mod: string) => void;

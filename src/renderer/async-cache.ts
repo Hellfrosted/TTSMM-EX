@@ -1,8 +1,12 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { AppConfig } from 'model';
+import { hydrateSessionMods, type AppConfig } from 'model';
+import type { ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
-import type { BlockLookupIndexStats, BlockLookupSettings } from 'shared/block-lookup';
+import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
+import { createCollectionContentSaveRequest } from 'shared/collection-content-save';
+import type { CollectionContentSaveResult } from 'shared/collection-content-save';
+import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 
 type BlockLookupBootstrapQueryData = readonly [BlockLookupSettings, BlockLookupIndexStats | null];
 
@@ -19,9 +23,24 @@ export const queryKeys = {
 	mods: {
 		root: () => ['mods'] as const,
 		metadataRoot: () => [...queryKeys.mods.root(), 'metadata'] as const,
-		metadataScan: (localDir: string | undefined, knownModIds: readonly string[], forceReload: boolean, attempt: number) =>
-			[...queryKeys.mods.metadataRoot(), localDir ?? null, knownModIds, forceReload, attempt] as const
-	},
+			metadataScan: (
+				localDir: string | undefined,
+				knownModIds: readonly string[],
+				forceReload: boolean,
+				attempt: number,
+				treatNuterraSteamBetaAsEquivalent: boolean,
+				userOverridesKey: readonly unknown[]
+			) =>
+				[
+					...queryKeys.mods.metadataRoot(),
+					localDir ?? null,
+					knownModIds,
+					forceReload,
+					attempt,
+					treatNuterraSteamBetaAsEquivalent,
+					userOverridesKey
+				] as const
+		},
 	game: {
 		root: () => ['game'] as const,
 		running: (requestId: number) => [...queryKeys.game.root(), 'running', requestId] as const
@@ -30,7 +49,7 @@ export const queryKeys = {
 		root: () => ['blockLookup'] as const,
 		bootstrap: () => [...queryKeys.blockLookup.root(), 'bootstrap'] as const,
 		searchRoot: () => [...queryKeys.blockLookup.root(), 'search'] as const,
-		search: (query: string, limit: number) => [...queryKeys.blockLookup.searchRoot(), query, limit] as const
+		search: (query: string, limit: number | undefined) => [...queryKeys.blockLookup.searchRoot(), query, limit] as const
 	}
 };
 
@@ -46,11 +65,11 @@ export function setConfigQueryData(queryClient: QueryClient, config: AppConfig |
 }
 
 export async function writeConfigMutationFn(nextConfig: AppConfig) {
-	const updateSuccess = await api.updateConfig(nextConfig);
-	if (!updateSuccess) {
+	const persistedConfig = await api.updateConfig(nextConfig);
+	if (!persistedConfig) {
 		throw new Error('Config write was rejected');
 	}
-	return nextConfig;
+	return persistedConfig;
 }
 
 export function useWriteConfigMutation() {
@@ -83,14 +102,43 @@ interface ModMetadataQueryOptionsInput {
 	knownMods: Iterable<string>;
 	forceReload: boolean;
 	attempt: number;
+	userOverrides: Map<string, ModDataOverride>;
+	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
-export function modMetadataQueryOptions({ localDir, knownMods, forceReload, attempt }: ModMetadataQueryOptionsInput) {
+function getUserOverridesQueryKey(userOverrides: Map<string, ModDataOverride>) {
+	return [...userOverrides.entries()]
+		.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
+		.map(([uid, override]) => [uid, override.id ?? null, override.tags ? [...override.tags].sort() : []]);
+}
+
+export function modMetadataQueryOptions({
+	localDir,
+	knownMods,
+	forceReload,
+	attempt,
+	userOverrides,
+	treatNuterraSteamBetaAsEquivalent
+}: ModMetadataQueryOptionsInput) {
 	const knownModIds = [...knownMods].sort();
+	const userOverridesKey = getUserOverridesQueryKey(userOverrides);
+	const dependencyGraphOptions = {
+		treatNuterraSteamBetaAsEquivalent
+	};
 
 	return queryOptions({
-		queryKey: queryKeys.mods.metadataScan(localDir, knownModIds, forceReload, attempt),
-		queryFn: () => api.readModMetadata(localDir, new Set(knownModIds)),
+		queryKey: queryKeys.mods.metadataScan(
+			localDir,
+			knownModIds,
+			forceReload,
+			attempt,
+			treatNuterraSteamBetaAsEquivalent ?? true,
+			userOverridesKey
+		),
+		queryFn: () =>
+			api
+				.readModMetadata(localDir, new Set(knownModIds), dependencyGraphOptions)
+				.then((mods) => hydrateSessionMods(mods, userOverrides, dependencyGraphOptions)),
 		staleTime: 0
 	});
 }
@@ -103,66 +151,50 @@ export function gameRunningQueryOptions(requestId: number) {
 	});
 }
 
+export function blockLookupBootstrapQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.blockLookup.bootstrap(),
+		queryFn: () => Promise.all([api.readBlockLookupSettings(), api.getBlockLookupStats()]) as Promise<BlockLookupBootstrapQueryData>
+	});
+}
+
+export function blockLookupSearchQueryOptions(request: BlockLookupSearchRequest) {
+	return queryOptions({
+		queryKey: queryKeys.blockLookup.search(request.query, request.limit),
+		queryFn: () => api.searchBlockLookup(request)
+	});
+}
+
+export function fetchBlockLookupBootstrap(queryClient: QueryClient) {
+	return queryClient.fetchQuery(blockLookupBootstrapQueryOptions());
+}
+
+export function fetchBlockLookupSearch(queryClient: QueryClient, request: BlockLookupSearchRequest) {
+	return queryClient.fetchQuery(blockLookupSearchQueryOptions(request));
+}
+
+async function buildBlockLookupIndexMutationFn(request: BlockLookupBuildRequest) {
+	return api.buildBlockLookupIndex(request);
+}
+
+export function useBuildBlockLookupIndexMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: buildBlockLookupIndexMutationFn,
+		onSuccess: async (result) => {
+			setBlockLookupBootstrapQueryData(queryClient, [result.settings, result.stats]);
+			await invalidateBlockLookupSearchQueries(queryClient);
+		}
+	});
+}
+
 function setCollectionQueryData(queryClient: QueryClient, collection: ModCollection) {
 	queryClient.setQueryData(queryKeys.collections.detail(collection.name), collection);
 }
 
-function removeCollectionQueryData(queryClient: QueryClient, collectionName: string) {
-	queryClient.removeQueries({ queryKey: queryKeys.collections.detail(collectionName), exact: true });
-}
-
-function addCollectionNameToList(queryClient: QueryClient, collectionName: string) {
-	queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) => {
-		if (currentNames.includes(collectionName)) {
-			return currentNames;
-		}
-
-		return [...currentNames, collectionName];
-	});
-}
-
-function removeCollectionNameFromList(queryClient: QueryClient, collectionName: string) {
-	queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) =>
-		currentNames.filter((currentName) => currentName !== collectionName)
-	);
-}
-
-async function updateCollectionMutationFn(collection: ModCollection) {
-	const updateSuccess = await api.updateCollection(collection);
-	if (!updateSuccess) {
-		throw new Error(`Collection write was rejected: ${collection.name}`);
-	}
-
-	return collection;
-}
-
-async function deleteCollectionMutationFn(collectionName: string) {
-	const deleteSuccess = await api.deleteCollection(collectionName);
-	if (!deleteSuccess) {
-		throw new Error(`Collection delete was rejected: ${collectionName}`);
-	}
-
-	return collectionName;
-}
-
-interface RenameCollectionMutationVariables {
-	collection: ModCollection;
-	newName: string;
-}
-
-async function renameCollectionMutationFn({ collection, newName }: RenameCollectionMutationVariables) {
-	const renameSuccess = await api.renameCollection(collection, newName);
-	if (!renameSuccess) {
-		throw new Error(`Collection rename was rejected: ${collection.name} -> ${newName}`);
-	}
-
-	return {
-		previousName: collection.name,
-		collection: {
-			...collection,
-			name: newName
-		}
-	};
+async function updateCollectionMutationFn(collection: ModCollection): Promise<CollectionContentSaveResult> {
+	return api.updateCollection(createCollectionContentSaveRequest(collection));
 }
 
 export function useUpdateCollectionMutation() {
@@ -170,36 +202,30 @@ export function useUpdateCollectionMutation() {
 
 	return useMutation({
 		mutationFn: updateCollectionMutationFn,
-		onSuccess: (collection) => {
-			setCollectionQueryData(queryClient, collection);
-			addCollectionNameToList(queryClient, collection.name);
+		onSuccess: (result, collection) => {
+			if (result.ok) {
+				setCollectionQueryData(queryClient, collection);
+			}
 		}
 	});
 }
 
-export function useDeleteCollectionMutation() {
-	const queryClient = useQueryClient();
+export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, result: Extract<CollectionLifecycleResult, { ok: true }>) {
+	const nextCollectionNames = new Set(result.collectionNames);
+	const currentCollectionNames = queryClient.getQueryData<string[]>(queryKeys.collections.list()) ?? [];
 
-	return useMutation({
-		mutationFn: deleteCollectionMutationFn,
-		onSuccess: (collectionName) => {
-			removeCollectionQueryData(queryClient, collectionName);
-			removeCollectionNameFromList(queryClient, collectionName);
-		}
+	setConfigQueryData(queryClient, result.config);
+	queryClient.setQueryData(queryKeys.collections.list(), result.collectionNames);
+	result.collections.forEach((collection) => {
+		setCollectionQueryData(queryClient, collection);
 	});
-}
 
-export function useRenameCollectionMutation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: renameCollectionMutationFn,
-		onSuccess: ({ previousName, collection }) => {
-			removeCollectionQueryData(queryClient, previousName);
-			setCollectionQueryData(queryClient, collection);
-			queryClient.setQueryData<string[]>(queryKeys.collections.list(), (currentNames = []) =>
-				currentNames.map((currentName) => (currentName === previousName ? collection.name : currentName))
-			);
+	currentCollectionNames.forEach((collectionName) => {
+		if (!nextCollectionNames.has(collectionName)) {
+			queryClient.removeQueries({
+				queryKey: queryKeys.collections.detail(collectionName),
+				exact: true
+			});
 		}
 	});
 }
@@ -208,6 +234,6 @@ export function setBlockLookupBootstrapQueryData(queryClient: QueryClient, data:
 	queryClient.setQueryData(queryKeys.blockLookup.bootstrap(), data);
 }
 
-export function invalidateBlockLookupSearchQueries(queryClient: QueryClient) {
+function invalidateBlockLookupSearchQueries(queryClient: QueryClient) {
 	return queryClient.invalidateQueries({ queryKey: queryKeys.blockLookup.searchRoot() });
 }

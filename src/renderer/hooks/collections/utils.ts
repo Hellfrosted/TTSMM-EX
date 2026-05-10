@@ -1,12 +1,5 @@
 import type { AppConfig, ModCollection, ModDataOverride } from 'model';
 
-export function cloneCollection(collection: ModCollection): ModCollection {
-	return {
-		...collection,
-		mods: [...collection.mods]
-	};
-}
-
 export function copyCollectionsMap(collections: Map<string, ModCollection>) {
 	return new Map<string, ModCollection>(collections);
 }
@@ -50,12 +43,5 @@ export function cloneAppConfig(config: AppConfig): AppConfig {
 			])
 		),
 		userOverrides: new Map([...config.userOverrides.entries()].map(([uid, override]) => [uid, cloneUserOverride(override)]))
-	};
-}
-
-export function withActiveCollection(config: AppConfig, activeCollection: string | undefined): AppConfig {
-	return {
-		...config,
-		activeCollection
 	};
 }

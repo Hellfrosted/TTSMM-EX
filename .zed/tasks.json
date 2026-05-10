@@ -1,0 +1,54 @@
+[
+	{
+		"label": "pnpm: lint",
+		"command": "pnpm",
+		"args": ["run", "lint"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: lint:fix",
+		"command": "pnpm",
+		"args": ["run", "lint:fix"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: typecheck",
+		"command": "pnpm",
+		"args": ["run", "typecheck"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: test",
+		"command": "pnpm",
+		"args": ["test"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: test current file",
+		"command": "pnpm",
+		"args": ["vitest", "run", "$ZED_FILE"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: deadcode",
+		"command": "pnpm",
+		"args": ["run", "deadcode"],
+		"hide": "on_success"
+	},
+	{
+		"label": "pnpm: build",
+		"command": "pnpm",
+		"args": ["run", "build"]
+	},
+	{
+		"label": "pnpm: validate",
+		"command": "pnpm",
+		"args": ["run", "validate"]
+	},
+	{
+		"label": "pnpm: dev",
+		"command": "pnpm",
+		"args": ["run", "dev"],
+		"allow_concurrent_runs": false
+	}
+]

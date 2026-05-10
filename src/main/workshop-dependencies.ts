@@ -3,7 +3,7 @@ import log from 'electron-log';
 import { parse } from 'node-html-parser';
 import { WORKSHOP_DEPENDENCY_LOOKUP_TTL_MS } from 'shared/workshop-dependency-lookup';
 
-interface WorkshopDependencyLookup {
+export interface WorkshopDependencyLookup {
 	steamDependencies: bigint[];
 	steamDependencyNames?: Record<string, string>;
 	steamDependenciesFetchedAt?: number;

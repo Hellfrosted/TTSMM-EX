@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AppConfig, ModCollection } from '../../model';
+import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import type { CollectionWorkspaceSnapshot } from '../../renderer/collection-lifecycle';
 import {
 	describeStartupBootError,
 	normalizeStartupPath,
-	resolveStartupCollection,
 	resolveStartupNavigation,
 	shouldAutoDiscoverGameExec
 } from '../../renderer/startup-loading';
@@ -18,23 +16,6 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
 		ignoredValidationErrors: new Map(),
 		userOverrides: new Map(),
 		...overrides
-	};
-}
-
-function snapshot(
-	collections: ModCollection[],
-	activeCollection?: string,
-	configOverrides: Partial<AppConfig> = {}
-): CollectionWorkspaceSnapshot {
-	const allCollections = new Map(collections.map((collection) => [collection.name, collection]));
-	return {
-		activeCollection: activeCollection ? allCollections.get(activeCollection) : undefined,
-		allCollectionNames: new Set(allCollections.keys()),
-		allCollections,
-		config: config({
-			activeCollection,
-			...configOverrides
-		})
 	};
 }
 
@@ -71,46 +52,6 @@ describe('startup-loading', () => {
 		expect(navigation.path).toBe('/collections/main');
 		expect(navigation.loadingMods).toBe(true);
 		expect(navigation.config.currentPath).toBe('/collections/main');
-	});
-
-	it('uses the stored active collection when it exists', () => {
-		const activeCollection = { name: 'default', mods: ['local:a'] };
-		const resolution = resolveStartupCollection(snapshot([activeCollection], 'default'));
-
-		expect(resolution.kind).toBe('active');
-		if (resolution.kind === 'active') {
-			expect(resolution.activeCollection).toBe(activeCollection);
-			expect(resolution.config.activeCollection).toBe('default');
-		}
-	});
-
-	it('repairs a missing active collection by selecting the first saved collection', () => {
-		const resolution = resolveStartupCollection(
-			snapshot(
-				[
-					{ name: 'zeta', mods: [] },
-					{ name: 'alpha', mods: ['local:a'] }
-				],
-				'missing'
-			)
-		);
-
-		expect(resolution.kind).toBe('repair-active');
-		if (resolution.kind === 'repair-active') {
-			expect(resolution.collectionName).toBe('alpha');
-			expect(resolution.lifecycleResult.activeCollection).toEqual({ name: 'alpha', mods: ['local:a'] });
-			expect(resolution.lifecycleResult.config.activeCollection).toBe('alpha');
-		}
-	});
-
-	it('creates a default collection when no collections exist', () => {
-		const resolution = resolveStartupCollection(snapshot([], undefined));
-
-		expect(resolution.kind).toBe('create-default');
-		if (resolution.kind === 'create-default') {
-			expect(resolution.lifecycleResult.activeCollection).toEqual({ name: 'default', mods: [] });
-			expect(resolution.lifecycleResult.config.activeCollection).toBe('default');
-		}
 	});
 
 	it('describes known boot failures with actionable copy', () => {

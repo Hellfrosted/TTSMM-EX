@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { getStatusSurfaceClassName } from './status-surface-classes';
 
 interface StatusCalloutProps extends HTMLAttributes<HTMLDivElement> {
 	children: ReactNode;
@@ -7,18 +8,13 @@ interface StatusCalloutProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export default function StatusCallout({ children, className, heading, tone = 'default', ...props }: StatusCalloutProps) {
-	const toneClassName =
-		tone === 'error'
-			? 'border-[color-mix(in_srgb,var(--app-color-error)_40%,var(--app-color-border))] bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
-			: tone === 'warning'
-				? 'border-[color-mix(in_srgb,var(--app-color-warning)_38%,var(--app-color-border))] bg-[color-mix(in_srgb,var(--app-color-warning)_16%,var(--app-color-surface-alt))]'
-				: 'border-border bg-surface-alt';
+	const toneClassName = getStatusSurfaceClassName(tone, 'border-border bg-surface-alt');
 	const calloutClassName = ['box-border w-full rounded-md border px-3.5 py-3', toneClassName, className].filter(Boolean).join(' ');
 
 	return (
 		<div {...props} className={calloutClassName}>
 			<strong className="mb-1 block">{heading}</strong>
-			<span className="block break-words leading-[1.45] text-text">{children}</span>
+			<span className="block wrap-break-word leading-[1.45] text-text">{children}</span>
 		</div>
 	);
 }

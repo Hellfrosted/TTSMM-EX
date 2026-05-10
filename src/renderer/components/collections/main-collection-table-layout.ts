@@ -6,10 +6,21 @@ import {
 	getModDataDisplayId,
 	getModDataDisplayName
 } from 'model';
+import { getAllCollectionTags } from 'renderer/collection-tags';
 import { APP_FONT_FAMILY } from 'renderer/theme';
+import { formatDateStr } from 'util/Date';
+import {
+	getVirtualTableColumnPixelWidth,
+	getVirtualTableColumnWidthStyle,
+	getVirtualTableColumnWidthVariableName,
+	getVirtualTableFixedColumnStyle,
+	getVirtualTableScrollWidth,
+	setVirtualTableColumnWidthVariable,
+	type VirtualTableColumnWidthLike
+} from 'renderer/virtual-table-geometry';
 
 export const DEFAULT_SELECTION_COLUMN_WIDTH = 48;
-export const COLUMN_MEASUREMENT_SAMPLE_SIZE = 24;
+export const COLUMN_MEASUREMENT_SAMPLE_SIZE = 120;
 export const COLUMN_AUTO_MEASURE_MAX_ROWS = 120;
 const COLUMN_MEASUREMENT_CACHE_LIMIT = 12;
 const NAME_CELL_ICON_WIDTH = 18;
@@ -21,14 +32,14 @@ const columnMeasurementCache = new Map<string, Record<string, number>>();
 const DEFAULT_MAIN_COLUMN_WIDTHS: Record<MainColumnTitles, number> = {
 	[MainColumnTitles.TYPE]: 56,
 	[MainColumnTitles.NAME]: 288,
-	[MainColumnTitles.AUTHORS]: 120,
-	[MainColumnTitles.STATE]: 112,
-	[MainColumnTitles.ID]: 132,
-	[MainColumnTitles.SIZE]: 72,
-	[MainColumnTitles.LAST_UPDATE]: 116,
-	[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 116,
-	[MainColumnTitles.DATE_ADDED]: 116,
-	[MainColumnTitles.TAGS]: 180
+	[MainColumnTitles.AUTHORS]: 88,
+	[MainColumnTitles.STATE]: 64,
+	[MainColumnTitles.ID]: 96,
+	[MainColumnTitles.SIZE]: 64,
+	[MainColumnTitles.LAST_UPDATE]: 104,
+	[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 104,
+	[MainColumnTitles.DATE_ADDED]: 104,
+	[MainColumnTitles.TAGS]: 128
 };
 
 const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, number>> = {
@@ -41,12 +52,29 @@ const RESPONSIVE_COLUMN_MIN_TABLE_WIDTHS: Partial<Record<MainColumnTitles, numbe
 	[MainColumnTitles.TAGS]: 1380
 };
 
+const MAIN_COLUMN_FILL_WEIGHTS: Partial<Record<MainColumnTitles, number>> = {
+	[MainColumnTitles.TYPE]: 0.1,
+	[MainColumnTitles.NAME]: 0.1,
+	[MainColumnTitles.AUTHORS]: 0.25,
+	[MainColumnTitles.STATE]: 0.25,
+	[MainColumnTitles.ID]: 0.25,
+	[MainColumnTitles.SIZE]: 0.5,
+	[MainColumnTitles.LAST_UPDATE]: 0.5,
+	[MainColumnTitles.LAST_WORKSHOP_UPDATE]: 0.5,
+	[MainColumnTitles.DATE_ADDED]: 0.5,
+	[MainColumnTitles.TAGS]: 3
+};
+
 export const AUTO_MEASURE_MAIN_COLUMN_TITLES = new Set<MainColumnTitles>([
+	MainColumnTitles.TYPE,
 	MainColumnTitles.NAME,
 	MainColumnTitles.AUTHORS,
 	MainColumnTitles.STATE,
 	MainColumnTitles.ID,
 	MainColumnTitles.SIZE,
+	MainColumnTitles.LAST_UPDATE,
+	MainColumnTitles.LAST_WORKSHOP_UPDATE,
+	MainColumnTitles.DATE_ADDED,
 	MainColumnTitles.TAGS
 ]);
 
@@ -61,6 +89,14 @@ export function isMainColumnTitle(value: string): value is MainColumnTitles {
 
 export function getDefaultMainColumnWidth(columnTitle: MainColumnTitles) {
 	return DEFAULT_MAIN_COLUMN_WIDTHS[columnTitle];
+}
+
+function getHeaderMinimumWidth(columnTitle: MainColumnTitles) {
+	return Math.ceil(columnTitle.length * 8 + 34);
+}
+
+export function getResolvedMainColumnMinWidth(columnTitle: MainColumnTitles) {
+	return Math.max(getMainColumnMinWidth(columnTitle), getHeaderMinimumWidth(columnTitle));
 }
 
 export function getActiveMainColumnTitles(config: MainCollectionConfig | undefined) {
@@ -253,7 +289,7 @@ export function formatSizeLabel(size?: number) {
 }
 
 export function getAllTags(record: DisplayModData) {
-	return [...new Set([...(record.tags || []), ...(record.overrides?.tags || [])])].filter((tag) => tag.toLowerCase() !== 'mods');
+	return getAllCollectionTags(record);
 }
 
 export function getRenderedColumnBodyCells(tableRoot: HTMLElement, activeColumnTitles: string[], sampledRows: DisplayModData[]) {
@@ -347,7 +383,27 @@ export function measureBodyCellWidth(columnTitle: MainColumnTitles, renderedCell
 			if (columnTitle === MainColumnTitles.TYPE) {
 				return getMainColumnMinWidth(columnTitle);
 			}
-			return 0;
+			if (
+				columnTitle === MainColumnTitles.LAST_UPDATE ||
+				columnTitle === MainColumnTitles.LAST_WORKSHOP_UPDATE ||
+				columnTitle === MainColumnTitles.DATE_ADDED
+			) {
+				const value =
+					row[
+						columnTitle === MainColumnTitles.LAST_UPDATE
+							? 'lastUpdate'
+							: columnTitle === MainColumnTitles.LAST_WORKSHOP_UPDATE
+								? 'lastWorkshopUpdate'
+								: 'dateAdded'
+					];
+				return Math.ceil(
+					getHorizontalInsets(cell) +
+						measureTextWidth(value instanceof Date ? formatDateStr(value) : '', getElementFont(cell, `400 14px ${APP_FONT_FAMILY}`))
+				);
+			}
+			return Math.ceil(
+				getHorizontalInsets(cell) + measureTextWidth(String(cell.textContent || ''), getElementFont(cell, `400 14px ${APP_FONT_FAMILY}`))
+			);
 	}
 }
 
@@ -388,64 +444,58 @@ export function getColumnWidths(
 ) {
 	const configuredWidths = config?.columnWidthConfig || {};
 	const columnWidths = getResponsiveMainColumnTitles(config, availableTableWidth).reduce<Record<string, number>>((acc, columnTitle) => {
-		const minWidth = getMainColumnMinWidth(columnTitle);
+		const minWidth = getResolvedMainColumnMinWidth(columnTitle);
 		const configuredWidth = configuredWidths[columnTitle] ?? autoColumnWidths[columnTitle] ?? getDefaultMainColumnWidth(columnTitle);
 		acc[columnTitle] = Math.max(minWidth, configuredWidth);
 		return acc;
 	}, {});
 
-	const nameWidth = columnWidths[MainColumnTitles.NAME];
-	const nameWidthIsConfigured = configuredWidths[MainColumnTitles.NAME] !== undefined;
-	if (availableTableWidth > 0 && nameWidth !== undefined && !nameWidthIsConfigured) {
-		const currentTableWidth = Object.values(columnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, 0);
-		const targetTableWidth = Math.max(0, Math.floor(availableTableWidth - DEFAULT_SELECTION_COLUMN_WIDTH));
-		if (currentTableWidth < targetTableWidth) {
-			columnWidths[MainColumnTitles.NAME] += targetTableWidth - currentTableWidth;
-		}
+	const availableColumnWidth = Math.max(0, availableTableWidth - DEFAULT_SELECTION_COLUMN_WIDTH);
+	const currentWidth = Object.values(columnWidths).reduce((totalWidth, width) => totalWidth + width, 0);
+	const extraWidth = Math.max(0, availableColumnWidth - currentWidth);
+	if (extraWidth > 0) {
+		const activeFillColumns = Object.keys(columnWidths).filter((columnTitle): columnTitle is MainColumnTitles =>
+			Object.prototype.hasOwnProperty.call(MAIN_COLUMN_FILL_WEIGHTS, columnTitle)
+		);
+		const fillColumns = activeFillColumns.length > 0 ? activeFillColumns : Object.keys(columnWidths);
+		const totalWeight = fillColumns.reduce(
+			(totalWeight, columnTitle) => totalWeight + (MAIN_COLUMN_FILL_WEIGHTS[columnTitle as MainColumnTitles] || 1),
+			0
+		);
+		let remainingWidth = extraWidth;
+		fillColumns.forEach((columnTitle, index) => {
+			const widthShare =
+				index === fillColumns.length - 1
+					? remainingWidth
+					: Math.floor((extraWidth * (MAIN_COLUMN_FILL_WEIGHTS[columnTitle as MainColumnTitles] || 1)) / totalWeight);
+			columnWidths[columnTitle] += widthShare;
+			remainingWidth -= widthShare;
+		});
 	}
 
 	return columnWidths;
 }
 
 export function getColumnWidthVariableName(columnTitle: string) {
-	return `--main-collection-column-width-${columnTitle
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')}`;
+	return getVirtualTableColumnWidthVariableName('main-collection', columnTitle);
 }
 
 export function getColumnWidthStyle(columnTitle: string, width: number) {
-	return `var(${getColumnWidthVariableName(columnTitle)}, ${width}px)`;
+	return getVirtualTableColumnWidthStyle('main-collection', columnTitle, width);
+}
+
+export function getMainCollectionVirtualColumnStyle(width: number | string) {
+	return getVirtualTableFixedColumnStyle(width);
 }
 
 export function setColumnWidthVariable(container: HTMLElement | null, columnTitle: string, width: number) {
-	container?.style.setProperty(getColumnWidthVariableName(columnTitle), `${width}px`);
+	setVirtualTableColumnWidthVariable(container, 'main-collection', columnTitle, width);
 }
 
-interface MainCollectionColumnWidthLike {
-	resizeWidth?: number;
-	width?: number | string;
-}
-
-export function getColumnPixelWidth(column: MainCollectionColumnWidthLike) {
-	if (typeof column.resizeWidth === 'number') {
-		return column.resizeWidth;
-	}
-
-	if (typeof column.width === 'number') {
-		return column.width;
-	}
-
-	if (typeof column.width === 'string') {
-		const match = /(\d+(?:\.\d+)?)px/.exec(column.width);
-		if (match) {
-			return Number.parseFloat(match[1]);
-		}
-	}
-
-	return 120;
+export function getColumnPixelWidth(column: VirtualTableColumnWidthLike) {
+	return getVirtualTableColumnPixelWidth(column);
 }
 
 export function getMainCollectionTableScrollWidth(columnWidths: Record<string, number>) {
-	return Object.values(columnWidths).reduce((totalWidth, columnWidth) => totalWidth + columnWidth, DEFAULT_SELECTION_COLUMN_WIDTH);
+	return getVirtualTableScrollWidth(Object.values(columnWidths), DEFAULT_SELECTION_COLUMN_WIDTH);
 }

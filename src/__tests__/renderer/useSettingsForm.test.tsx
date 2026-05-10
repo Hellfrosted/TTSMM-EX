@@ -84,6 +84,36 @@ describe('useSettingsForm', () => {
 		expect(appState.configErrors).toEqual({});
 	});
 
+	it('marks mod data for reload when NuterraSteam compatibility changes', async () => {
+		const appState = createAppState({
+			firstModLoad: true,
+			config: {
+				...DEFAULT_CONFIG,
+				treatNuterraSteamBetaAsEquivalent: true,
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+
+		act(() => {
+			result.current.setField('treatNuterraSteamBetaAsEquivalent', false);
+		});
+
+		let saveResult;
+		await act(async () => {
+			saveResult = await result.current.saveChanges();
+		});
+
+		expect(saveResult).toEqual({
+			ok: true,
+			reloadRequired: true
+		});
+		expect(appState.firstModLoad).toBe(false);
+		expect(appState.config.treatNuterraSteamBetaAsEquivalent).toBe(false);
+	});
+
 	it('does not mark mods for reload when saving settings fails', async () => {
 		const appState = createAppState({
 			firstModLoad: true,
@@ -95,7 +125,7 @@ describe('useSettingsForm', () => {
 				userOverrides: new Map()
 			}
 		});
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {
@@ -128,7 +158,9 @@ describe('useSettingsForm', () => {
 		});
 		const updateLogLevel = vi.fn();
 		window.electron.updateLogLevel = updateLogLevel;
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		vi.mocked(window.electron.updateConfig)
+			.mockResolvedValueOnce(null)
+			.mockImplementationOnce(async (config) => config);
 		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
 
 		act(() => {

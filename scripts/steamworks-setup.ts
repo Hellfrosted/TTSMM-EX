@@ -121,7 +121,7 @@ function pathExistsOrIsDanglingLink(targetPath: string) {
 
 function ensureGreenworksPresent() {
 	if (!fs.existsSync(greenworksPath)) {
-		run('npm --prefix release/app install --ignore-scripts');
+		run('pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts');
 	}
 }
 
@@ -245,6 +245,6 @@ export function setupSteamworksNativeDeps(steamworksSdkPath: string) {
 	stageSteamworksSdk(steamworksSdkPath);
 	patchGreenworksWorkshopWorkerSource();
 	patchGreenworksPythonCommand();
-	run('npm run electron-rebuild', { STEAMWORKS_SDK_PATH: greenworksSdkPath }, releaseAppPath);
+	run('pnpm run electron-rebuild', { STEAMWORKS_SDK_PATH: greenworksSdkPath }, releaseAppPath);
 	linkModules();
 }

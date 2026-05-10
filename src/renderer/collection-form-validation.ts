@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { validateCollectionName } from 'shared/collection-name';
-import type { CollectionNamingModalType } from './components/collections/CollectionNamingModal';
+
+export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
 
 interface CollectionNameValidationOptions {
 	activeCollectionName?: string;
@@ -15,12 +16,12 @@ const collectionNameFormSchema = z.object({
 export type CollectionNameFormValues = z.infer<typeof collectionNameFormSchema>;
 
 export function getCollectionNameError(name: string, options: CollectionNameValidationOptions) {
-	const trimmedName = name.trim();
-	const validationError = validateCollectionName(trimmedName);
+	const validationError = validateCollectionName(name);
 	if (validationError) {
 		return validationError;
 	}
 
+	const trimmedName = name.trim();
 	if (options.modalType === 'rename-collection' && trimmedName === options.activeCollectionName) {
 		return 'Collection name is unchanged';
 	}

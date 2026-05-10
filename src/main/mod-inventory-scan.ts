@@ -1,5 +1,5 @@
 import type { ModData } from '../model';
-import ModFetcher from './mod-fetcher';
+import { createModInventoryContext, fetchModInventory } from './mod-fetcher';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
@@ -11,11 +11,13 @@ interface ModInventoryScanRequest {
 	platform?: NodeJS.Platform;
 	progressSender: ProgressSender;
 	skipWorkshopSteamworks?: boolean;
+	treatNuterraSteamBetaAsEquivalent?: boolean;
 }
 
 export function scanModInventory(request: ModInventoryScanRequest): Promise<ModData[]> {
-	const fetcher = new ModFetcher(request.progressSender, request.localPath, request.knownWorkshopMods, request.platform, {
-		skipWorkshopSteamworks: request.skipWorkshopSteamworks
+	const context = createModInventoryContext(request.progressSender, request.localPath, request.knownWorkshopMods, request.platform, {
+		skipWorkshopSteamworks: request.skipWorkshopSteamworks,
+		treatNuterraSteamBetaAsEquivalent: request.treatNuterraSteamBetaAsEquivalent
 	});
-	return fetcher.fetchMods();
+	return fetchModInventory(context);
 }

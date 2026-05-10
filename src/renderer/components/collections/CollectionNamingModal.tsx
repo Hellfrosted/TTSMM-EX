@@ -1,32 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
-import { X } from 'lucide-react';
-import { createCollectionNameFormSchema, getCollectionNameError, type CollectionNameFormValues } from 'renderer/collection-form-validation';
 import {
-	desktopButtonBaseClassName,
-	desktopControlFocusClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledOpacityClassName,
-	desktopInputClassName,
-	desktopPrimaryButtonToneClassName,
-	joinClassNames
-} from 'renderer/components/desktop-control-classes';
-
-export type CollectionNamingModalType = 'new-collection' | 'duplicate-collection' | 'rename-collection';
-
-const collectionNamingButtonClassName = joinClassNames(
-	desktopButtonBaseClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledOpacityClassName,
-	desktopControlFocusClassName
-);
-const collectionNamingPrimaryButtonClassName = joinClassNames(
-	desktopButtonBaseClassName,
-	desktopPrimaryButtonToneClassName,
-	desktopDisabledOpacityClassName,
-	desktopControlFocusClassName
-);
+	createCollectionNameFormSchema,
+	getCollectionNameError,
+	type CollectionNameFormValues,
+	type CollectionNamingModalType
+} from 'renderer/collection-form-validation';
+import { DesktopButton, DesktopDialog, DesktopInput } from 'renderer/components/DesktopControls';
 
 interface CollectionNamingModalProps {
 	activeCollectionName?: string;
@@ -83,19 +64,6 @@ export default function CollectionNamingModal({
 		};
 	}, []);
 
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				closeModal();
-			}
-		};
-
-		window.addEventListener('keydown', handleKeyDown);
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [closeModal]);
-
 	const currentModal = useMemo(
 		() =>
 			({
@@ -147,79 +115,57 @@ export default function CollectionNamingModal({
 	});
 
 	return (
-		<div
-			className="fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6"
-			role="presentation"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) {
-					closeModal();
-				}
-			}}
-		>
-			<section
-				aria-labelledby="collection-naming-modal-title"
-				aria-modal="true"
-				className="flex w-[min(520px,100%)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]"
-				role="dialog"
-			>
-				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id="collection-naming-modal-title" className="m-0 text-base font-bold leading-[1.3] text-text">
-						{currentModal.title}
-					</h2>
-					<button
-						aria-label="Close collection naming modal"
-						className={[
-							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
-							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							desktopControlFocusClassName
-						].join(' ')}
-						type="button"
-						onClick={closeModal}
+		<DesktopDialog
+			open
+			title={currentModal.title}
+			titleClassName="text-base font-bold"
+			closeLabel="Close collection naming modal"
+			onCancel={closeModal}
+			panelClassName="w-[min(520px,100%)]"
+			bodyClassName="p-0"
+			footer={
+				<>
+					<DesktopButton type="button" onClick={closeModal}>
+						Cancel
+					</DesktopButton>
+					<DesktopButton
+						type="submit"
+						form="collection-naming-form"
+						disabled={!!currentModalError || savingCollection}
+						loading={savingCollection}
+						variant="primary"
 					>
-						<X size={18} aria-hidden="true" />
-					</button>
-				</header>
-				<form className="flex flex-col gap-2 p-4" onSubmit={submitModal}>
-					<label id={collectionNameLabelId} className="font-[650] text-text" htmlFor={collectionNameInputId}>
-						{currentModal.fieldLabel}
-					</label>
-					<input
-						id={collectionNameInputId}
-						className={[desktopInputClassName, 'aria-[invalid=true]:border-error', desktopControlFocusClassName].join(' ')}
-						{...nameField}
-						ref={(element) => {
-							nameField.ref(element);
-							collectionNameInputRef.current = element;
-						}}
-						placeholder={currentModal.placeholder}
-						aria-labelledby={collectionNameLabelId}
-						aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
-						aria-invalid={currentModalError ? 'true' : 'false'}
-					/>
-					<span id={collectionNameHelpId} className="text-[0.9rem] leading-[1.4] text-text-muted">
-						{currentModal.fieldHelp}
+						{currentModal.okText}
+					</DesktopButton>
+				</>
+			}
+		>
+			<form id="collection-naming-form" className="flex flex-col gap-2 p-4" onSubmit={submitModal}>
+				<label id={collectionNameLabelId} className="font-[650] text-text" htmlFor={collectionNameInputId}>
+					{currentModal.fieldLabel}
+				</label>
+				<DesktopInput
+					id={collectionNameInputId}
+					className="aria-invalid:border-error"
+					{...nameField}
+					ref={(element) => {
+						nameField.ref(element);
+						collectionNameInputRef.current = element;
+					}}
+					placeholder={currentModal.placeholder}
+					aria-labelledby={collectionNameLabelId}
+					aria-describedby={currentModalError ? `${collectionNameHelpId} ${collectionNameErrorId}` : collectionNameHelpId}
+					aria-invalid={currentModalError ? 'true' : 'false'}
+				/>
+				<span id={collectionNameHelpId} className="text-[0.9rem] leading-[1.4] text-text-muted">
+					{currentModal.fieldHelp}
+				</span>
+				{currentModalError ? (
+					<span id={collectionNameErrorId} className="text-[0.9rem] leading-[1.4] text-error">
+						{currentModalError}
 					</span>
-					{currentModalError ? (
-						<span id={collectionNameErrorId} className="text-[0.9rem] leading-[1.4] text-error">
-							{currentModalError}
-						</span>
-					) : null}
-					<footer className="-mx-4 -mb-4 mt-2 flex items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">
-						<button className={collectionNamingButtonClassName} type="button" onClick={closeModal}>
-							Cancel
-						</button>
-						<button className={collectionNamingPrimaryButtonClassName} type="submit" disabled={!!currentModalError || savingCollection}>
-							{savingCollection ? (
-								<span
-									className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-									aria-hidden="true"
-								/>
-							) : null}
-							{currentModal.okText}
-						</button>
-					</footer>
-				</form>
-			</section>
-		</div>
+				) : null}
+			</form>
+		</DesktopDialog>
 	);
 }

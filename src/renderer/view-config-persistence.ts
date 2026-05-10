@@ -8,7 +8,6 @@ import {
 } from 'model';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
-import { writeConfig } from 'renderer/util/config-write';
 
 export interface BlockLookupColumnConfig {
 	key: BlockLookupColumnKey;
@@ -19,15 +18,26 @@ export interface BlockLookupColumnConfig {
 	minWidth: number;
 }
 
-export const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
-	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, defaultWidth: 360, minWidth: 180 },
-	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, defaultWidth: 220, minWidth: 120 },
-	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, defaultWidth: 200, minWidth: 120 },
-	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, defaultWidth: 110, minWidth: 90 },
-	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, defaultWidth: 130, minWidth: 90 }
-];
+export const MAIN_DETAILS_OVERLAY_MIN_WIDTH = 360;
+export const MAIN_DETAILS_OVERLAY_MIN_HEIGHT = 220;
 
-type ConfigCommit = (nextConfig: AppConfig) => void;
+interface BlockLookupTableOptionsDraft {
+	columns: BlockLookupColumnConfig[];
+	smallRows: boolean;
+}
+
+interface BlockLookupDraftColumnState {
+	cannotHide: boolean;
+	column: BlockLookupColumnConfig;
+}
+
+export const DEFAULT_BLOCK_LOOKUP_COLUMNS: BlockLookupColumnConfig[] = [
+	{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, defaultWidth: 320, minWidth: 140 },
+	{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, defaultWidth: 200, minWidth: 96 },
+	{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, defaultWidth: 176, minWidth: 96 },
+	{ key: 'blockId', title: BlockLookupColumnTitles.BLOCK_ID, visible: true, defaultWidth: 96, minWidth: 72 },
+	{ key: 'sourceKind', title: BlockLookupColumnTitles.SOURCE, visible: true, defaultWidth: 104, minWidth: 72 }
+];
 
 function cloneBlockLookupColumnConfig(columns: BlockLookupColumnConfig[]) {
 	return columns.map((column) => ({ ...column }));
@@ -42,6 +52,10 @@ function compactRecord<T>(record: Record<string, T>, validKeys: Set<string>, isV
 	}, {});
 
 	return Object.keys(compacted).length > 0 ? compacted : undefined;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
 }
 
 function collectConfiguredColumnOrder<T extends string>(configuredOrder: readonly string[] | undefined, defaultOrder: readonly T[]) {
@@ -80,7 +94,7 @@ export function normalizeMainCollectionConfig(config?: MainCollectionConfig): Ma
 	const mainColumnTitles = Object.values(MainColumnTitles);
 	const knownColumnSet = new Set<string>(mainColumnTitles);
 	const columnOrder = compactOrder(config?.columnOrder, mainColumnTitles);
-	const columnWidthConfig = compactRecord(config?.columnWidthConfig || {}, knownColumnSet, (width) => typeof width === 'number');
+	const columnWidthConfig = compactRecord(config?.columnWidthConfig || {}, knownColumnSet, isFiniteNumber);
 
 	const normalizedConfig: MainCollectionConfig = {
 		...(config || {}),
@@ -90,6 +104,12 @@ export function normalizeMainCollectionConfig(config?: MainCollectionConfig): Ma
 					nextWidths[column] = Math.max(getMainColumnMinWidth(column as MainColumnTitles), Math.round(width));
 					return nextWidths;
 				}, {})
+			: undefined,
+		detailsOverlayWidth: isFiniteNumber(config?.detailsOverlayWidth)
+			? Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, Math.round(config.detailsOverlayWidth))
+			: undefined,
+		detailsOverlayHeight: isFiniteNumber(config?.detailsOverlayHeight)
+			? Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, Math.round(config.detailsOverlayHeight))
 			: undefined,
 		columnOrder: columnOrder && !defaultEquivalentOrder(columnOrder, mainColumnTitles) ? columnOrder : undefined
 	};
@@ -108,8 +128,34 @@ export function normalizeMainCollectionConfig(config?: MainCollectionConfig): Ma
 	if (!normalizedConfig.columnOrder) {
 		delete normalizedConfig.columnOrder;
 	}
+	if (!normalizedConfig.detailsOverlayWidth) {
+		delete normalizedConfig.detailsOverlayWidth;
+	}
+	if (!normalizedConfig.detailsOverlayHeight) {
+		delete normalizedConfig.detailsOverlayHeight;
+	}
 
 	return normalizedConfig;
+}
+
+export function setMainCollectionDetailsOverlaySize(config: AppConfig, layout: 'side' | 'bottom', size: number | undefined) {
+	const key = layout === 'side' ? 'detailsOverlayWidth' : 'detailsOverlayHeight';
+	const normalizedSize = isFiniteNumber(size)
+		? Math.max(layout === 'side' ? MAIN_DETAILS_OVERLAY_MIN_WIDTH : MAIN_DETAILS_OVERLAY_MIN_HEIGHT, Math.round(size))
+		: undefined;
+	if (config.viewConfigs.main?.[key] === normalizedSize) {
+		return undefined;
+	}
+
+	const nextConfig = cloneAppConfig(config);
+	const nextMainConfig = normalizeMainCollectionConfig(nextConfig.viewConfigs.main);
+	if (typeof normalizedSize === 'number') {
+		nextMainConfig[key] = normalizedSize;
+	} else {
+		delete nextMainConfig[key];
+	}
+	nextConfig.viewConfigs.main = normalizeMainCollectionConfig(nextMainConfig);
+	return nextConfig;
 }
 
 export function setMainCollectionColumnWidth(config: AppConfig, column: MainColumnTitles, width: number) {
@@ -236,6 +282,49 @@ export function moveBlockLookupColumnByKey(columns: BlockLookupColumnConfig[], f
 	return nextColumns;
 }
 
+export function createBlockLookupTableOptionsDraft(config?: BlockLookupViewConfig): BlockLookupTableOptionsDraft {
+	return {
+		columns: getConfiguredBlockLookupColumns(config),
+		smallRows: !!config?.smallRows
+	};
+}
+
+export function getBlockLookupDraftColumnStates(columns: BlockLookupColumnConfig[]): BlockLookupDraftColumnState[] {
+	const visibleColumns = columns.filter((column) => column.visible).length;
+	return columns.map((column) => ({
+		column,
+		cannotHide: column.visible && visibleColumns <= 1
+	}));
+}
+
+export function setBlockLookupDraftColumnVisibility(columns: BlockLookupColumnConfig[], columnKey: BlockLookupColumnKey, visible: boolean) {
+	const visibleColumns = columns.filter((column) => column.visible).length;
+	if (!visible && visibleColumns <= 1) {
+		return columns;
+	}
+
+	return columns.map((column) => (column.key === columnKey ? { ...column, visible } : column));
+}
+
+export function setBlockLookupDraftColumnWidth(
+	columns: BlockLookupColumnConfig[],
+	columnKey: BlockLookupColumnKey,
+	width: number | undefined
+) {
+	return columns.map((column) => {
+		if (column.key !== columnKey) {
+			return column;
+		}
+		if (typeof width !== 'number') {
+			const nextColumn = { ...column };
+			delete nextColumn.width;
+			return nextColumn;
+		}
+
+		return { ...column, width: Math.max(column.minWidth, Math.round(width)) };
+	});
+}
+
 export function setBlockLookupColumnWidth(
 	config: AppConfig,
 	columns: BlockLookupColumnConfig[],
@@ -269,14 +358,4 @@ export function moveBlockLookupColumn(
 	}
 
 	return setBlockLookupColumns(config, nextColumns, config.viewConfigs.blockLookup?.smallRows);
-}
-
-export async function persistViewConfig(nextConfig: AppConfig | undefined, commit: ConfigCommit) {
-	if (!nextConfig) {
-		return true;
-	}
-
-	await writeConfig(nextConfig);
-	commit(nextConfig);
-	return true;
 }

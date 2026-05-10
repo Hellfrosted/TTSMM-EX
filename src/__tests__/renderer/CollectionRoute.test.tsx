@@ -77,7 +77,7 @@ describe('CollectionRoute', () => {
 			};
 		});
 		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 
 		renderWithQueryClient(
 			<MemoryRouter initialEntries={['/collections/main']}>

@@ -18,7 +18,7 @@ if (process.env.TTSMM_SETUP_STEAMWORKS === '1') {
 } else {
 	console.log(
 		chalk.yellow(
-			'Skipping Steamworks native dependency setup. Run "npm run setup:steamworks" after installing the Steamworks SDK if you need Steam integration locally.'
+			'Skipping Steamworks native dependency setup. Run "pnpm run setup:steamworks" after installing the Steamworks SDK if you need Steam integration locally.'
 		)
 	);
 }

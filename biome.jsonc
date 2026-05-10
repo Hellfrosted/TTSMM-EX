@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -8,7 +8,7 @@
 	"files": {
 		"ignoreUnknown": true,
 		"includes": [
-			"**/*.{cjs,js,jsx,json,jsonc,mjs,ts,tsx}",
+			"**/*.{cjs,css,js,jsx,json,jsonc,mjs,ts,tsx}",
 			"!assets/**",
 			"!coverage/**",
 			"!logs/**",
@@ -19,30 +19,76 @@
 			"!*.tsbuildinfo"
 		]
 	},
-	"formatter": {
-		"enabled": true,
-		"indentStyle": "tab",
-		"lineWidth": 140
+	"formatter": { "enabled": true, "indentStyle": "tab", "lineWidth": 140 },
+	"css": {
+		"parser": { "tailwindDirectives": true }
 	},
 	"linter": {
 		"enabled": true,
 		"rules": {
 			"recommended": false,
+			"a11y": {
+				"noAccessKey": "error",
+				"noAriaUnsupportedElements": "error",
+				"noAutofocus": "error",
+				"noDistractingElements": "error",
+				"noHeaderScope": "error",
+				"noInteractiveElementToNoninteractiveRole": "error",
+				"noLabelWithoutControl": "error",
+				"noNoninteractiveElementInteractions": "warn",
+				"noNoninteractiveElementToInteractiveRole": "error",
+				"noNoninteractiveTabindex": "error",
+				"noPositiveTabindex": "error",
+				"noRedundantAlt": "error",
+				"noRedundantRoles": "error",
+				"noStaticElementInteractions": "warn",
+				"useAltText": "error",
+				"useAnchorContent": "error",
+				"useAriaActivedescendantWithTabindex": "error",
+				"useAriaPropsForRole": "warn",
+				"useAriaPropsSupportedByRole": "warn",
+				"useFocusableInteractive": "warn",
+				"useHeadingContent": "error",
+				"useHtmlLang": "error",
+				"useIframeTitle": "error",
+				"useKeyWithClickEvents": "error",
+				"useKeyWithMouseEvents": "error",
+				"useMediaCaption": "error",
+				"useValidAnchor": "error",
+				"useValidAriaProps": "error",
+				"useValidAriaRole": "error",
+				"useValidAriaValues": "error",
+				"useValidAutocomplete": "error"
+			},
 			"correctness": {
 				"noUnusedFunctionParameters": "error",
 				"noUnusedImports": "error",
 				"noUnusedPrivateClassMembers": "error",
-				"noUnusedVariables": "error"
+				"noUnusedVariables": "error",
+				"useExhaustiveDependencies": "warn",
+				"useHookAtTopLevel": "error"
+			},
+			"nursery": {
+				"noFloatingPromises": "error"
+			},
+			"style": {
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"patterns": [
+							{
+								"group": ["@mui/*/*/*", "!@mui/material/test-utils/*"]
+							}
+						]
+					}
+				}
+			},
+			"suspicious": {
+				"noExplicitAny": "error"
 			}
 		}
 	},
-	"javascript": {
-		"formatter": {
-			"quoteStyle": "single",
-			"semicolons": "always",
-			"trailingCommas": "none"
-		}
-	},
+	"javascript": { "formatter": { "trailingCommas": "none", "semicolons": "always", "quoteStyle": "single" } },
 	"overrides": [
 		{
 			"includes": ["src/__tests__/**/*.tsx"],
@@ -51,7 +97,5 @@
 			}
 		}
 	],
-	"assist": {
-		"enabled": false
-	}
+	"assist": { "enabled": false }
 }

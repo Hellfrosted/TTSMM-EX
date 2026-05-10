@@ -2,33 +2,33 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { releaseAppPath, repoRoot } from './lib/paths';
 
-const npmExecPath = process.env.npm_execpath;
+const packageManagerExecPath = process.env.npm_execpath;
 const supportedIncrementTypes = new Set(['patch', 'minor', 'major']);
 
 const printUsage = () => {
 	console.log(`Usage:
-  npm run bump -- patch
-  npm run bump -- minor
-  npm run bump -- major`);
+  pnpm run bump -- patch
+  pnpm run bump -- minor
+  pnpm run bump -- major`);
 };
 
-const runNpm = (args: string[], cwd = repoRoot) => {
-	if (!npmExecPath) {
-		throw new Error('npm_execpath is not set. Run this script via "npm run".');
+const runPackageManager = (args: string[], cwd = repoRoot) => {
+	if (!packageManagerExecPath) {
+		throw new Error('The package-manager exec path is not set. Run this script via "pnpm run".');
 	}
 
-	execFileSync(process.execPath, [npmExecPath, ...args], {
+	execFileSync(process.execPath, [packageManagerExecPath, ...args], {
 		cwd,
 		stdio: 'inherit'
 	});
 };
 
-const captureNpm = (args: string[], cwd = repoRoot) => {
-	if (!npmExecPath) {
-		throw new Error('npm_execpath is not set. Run this script via "npm run".');
+const capturePackageManager = (args: string[], cwd = repoRoot) => {
+	if (!packageManagerExecPath) {
+		throw new Error('The package-manager exec path is not set. Run this script via "pnpm run".');
 	}
 
-	return execFileSync(process.execPath, [npmExecPath, ...args], {
+	return execFileSync(process.execPath, [packageManagerExecPath, ...args], {
 		cwd,
 		encoding: 'utf8'
 	}).trim();
@@ -54,15 +54,8 @@ if (!incrementType || !supportedIncrementTypes.has(incrementType)) {
 	throw new Error(`Increment type must be one of: ${Array.from(supportedIncrementTypes).join(', ')}`);
 }
 
-const version = captureNpm(['version', incrementType, '--no-git-tag-version']);
-runNpm(['version', incrementType, '--no-git-tag-version'], releaseAppPath);
-git([
-	'add',
-	'--',
-	'package.json',
-	'package-lock.json',
-	path.join('release', 'app', 'package.json'),
-	path.join('release', 'app', 'package-lock.json')
-]);
+const version = capturePackageManager(['version', incrementType, '--no-git-tag-version']);
+runPackageManager(['version', incrementType, '--no-git-tag-version'], releaseAppPath);
+git(['add', '--', 'package.json', path.join('release', 'app', 'package.json')]);
 git(['commit', '-m', `Bump version to ${version}`]);
 git(['tag', version]);

@@ -1,11 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
 import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
 import {
+	createModDependencyProjection,
 	DisplayModData,
 	getDescriptor,
-	getModDescriptorDisplayName,
-	getModDescriptorKey,
 	getModDataDisplayName,
 	ModCollection,
 	ModErrors,
@@ -13,16 +12,17 @@ import {
 	ModType,
 	NotificationProps,
 	getModDataDisplayId,
-	getModDataId,
+	getModDataDependencyIgnoreKey,
 	compareModDataDisplayName,
 	compareModDataDisplayId,
-	CollectionManagerModalType
+	CollectionManagerModalType,
+	getCollectionStatusTags
 } from 'model';
 import { isWorkshopDependencyLookupStale } from 'shared/workshop-dependency-lookup';
 import { formatDateStr } from 'util/Date';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
-import { writeConfig } from 'renderer/util/config-write';
+import { persistConfigChange } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { APP_TAG_STYLES } from 'renderer/theme';
 import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
@@ -30,8 +30,6 @@ import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './m
 
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
-
-const EMPTY_MOD_DESCRIPTORS: NonNullable<DisplayModData['dependsOn']> = [];
 
 interface DetailDescriptionItem {
 	label: ReactNode;
@@ -70,9 +68,9 @@ function DetailIcon({ children, label, className = '' }: { children: ReactNode; 
 function DetailDescriptions({ column = 1, items }: { column?: number; items: DetailDescriptionItem[] }) {
 	return (
 		<div className={`ModDetailDescriptions ModDetailDescriptions--columns-${column}`}>
-			{items.map((item, index) => (
+			{items.map((item) => (
 				<div
-					key={`${String(item.label)}-${index}`}
+					key={String(item.label)}
 					className="ModDetailDescriptionsItem"
 					style={{ gridColumn: item.span ? `span ${item.span}` : undefined }}
 				>
@@ -191,19 +189,6 @@ enum DependenciesTableType {
 	CONFLICT = 2
 }
 
-function getRequiredDependencyKey(record: DisplayModData) {
-	if (record.type !== ModType.DESCRIPTOR) {
-		return getModDataId(record);
-	}
-	if (record.id) {
-		return record.id;
-	}
-	if (record.workshopID !== undefined) {
-		return `${ModType.WORKSHOP}:${record.workshopID.toString()}`;
-	}
-	return undefined;
-}
-
 function getDependencySelectionKeys(data: DisplayModData[]): string[] {
 	const availableKeys = new Set<string>();
 	data.forEach((record) => {
@@ -232,6 +217,39 @@ interface ModDetailsFooterProps {
 	openNotification: (props: NotificationProps, type?: 'info' | 'error' | 'success' | 'warn') => void;
 	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
+}
+
+interface DependencyLookupState {
+	loadingDependencies: boolean;
+	dependencyLookupError?: string;
+}
+
+type DependencyLookupAction =
+	| { type: 'record-changed' }
+	| { type: 'tab-left' }
+	| { type: 'lookup-cancelled' }
+	| { type: 'lookup-started' }
+	| { type: 'lookup-succeeded' }
+	| { type: 'lookup-failed'; message: string }
+	| { type: 'retry-requested' };
+
+function dependencyLookupReducer(state: DependencyLookupState, action: DependencyLookupAction): DependencyLookupState {
+	switch (action.type) {
+		case 'lookup-started':
+			return { ...state, loadingDependencies: true };
+		case 'lookup-succeeded':
+			return { loadingDependencies: false };
+		case 'lookup-failed':
+			return { loadingDependencies: false, dependencyLookupError: action.message };
+		case 'lookup-cancelled':
+			return { ...state, loadingDependencies: false };
+		case 'record-changed':
+		case 'tab-left':
+		case 'retry-requested':
+			return { ...state, dependencyLookupError: undefined };
+		default:
+			return state;
+	}
 }
 
 const NAME_SCHEMA: DetailColumn = {
@@ -347,7 +365,7 @@ const ID_SCHEMA: DetailColumn = {
 	}
 };
 
-function ModDetailsFooter({
+function useModDetailsFooterContent({
 	appState,
 	bigDetails,
 	halfLayoutMode,
@@ -366,8 +384,10 @@ function ModDetailsFooter({
 	lastValidationStatus
 }: ModDetailsFooterProps) {
 	const requestedDependencyLookupUidRef = useRef<string | null>(null);
-	const [loadingDependencies, setLoadingDependencies] = useState(false);
-	const [dependencyLookupError, setDependencyLookupError] = useState<string>();
+	const dependencyLookupErrorUidRef = useRef(currentRecord.uid);
+	const [{ dependencyLookupError, loadingDependencies }, dispatchDependencyLookup] = useReducer(dependencyLookupReducer, {
+		loadingDependencies: false
+	});
 	const { activeCollection, config: appConfig, updateState: updateAppState } = appState;
 	const currentRecordUid = currentRecord.uid;
 	const currentRecordType = currentRecord.type;
@@ -376,6 +396,11 @@ function ModDetailsFooter({
 	const currentRecordSteamDependenciesFetchedAt = currentRecord.steamDependenciesFetchedAt;
 
 	useEffect(() => {
+		if (dependencyLookupErrorUidRef.current !== currentRecordUid) {
+			dependencyLookupErrorUidRef.current = currentRecordUid;
+			dispatchDependencyLookup({ type: 'record-changed' });
+		}
+
 		if (requestedDependencyLookupUidRef.current === null) {
 			return;
 		}
@@ -385,16 +410,12 @@ function ModDetailsFooter({
 		}
 
 		requestedDependencyLookupUidRef.current = null;
-		setLoadingDependencies(false);
+		dispatchDependencyLookup({ type: 'lookup-cancelled' });
 	}, [activeTabKey, currentRecordUid]);
 
 	useEffect(() => {
-		setDependencyLookupError(undefined);
-	}, [currentRecordUid]);
-
-	useEffect(() => {
 		if (activeTabKey !== 'dependencies') {
-			setDependencyLookupError(undefined);
+			dispatchDependencyLookup({ type: 'tab-left' });
 		}
 	}, [activeTabKey]);
 
@@ -422,29 +443,29 @@ function ModDetailsFooter({
 			const message =
 				'Could not refresh the Workshop dependency list for this mod. Retry to use the latest author-defined dependency data.';
 			requestedDependencyLookupUidRef.current = currentRecordUid;
-			setLoadingDependencies(true);
+			dispatchDependencyLookup({ type: 'lookup-started' });
 			try {
 				const loaded = await api.fetchWorkshopDependencies(currentRecordWorkshopID);
 				if (!loaded) {
 					api.logger.warn(message);
 					if (!cancelled) {
-						setDependencyLookupError(message);
+						dispatchDependencyLookup({ type: 'lookup-failed', message });
 					}
 					return;
 				}
 				if (!cancelled) {
-					setDependencyLookupError(undefined);
+					dispatchDependencyLookup({ type: 'lookup-succeeded' });
 				}
 			} catch (error) {
 				api.logger.error(message);
 				api.logger.error(error);
 				if (!cancelled) {
-					setDependencyLookupError(message);
+					dispatchDependencyLookup({ type: 'lookup-failed', message });
 				}
 			} finally {
 				if (!cancelled) {
 					requestedDependencyLookupUidRef.current = null;
-					setLoadingDependencies(false);
+					dispatchDependencyLookup({ type: 'lookup-cancelled' });
 				}
 			}
 		};
@@ -455,7 +476,7 @@ function ModDetailsFooter({
 			cancelled = true;
 			if (requestedDependencyLookupUidRef.current === currentRecordUid) {
 				requestedDependencyLookupUidRef.current = null;
-				setLoadingDependencies(false);
+				dispatchDependencyLookup({ type: 'lookup-cancelled' });
 			}
 		};
 	}, [
@@ -490,7 +511,7 @@ function ModDetailsFooter({
 			return (_: unknown, record: DisplayModData) => {
 				const ignoredErrors = ignoreBadValidation.get(errorType as ModErrorType);
 				const myIgnoredErrors = ignoredErrors ? ignoredErrors[currentRecordUid] || [] : [];
-				const dependencyKey = getRequiredDependencyKey(record);
+				const dependencyKey = getModDataDependencyIgnoreKey(record);
 				const { name: recordName, type: recordType, uid: recordUid } = record;
 				const isSelected =
 					(type === DependenciesTableType.REQUIRED && !!dependencyKey && myIgnoredErrors.includes(dependencyKey)) ||
@@ -521,9 +542,10 @@ function ModDetailsFooter({
 
 							void (async () => {
 								try {
-									await writeConfig(nextConfig);
-									updateAppState({ config: nextConfig });
-									validateCollection({ config: nextConfig });
+									await persistConfigChange(nextConfig, (persistedConfig) => {
+										updateAppState({ config: persistedConfig });
+										validateCollection({ config: persistedConfig });
+									});
 								} catch (error) {
 									api.logger.error(error);
 									openNotification(
@@ -551,75 +573,23 @@ function ModDetailsFooter({
 				dataIndex: 'errors',
 				render: (errors: ModErrors | undefined, record: DisplayModData) => {
 					const collection = activeCollection as ModCollection;
-					const selectedMods = collection.mods;
+					const statusTags = getCollectionStatusTags({
+						lastValidationStatus,
+						record: {
+							...record,
+							errors
+						},
+						selectedMods: collection.mods
+					});
 
-					if (record.type === ModType.DESCRIPTOR) {
-						const children = record.children?.map((data) => data.uid) || [];
-						const selectedChildren = children.filter((uid) => selectedMods.includes(uid));
-						if (selectedChildren.length > 1) {
-							return <DetailTag style={APP_TAG_STYLES.danger}>Conflicts</DetailTag>;
-						}
-					}
-
-					if (!selectedMods.includes(record.uid)) {
-						if (!record.subscribed && record.workshopID && record.workshopID > 0) {
-							return (
-								<DetailTag key="notSubscribed" style={APP_TAG_STYLES.warning}>
-									Not subscribed
-								</DetailTag>
-							);
-						}
-						if (record.subscribed && !record.installed) {
-							return (
-								<DetailTag key="notInstalled" style={APP_TAG_STYLES.warning}>
-									Not installed
-								</DetailTag>
-							);
-						}
-						return null;
-					}
-
-					const errorTags: { text: string; tone: keyof typeof APP_TAG_STYLES }[] = [];
-					if (errors) {
-						if (errors.incompatibleMods?.length) {
-							errorTags.push({ text: 'Conflicts', tone: 'danger' });
-						}
-						if (errors.invalidId) {
-							errorTags.push({ text: 'Invalid ID', tone: 'danger' });
-						}
-						if (errors.missingDependencies?.length) {
-							errorTags.push({ text: 'Missing dependencies', tone: 'warning' });
-						}
-						if (errors.notSubscribed) {
-							errorTags.push({ text: 'Not subscribed', tone: 'warning' });
-						} else if (errors.notInstalled) {
-							errorTags.push({ text: 'Not installed', tone: 'warning' });
-						} else if (errors.needsUpdate) {
-							errorTags.push({ text: 'Needs update', tone: 'warning' });
-						}
-					}
-
-					if (errorTags.length > 0) {
-						return errorTags.map((tagConfig) => (
+					if (statusTags.length > 0) {
+						return statusTags.map((tagConfig) => (
 							<DetailTag key={tagConfig.text} style={APP_TAG_STYLES[tagConfig.tone]}>
 								{tagConfig.text}
 							</DetailTag>
 						));
 					}
-
-					if (lastValidationStatus !== undefined) {
-						return (
-							<DetailTag key="OK" style={APP_TAG_STYLES.success}>
-								OK
-							</DetailTag>
-						);
-					}
-
-					return (
-						<DetailTag key="Pending" style={APP_TAG_STYLES.neutral}>
-							Pending
-						</DetailTag>
-					);
+					return null;
 				}
 			};
 
@@ -752,6 +722,18 @@ function ModDetailsFooter({
 			<DetailDescriptions
 				column={descriptionColumns}
 				items={[
+					...(!bigDetails
+						? [
+								{
+									label: 'Preview',
+									children: (
+										<div className="ModDetailInlinePreview">
+											<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
+										</div>
+									)
+								}
+							]
+						: []),
 					{ label: 'Author', children: currentRecord.authors },
 					{ label: 'Tags', children: steamTags.concat(userTags) },
 					{ label: 'Created', children: formatDateStr(currentRecord.dateCreated) },
@@ -914,7 +896,7 @@ function ModDetailsFooter({
 				dependentModData={dependentModData}
 				loadingDependencies={loadingDependencies}
 				onRetryDependencyLookup={() => {
-					setDependencyLookupError(undefined);
+					dispatchDependencyLookup({ type: 'retry-requested' });
 				}}
 				requiredDependencyColumns={requiredDependencyColumns}
 				requiredDependencyRowSelection={requiredDependencyRowSelection}
@@ -935,61 +917,9 @@ function ModDetailsFooter({
 		minHeight: 0
 	};
 	const { mods } = appState;
-	const modDescriptor = getDescriptor(mods, currentRecord);
-	const dependentModDescriptors = currentRecord.isDependencyFor ?? EMPTY_MOD_DESCRIPTORS;
-	const requiredModDescriptors = currentRecord.dependsOn ?? EMPTY_MOD_DESCRIPTORS;
-
-	const mapDescriptorToDisplayMod = useCallback(
-		(descriptor: (typeof requiredModDescriptors)[number], groupedNameSuffix?: string): DisplayModData => {
-			const descriptorKey = getModDescriptorKey(descriptor) || 'unknown';
-			const descriptorName = getModDescriptorDisplayName(descriptor);
-			const descriptorRecord: DisplayModData = {
-				uid: `${ModType.DESCRIPTOR}:${descriptorKey}`,
-				id: descriptor.modID || null,
-				workshopID: descriptor.workshopID,
-				type: ModType.DESCRIPTOR,
-				name: groupedNameSuffix ? `${descriptorName} ${groupedNameSuffix}` : descriptorName
-			};
-			const uids = descriptor.UIDs;
-
-			if (uids.size === 0) {
-				return descriptorRecord;
-			}
-
-			if (uids.size === 1) {
-				const [uid] = [...uids];
-				const modData = mods.modIdToModDataMap.get(uid);
-				if (modData) {
-					return { ...modData, type: ModType.DESCRIPTOR };
-				}
-				return descriptorRecord;
-			}
-
-			return {
-				...descriptorRecord,
-				children: [...uids].map((uid) => mods.modIdToModDataMap.get(uid) || { uid, id: 'INVALID', type: ModType.INVALID })
-			};
-		},
-		[mods.modIdToModDataMap]
-	);
-
-	const requiredModData: DisplayModData[] = useMemo(() => {
-		return requiredModDescriptors.map((descriptor) => {
-			return mapDescriptorToDisplayMod(descriptor);
-		});
-	}, [mapDescriptorToDisplayMod, requiredModDescriptors]);
-
-	const dependentModData: DisplayModData[] = useMemo(() => {
-		return dependentModDescriptors.map((descriptor) => {
-			return mapDescriptorToDisplayMod(descriptor, 'Mod Group');
-		});
-	}, [dependentModDescriptors, mapDescriptorToDisplayMod]);
-
-	const conflictingModData: DisplayModData[] = useMemo(() => {
-		return [...(modDescriptor?.UIDs || [])]
-			.filter((uid) => uid !== currentRecord.uid)
-			.map((uid) => mods.modIdToModDataMap.get(uid) || { uid, id: 'INVALID', type: ModType.INVALID });
-	}, [currentRecord.uid, modDescriptor?.UIDs, mods.modIdToModDataMap]);
+	const { conflictingModData, dependentModData, requiredModData } = useMemo(() => {
+		return createModDependencyProjection(mods, currentRecord);
+	}, [currentRecord, mods]);
 	const requiredDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.REQUIRED), [getDependenciesSchema]);
 	const dependentDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.DEPENDENT), [getDependenciesSchema]);
 	const conflictingDependencyColumns = useMemo(() => getDependenciesSchema(DependenciesTableType.CONFLICT), [getDependenciesSchema]);
@@ -1036,16 +966,22 @@ function ModDetailsFooter({
 				onExpandChange={expandFooterCallback}
 				onToggleHalfLayout={toggleHalfLayoutCallback}
 			/>
-			<div key="mod-details" className="ModDetailFooterBody">
-				<div className="ModDetailFooterPreviewCol">
-					<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
-				</div>
+			<div key="mod-details" className={`ModDetailFooterBody${bigDetails ? '' : ' ModDetailFooterBody--contentOnly'}`}>
+				{bigDetails ? (
+					<div className="ModDetailFooterPreviewCol">
+						<ModDetailsPreview path={currentRecord.preview} altText={`${currentRecord.name} preview image`} />
+					</div>
+				) : null}
 				<div className="ModDetailFooterContentCol">
 					<DetailTabs activeKey={activeTabKey} onChange={setActiveTabKey} items={tabItems} />
 				</div>
 			</div>
 		</section>
 	);
+}
+
+function ModDetailsFooter(props: ModDetailsFooterProps) {
+	return useModDetailsFooterContent(props);
 }
 
 export default memo(ModDetailsFooter);

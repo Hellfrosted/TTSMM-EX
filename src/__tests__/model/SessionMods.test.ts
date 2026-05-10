@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModType } from '../../model/Mod';
-import { SessionMods, filterRows, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
+import { SessionMods, getDependencies, getDependents, getDescriptor, setupDescriptors, validateCollection } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
 	it.each([
@@ -38,8 +38,8 @@ describe('session mod descriptors', () => {
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
 		expect(dependencyDescriptor).toBeDefined();
-		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
-		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
+		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
+		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
 	});
 
 	it('matches workshop dependency names for Nuterra variants', async () => {
@@ -66,7 +66,7 @@ describe('session mod descriptors', () => {
 		setupDescriptors(session, new Map());
 
 		const dependencyDescriptor = getDescriptor(session, dependency);
-		expect(dependent.dependsOn).toEqual([dependencyDescriptor]);
+		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -74,7 +74,39 @@ describe('session mod descriptors', () => {
 		});
 
 		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
-		expect(dependency.isDependencyFor).toEqual([getDescriptor(session, dependent)]);
+		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
+	});
+
+	it('matches the raw Nuterra beta workshop dependency id when compatibility is enabled', async () => {
+		const dependency = {
+			uid: `${ModType.WORKSHOP}:2484820102`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(2484820102),
+			id: 'NuterraSteam',
+			name: 'NuterraSteam'
+		};
+		const dependent = {
+			uid: `${ModType.WORKSHOP}:10`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(10),
+			id: 'DependentWorkshopMod',
+			name: 'Dependent Workshop Mod',
+			steamDependencies: [BigInt(2790966966)]
+		};
+		const session = new SessionMods('', [dependency, dependent]);
+
+		setupDescriptors(session, new Map(), { treatNuterraSteamBetaAsEquivalent: true });
+
+		const dependencyDescriptor = getDescriptor(session, dependency);
+		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [dependency.uid, dependent.uid]
+		});
+
+		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
+		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
 	});
 
 	it('treats a loaded name-only Nuterra beta workshop item as equivalent when the stable variant is selected', async () => {
@@ -107,7 +139,7 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		expect(dependent.dependsOn).toEqual([getDescriptor(session, stableDependency)]);
+		expect(getDependencies(session, dependent)).toEqual([getDescriptor(session, stableDependency)]);
 
 		const errors = await validateCollection(session, {
 			name: 'default',
@@ -115,6 +147,43 @@ describe('session mod descriptors', () => {
 		});
 
 		expect(errors[dependent.uid]?.missingDependencies).toBeUndefined();
+	});
+
+	it('keeps Nuterra variants distinct when compatibility is disabled', async () => {
+		const stableDependency = {
+			uid: `${ModType.WORKSHOP}:2484820102`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(2484820102),
+			id: 'NuterraSteam',
+			name: 'NuterraSteam'
+		};
+		const dependent = {
+			uid: `${ModType.WORKSHOP}:10`,
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(10),
+			id: 'DependentWorkshopMod',
+			name: 'Dependent Workshop Mod',
+			steamDependencies: [BigInt(2790966966)],
+			steamDependencyNames: {
+				'2790966966': 'NuterraSteam (Beta)'
+			}
+		};
+		const session = new SessionMods('', [stableDependency, dependent]);
+
+		setupDescriptors(session, new Map(), { treatNuterraSteamBetaAsEquivalent: false });
+
+		expect(getDependencies(session, dependent)).not.toEqual([getDescriptor(session, stableDependency)]);
+
+		const errors = await validateCollection(session, {
+			name: 'default',
+			mods: [stableDependency.uid, dependent.uid]
+		});
+
+		expect(errors[dependent.uid]?.missingDependencies).toHaveLength(1);
+		expect(errors[dependent.uid]?.missingDependencies?.[0]).toMatchObject({
+			workshopID: BigInt(2790966966),
+			name: 'NuterraSteam (Beta)'
+		});
 	});
 
 	it('reports missing explicit ID dependencies that are not loaded', async () => {
@@ -134,8 +203,8 @@ describe('session mod descriptors', () => {
 			mods: [dependent.uid]
 		});
 
-		expect(dependent.dependsOn).toHaveLength(1);
-		expect(dependent.dependsOn?.[0]).toMatchObject({ modID: 'MissingMod', name: 'MissingMod' });
+		expect(getDependencies(session, dependent)).toHaveLength(1);
+		expect(getDependencies(session, dependent)[0]).toMatchObject({ modID: 'MissingMod', name: 'MissingMod' });
 		expect(errors[dependent.uid]?.missingDependencies).toHaveLength(1);
 		expect(errors[dependent.uid]?.missingDependencies?.[0]).toMatchObject({ modID: 'MissingMod' });
 	});
@@ -158,8 +227,8 @@ describe('session mod descriptors', () => {
 			mods: [dependent.uid]
 		});
 
-		expect(dependent.dependsOn).toHaveLength(1);
-		expect(dependent.dependsOn?.[0]).toMatchObject({ workshopID: BigInt(11) });
+		expect(getDependencies(session, dependent)).toHaveLength(1);
+		expect(getDependencies(session, dependent)[0]).toMatchObject({ workshopID: BigInt(11) });
 		expect(errors[dependent.uid]?.missingDependencies).toHaveLength(1);
 		expect(errors[dependent.uid]?.missingDependencies?.[0]).toMatchObject({ workshopID: BigInt(11) });
 	});
@@ -180,25 +249,11 @@ describe('session mod descriptors', () => {
 
 		setupDescriptors(session, new Map());
 
-		expect(dependent.dependsOn).toHaveLength(1);
-		expect(dependent.dependsOn?.[0]).toMatchObject({
+		expect(getDependencies(session, dependent)).toHaveLength(1);
+		expect(getDependencies(session, dependent)[0]).toMatchObject({
 			workshopID: BigInt(11),
 			name: 'Harmony (2.2.2)'
 		});
-	});
-
-	it('matches the displayed mod id when filtering rows', () => {
-		const versionedWorkshopMod = {
-			uid: `${ModType.WORKSHOP}:42`,
-			type: ModType.WORKSHOP,
-			workshopID: BigInt(42),
-			id: 'OmodManager',
-			name: 'OmodManager v1.6.1.1'
-		};
-		const session = new SessionMods('', [versionedWorkshopMod]);
-		setupDescriptors(session, new Map());
-
-		expect(filterRows(session, 'omodmanager')).toEqual([versionedWorkshopMod]);
 	});
 
 	it('clears stale overrides when a user override is removed', () => {

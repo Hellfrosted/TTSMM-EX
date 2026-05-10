@@ -1,8 +1,5 @@
-/* eslint global-require: off, no-console: off */
-
 import { app, BrowserWindow, ipcMain, protocol } from 'electron';
 import log from 'electron-log';
-import path from 'path';
 
 import { registerBlockLookupHandlers } from './ipc/block-lookup-handlers';
 import { registerCollectionHandlers } from './ipc/collection-handlers';
@@ -11,16 +8,16 @@ import { registerGameHandlers } from './ipc/game-handlers';
 import { registerModHandlers } from './ipc/mod-handlers';
 import { registerPreviewProtocol } from './preview-protocol';
 import { SteamworksRuntime } from './steamworks-runtime';
+import { isUiSmokeRun, runUiSmoke } from './ui-smoke-runner';
+import { resolveUserDataPath } from './user-data';
 import { createMainWindow } from './window';
 
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 const FORK_APP_ID = 'com.hellfrosted.ttsmmex';
-// Keep the existing userData directory name so upgrades do not split stored config and collections.
-const FORK_USER_DATA_DIR = 'TerraTech Steam Mod Manager EX';
 const ELECTRON_NODE_MODE_HINT = [
 	'Electron main-process APIs are unavailable.',
 	'This usually means ELECTRON_RUN_AS_NODE leaked into the launch environment.',
-	'Start the app with npm run dev or npm run start:desktop, or unset ELECTRON_RUN_AS_NODE before launching Electron directly.'
+	'Start the app with pnpm run dev or pnpm run start:desktop, or unset ELECTRON_RUN_AS_NODE before launching Electron directly.'
 ].join(' ');
 
 class ApplicationLogging {
@@ -41,7 +38,7 @@ if (!app || typeof app.setPath !== 'function') {
 	throw new Error(ELECTRON_NODE_MODE_HINT);
 }
 
-app.setPath('userData', path.join(app.getPath('appData'), FORK_USER_DATA_DIR));
+app.setPath('userData', resolveUserDataPath(app));
 if (process.platform === 'win32') {
 	app.setAppUserModelId(FORK_APP_ID);
 }
@@ -84,6 +81,10 @@ async function createWindow() {
 	mainWindow.on('closed', () => {
 		mainWindow = null;
 	});
+
+	if (isUiSmokeRun()) {
+		void runUiSmoke(mainWindow);
+	}
 }
 
 app.on('window-all-closed', () => {

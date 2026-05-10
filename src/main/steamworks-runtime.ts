@@ -1,11 +1,7 @@
 import type log from 'electron-log';
+import type { SteamworksReadiness, SteamworksStatus } from 'shared/ipc';
 
 import Steamworks from './steamworks';
-
-interface SteamStatus {
-	inited: boolean;
-	error?: string;
-}
 
 interface SteamworksRuntimeOptions {
 	env?: NodeJS.ProcessEnv;
@@ -21,6 +17,40 @@ function isTruthyEnv(value: string | undefined): boolean {
 
 export function isSteamworksBypassEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
 	return isTruthyEnv(env[STEAMWORKS_BYPASS_ENV]);
+}
+
+export function classifySteamworksReadiness(inited: boolean, error?: string, bypassed = false): SteamworksReadiness {
+	if (bypassed) {
+		return { kind: 'bypassed', retryable: false };
+	}
+
+	if (inited) {
+		return { kind: 'ready', retryable: false };
+	}
+
+	const normalizedError = (error || '').toLowerCase();
+	if (normalizedError.includes('steam unavailable') || normalizedError.includes('steam is not running')) {
+		return { kind: 'steam-not-running', retryable: true };
+	}
+
+	if (
+		normalizedError.includes('not really your app id') ||
+		normalizedError.includes("not really you're app id") ||
+		normalizedError.includes('not really your appid')
+	) {
+		return { kind: 'wrong-app-id', retryable: false };
+	}
+
+	if (
+		normalizedError.includes('dll') ||
+		normalizedError.includes('module') ||
+		normalizedError.includes('greenworks') ||
+		normalizedError.includes('steamworks')
+	) {
+		return { kind: 'native-module-unavailable', retryable: true };
+	}
+
+	return { kind: 'unknown-failure', retryable: true };
 }
 
 export class SteamworksRuntime {
@@ -42,24 +72,26 @@ export class SteamworksRuntime {
 		this.logger = logger;
 	}
 
-	getStatus(): SteamStatus {
+	getStatus(): SteamworksStatus {
 		if (this.bypassEnabled) {
 			if (!this.warnedAboutBypass) {
 				this.logger?.warn('Steamworks is bypassed for this development run. Workshop metadata and Steam actions are disabled.');
 				this.warnedAboutBypass = true;
 			}
 			return {
-				inited: true
+				inited: true,
+				readiness: classifySteamworksReadiness(true, undefined, true)
 			};
 		}
 
 		return {
 			inited: this.steamworksInited,
-			error: this.steamworksError
+			error: this.steamworksError,
+			readiness: classifySteamworksReadiness(this.steamworksInited, this.steamworksError)
 		};
 	}
 
-	tryInit(): SteamStatus {
+	tryInit(): SteamworksStatus {
 		if (this.bypassEnabled) {
 			return this.getStatus();
 		}

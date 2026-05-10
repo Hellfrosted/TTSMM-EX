@@ -1,37 +1,10 @@
 import type { AppConfig } from 'model/AppConfig';
-import type { ModCollection } from 'model/ModCollection';
 import { DEFAULT_CONFIG } from './Constants';
-import {
-	createCollectionSnapshot,
-	switchActiveCollectionSnapshot,
-	type CollectionLifecycleSnapshotResult,
-	type CollectionWorkspaceSnapshot
-} from './collection-lifecycle';
 
 interface StartupBootErrorDescription {
 	title: string;
 	detail: string;
 }
-
-type StartupCollectionResolution =
-	| {
-			kind: 'active';
-			activeCollection: ModCollection;
-			config: AppConfig;
-	  }
-	| {
-			kind: 'repair-active';
-			collectionName: string;
-			lifecycleResult: CollectionLifecycleSnapshotResult;
-	  }
-	| {
-			kind: 'create-default';
-			lifecycleResult: CollectionLifecycleSnapshotResult;
-	  }
-	| {
-			kind: 'failed';
-			message: string;
-	  };
 
 export function normalizeStartupPath(currentPath: string | undefined): string {
 	if (!currentPath) {
@@ -124,54 +97,5 @@ export function resolveStartupNavigation(config: AppConfig, configErrors: { [fie
 		},
 		loadingMods: true,
 		path: currentPath
-	};
-}
-
-export function resolveStartupCollection(snapshot: CollectionWorkspaceSnapshot): StartupCollectionResolution {
-	if (snapshot.allCollectionNames.size > 0) {
-		if (snapshot.config.activeCollection) {
-			const collection = snapshot.allCollections.get(snapshot.config.activeCollection);
-			if (collection) {
-				return {
-					kind: 'active',
-					activeCollection: collection,
-					config: snapshot.config
-				};
-			}
-		}
-
-		const [collectionName] = [...snapshot.allCollectionNames].sort();
-		const lifecycleResult = switchActiveCollectionSnapshot(
-			{
-				...snapshot,
-				activeCollection: undefined
-			},
-			collectionName
-		);
-		if (!lifecycleResult) {
-			return {
-				kind: 'failed',
-				message: `Failed to select repaired active collection ${collectionName}`
-			};
-		}
-
-		return {
-			kind: 'repair-active',
-			collectionName,
-			lifecycleResult
-		};
-	}
-
-	const lifecycleResult = createCollectionSnapshot(
-		{
-			...snapshot,
-			activeCollection: undefined
-		},
-		'default'
-	);
-
-	return {
-		kind: 'create-default',
-		lifecycleResult
 	};
 }

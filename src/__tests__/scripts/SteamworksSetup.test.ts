@@ -100,7 +100,7 @@ describe('steamworks setup scripts', () => {
 
 		const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 		const execSync = vi.fn((command: string, options?: { cwd?: string; env?: NodeJS.ProcessEnv; encoding?: string }) => {
-			if (command === 'npm --prefix release/app install --ignore-scripts') {
+			if (command === 'pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts') {
 				createGreenworksSkeleton(greenworksPath, 'char *PreviewTypeToString(EItemPreviewType type) {');
 				return Buffer.from('');
 			}
@@ -109,7 +109,7 @@ describe('steamworks setup scripts', () => {
 				return ` 42 electron ${path.join(paths.repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts').replace(/\\/g, '/')}\n`;
 			}
 
-			if (command === 'npm run electron-rebuild') {
+			if (command === 'pnpm run electron-rebuild') {
 				expect(options?.cwd).toBe(paths.releaseAppPath);
 				expect(options?.env?.STEAMWORKS_SDK_PATH).toBe(stagedSdkPath);
 				return Buffer.from('');
@@ -121,9 +121,11 @@ describe('steamworks setup scripts', () => {
 		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
 		setupSteamworksNativeDeps(sdkPath);
 
-		expect(execSync.mock.calls.map(([command]) => command)).toContain('npm --prefix release/app install --ignore-scripts');
+		expect(execSync.mock.calls.map(([command]) => command)).toContain(
+			'pnpm --dir release/app install --lockfile-dir ../.. --ignore-scripts'
+		);
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('ps -ax -o pid= -o command=');
-		expect(execSync.mock.calls.map(([command]) => command)).toContain('npm run electron-rebuild');
+		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm run electron-rebuild');
 		expect(execSync.mock.calls.some(([command]) => command.includes('powershell'))).toBe(false);
 		expect(killSpy).toHaveBeenCalledWith(42, 'SIGKILL');
 		expect(fs.readFileSync(path.join(greenworksPath, 'binding.gyp'), 'utf8')).toContain("'python3',");
@@ -146,7 +148,7 @@ describe('steamworks setup scripts', () => {
 				return '';
 			}
 
-			if (command === 'npm run electron-rebuild') {
+			if (command === 'pnpm run electron-rebuild') {
 				return Buffer.from('');
 			}
 

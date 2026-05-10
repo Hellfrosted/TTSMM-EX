@@ -9,7 +9,8 @@ const workshopIdSchema = z.bigint().positive();
 
 const readModMetadataPayloadSchema = z.object({
 	localDir: z.string().optional(),
-	allKnownMods: z.array(z.string()).max(MAX_KNOWN_MODS)
+	allKnownMods: z.array(z.string()).max(MAX_KNOWN_MODS),
+	treatNuterraSteamBetaAsEquivalent: z.boolean().optional()
 });
 
 const modContextMenuRecordSchema = z
@@ -31,11 +32,13 @@ export function parseWorkshopIdPayload(channel: ValidChannel, payload: unknown):
 export function parseReadModMetadataPayload(
 	channel: ValidChannel,
 	localDir: unknown,
-	allKnownMods: unknown
-): { localDir?: string; allKnownMods: string[] } {
+	allKnownMods: unknown,
+	treatNuterraSteamBetaAsEquivalent?: unknown
+): { localDir?: string; allKnownMods: string[]; treatNuterraSteamBetaAsEquivalent?: boolean } {
 	return parseIpcPayload(channel, readModMetadataPayloadSchema, {
 		localDir,
-		allKnownMods
+		allKnownMods,
+		treatNuterraSteamBetaAsEquivalent
 	});
 }
 

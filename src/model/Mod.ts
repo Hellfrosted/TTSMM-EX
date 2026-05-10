@@ -38,9 +38,6 @@ export interface ModData {
 	steamDependencyNames?: Record<string, string>;
 	steamDependenciesFetchedAt?: number;
 	explicitIDDependencies?: string[];
-	// Processed descriptor dependencies
-	dependsOn?: ModDescriptor[];
-	isDependencyFor?: ModDescriptor[]; // Mod IDs it's dependency for. Workshop IDs if mod ID unknown
 
 	// Mod status
 	subscribed?: boolean;
@@ -58,14 +55,55 @@ export interface ModDataOverride {
 	tags?: string[];
 }
 
-export function getModDescriptorKey(descriptor: ModDescriptor): string | undefined {
-	if (descriptor.modID) {
-		return descriptor.modID;
+export interface ParsedModUid {
+	id: string;
+	type: string;
+}
+
+export function createModUid(type: ModType | string, id: string | bigint | number): string {
+	return `${type}:${id.toString()}`;
+}
+
+export function parseModUid(uid: string): ParsedModUid | null {
+	const separatorIndex = uid.indexOf(':');
+	if (separatorIndex <= 0 || separatorIndex === uid.length - 1 || uid.indexOf(':', separatorIndex + 1) !== -1) {
+		return null;
 	}
-	if (descriptor.workshopID !== undefined) {
-		return `${ModType.WORKSHOP}:${descriptor.workshopID.toString()}`;
+
+	return {
+		type: uid.slice(0, separatorIndex),
+		id: uid.slice(separatorIndex + 1)
+	};
+}
+
+export function parseWorkshopModUid(uid: string): bigint | null {
+	const parsedUid = parseModUid(uid);
+	if (parsedUid?.type !== ModType.WORKSHOP || !/^\d+$/.test(parsedUid.id)) {
+		return null;
+	}
+
+	return BigInt(parsedUid.id);
+}
+
+interface ModDependencyKeySource {
+	modID?: string;
+	id?: string | null;
+	workshopID?: bigint;
+}
+
+export function getModDependencyIgnoreKey(source: ModDependencyKeySource): string | undefined {
+	const modID = source.modID ?? source.id ?? undefined;
+	if (modID) {
+		return modID;
+	}
+	if (source.workshopID !== undefined) {
+		return createModUid(ModType.WORKSHOP, source.workshopID);
 	}
 	return undefined;
+}
+
+export function getModDescriptorKey(descriptor: ModDescriptor): string | undefined {
+	return getModDependencyIgnoreKey(descriptor);
 }
 
 export function getModDescriptorDisplayName(descriptor: ModDescriptor): string {
@@ -86,6 +124,13 @@ export function getModDataId(record: ModData): string | null {
 		return record.overrides.id;
 	}
 	return record.id;
+}
+
+export function getModDataDependencyIgnoreKey(record: ModData): string | undefined {
+	return getModDependencyIgnoreKey({
+		id: getModDataId(record),
+		workshopID: record.workshopID
+	});
 }
 
 export function getModDataDisplayName(record: ModData): string | undefined {

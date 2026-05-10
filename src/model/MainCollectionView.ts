@@ -31,4 +31,6 @@ export interface MainCollectionConfig {
 	columnActiveConfig?: { [colID: string]: boolean };
 	columnWidthConfig?: { [colID: string]: number };
 	columnOrder?: string[];
+	detailsOverlayWidth?: number;
+	detailsOverlayHeight?: number;
 }

@@ -1,14 +1,5 @@
 import { SteamworksAPIProps } from './Steamworks';
 
-export enum ItemPreviewType {
-	Image = 0,
-	YouTubeVideo = 1,
-	Sketchfab = 2,
-	EnvironmentMap_HorizontalCross = 3,
-	EnvironmentMap_LatLong = 4,
-	ReservedMax = 255
-}
-
 export enum UGCMatchingType {
 	Items,
 	ItemsMtx,
@@ -149,33 +140,6 @@ export enum WorkshopFileType {
 	SteamVideo = 14,
 	GameManagedItem = 15,
 	Max = 16
-}
-
-export enum ItemStatistic {
-	NumSubscriptions = 0,
-	NumFavorites = 1,
-	NumFollowers = 2,
-	NumUniqueSubscriptions = 3,
-	NumUniqueFavorites = 4,
-	NumUniqueFollowers = 5,
-	NumUniqueWebsiteViews = 6,
-	NumSecondsPlayed = 8,
-	NumPlaytimeSessions = 9,
-	NumComments = 10,
-	NumSecondsPlayedDuringTimePeriod = 11,
-	NumPlaytimeSessionsDuringTimePeriod = 12
-}
-
-export const kNumUGCResultsPerPage = 50;
-export const k_cchDeveloperMetadataMax = 5000;
-const k_UGCQueryHandleInvalid = '18446744073709551615'; // 0xffffffffffffffff in unsigned long
-const k_UGCUpdateHandleInvalid = '18446744073709551615'; // 0xffffffffffffffff in unsigned long
-
-export function invalidQueryHandle(queryHandle: string) {
-	return queryHandle === k_UGCQueryHandleInvalid;
-}
-export function invalidUpdateHandle(updateHandle: string) {
-	return updateHandle === k_UGCUpdateHandleInvalid;
 }
 
 export interface SteamPageResults {

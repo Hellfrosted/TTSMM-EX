@@ -193,8 +193,8 @@ function DetailTable({
 								<span className="sr-only">{someSelected ? 'Some dependency rows selected' : ''}</span>
 							</th>
 						) : null}
-						{columns.map((column, index) => (
-							<th key={`${String(column.title)}-${index}`} style={{ width: column.width, textAlign: column.align }}>
+						{columns.map((column) => (
+							<th key={String(column.dataIndex ?? column.title)} style={{ width: column.width, textAlign: column.align }}>
 								{column.title}
 							</th>
 						))}

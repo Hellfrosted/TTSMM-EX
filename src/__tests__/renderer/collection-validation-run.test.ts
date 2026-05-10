@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CollectionManagerModalType, ModErrorType, ModType, SessionMods } from '../../model';
 import type { AppConfig, CollectionErrors, ModCollection } from '../../model';
-import { getCollectionValidationKey, renderValidationErrors, summarizeValidationIssues } from '../../renderer/collection-validation-run';
+import {
+	getCollectionValidationKey,
+	getValidationIssueList,
+	renderValidationErrors,
+	summarizeValidationIssues
+} from '../../renderer/collection-validation-run';
 
 function config(overrides?: Partial<AppConfig>): AppConfig {
 	return {
@@ -34,7 +39,8 @@ describe('collection-validation-run', () => {
 	});
 
 	it('renders blocking validation errors without mutating the raw errors', () => {
-		const mods = new SessionMods('', [{ uid: 'local:a', id: 'a', name: 'Local A', type: ModType.LOCAL }]);
+		const mod = { uid: 'local:a', id: 'a', name: 'Local A', type: ModType.LOCAL };
+		const mods = new SessionMods('', [mod]);
 		const errors: CollectionErrors = {
 			'local:a': {
 				invalidId: true,
@@ -46,9 +52,10 @@ describe('collection-validation-run', () => {
 
 		expect(result.success).toBe(false);
 		expect(result.modalType).toBe(CollectionManagerModalType.ERRORS_FOUND);
-		expect(result.mods.modIdToModDataMap.get('local:a')?.errors).toMatchObject({
+		expect(result.errors?.['local:a']).toMatchObject({
 			invalidId: true
 		});
+		expect(mod).not.toHaveProperty('errors');
 		expect(errors['local:a'].missingDependencies).toHaveLength(1);
 	});
 
@@ -95,10 +102,7 @@ describe('collection-validation-run', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.modalType).toBeUndefined();
-		expect(result.mods.modIdToModDataMap.get('local:a')?.errors).toMatchObject({
-			incompatibleMods: undefined,
-			missingDependencies: undefined
-		});
+		expect(result.errors).toBeUndefined();
 	});
 
 	it('summarizes validation issue categories for logging', () => {
@@ -117,5 +121,33 @@ describe('collection-validation-run', () => {
 			installIssues: 1,
 			updateIssues: 1
 		});
+	});
+
+	it('projects validation issue rows for presentation', () => {
+		const brokenMod = { uid: 'workshop:1', id: 'BrokenMod', name: 'Broken Mod', type: ModType.WORKSHOP };
+		const conflictingMod = { uid: 'workshop:2', id: 'ConflictingMod', name: 'Conflicting Mod', type: ModType.WORKSHOP };
+		const mods = new SessionMods('', [brokenMod, conflictingMod]);
+		mods.modIdToModDataMap.set(brokenMod.uid, brokenMod);
+		mods.modIdToModDataMap.set(conflictingMod.uid, conflictingMod);
+
+		expect(
+			getValidationIssueList(
+				{
+					[brokenMod.uid]: {
+						invalidId: true,
+						missingDependencies: [{ UIDs: new Set(), name: 'NuterraSteam (Beta)' }],
+						incompatibleMods: [conflictingMod.uid],
+						notInstalled: true
+					}
+				},
+				mods
+			)
+		).toEqual([
+			{
+				uid: brokenMod.uid,
+				label: 'Broken Mod',
+				issues: ['Invalid mod ID', 'Missing dependencies: NuterraSteam (Beta)', 'Conflicts with: Conflicting Mod', 'Not installed']
+			}
+		]);
 	});
 });

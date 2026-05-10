@@ -10,6 +10,30 @@ afterEach(() => {
 });
 
 describe('CollectionView', () => {
+	it('keeps the visible collection table stage mouse-interactable', async () => {
+		const activeCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			activeCollection,
+			allCollections: new Map([['default', activeCollection]]),
+			allCollectionNames: new Set(['default']),
+			mods: new SessionMods('', [])
+		});
+		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
+			return {
+				observe: vi.fn(),
+				unobserve: vi.fn(),
+				disconnect: vi.fn()
+			};
+		});
+		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+
+		const { container } = renderWithQueryClient(<CollectionView appState={appState} />);
+
+		await vi.dynamicImportSettled();
+		const contentStage = container.querySelector('[style*="pointer-events: auto"]');
+		expect(contentStage).toContainElement(await screen.findByRole('table', { hidden: true }));
+	});
+
 	it('blocks launch while mods are still loading', async () => {
 		const activeCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
@@ -22,6 +46,7 @@ describe('CollectionView', () => {
 		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
 			return {
 				observe: vi.fn(),
+				unobserve: vi.fn(),
 				disconnect: vi.fn()
 			};
 		});

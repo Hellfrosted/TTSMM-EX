@@ -10,23 +10,27 @@ import type {
 	SetStateAction,
 	ThHTMLAttributes
 } from 'react';
-import { MainColumnTitles, getMainColumnMinWidth } from 'model';
+import { createPortal } from 'react-dom';
+import { MainColumnTitles } from 'model';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
 import {
 	DEFAULT_SELECTION_COLUMN_WIDTH,
 	getColumnWidthStyle,
 	getColumnWidthVariableName,
+	getResolvedMainColumnMinWidth,
 	isMainColumnTitle,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
 
 const KEYBOARD_RESIZE_STEP = 16;
+const HEADER_MENU_OPEN_EVENT = 'main-collection-header-menu-open';
 
 export interface MainCollectionHeaderColumn {
 	title: string;
 	width?: number | string;
 	sorter?: unknown;
+	headerAccessory?: ReactNode;
 }
 
 interface HeaderMenuItem {
@@ -66,6 +70,9 @@ export function ResizableHeaderCell({
 }: ResizableHeaderCellProps) {
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const currentResizeWidth = resizeWidth ?? (typeof width === 'number' ? width : minWidth);
+	const menuRef = useRef<HTMLDivElement | null>(null);
+	const menuOpenerRef = useRef<HTMLElement | null>(null);
+	const menuInstanceIdRef = useRef(`main-header-menu-${Math.random().toString(36).slice(2)}`);
 	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
 	const widthRef = useRef(currentResizeWidth);
 	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
@@ -100,21 +107,79 @@ export function ResizableHeaderCell({
 			return undefined;
 		}
 
-		const closeMenu = () => {
+		const focusFirstMenuItem = window.requestAnimationFrame(() => {
+			menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+		});
+		const closeMenu = (restoreFocus = true) => {
 			setMenuPosition(null);
+			if (restoreFocus) {
+				menuOpenerRef.current?.focus();
+			}
+			menuOpenerRef.current = null;
+		};
+		const closeSiblingMenu = (event: Event) => {
+			if (!(event instanceof CustomEvent) || event.detail === menuInstanceIdRef.current) {
+				return;
+			}
+
+			closeMenu(false);
+		};
+		const closeMenuFromPointer = () => {
+			closeMenu(false);
+		};
+		const focusMenuItem = (direction: 1 | -1 | 'first' | 'last') => {
+			const menuItems = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+			if (menuItems.length === 0) {
+				return;
+			}
+			const activeIndex = menuItems.findIndex((item) => item === document.activeElement);
+			if (direction === 'first') {
+				menuItems[0].focus();
+				return;
+			}
+			if (direction === 'last') {
+				menuItems[menuItems.length - 1].focus();
+				return;
+			}
+			const nextIndex = activeIndex < 0 ? 0 : (activeIndex + direction + menuItems.length) % menuItems.length;
+			menuItems[nextIndex].focus();
 		};
 		const closeMenuOnEscape = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
+				event.preventDefault();
 				closeMenu();
+				return;
+			}
+			if (!menuRef.current?.contains(document.activeElement)) {
+				return;
+			}
+			if (event.key === 'ArrowDown') {
+				event.preventDefault();
+				focusMenuItem(1);
+			} else if (event.key === 'ArrowUp') {
+				event.preventDefault();
+				focusMenuItem(-1);
+			} else if (event.key === 'Home') {
+				event.preventDefault();
+				focusMenuItem('first');
+			} else if (event.key === 'End') {
+				event.preventDefault();
+				focusMenuItem('last');
+			} else if (event.key === 'Tab') {
+				setMenuPosition(null);
+				menuOpenerRef.current = null;
 			}
 		};
 
-		window.addEventListener('click', closeMenu);
-		window.addEventListener('contextmenu', closeMenu);
+		window.addEventListener('click', closeMenuFromPointer);
+		window.addEventListener('contextmenu', closeMenuFromPointer);
+		window.addEventListener(HEADER_MENU_OPEN_EVENT, closeSiblingMenu);
 		window.addEventListener('keydown', closeMenuOnEscape);
 		return () => {
-			window.removeEventListener('click', closeMenu);
-			window.removeEventListener('contextmenu', closeMenu);
+			window.cancelAnimationFrame(focusFirstMenuItem);
+			window.removeEventListener('click', closeMenuFromPointer);
+			window.removeEventListener('contextmenu', closeMenuFromPointer);
+			window.removeEventListener(HEADER_MENU_OPEN_EVENT, closeSiblingMenu);
 			window.removeEventListener('keydown', closeMenuOnEscape);
 		};
 	}, [menuPosition]);
@@ -123,8 +188,7 @@ export function ResizableHeaderCell({
 		(startX: number) => {
 			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
 			let nextWidth = startWidth;
-			const previousCursor = document.body.style.cursor;
-			const previousUserSelect = document.body.style.userSelect;
+			const previousBodyCssText = document.body.style.cssText;
 			markPerfInteraction('collection.columnResize.start', {
 				column: resizeLabel,
 				width: startWidth
@@ -139,8 +203,7 @@ export function ResizableHeaderCell({
 			const stopResize = () => {
 				window.removeEventListener('mousemove', handleMouseMove);
 				window.removeEventListener('mouseup', handleMouseUp);
-				document.body.style.cursor = previousCursor;
-				document.body.style.userSelect = previousUserSelect;
+				document.body.style.cssText = previousBodyCssText;
 				cleanupRef.current = null;
 				markPerfInteraction('collection.columnResize.end', {
 					column: resizeLabel,
@@ -157,8 +220,7 @@ export function ResizableHeaderCell({
 				stopResize();
 			};
 
-			document.body.style.cursor = 'col-resize';
-			document.body.style.userSelect = 'none';
+			document.body.style.cssText = `${previousBodyCssText};cursor: col-resize; user-select: none;`;
 			window.addEventListener('mousemove', handleMouseMove);
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
@@ -204,73 +266,124 @@ export function ResizableHeaderCell({
 
 			event.preventDefault();
 			event.stopPropagation();
+			window.dispatchEvent(new CustomEvent(HEADER_MENU_OPEN_EVENT, { detail: menuInstanceIdRef.current }));
+			menuOpenerRef.current = event.currentTarget;
 			setMenuPosition({ x: event.clientX, y: event.clientY });
 		},
 		[headerMenu]
 	);
 
+	const handleHeaderKeyDownCapture = useCallback(
+		(event: ReactKeyboardEvent<HTMLDivElement>) => {
+			if (!headerMenu || (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10'))) {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			const bounds = event.currentTarget.getBoundingClientRect();
+			window.dispatchEvent(new CustomEvent(HEADER_MENU_OPEN_EVENT, { detail: menuInstanceIdRef.current }));
+			menuOpenerRef.current = event.target instanceof HTMLElement ? event.target : event.currentTarget;
+			setMenuPosition({
+				x: Math.min(bounds.left + 8, Math.max(8, window.innerWidth - 196)),
+				y: Math.min(bounds.bottom, Math.max(8, window.innerHeight - 48))
+			});
+		},
+		[headerMenu]
+	);
+
 	const headerContent = <div className="CollectionTableHeaderCell">{children}</div>;
+	const resizeHandle = width ? (
+		<button
+			type="button"
+			ref={resizeHandleRef}
+			className="CollectionTableResizeHandle"
+			role="slider"
+			aria-label={`Resize ${resizeLabel}`}
+			aria-orientation="horizontal"
+			aria-valuemin={minWidth}
+			aria-valuenow={currentResizeWidth}
+			aria-valuemax={Math.max(minWidth, currentResizeWidth + 1024)}
+			aria-valuetext={`${currentResizeWidth}px wide`}
+			onClick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+			}}
+			onMouseDown={handleMouseDown}
+			onKeyDown={handleKeyDown}
+		/>
+	) : null;
+
+	const headerMenuElement =
+		headerMenu && menuPosition
+			? createPortal(
+					<div
+						ref={menuRef}
+						className="MainCollectionHeaderMenu"
+						role="menu"
+						aria-label={`${resizeLabel} column options`}
+						tabIndex={-1}
+						style={{ left: menuPosition.x, top: menuPosition.y }}
+					>
+						{headerMenu.items.map((item, index) => {
+							if (item.type === 'divider') {
+								const nextItemKey = headerMenu.items.slice(index + 1).find((nextItem) => nextItem.key !== undefined)?.key;
+								const previousItemKey = headerMenu.items
+									.slice(0, index)
+									.reverse()
+									.find((previousItem) => previousItem.key !== undefined)?.key;
+								return (
+									<hr
+										key={`divider-${String(previousItemKey ?? 'start')}-${String(nextItemKey ?? 'end')}`}
+										className="MainCollectionHeaderMenuDivider"
+									/>
+								);
+							}
+
+							if (item.key === undefined) {
+								return null;
+							}
+
+							return (
+								<button
+									key={item.key.toString()}
+									type="button"
+									className="MainCollectionHeaderMenuItem"
+									role="menuitem"
+									disabled={item.disabled}
+									onClick={() => {
+										headerMenu.onClick({ key: item.key as Key });
+										setMenuPosition(null);
+									}}
+								>
+									{item.label}
+								</button>
+							);
+						})}
+					</div>,
+					document.body
+				)
+			: null;
 
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
 			<div className="CollectionTableHeaderInner">
 				{headerMenu ? (
-					<div className="CollectionTableHeaderContextTarget" onContextMenu={handleContextMenu}>
+					// biome-ignore lint/a11y/noNoninteractiveElementInteractions: this wrapper only exposes the header context menu target.
+					// biome-ignore lint/a11y/noStaticElementInteractions: context menu handling is attached to the non-focusable header wrapper.
+					<div
+						className="CollectionTableHeaderContextTarget"
+						onContextMenu={handleContextMenu}
+						onKeyDownCapture={handleHeaderKeyDownCapture}
+					>
 						{headerContent}
 					</div>
 				) : (
 					headerContent
 				)}
+				{resizeHandle}
 			</div>
-			{headerMenu && menuPosition ? (
-				<div className="MainCollectionHeaderMenu" role="menu" tabIndex={-1} style={{ left: menuPosition.x, top: menuPosition.y }}>
-					{headerMenu.items.map((item, index) => {
-						if (item.type === 'divider') {
-							return <div key={`divider-${index}`} className="MainCollectionHeaderMenuDivider" role="separator" />;
-						}
-
-						if (item.key === undefined) {
-							return null;
-						}
-
-						return (
-							<button
-								key={item.key.toString()}
-								type="button"
-								className="MainCollectionHeaderMenuItem"
-								role="menuitem"
-								disabled={item.disabled}
-								onClick={() => {
-									headerMenu.onClick({ key: item.key as Key });
-									setMenuPosition(null);
-								}}
-							>
-								{item.label}
-							</button>
-						);
-					})}
-				</div>
-			) : null}
-			{width ? (
-				<button
-					type="button"
-					ref={resizeHandleRef}
-					className="CollectionTableResizeHandle"
-					role="slider"
-					aria-label={`Resize ${resizeLabel}`}
-					aria-orientation="horizontal"
-					aria-valuemin={minWidth}
-					aria-valuenow={currentResizeWidth}
-					aria-valuemax={Math.max(minWidth, currentResizeWidth + 1024)}
-					aria-valuetext={`${currentResizeWidth}px wide`}
-					onClick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-					}}
-					onMouseDown={handleMouseDown}
-					onKeyDown={handleKeyDown}
-				/>
-			) : null}
+			{headerMenuElement}
 		</th>
 	);
 }
@@ -377,7 +490,7 @@ export function getMainCollectionHeaderColumnBehavior(columnTitle: MainColumnTit
 			'data-column-title': columnTitle,
 			width: getColumnWidthStyle(columnTitle, currentWidth),
 			resizeWidth: currentWidth,
-			minWidth: getMainColumnMinWidth(columnTitle),
+			minWidth: getResolvedMainColumnMinWidth(columnTitle),
 			draggable: true,
 			className: draggingColumnTitle === columnTitle ? 'is-dragging' : undefined,
 			onDragStart: (event: ReactDragEvent<HTMLTableCellElement>) => {
@@ -494,6 +607,7 @@ export function MainCollectionVirtualHeaderRow<TColumn extends MainCollectionHea
 						<button
 							type="button"
 							className="MainCollectionVirtualHeaderButton"
+							draggable={false}
 							disabled={!sortable}
 							onClick={() => {
 								if (!sortable) {
@@ -509,13 +623,15 @@ export function MainCollectionVirtualHeaderRow<TColumn extends MainCollectionHea
 							<span>{column.title}</span>
 							{sortable ? (
 								<span className="MainCollectionVirtualSortIndicator" aria-hidden="true">
-									{sorted ? (sortState.order === 'ascend' ? '▲' : '▼') : '↕'}
+									{sorted ? (sortState.order === 'ascend' ? '▲' : '▼') : null}
 								</span>
 							) : null}
 						</button>
+						{column.headerAccessory}
 					</ResizableHeaderCell>
 				);
 			})}
+			<th className="MainCollectionVirtualFillerCell" aria-hidden="true" />
 		</tr>
 	);
 }

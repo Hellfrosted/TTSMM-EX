@@ -4,10 +4,14 @@ import os from 'node:os';
 import { app, IpcMain, dialog, shell } from 'electron';
 import log from 'electron-log';
 import path from 'path';
+import { z } from 'zod';
 
-import { PathType, ValidChannel } from '../../model';
-import { expandUserPath, normalizePathValue, parseSteamLibraryFolders } from '../path-utils';
-import { assertValidIpcSender } from './ipc-sender-validation';
+import { ModType, PathType, ValidChannel, createModUid } from '../../model';
+import { TERRATECH_STEAM_APP_ID } from '../../shared/terratech';
+import { expandUserPath } from '../path-utils';
+import { findSteamLibraryPaths } from '../steam-library-discovery';
+import { registerValidatedIpcHandler } from './ipc-handler';
+import { parseIpcPayload } from './ipc-validation';
 
 interface ProcessDetails {
 	pid: number;
@@ -17,35 +21,52 @@ interface ProcessDetails {
 
 const WINDOWS_TERRATECH_EXECUTABLE_PATH = path.join('steamapps', 'common', 'TerraTech', 'TerraTechWin64.exe');
 
-function getWindowsSteamPathFromRegistry(execFileSync: typeof child_process.execFileSync = child_process.execFileSync): string | null {
-	try {
-		const output = execFileSync('reg', ['query', 'HKCU\\Software\\Valve\\Steam', '/v', 'SteamPath'], {
-			encoding: 'utf8'
-		});
-		const match = output.match(/SteamPath\s+REG_\w+\s+(.+)$/m);
-		return normalizePathValue(match?.[1]);
-	} catch {
-		return null;
-	}
+const MAX_LAUNCH_ARGS = 1_000;
+
+const launchGamePayloadSchema = z.object({
+	gameExec: z.string(),
+	workshopID: z.union([z.string(), z.bigint(), z.null()]),
+	closeOnLaunch: z.boolean(),
+	args: z.array(z.string()).max(MAX_LAUNCH_ARGS)
+});
+
+const pathExistsPayloadSchema = z.object({
+	targetPath: z.string(),
+	expectedType: z.enum(PathType).optional()
+});
+
+const selectPathPayloadSchema = z.object({
+	directory: z.boolean(),
+	title: z.string()
+});
+
+export function parseLaunchGamePayload(
+	channel: ValidChannel,
+	gameExec: unknown,
+	workshopID: unknown,
+	closeOnLaunch: unknown,
+	args: unknown
+) {
+	return parseIpcPayload(channel, launchGamePayloadSchema, {
+		gameExec,
+		workshopID,
+		closeOnLaunch,
+		args
+	});
 }
 
-function getWindowsSteamRoots(env: NodeJS.ProcessEnv, registrySteamPath?: string | null): string[] {
-	const candidates = new Set<string>();
-	const addCandidate = (candidate: string | null | undefined) => {
-		const normalized = normalizePathValue(candidate);
-		if (normalized) {
-			candidates.add(normalized);
-		}
-	};
-
-	addCandidate(registrySteamPath);
-	[env['ProgramFiles(x86)'], env['PROGRAMFILES(X86)'], env.ProgramFiles, env.PROGRAMFILES].forEach((basePath) => {
-		if (basePath) {
-			addCandidate(path.join(basePath, 'Steam'));
-		}
+export function parsePathExistsPayload(channel: ValidChannel, targetPath: unknown, expectedType: unknown) {
+	return parseIpcPayload(channel, pathExistsPayloadSchema, {
+		targetPath,
+		expectedType
 	});
+}
 
-	return [...candidates];
+export function parseSelectPathPayload(channel: ValidChannel, directory: unknown, title: unknown) {
+	return parseIpcPayload(channel, selectPathPayloadSchema, {
+		directory,
+		title
+	});
 }
 
 interface DiscoverGameExecutableOptions {
@@ -59,7 +80,7 @@ interface DiscoverGameExecutableOptions {
 export function discoverGameExecutablePath({
 	platform = process.platform,
 	env = process.env,
-	registrySteamPath = getWindowsSteamPathFromRegistry(),
+	registrySteamPath,
 	existsSync = fs.existsSync,
 	readFileSync = fs.readFileSync
 }: DiscoverGameExecutableOptions = {}): string | null {
@@ -67,32 +88,7 @@ export function discoverGameExecutablePath({
 		return null;
 	}
 
-	const libraryRoots = new Set<string>();
-	const addLibraryRoot = (libraryRoot: string | null | undefined) => {
-		const normalized = normalizePathValue(libraryRoot);
-		if (normalized) {
-			libraryRoots.add(normalized);
-		}
-	};
-
-	getWindowsSteamRoots(env, registrySteamPath).forEach((steamRoot) => {
-		addLibraryRoot(steamRoot);
-
-		const libraryFoldersPath = path.join(steamRoot, 'steamapps', 'libraryfolders.vdf');
-		if (!existsSync(libraryFoldersPath)) {
-			return;
-		}
-
-		try {
-			const contents = readFileSync(libraryFoldersPath, 'utf8');
-			parseSteamLibraryFolders(contents).forEach(addLibraryRoot);
-		} catch (error) {
-			log.warn(`Failed to read Steam library folders from ${libraryFoldersPath}`);
-			log.warn(error);
-		}
-	});
-
-	for (const libraryRoot of libraryRoots) {
+	for (const libraryRoot of findSteamLibraryPaths({ env, existsSync, platform, readFileSync, registrySteamPath })) {
 		const executablePath = path.join(libraryRoot, WINDOWS_TERRATECH_EXECUTABLE_PATH);
 		if (existsSync(executablePath)) {
 			return path.normalize(executablePath);
@@ -136,13 +132,13 @@ export function launchGameProcess(
 	homeDir: string = os.homedir()
 ): Promise<boolean> {
 	log.info('Launching game with custom args:');
-	const allArgs = ['+custom_mod_list', workshopID ? `[workshop:${workshopID}]` : '[]', ...args];
+	const allArgs = ['+custom_mod_list', workshopID ? `[${createModUid(ModType.WORKSHOP, workshopID)}]` : '[]', ...args];
 	log.info(allArgs);
 	const quitApp = quit ?? (() => app.quit());
 	const resolvedGameExec = expandUserPath(gameExec, homeDir) ?? gameExec;
 	if (platform === 'linux') {
 		const steamRunArgs = allArgs.map((argument) => encodeSteamRunArgument(argument)).join(' ');
-		const steamRunUrl = `steam://run/285920//${steamRunArgs}/`;
+		const steamRunUrl = `steam://run/${TERRATECH_STEAM_APP_ID}//${steamRunArgs}/`;
 		log.info(`Launching game via Steam protocol: ${steamRunUrl}`);
 		const launchExternal = openExternal ?? ((url: string) => shell.openExternal(url));
 		return launchExternal(steamRunUrl)
@@ -236,31 +232,30 @@ export function pathExists(targetPath: string, expectedType?: PathType, homeDir:
 }
 
 export function registerGameHandlers(ipcMain: IpcMain) {
-	ipcMain.handle(ValidChannel.GAME_RUNNING, async (event) => {
-		assertValidIpcSender(ValidChannel.GAME_RUNNING, event);
+	registerValidatedIpcHandler(ipcMain, ValidChannel.GAME_RUNNING, async () => {
 		return isGameRunning();
 	});
 
-	ipcMain.handle(
-		ValidChannel.LAUNCH_GAME,
-		async (event, gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => {
-			assertValidIpcSender(ValidChannel.LAUNCH_GAME, event);
-			return launchGameProcess(gameExec, workshopID, closeOnLaunch, args);
-		}
-	);
+		registerValidatedIpcHandler(
+			ipcMain,
+			ValidChannel.LAUNCH_GAME,
+			async (_event, gameExec: unknown, workshopID: unknown, closeOnLaunch: unknown, args: unknown) => {
+				const payload = parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, gameExec, workshopID, closeOnLaunch, args);
+				return launchGameProcess(payload.gameExec, payload.workshopID, payload.closeOnLaunch, payload.args);
+			}
+		);
 
-	ipcMain.handle(ValidChannel.PATH_EXISTS, async (event, targetPath: string, expectedType?: PathType) => {
-		assertValidIpcSender(ValidChannel.PATH_EXISTS, event);
-		return pathExists(targetPath, expectedType);
-	});
+		registerValidatedIpcHandler(ipcMain, ValidChannel.PATH_EXISTS, async (_event, targetPath: unknown, expectedType?: unknown) => {
+			const payload = parsePathExistsPayload(ValidChannel.PATH_EXISTS, targetPath, expectedType);
+			return pathExists(payload.targetPath, payload.expectedType);
+		});
 
-	ipcMain.handle(ValidChannel.DISCOVER_GAME_EXEC, async (event) => {
-		assertValidIpcSender(ValidChannel.DISCOVER_GAME_EXEC, event);
+	registerValidatedIpcHandler(ipcMain, ValidChannel.DISCOVER_GAME_EXEC, async () => {
 		return discoverGameExecutablePath();
 	});
 
-	ipcMain.handle(ValidChannel.SELECT_PATH, async (event, directory: boolean, title: string) => {
-		assertValidIpcSender(ValidChannel.SELECT_PATH, event);
-		return selectPath(directory, title);
-	});
-}
+		registerValidatedIpcHandler(ipcMain, ValidChannel.SELECT_PATH, async (_event, directory: unknown, title: unknown) => {
+			const payload = parseSelectPathPayload(ValidChannel.SELECT_PATH, directory, title);
+			return selectPath(payload.directory, payload.title);
+		});
+	}

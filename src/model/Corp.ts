@@ -8,28 +8,46 @@ export enum CorpType {
 	SPE = 'spe'
 }
 
+const CORP_DISPLAY_NAMES: Record<CorpType, string> = {
+	[CorpType.HE]: 'Hawkeye',
+	[CorpType.GSO]: 'GSO',
+	[CorpType.GC]: 'GeoCorp',
+	[CorpType.BF]: 'Better Future',
+	[CorpType.VEN]: 'Venture',
+	[CorpType.RR]: 'Reticule Research',
+	[CorpType.SPE]: 'Special'
+};
+
+function normalizeCorpTag(tag: string) {
+	return tag.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 export function getCorpType(tag: string): CorpType | null {
-	const lowercase = tag.toLowerCase();
-	if (lowercase === 'gso') {
+	const normalizedTag = normalizeCorpTag(tag);
+	if (normalizedTag === 'gso') {
 		return CorpType.GSO;
 	}
-	if (lowercase === 'he' || lowercase === 'hawkeye') {
+	if (normalizedTag === 'he' || normalizedTag === 'hawkeye') {
 		return CorpType.HE;
 	}
-	if (lowercase === 'gc' || lowercase === 'geocorp') {
+	if (normalizedTag === 'gc' || normalizedTag === 'geocorp') {
 		return CorpType.GC;
 	}
-	if (lowercase === 'ven' || lowercase === 'venture') {
+	if (normalizedTag === 'ven' || normalizedTag === 'venture') {
 		return CorpType.VEN;
 	}
-	if (lowercase === 'bf' || lowercase === 'betterfuture') {
+	if (normalizedTag === 'bf' || normalizedTag === 'betterfuture') {
 		return CorpType.BF;
 	}
-	if (lowercase === 'rr' || lowercase === 'reticuleresearch') {
+	if (normalizedTag === 'rr' || normalizedTag === 'reticuleresearch') {
 		return CorpType.RR;
 	}
-	if (lowercase === 'spe' || lowercase === 'special') {
+	if (normalizedTag === 'spe' || normalizedTag === 'special') {
 		return CorpType.SPE;
 	}
 	return null;
+}
+
+export function getCorpDisplayName(corp: CorpType) {
+	return CORP_DISPLAY_NAMES[corp];
 }

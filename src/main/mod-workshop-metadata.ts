@@ -53,7 +53,6 @@ export async function populateWorkshopModMetadata(potentialMod: ModData, steamUG
 	}
 
 	potentialMod.steamDependencies = steamUGCDetails.children;
-	potentialMod.steamDependenciesFetchedAt = Date.now();
 	potentialMod.description = steamUGCDetails.description;
 	potentialMod.name = steamUGCDetails.title;
 	potentialMod.tags = steamUGCDetails.tagsDisplayNames;

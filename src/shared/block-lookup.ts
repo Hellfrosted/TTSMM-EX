@@ -1,5 +1,5 @@
 export const BLOCK_LOOKUP_INDEX_VERSION = 1;
-export const TERRATECH_STEAM_APP_ID = '285920';
+export { TERRATECH_STEAM_APP_ID } from './terratech';
 
 export type BlockLookupSourceKind = 'vanilla' | 'json' | 'bundle';
 

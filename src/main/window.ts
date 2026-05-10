@@ -2,13 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { app, BrowserWindow, type WebContentsConsoleMessageEventParams } from 'electron';
 import log from 'electron-log';
+import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 
 import { openExternalUrl } from './external-links';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, resolvePreloadPath } from './util';
 
-const STEAM_APP_ID = '285920\n';
-const STEAM_APP_ID_VALUE = '285920';
+const STEAM_APP_ID = `${TERRATECH_STEAM_APP_ID}\n`;
 export const MAIN_WINDOW_DEFAULT_BOUNDS = Object.freeze({
 	width: 1280,
 	height: 820,
@@ -53,7 +53,7 @@ export function ensureSteamAppIdFile(options: SteamAppIdFileOptions = {}) {
 	try {
 		if (fsImpl.existsSync(steamAppIdPath)) {
 			const appID = fsImpl.readFileSync(steamAppIdPath, 'utf8');
-			if (appID.toString().trim() !== STEAM_APP_ID_VALUE) {
+			if (appID.toString().trim() !== TERRATECH_STEAM_APP_ID) {
 				fsImpl.writeFileSync(steamAppIdPath, STEAM_APP_ID, 'utf8');
 			}
 		} else {
@@ -157,9 +157,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 	mainWindow.loadURL(resolveHtmlPath('index.html'));
 
 	mainWindow.webContents.on('console-message', (event) => {
-		forwardRendererConsoleMessage(event, {
-			mirrorToConsole: isDevelopment
-		});
+		forwardRendererConsoleMessage(event);
 	});
 
 	mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -202,7 +200,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		mainWindow.setTitle(`${name} v${app.getVersion()}`);
 		ensureSteamAppIdFile();
 		onDidFinishLoad();
-		if (!isDevelopment) {
+		if (!isDevelopment && process.env.TTSMM_EX_DISABLE_AUTO_UPDATES !== '1') {
 			void import('electron-updater').then(({ autoUpdater }) => autoUpdater.checkForUpdates()).catch(log.error);
 		}
 	});

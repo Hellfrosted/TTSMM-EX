@@ -5,13 +5,12 @@
 		"strict": true,
 		"pretty": true,
 		"sourceMap": true,
-		"baseUrl": "./src",
 		"paths": {
-			"model": ["model/index.ts"],
-			"model/*": ["model/*"],
-			"renderer/*": ["renderer/*"],
-			"shared/*": ["shared/*"],
-			"util/*": ["util/*"]
+			"model": ["./src/model/index.ts"],
+			"model/*": ["./src/model/*"],
+			"renderer/*": ["./src/renderer/*"],
+			"shared/*": ["./src/shared/*"],
+			"util/*": ["./src/util/*"]
 		},
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
@@ -22,6 +21,6 @@
 		"resolveJsonModule": true,
 		"allowJs": true,
 		"skipLibCheck": true,
-		"ignoreDeprecations": "6.0"
+		"ignoreDeprecations": "5.0"
 	}
 }

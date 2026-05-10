@@ -5,11 +5,15 @@ const APP_CONTROL_HEIGHT = 44;
 
 interface AppThemePalette {
 	primary: string;
+	primaryText: string;
 	primaryHover: string;
 	primaryActive: string;
 	success: string;
 	warning: string;
 	error: string;
+	errorText: string;
+	errorAction: string;
+	errorActionHover: string;
 	info: string;
 	link: string;
 	textBase: string;
@@ -36,11 +40,15 @@ interface AppThemePalette {
 
 const APP_THEME_PALETTE: AppThemePalette = {
 	primary: '#a05442',
+	primaryText: 'oklch(73% 0.08 37)',
 	primaryHover: '#96503f',
 	primaryActive: '#854435',
 	success: '#6d9c6c',
 	warning: '#c08a4f',
 	error: '#b86159',
+	errorText: 'oklch(72% 0.08 25)',
+	errorAction: '#873831',
+	errorActionHover: '#78302b',
 	info: '#b65b47',
 	link: '#c9735d',
 	textBase: '#f2ede6',
@@ -72,11 +80,15 @@ function rgbaString(rgb: string, alpha: number) {
 function createAppThemeColors(palette: AppThemePalette) {
 	return {
 		primary: palette.primary,
+		primaryText: palette.primaryText,
 		primaryHover: palette.primaryHover,
 		primaryActive: palette.primaryActive,
 		success: palette.success,
 		warning: palette.warning,
 		error: palette.error,
+		errorText: palette.errorText,
+		errorAction: palette.errorAction,
+		errorActionHover: palette.errorActionHover,
 		info: palette.info,
 		link: palette.link,
 		text: rgbaString(palette.textBaseRgb, 0.88),
@@ -105,7 +117,7 @@ function createAppThemeColors(palette: AppThemePalette) {
 	} as const;
 }
 
-export const APP_THEME_COLORS = createAppThemeColors(APP_THEME_PALETTE);
+const APP_THEME_COLORS = createAppThemeColors(APP_THEME_PALETTE);
 
 type AppTagTone = 'accent' | 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -139,11 +151,15 @@ function createAppCssVariables(colors: typeof APP_THEME_COLORS): CSSProperties {
 		'--app-radius-md': '8px',
 		'--app-radius-lg': '10px',
 		'--app-color-primary': colors.primary,
+		'--app-color-primary-text': colors.primaryText,
 		'--app-color-primary-hover': colors.primaryHover,
 		'--app-color-primary-active': colors.primaryActive,
 		'--app-color-success': colors.success,
 		'--app-color-warning': colors.warning,
 		'--app-color-error': colors.error,
+		'--app-color-error-text': colors.errorText,
+		'--app-color-error-action': colors.errorAction,
+		'--app-color-error-action-hover': colors.errorActionHover,
 		'--app-color-info': colors.info,
 		'--app-color-link': colors.link,
 		'--app-color-text': colors.text,

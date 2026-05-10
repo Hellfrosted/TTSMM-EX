@@ -2,41 +2,81 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
 	CollectionErrors,
 	CollectionManagerModalType,
-	DisplayModData,
 	ModCollection,
-	ModData,
-	cloneSessionMods,
-	getRows,
-	setupDescriptors,
 	validateCollection,
+	type AppConfig,
 	type NotificationProps
 } from 'model';
 import api from 'renderer/Api';
-import { getCollectionValidationKey, renderValidationErrors, type ValidationIssueSummary } from 'renderer/collection-validation-run';
-import { getCollectionModDataList } from 'renderer/collection-mod-projection';
+import { renderValidationErrors, summarizeValidationIssues, type ValidationIssueSummary } from 'renderer/collection-validation-run';
+import {
+	createCollectionWorkspaceValidationResult,
+	getCollectionValidationCompletionDecision,
+	getCollectionValidationPersistenceDecision,
+	type CollectionWorkspaceValidationResult
+} from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cancellablePromise, type CancellablePromise } from 'util/Promise';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionValidationOptions {
 	appState: CollectionWorkspaceAppState;
-	openNotification: (props: NotificationProps, type?: NotificationType) => void;
-	setModalType: (modalType: CollectionManagerModalType) => void;
+	openNotification?: (props: NotificationProps, type?: NotificationType) => void;
+	setModalType?: (modalType: CollectionManagerModalType) => void;
 	persistCollection: (collection: ModCollection) => Promise<boolean>;
-	launchMods: (mods: ModData[]) => Promise<void>;
 }
 
 interface ValidationOptions {
 	config?: CollectionWorkspaceAppState['config'];
 }
 
-export function useCollectionValidation({ appState, setModalType, persistCollection, launchMods }: UseCollectionValidationOptions) {
+interface ValidationRequest {
+	collection: ModCollection;
+	config: AppConfig;
+	mods: CollectionWorkspaceAppState['mods'];
+}
+
+export type CollectionValidationRunOutcome =
+	| {
+			type: 'cancelled';
+	  }
+	| {
+			type: 'discarded-stale-result';
+			validationResult?: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'missing-active-collection';
+	  }
+	| {
+			type: 'persistence-failed';
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-and-ready-to-launch-current-draft';
+			launchCollection: ModCollection;
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-current-result';
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'recorded-failed-result';
+			modalType?: CollectionManagerModalType;
+			validationResult: CollectionWorkspaceValidationResult;
+	  }
+	| {
+			type: 'validation-run-failed';
+	  };
+
+export function useCollectionValidation({ appState, persistCollection }: UseCollectionValidationOptions) {
 	const [validatingMods, setValidatingMods] = useState(false);
-	const [collectionErrors, setCollectionErrors] = useState<CollectionErrors>();
-	const [lastValidationStatus, setLastValidationStatus] = useState<boolean>();
-	const [lastValidatedCollectionKey, setLastValidatedCollectionKey] = useState<string>();
+	const [validationResult, setValidationResult] = useState<CollectionWorkspaceValidationResult>();
 	const validationPromiseRef = useRef<CancellablePromise<CollectionErrors> | undefined>(undefined);
-	const { activeCollection, config, mods, updateState } = appState;
+	const { activeCollection, config, mods } = appState;
+	const collectionErrors = validationResult?.errors;
+	const lastValidationStatus = validationResult?.success;
+	const lastValidatedCollectionKey = validationResult?.draftKey;
 
 	useEffect(() => {
 		return () => {
@@ -67,81 +107,145 @@ export function useCollectionValidation({ appState, setModalType, persistCollect
 		);
 	}, []);
 
-	const clearRenderedModErrors = useCallback(
-		(configOverride?: CollectionWorkspaceAppState['config']) => {
-			const nextMods = cloneSessionMods(mods);
-			const validationConfig = configOverride ?? config;
-			setupDescriptors(nextMods, validationConfig.userOverrides);
-			getRows(nextMods).forEach((mod: DisplayModData) => {
-				mod.errors = undefined;
-			});
-			updateState({ mods: nextMods });
-		},
-		[config, mods, updateState]
-	);
-
 	const resetValidationState = useCallback(
-		(options?: ValidationOptions) => {
+		(_options?: ValidationOptions) => {
 			cancelValidation();
 			setValidatingMods(false);
-			setCollectionErrors(undefined);
-			setLastValidationStatus(undefined);
-			setLastValidatedCollectionKey(undefined);
-			clearRenderedModErrors(options?.config);
+			setValidationResult(undefined);
 		},
-		[cancelValidation, clearRenderedModErrors]
+		[cancelValidation]
 	);
 
-	const setModErrors = useCallback(
-		(nextCollectionErrors: CollectionErrors, launchIfValid: boolean, configOverride?: CollectionWorkspaceAppState['config']) => {
-			const validationConfig = configOverride ?? config;
-			const result = renderValidationErrors(mods, nextCollectionErrors, validationConfig, launchIfValid);
-			updateState({ mods: result.mods });
-			setCollectionErrors(result.errors);
-			if (result.modalType) {
-				setModalType(result.modalType);
+	const setCollectionErrors = useCallback((nextCollectionErrors: CollectionErrors | undefined) => {
+		setValidationResult((currentResult) => {
+			if (!currentResult) {
+				return undefined;
 			}
-			return result;
+			return {
+				...currentResult,
+				errors: nextCollectionErrors,
+				summary: nextCollectionErrors ? summarizeValidationIssues(nextCollectionErrors) : undefined
+			};
+		});
+	}, []);
+
+	const renderCollectionErrors = useCallback(
+		(
+			nextCollectionErrors: CollectionErrors,
+			launchIfValid: boolean,
+			configOverride?: CollectionWorkspaceAppState['config'],
+			targetMods = mods
+		) => {
+			const validationConfig = configOverride ?? config;
+			return renderValidationErrors(targetMods, nextCollectionErrors, validationConfig, launchIfValid);
 		},
-		[config, mods, setModalType, updateState]
+		[config, mods]
 	);
 
 	const processValidationResult = useCallback(
-		async (errors: CollectionErrors, launchIfValid: boolean, options?: ValidationOptions) => {
-			const currentValidationKey = getCollectionValidationKey(activeCollection, options?.config ?? config);
-
+		async (errors: CollectionErrors, launchIfValid: boolean, request: ValidationRequest): Promise<CollectionValidationRunOutcome> => {
 			setValidatingMods(false);
-			if (!activeCollection) {
-				await launchMods([]);
-				return;
+
+			const pendingValidationResult = createCollectionWorkspaceValidationResult({
+				collection: request.collection,
+				config: request.config,
+				errors,
+				success: Object.keys(errors).length === 0
+			});
+			const preRenderWorkspace = {
+				activeCollection: appState.activeCollection,
+				config: appState.config
+			};
+			const preRenderDecision = getCollectionValidationCompletionDecision({
+				...preRenderWorkspace,
+				validationResult: pendingValidationResult
+			});
+			if (preRenderDecision.action === 'discard-stale-result') {
+				return {
+					type: 'discarded-stale-result',
+					validationResult: pendingValidationResult
+				};
 			}
 
-			const renderedErrors = setModErrors(errors, launchIfValid, options?.config);
+			const renderedErrors = renderCollectionErrors(errors, launchIfValid, request.config, request.mods);
 			const success = renderedErrors.success || Object.keys(errors).length === 0;
+			const validationResult = createCollectionWorkspaceValidationResult({
+				collection: request.collection,
+				config: request.config,
+				errors: renderedErrors.errors,
+				success,
+				summary: renderedErrors.summary
+			});
+			if (!validationResult) {
+				return {
+					type: 'discarded-stale-result'
+				};
+			}
+			const completionDecision = getCollectionValidationCompletionDecision({
+				...preRenderWorkspace,
+				validationResult
+			});
 
-			if (!success) {
-				setLastValidationStatus(false);
-				setLastValidatedCollectionKey(currentValidationKey);
+			if (completionDecision.action === 'discard-stale-result') {
+				return {
+					type: 'discarded-stale-result',
+					validationResult
+				};
+			}
+
+			if (completionDecision.action === 'record-failed-result') {
+				setValidationResult(validationResult);
 				logValidationIssues(renderedErrors.summary);
-				return;
+				return {
+					type: 'recorded-failed-result',
+					modalType: renderedErrors.modalType,
+					validationResult
+				};
 			}
 
-			const persisted = await persistCollection(activeCollection);
+			const persisted = await persistCollection(request.collection);
 			if (!persisted) {
-				setLastValidationStatus(undefined);
-				setLastValidatedCollectionKey(undefined);
-				return;
+				setValidationResult(undefined);
+				return {
+					type: 'persistence-failed',
+					validationResult
+				};
 			}
 
-			setLastValidationStatus(true);
-			setLastValidatedCollectionKey(currentValidationKey);
-
-			if (launchIfValid) {
-				const modDataList = getCollectionModDataList(mods, activeCollection);
-				await launchMods(modDataList);
+			const postPersistenceWorkspace = {
+				activeCollection: appState.activeCollection,
+				config: appState.config,
+				mods: appState.mods
+			};
+			const persistenceDecision = getCollectionValidationPersistenceDecision({
+				activeCollection: postPersistenceWorkspace.activeCollection,
+				config: postPersistenceWorkspace.config,
+				launchIfValid,
+				validationResult
+			});
+			if (persistenceDecision.action === 'discard-stale-result') {
+				return {
+					type: 'discarded-stale-result',
+					validationResult
+				};
 			}
+
+			setValidationResult(validationResult);
+
+			if (persistenceDecision.action === 'record-and-launch-current-draft' && persistenceDecision.launchCollection) {
+				return {
+					type: 'recorded-and-ready-to-launch-current-draft',
+					launchCollection: persistenceDecision.launchCollection,
+					validationResult
+				};
+			}
+
+			return {
+				type: 'recorded-current-result',
+				validationResult
+			};
 		},
-		[activeCollection, config, launchMods, logValidationIssues, mods, persistCollection, setModErrors]
+		[appState, logValidationIssues, persistCollection, renderCollectionErrors]
 	);
 
 	const validateActiveCollection = useCallback(
@@ -149,47 +253,52 @@ export function useCollectionValidation({ appState, setModalType, persistCollect
 			setValidatingMods(true);
 
 			if (!activeCollection) {
-				await launchMods([]);
 				setValidatingMods(false);
-				return;
+				return {
+					type: 'missing-active-collection'
+				} satisfies CollectionValidationRunOutcome;
 			}
 
 			cancelValidation();
-			const validationPromise = cancellablePromise(validateCollection(mods, activeCollection));
+			const validationRequest = {
+				collection: activeCollection,
+				config: options?.config ?? appState.config,
+				mods: appState.mods
+			};
+			const validationPromise = cancellablePromise(validateCollection(validationRequest.mods, validationRequest.collection));
 			validationPromiseRef.current = validationPromise;
 
 			try {
 				const result = await validationPromise.promise;
-				await processValidationResult(result, launchIfValid, options);
+				return await processValidationResult(result, launchIfValid, validationRequest);
 			} catch (error) {
 				const wrappedError = error as { cancelled?: boolean; error?: unknown };
 				if (!wrappedError.cancelled) {
 					api.logger.error(wrappedError.error);
-					setLastValidationStatus(false);
-					setLastValidatedCollectionKey(undefined);
+					setValidationResult(undefined);
 					setValidatingMods(false);
+					return {
+						type: 'validation-run-failed'
+					} satisfies CollectionValidationRunOutcome;
 				}
+
+				return {
+					type: 'cancelled'
+				} satisfies CollectionValidationRunOutcome;
 			}
 		},
-		[activeCollection, cancelValidation, launchMods, mods, processValidationResult]
-	);
-
-	const isValidationCurrentForCollection = useCallback(
-		(collection: ModCollection | undefined) => {
-			const collectionValidationKey = getCollectionValidationKey(collection, config);
-			return collectionValidationKey !== undefined && collectionValidationKey === lastValidatedCollectionKey;
-		},
-		[config, lastValidatedCollectionKey]
+		[activeCollection, appState.config, appState.mods, cancelValidation, processValidationResult]
 	);
 
 	return {
 		validatingMods,
 		collectionErrors,
 		lastValidationStatus,
+		lastValidatedCollectionKey,
+		validationResult,
 		setCollectionErrors,
 		cancelValidation,
 		validateActiveCollection,
-		resetValidationState,
-		isValidationCurrentForCollection
+		resetValidationState
 	};
 }

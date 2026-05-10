@@ -1,11 +1,9 @@
-import childProcess from 'child_process';
 import fs from 'fs';
-import os from 'node:os';
 import path from 'path';
-import log from 'electron-log';
 import type { BlockLookupBuildRequest, BlockLookupModSource, BlockLookupSourceKind } from 'shared/block-lookup';
 import { TERRATECH_STEAM_APP_ID } from 'shared/block-lookup';
-import { expandUserPath, normalizePathValue, parseSteamLibraryFolders } from './path-utils';
+import { expandUserPath, normalizePathValue } from './path-utils';
+import { findSteamLibraryPaths } from './steam-library-discovery';
 
 const JSON_SUFFIXES = new Set(['.json']);
 const IGNORE_SUFFIXES = new Set(['.png', '.jpg', '.jpeg', '.gif', '.txt', '.xml', '.meta', '.ini', '.md', '.tdc']);
@@ -18,80 +16,6 @@ export interface BlockLookupSourceRecord {
 	sourcePath: string;
 	size: number;
 	mtimeMs: number;
-}
-
-function getWindowsSteamPathFromRegistry(execFileSync: typeof childProcess.execFileSync = childProcess.execFileSync): string | null {
-	try {
-		const output = execFileSync('reg', ['query', 'HKCU\\Software\\Valve\\Steam', '/v', 'SteamPath'], {
-			encoding: 'utf8'
-		});
-		const match = output.match(/SteamPath\s+REG_\w+\s+(.+)$/m);
-		return normalizePathValue(match?.[1]);
-	} catch {
-		return null;
-	}
-}
-
-function getCommonSteamLocationCandidates(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env) {
-	const candidates = new Set<string>();
-	const addCandidate = (candidate: string | null | undefined) => {
-		const normalized = normalizePathValue(candidate);
-		if (normalized) {
-			candidates.add(normalized);
-		}
-	};
-
-	if (platform === 'win32') {
-		addCandidate(getWindowsSteamPathFromRegistry());
-		[env['ProgramFiles(x86)'], env['PROGRAMFILES(X86)'], env.ProgramFiles, env.PROGRAMFILES].forEach((basePath) => {
-			if (basePath) {
-				addCandidate(path.join(basePath, 'Steam'));
-			}
-		});
-
-		for (const letter of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
-			const driveRoot = `${letter}:\\`;
-			if (!fs.existsSync(driveRoot)) {
-				continue;
-			}
-			addCandidate(path.join(driveRoot, 'Steam'));
-			addCandidate(path.join(driveRoot, 'SteamLibrary'));
-			addCandidate(path.join(driveRoot, 'Program Files', 'Steam'));
-			addCandidate(path.join(driveRoot, 'Program Files (x86)', 'Steam'));
-		}
-		return [...candidates];
-	}
-
-	addCandidate(path.join(os.homedir(), '.steam', 'steam'));
-	addCandidate(path.join(os.homedir(), '.local', 'share', 'Steam'));
-	return [...candidates];
-}
-
-function findSteamLibraryPaths(platform: NodeJS.Platform = process.platform): string[] {
-	const libraries = new Set<string>();
-	const addLibrary = (libraryPath: string | null | undefined) => {
-		const normalized = normalizePathValue(libraryPath);
-		if (normalized && fs.existsSync(normalized)) {
-			libraries.add(normalized);
-		}
-	};
-
-	getCommonSteamLocationCandidates(platform).forEach((steamDir) => {
-		addLibrary(steamDir);
-		for (const vdfPath of [path.join(steamDir, 'config', 'libraryfolders.vdf'), path.join(steamDir, 'steamapps', 'libraryfolders.vdf')]) {
-			if (!fs.existsSync(vdfPath)) {
-				continue;
-			}
-			try {
-				parseSteamLibraryFolders(fs.readFileSync(vdfPath, 'utf8')).forEach(addLibrary);
-			} catch (error) {
-				log.warn(`Failed to read Steam library folders from ${vdfPath}`);
-				log.warn(error);
-			}
-		}
-	});
-
-	return [...libraries];
 }
 
 export function normalizeWorkshopRoot(value: string | null | undefined): string | null {
@@ -194,7 +118,7 @@ export function autoDetectBlockLookupWorkshopRoot(
 		return gameExecRoot;
 	}
 
-	for (const libraryPath of findSteamLibraryPaths()) {
+	for (const libraryPath of findSteamLibraryPaths({ includeWindowsDriveCandidates: true })) {
 		const root = path.join(libraryPath, 'steamapps', 'workshop', 'content', TERRATECH_STEAM_APP_ID);
 		if (looksLikeWorkshopRoot(root)) {
 			return path.normalize(root);

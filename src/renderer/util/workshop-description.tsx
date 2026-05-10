@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
 const ATTRIBUTE_ESCAPE_MAP: Record<string, string> = {
 	'&': '&amp;',
@@ -105,8 +105,10 @@ function deriveImageAltText(value: string, fallbackAltText: string): string {
 		const normalizedWords = normalizedLabel
 			.toLowerCase()
 			.split(' ')
-			.map((word) => word.replace(/[^a-z0-9]/gi, ''))
-			.filter(Boolean);
+			.flatMap((word) => {
+				const normalizedWord = word.replace(/[^a-z0-9]/gi, '');
+				return normalizedWord ? [normalizedWord] : [];
+			});
 		const meaningfulWords = normalizedWords.filter((word) => word.length > 2 && !GENERIC_IMAGE_LABEL_WORDS.has(word));
 		if (meaningfulWords.length < 2) {
 			return escapeAttribute(fallbackAltText);
@@ -142,10 +144,10 @@ function renderEscapedWorkshopMarkup(value: string, imageAltFallback: string): s
 	renderedValue = replaceLoop(renderedValue, (currentValue) =>
 		currentValue.replace(/\[list(?:=([^\]]+))?\]([\s\S]*?)\[\/list\]/gi, (_match, type: string | undefined, content: string) => {
 			const tagName = type?.trim() === '1' ? 'ol' : 'ul';
-			const rawItems = content
-				.split(/\[\*\]/i)
-				.map((item) => item.trim())
-				.filter(Boolean);
+			const rawItems = content.split(/\[\*\]/i).flatMap((item) => {
+				const trimmedItem = item.trim();
+				return trimmedItem ? [trimmedItem] : [];
+			});
 			if (rawItems.length === 0) {
 				return `<${tagName}><li>${renderEscapedWorkshopMarkup(content.trim(), imageAltFallback)}</li></${tagName}>`;
 			}
@@ -245,15 +247,33 @@ interface WorkshopDescriptionProps {
 }
 
 function WorkshopDescriptionComponent({ description, imageAltFallback }: WorkshopDescriptionProps) {
+	const containerRef = useRef<HTMLDivElement>(null);
 	const renderedDescription = useMemo(
 		() => convertWorkshopDescriptionToHtml(description, { imageAltFallback }),
 		[description, imageAltFallback]
 	);
+
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) {
+			return;
+		}
+
+		container.replaceChildren();
+		if (!renderedDescription) {
+			return;
+		}
+
+		const template = document.createElement('template');
+		template.innerHTML = renderedDescription;
+		container.append(template.content.cloneNode(true));
+	}, [renderedDescription]);
+
 	if (!renderedDescription) {
 		return null;
 	}
 
-	return <div className="WorkshopDescription" dangerouslySetInnerHTML={{ __html: renderedDescription }} />;
+	return <div className="WorkshopDescription" ref={containerRef} />;
 }
 
 export const WorkshopDescription = memo(WorkshopDescriptionComponent);

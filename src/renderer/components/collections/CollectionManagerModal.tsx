@@ -1,14 +1,12 @@
 import { InputHTMLAttributes, ReactNode, memo, useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
-import { X } from 'lucide-react';
 import {
 	AppConfig,
 	CollectionErrors,
 	CollectionManagerModalType,
 	CollectionViewType,
 	getByUID,
-	getModDescriptorDisplayName,
 	MainColumnTitles,
 	MainCollectionConfig,
 	ModData,
@@ -17,21 +15,11 @@ import {
 	getMainColumnMinWidth
 } from 'model';
 import api from 'renderer/Api';
-import {
-	desktopButtonBaseClassName,
-	desktopControlFocusClassName,
-	desktopDangerButtonToneClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledClassName,
-	desktopDisabledOpacityClassName,
-	desktopInputClassName,
-	desktopPrimaryButtonToneClassName,
-	desktopSwitchClassName,
-	joinClassNames
-} from 'renderer/components/desktop-control-classes';
+import { getValidationIssueList } from 'renderer/collection-validation-run';
+import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { writeConfig } from 'renderer/util/config-write';
+import { persistConfigChange } from 'renderer/util/config-write';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,
@@ -44,6 +32,34 @@ import {
 
 const VALIDATION_ISSUES_HEADING_ID = 'collection-validation-issues-heading';
 const DEFAULT_MAIN_CONFIG: MainCollectionConfig = {};
+type ValidationIssueSummaryList = ReturnType<typeof getValidationIssueList>;
+
+function ValidationIssueList({ validationIssueSummaries }: { validationIssueSummaries: ValidationIssueSummaryList }) {
+	if (validationIssueSummaries.length === 0) {
+		return null;
+	}
+
+	return (
+		<section className="mt-5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
+			<h3 id={VALIDATION_ISSUES_HEADING_ID}>Mods to review</h3>
+			<div className="pr-2">
+				<ul className="m-0 grid gap-3.5 p-0">
+					{validationIssueSummaries.map((summary) => (
+						<li key={summary.uid} className="grid gap-1">
+							<strong className="block">{summary.label}</strong>
+							<span className="block">{summary.uid}</span>
+							<ul className="m-0 grid gap-1 pl-5">
+								{summary.issues.map((issue) => (
+									<li key={`${summary.uid}-${issue}`}>{issue}</li>
+								))}
+							</ul>
+						</li>
+					))}
+				</ul>
+			</div>
+		</section>
+	);
+}
 
 interface CollectionManagerModalProps {
 	appState: CollectionWorkspaceAppState;
@@ -93,118 +109,55 @@ interface CollectionNumberInputProps {
 	value?: number;
 }
 
-const collectionInputClassName = joinClassNames(desktopInputClassName, desktopDisabledClassName, desktopControlFocusClassName);
-
 function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
+	return <DesktopInput {...props} />;
 }
 
 function CollectionDialog({ children, footer, onCancel, title, variant = 'default', width = 520, wrapClassName }: CollectionDialogProps) {
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				onCancel();
-			}
-		};
-
-		window.addEventListener('keydown', handleKeyDown);
-		return () => {
-			window.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [onCancel]);
-
-	const overlayClassName = [
-		'fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6',
-		wrapClassName
-	]
-		.filter(Boolean)
-		.join(' ');
-	const modalClassName = [
-		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]'
-	]
-		.filter(Boolean)
-		.join(' ');
 	const bodyClassName = [
-		'overflow-auto p-4',
 		variant === 'validation' ? 'max-h-[calc(100vh-224px)]' : undefined,
 		variant === 'settings' ? 'pb-3 pt-2.5' : undefined
 	]
 		.filter(Boolean)
 		.join(' ');
-
-	return (
-		<div
-			className={overlayClassName}
-			role="presentation"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) {
-					onCancel();
-				}
-			}}
-		>
-			<section
-				aria-labelledby="collection-dialog-title"
-				aria-modal="true"
-				className={modalClassName}
-				role="dialog"
-				style={{ width: `min(${width}px, 100%)` }}
-			>
-				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id="collection-dialog-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
-						{title}
-					</h2>
-					<button
-						className={[
-							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
-							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							desktopControlFocusClassName
-						].join(' ')}
-						type="button"
-						aria-label="Close modal"
-						onClick={onCancel}
-					>
-						<X size={18} aria-hidden="true" />
-					</button>
-				</header>
-				<div className={bodyClassName}>{children}</div>
-				{footer ? (
-					<footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border px-4 py-3.5">{footer}</footer>
-				) : null}
-			</section>
-		</div>
-	);
-}
-
-function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
-	const buttonClassName = [
-		desktopButtonBaseClassName,
-		desktopDefaultButtonToneClassName,
-		desktopDisabledOpacityClassName,
-		variant === 'primary' ? desktopPrimaryButtonToneClassName : undefined,
-		danger ? desktopDangerButtonToneClassName : undefined,
-		desktopControlFocusClassName
+	const panelClassName = [
+		'max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)]',
+		width >= 900 ? 'w-[min(920px,calc(100vw-32px))]' : width >= 760 ? 'w-[min(760px,calc(100vw-32px))]' : undefined
 	]
 		.filter(Boolean)
 		.join(' ');
 
 	return (
-		<button className={buttonClassName} disabled={disabled || loading} onClick={onClick} type="button">
-			{loading ? (
-				<span
-					className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-					aria-hidden="true"
-				/>
-			) : null}
+		<DesktopDialog
+			open
+			title={title}
+			titleClassName="text-[1.05rem] font-bold"
+			closeLabel="Close modal"
+			onCancel={onCancel}
+			overlayClassName={wrapClassName}
+			panelClassName={panelClassName}
+			panelStyle={{ width: `min(${width}px, calc(100vw - 32px))` }}
+			bodyClassName={bodyClassName}
+			footer={footer}
+		>
+			<div className="w-full min-w-0">{children}</div>
+		</DesktopDialog>
+	);
+}
+
+function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
+	return (
+		<DesktopButton danger={danger} disabled={disabled} loading={loading} onClick={onClick} type="button" variant={variant}>
 			{children}
-		</button>
+		</DesktopButton>
 	);
 }
 
 function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionSwitchProps) {
 	return (
-		<input
+		<DesktopSwitch
 			{...props}
-			className={joinClassNames(desktopSwitchClassName, 'm-0')}
+			className="m-0"
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -218,9 +171,8 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 
 function CollectionNumberInput({ min, onChange, placeholder, step, value, ...props }: CollectionNumberInputProps) {
 	return (
-		<input
+		<DesktopInput
 			{...props}
-			className={collectionInputClassName}
 			min={min}
 			onChange={(event) => {
 				const nextValue = event.target.valueAsNumber;
@@ -231,6 +183,154 @@ function CollectionNumberInput({ min, onChange, placeholder, step, value, ...pro
 			type="number"
 			value={value ?? ''}
 		/>
+	);
+}
+
+function ValidationLaunchDialog({
+	blocking,
+	closeModal,
+	launchAnyway,
+	launchGameWithErrors,
+	onReviewIssues,
+	validationIssueSummaries
+}: {
+	blocking: boolean;
+	closeModal: () => void;
+	launchAnyway: () => void;
+	launchGameWithErrors: boolean;
+	onReviewIssues: () => void;
+	validationIssueSummaries: ValidationIssueSummaryList;
+}) {
+	return (
+		<CollectionDialog
+			key={blocking ? 'error-modal' : 'warning-modal'}
+			variant="validation"
+			title={blocking ? 'Collection has blocking issues' : 'Collection has warnings'}
+			width={760}
+			onCancel={closeModal}
+			footer={
+				<>
+					<CollectionModalButton variant="primary" disabled={launchGameWithErrors} onClick={onReviewIssues}>
+						Review Issues
+					</CollectionModalButton>
+					<CollectionModalButton
+						danger
+						variant="primary"
+						disabled={launchGameWithErrors}
+						loading={launchGameWithErrors}
+						onClick={launchAnyway}
+					>
+						{blocking ? 'Launch With Blocking Issues' : 'Launch With Warnings'}
+					</CollectionModalButton>
+				</>
+			}
+		>
+			{blocking ? (
+				<>
+					<p>One or more enabled mods are missing required dependencies or conflict with another selected mod.</p>
+					<p>Launching with this collection can cause missing content, startup failures, or save corruption.</p>
+					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
+					<ValidationIssueList validationIssueSummaries={validationIssueSummaries} />
+					<p>Review the list above before deciding whether to launch anyway.</p>
+				</>
+			) : (
+				<>
+					<p>Some mods could not be fully validated.</p>
+					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
+					<ValidationIssueList validationIssueSummaries={validationIssueSummaries} />
+					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
+				</>
+			)}
+		</CollectionDialog>
+	);
+}
+
+function MainTableSettingsForm({
+	mainConfigDraft,
+	setColumnActive,
+	setColumnWidth,
+	setSmallRows
+}: {
+	mainConfigDraft: MainCollectionTableSettingsFormValues;
+	setColumnActive: (id: MainColumnTitles, checked: boolean) => void;
+	setColumnWidth: (id: MainColumnTitles, value?: number) => void;
+	setSmallRows: (checked: boolean) => void;
+}) {
+	return (
+		<form className="grid w-full max-w-full gap-3">
+			<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
+				<div className="flex min-w-0 items-center">
+					<h3 className="m-0 text-[0.95rem] font-bold text-text">Table layout</h3>
+				</div>
+				<div className="inline-flex min-w-0 items-center gap-2.5">
+					<div className="min-w-0">
+						<strong>Compact rows</strong>
+					</div>
+					<CollectionSwitch
+						aria-label="Use extra-compact rows in the main collection table"
+						checked={!!mainConfigDraft.smallRows}
+						onChange={setSmallRows}
+					/>
+				</div>
+			</div>
+			<div className="grid w-full grid-cols-[repeat(2,minmax(260px,1fr))] gap-x-5 pb-0.5 max-[760px]:hidden" aria-hidden>
+				{[0, 1].map((columnGroupIndex) => (
+					<div
+						className="[&>span]:font-[650] grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 [&>span]:text-xs [&>span]:uppercase [&>span]:text-text-muted [&>span:nth-child(2)]:justify-self-start [&>span:nth-child(3)]:justify-self-start"
+						key={columnGroupIndex}
+					>
+						<span>Column</span>
+						<span>Show</span>
+						<span>Saved width</span>
+					</div>
+				))}
+			</div>
+			<div className="grid w-full grid-cols-[repeat(2,minmax(260px,1fr))] gap-x-5 gap-y-2 max-[760px]:grid-cols-1">
+				{Object.values(MainColumnTitles).map((id: MainColumnTitles) => {
+					const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
+					const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
+					const cannotDisable =
+						isChecked &&
+						((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
+							(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
+					const minimumWidth = getMainColumnMinWidth(id);
+
+					return (
+						<div
+							className="grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 py-1 max-[520px]:grid-cols-[minmax(0,1fr)_auto] max-[520px]:gap-y-1"
+							key={id}
+						>
+							<div className="flex min-w-0 flex-col gap-0.5">
+								<strong>{id}</strong>
+								{cannotDisable ? <span className="text-xs leading-[1.35]">Name or ID must stay visible.</span> : null}
+							</div>
+							<div className="flex min-h-11 w-13 items-center justify-start">
+								<CollectionSwitch
+									aria-label={`Show ${id} column`}
+									checked={isChecked}
+									disabled={cannotDisable}
+									onChange={(checked: boolean) => {
+										setColumnActive(id, checked);
+									}}
+								/>
+							</div>
+							<div className="w-full max-[520px]:col-span-2">
+								<CollectionNumberInput
+									aria-label={`Saved width for ${id} column`}
+									min={minimumWidth}
+									step={16}
+									value={mainConfigDraft.columnWidthConfig?.[id]}
+									placeholder={`Auto (${minimumWidth}px min)`}
+									onChange={(value) => {
+										setColumnWidth(id, typeof value === 'number' ? value : undefined);
+									}}
+								/>
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</form>
 	);
 }
 
@@ -269,77 +369,10 @@ function CollectionManagerModal({
 		}
 	}, [appState.config.viewConfigs.main, currentRecord, modalType, overrideForm, tableSettingsForm]);
 
-	const validationIssueSummaries = useMemo(() => {
-		if (!collectionErrors) {
-			return [];
-		}
-
-		return Object.entries(collectionErrors)
-			.map(([uid, modErrors]) => {
-				const modData = getByUID(appState.mods, uid);
-				const issues: string[] = [];
-
-				if (modErrors.invalidId) {
-					issues.push('Invalid mod ID');
-				}
-				if (modErrors.missingDependencies?.length) {
-					issues.push(
-						`Missing dependencies: ${modErrors.missingDependencies.map((descriptor) => getModDescriptorDisplayName(descriptor)).join(', ')}`
-					);
-				}
-				if (modErrors.incompatibleMods?.length) {
-					issues.push(
-						`Conflicts with: ${modErrors.incompatibleMods
-							.map((conflictingUid) => getByUID(appState.mods, conflictingUid)?.name || conflictingUid)
-							.join(', ')}`
-					);
-				}
-				if (modErrors.notSubscribed) {
-					issues.push('Not subscribed');
-				}
-				if (modErrors.notInstalled) {
-					issues.push('Not installed');
-				}
-				if (modErrors.needsUpdate) {
-					issues.push('Needs update');
-				}
-
-				return {
-					uid,
-					label: modData?.name || modData?.id || uid,
-					issues
-				};
-			})
-			.filter((summary) => summary.issues.length > 0)
-			.sort((left, right) => left.label.localeCompare(right.label));
-	}, [appState.mods, collectionErrors]);
-
-	const renderValidationIssueList = () => {
-		if (validationIssueSummaries.length === 0) {
-			return null;
-		}
-
-		return (
-			<section className="mt-5" aria-labelledby={VALIDATION_ISSUES_HEADING_ID}>
-				<h3 id={VALIDATION_ISSUES_HEADING_ID}>Mods to review</h3>
-				<div className="pr-2">
-					<ul className="m-0 grid gap-3.5 p-0">
-						{validationIssueSummaries.map((summary) => (
-							<li key={summary.uid} className="grid gap-1">
-								<strong className="block">{summary.label}</strong>
-								<span className="block">{summary.uid}</span>
-								<ul className="m-0 grid gap-1 pl-5">
-									{summary.issues.map((issue) => (
-										<li key={`${summary.uid}-${issue}`}>{issue}</li>
-									))}
-								</ul>
-							</li>
-						))}
-					</ul>
-				</div>
-			</section>
-		);
-	};
+	const validationIssueSummaries = useMemo(
+		() => getValidationIssueList(collectionErrors, appState.mods),
+		[appState.mods, collectionErrors]
+	);
 
 	const getModManagerUID = () => {
 		return `${ModType.WORKSHOP}:${appState.config.workshopID}`;
@@ -348,12 +381,15 @@ function CollectionManagerModal({
 	const setDraftColumnWidth = (columnId: MainColumnTitles, width?: number | null) => {
 		tableSettingsForm.reset(setMainTableSettingsColumnWidth(tableSettingsForm.getValues(), columnId, width), { keepDefaultValues: true });
 	};
+	const closeLaunchWarning = () => {
+		appState.updateState({ launchingGame: false });
+		closeModal();
+	};
 
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
 		setSavingConfig(true);
 		try {
-			await writeConfig(nextConfig);
-			appState.updateState({ config: nextConfig });
+			await persistConfigChange(nextConfig, (persistedConfig) => appState.updateState({ config: persistedConfig }));
 			afterSave?.();
 		} catch (error) {
 			api.logger.error(error);
@@ -424,86 +460,25 @@ function CollectionManagerModal({
 		}
 		case CollectionManagerModalType.ERRORS_FOUND:
 			return (
-				<CollectionDialog
-					key="error-modal"
-					variant="validation"
-					title="Collection has blocking issues"
-					width={760}
-					onCancel={() => {
-						appState.updateState({ launchingGame: false });
-						closeModal();
-					}}
-					footer={
-						<>
-							<CollectionModalButton
-								variant="primary"
-								disabled={launchGameWithErrors}
-								onClick={() => {
-									appState.updateState({ launchingGame: false });
-									closeModal();
-								}}
-							>
-								Review Issues
-							</CollectionModalButton>
-							<CollectionModalButton
-								danger
-								variant="primary"
-								disabled={launchGameWithErrors}
-								loading={launchGameWithErrors}
-								onClick={launchAnyway}
-							>
-								Launch With Blocking Issues
-							</CollectionModalButton>
-						</>
-					}
-				>
-					<p>One or more enabled mods are missing required dependencies or conflict with another selected mod.</p>
-					<p>Launching with this collection can cause missing content, startup failures, or save corruption.</p>
-					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
-					{renderValidationIssueList()}
-					<p>Review the list above before deciding whether to launch anyway.</p>
-				</CollectionDialog>
+				<ValidationLaunchDialog
+					blocking
+					closeModal={closeLaunchWarning}
+					launchAnyway={launchAnyway}
+					launchGameWithErrors={launchGameWithErrors}
+					onReviewIssues={closeLaunchWarning}
+					validationIssueSummaries={validationIssueSummaries}
+				/>
 			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
 			return (
-				<CollectionDialog
-					key="warning-modal"
-					variant="validation"
-					title="Collection has warnings"
-					width={760}
-					onCancel={() => {
-						appState.updateState({ launchingGame: false });
-						closeModal();
-					}}
-					footer={
-						<>
-							<CollectionModalButton
-								variant="primary"
-								disabled={launchGameWithErrors}
-								onClick={() => {
-									appState.updateState({ launchingGame: false });
-									closeModal();
-								}}
-							>
-								Review Issues
-							</CollectionModalButton>
-							<CollectionModalButton
-								danger
-								variant="primary"
-								disabled={launchGameWithErrors}
-								loading={launchGameWithErrors}
-								onClick={launchAnyway}
-							>
-								Launch With Warnings
-							</CollectionModalButton>
-						</>
-					}
-				>
-					<p>Some mods could not be fully validated.</p>
-					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
-					{renderValidationIssueList()}
-					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
-				</CollectionDialog>
+				<ValidationLaunchDialog
+					blocking={false}
+					closeModal={closeLaunchWarning}
+					launchAnyway={launchAnyway}
+					launchGameWithErrors={launchGameWithErrors}
+					onReviewIssues={closeLaunchWarning}
+					validationIssueSummaries={validationIssueSummaries}
+				/>
 			);
 		case CollectionManagerModalType.VIEW_SETTINGS: {
 			if (currentView !== CollectionViewType.MAIN) {
@@ -519,9 +494,9 @@ function CollectionManagerModal({
 				<CollectionDialog
 					key="settings-modal"
 					variant="settings"
-					wrapClassName="px-3 pb-3 pt-[68px]"
+					wrapClassName="p-6"
 					title="Collection table settings"
-					width={760}
+					width={920}
 					onCancel={closeModal}
 					footer={
 						<>
@@ -534,85 +509,19 @@ function CollectionManagerModal({
 						</>
 					}
 				>
-					<form className="grid w-fit max-w-full gap-3">
-						<div className="grid w-full grid-cols-[1fr_auto] items-center gap-4 max-[620px]:grid-cols-1 max-[620px]:items-start">
-							<div className="flex min-w-0 items-center">
-								<h3 className="m-0 text-[0.95rem] font-bold text-text">Table layout</h3>
-							</div>
-							<div className="inline-flex min-w-0 items-center gap-2.5">
-								<div className="min-w-0">
-									<strong>Compact rows</strong>
-								</div>
-								<CollectionSwitch
-									aria-label="Use extra-compact rows in the main collection table"
-									checked={!!mainConfigDraft.smallRows}
-									onChange={(checked: boolean) => {
-										tableSettingsForm.setValue('smallRows', checked, { shouldDirty: true, shouldValidate: true });
-									}}
-								/>
-							</div>
-						</div>
-						<div className="grid w-full grid-cols-[repeat(2,minmax(280px,1fr))] gap-x-5 pb-0.5 max-[760px]:hidden" aria-hidden>
-							{[0, 1].map((columnGroupIndex) => (
-								<div
-									className="[&>span]:font-[650] grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 [&>span]:text-xs [&>span]:uppercase [&>span]:text-text-muted [&>span:nth-child(2)]:justify-self-start [&>span:nth-child(3)]:justify-self-start"
-									key={columnGroupIndex}
-								>
-									<span>Column</span>
-									<span>Show</span>
-									<span>Saved width</span>
-								</div>
-							))}
-						</div>
-						<div className="grid w-full grid-cols-[repeat(2,minmax(280px,1fr))] gap-x-5 gap-y-2 max-[760px]:grid-cols-1">
-							{Object.values(MainColumnTitles).map((id: string) => {
-								const columnActiveConfig = mainConfigDraft.columnActiveConfig || {};
-								const isChecked = columnActiveConfig[id] === undefined ? true : columnActiveConfig[id];
-								const cannotDisable =
-									isChecked &&
-									((id === MainColumnTitles.ID && columnActiveConfig[MainColumnTitles.NAME] === false) ||
-										(id === MainColumnTitles.NAME && columnActiveConfig[MainColumnTitles.ID] === false));
-								const minimumWidth = getMainColumnMinWidth(id as MainColumnTitles);
-
-								return (
-									<div
-										className="grid grid-cols-[minmax(0,1fr)_auto_minmax(136px,152px)] items-center gap-2 py-1 max-[520px]:grid-cols-[minmax(0,1fr)_auto] max-[520px]:gap-y-1"
-										key={id}
-									>
-										<div className="flex min-w-0 flex-col gap-0.5">
-											<strong>{id}</strong>
-											{cannotDisable ? <span className="text-xs leading-[1.35]">Name or ID must stay visible.</span> : null}
-										</div>
-										<div className="flex min-h-11 w-[52px] items-center justify-start">
-											<CollectionSwitch
-												aria-label={`Show ${id} column`}
-												checked={isChecked}
-												disabled={cannotDisable}
-												onChange={(checked: boolean) => {
-													tableSettingsForm.setValue(`columnActiveConfig.${id}`, checked, {
-														shouldDirty: true,
-														shouldValidate: true
-													});
-												}}
-											/>
-										</div>
-										<div className="w-full max-[520px]:col-span-2">
-											<CollectionNumberInput
-												aria-label={`Saved width for ${id} column`}
-												min={minimumWidth}
-												step={16}
-												value={mainConfigDraft.columnWidthConfig?.[id]}
-												placeholder={`Auto (${minimumWidth}px min)`}
-												onChange={(value) => {
-													setDraftColumnWidth(id as MainColumnTitles, typeof value === 'number' ? value : undefined);
-												}}
-											/>
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					</form>
+					<MainTableSettingsForm
+						mainConfigDraft={mainConfigDraft}
+						setSmallRows={(checked) => {
+							tableSettingsForm.setValue('smallRows', checked, { shouldDirty: true, shouldValidate: true });
+						}}
+						setColumnActive={(id, checked) => {
+							tableSettingsForm.setValue(`columnActiveConfig.${id}`, checked, {
+								shouldDirty: true,
+								shouldValidate: true
+							});
+						}}
+						setColumnWidth={setDraftColumnWidth}
+					/>
 				</CollectionDialog>
 			);
 		}
@@ -664,14 +573,14 @@ function CollectionManagerModal({
 							Override the mod ID when you need this entry to satisfy a specific dependency target without changing the original mod
 							metadata.
 						</p>
-						<div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-4 max-[620px]:grid-cols-1">
-							<div className="h-full rounded-md border border-border bg-surface-alt px-[18px] py-4">
+						<div className="grid grid-cols-2 gap-4 max-[620px]:grid-cols-1">
+							<div className="h-full rounded-md border border-border bg-surface-alt px-4.5 py-4">
 								<label className="flex flex-col gap-2" htmlFor="collection-override-id">
 									<span className="font-[650] text-text">Override ID</span>
 									<CollectionTextInput id="collection-override-id" {...overrideForm.register('overrideId')} />
 								</label>
 							</div>
-							<div className="h-full rounded-md border border-border bg-surface-alt px-[18px] py-4">
+							<div className="h-full rounded-md border border-border bg-surface-alt px-4.5 py-4">
 								<label className="flex flex-col gap-2" htmlFor="collection-current-user-tags">
 									<span className="font-[650] text-text">Current User Tags</span>
 									<CollectionTextInput id="collection-current-user-tags" disabled value={nextRecord.overrides?.tags?.join(', ') || ''} />

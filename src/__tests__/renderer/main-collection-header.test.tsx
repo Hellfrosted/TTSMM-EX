@@ -58,6 +58,9 @@ describe('main-collection-header', () => {
 		const [sortUpdater] = onSortStateChange.mock.calls[0];
 
 		expect(screen.getByRole('columnheader', { name: /Name/ })).toHaveAttribute('aria-sort', 'ascending');
+		expect(screen.getByRole('columnheader', { name: /Name/ })).toHaveStyle({
+			width: '180px'
+		});
 		expect(sortUpdater({ columnTitle: 'Name', order: 'ascend' })).toEqual({ columnTitle: 'Name', order: 'descend' });
 	});
 

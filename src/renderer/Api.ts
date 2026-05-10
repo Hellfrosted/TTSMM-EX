@@ -4,6 +4,15 @@ import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
 import { LogLevel, PathType } from 'shared/ipc';
 import type {
+	CollectionLifecycleResult,
+	CreateCollectionLifecycleRequest,
+	DeleteCollectionLifecycleRequest,
+	DuplicateCollectionLifecycleRequest,
+	RenameCollectionLifecycleRequest,
+	SwitchCollectionLifecycleRequest
+} from 'shared/collection-lifecycle';
+import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from 'shared/startup-collection-resolution';
+import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
 	BlockLookupIndexStats,
@@ -11,16 +20,13 @@ import type {
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from 'shared/block-lookup';
+import type { CollectionContentSaveRequest, CollectionContentSaveResult } from 'shared/collection-content-save';
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import type { ElectronApi, ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
+import { createGameLaunchCommand, parseExtraLaunchParams } from './game-launch-command';
 
-const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
-
-export function parseExtraLaunchParams(extraParams: string): string[] {
-	const matches = extraParams.matchAll(EXTRA_PARAM_PATTERN);
-	return [...matches].map((match) => match[1] ?? match[2] ?? match[0]).filter((arg) => arg.length > 0);
-}
+export { parseExtraLaunchParams };
 
 type ElectronMethod<TMethod extends keyof ElectronApi> = ElectronApi[TMethod] extends (...args: infer TArgs) => infer TResult
 	? { args: TArgs; result: TResult }
@@ -104,37 +110,8 @@ class API {
 		logParams?: { [loggerID: string]: NLogLevel },
 		extraParams?: string
 	): Promise<boolean> {
-		const workshopIDText = workshopID.toString();
-		const actualMods = modList
-			.filter((modData) => modData && modData.workshopID !== BigInt(workshopIDText))
-			.map((mod: ModData) => {
-				return mod ? `[${mod.uid.toString().replaceAll(' ', ':/%20')}]` : '';
-			});
-		let args: string[] = [];
-		let passedWorkshopID: string | null = workshopIDText;
-
-		let addMods = true;
-		if (actualMods.length === 0 || (actualMods.length === 1 && actualMods[0] === '[workshop:2571814511]')) {
-			if (pureVanilla) {
-				passedWorkshopID = null;
-				addMods = false;
-			}
-		}
-		if (addMods) {
-			const modListStr: string = actualMods.join(',');
-			args.push('+ttsmm_mod_list');
-			args.push(`[${modListStr}]`);
-			if (logParams) {
-				Object.entries(logParams).forEach(([loggerID, logLevel]: [string, NLogLevel]) => {
-					args.push(loggerID && loggerID.length > 0 ? `+log_level_${loggerID}` : '+log_level');
-					args.push(logLevel);
-				});
-			}
-		}
-		if (extraParams) {
-			args = args.concat(parseExtraLaunchParams(extraParams));
-		}
-		return this.invokeElectron('launchGame', gameExec, passedWorkshopID, closeOnLaunch, args);
+		const command = createGameLaunchCommand({ extraParams, logParams, modList, pureVanilla, workshopID });
+		return this.invokeElectron('launchGame', gameExec, command.workshopID, closeOnLaunch, command.args);
 	}
 
 	gameRunning(): Promise<boolean> {
@@ -169,7 +146,7 @@ class API {
 		return this.invokeElectron('readConfig');
 	}
 
-	updateConfig(config: AppConfig): Promise<boolean> {
+	updateConfig(config: AppConfig): Promise<AppConfig | null> {
 		return this.invokeElectron('updateConfig', config);
 	}
 
@@ -181,16 +158,32 @@ class API {
 		return this.invokeElectron('readCollectionsList');
 	}
 
-	updateCollection(collection: ModCollection): Promise<boolean> {
-		return this.invokeElectron('updateCollection', collection);
+	updateCollection(request: CollectionContentSaveRequest): Promise<CollectionContentSaveResult> {
+		return this.invokeElectron('updateCollection', request);
 	}
 
-	deleteCollection(collection: string): Promise<boolean> {
-		return this.invokeElectron('deleteCollection', collection);
+	createCollectionLifecycle(request: CreateCollectionLifecycleRequest): Promise<CollectionLifecycleResult> {
+		return this.invokeElectron('createCollectionLifecycle', request);
 	}
 
-	renameCollection(collection: ModCollection, newName: string): Promise<boolean> {
-		return this.invokeElectron('renameCollection', collection, newName);
+	duplicateCollectionLifecycle(request: DuplicateCollectionLifecycleRequest): Promise<CollectionLifecycleResult> {
+		return this.invokeElectron('duplicateCollectionLifecycle', request);
+	}
+
+	renameCollectionLifecycle(request: RenameCollectionLifecycleRequest): Promise<CollectionLifecycleResult> {
+		return this.invokeElectron('renameCollectionLifecycle', request);
+	}
+
+	deleteCollectionLifecycle(request: DeleteCollectionLifecycleRequest): Promise<CollectionLifecycleResult> {
+		return this.invokeElectron('deleteCollectionLifecycle', request);
+	}
+
+	switchCollectionLifecycle(request: SwitchCollectionLifecycleRequest): Promise<CollectionLifecycleResult> {
+		return this.invokeElectron('switchCollectionLifecycle', request);
+	}
+
+	resolveStartupCollection(request: StartupCollectionResolutionRequest): Promise<StartupCollectionResolutionResult> {
+		return this.invokeElectron('resolveStartupCollection', request);
 	}
 
 	selectPath(directory: boolean, title: string): Promise<string | null> {
@@ -221,8 +214,12 @@ class API {
 		return this.invokeElectron('autoDetectBlockLookupWorkshopRoot', request);
 	}
 
-	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods> {
-		return this.invokeElectron('readModMetadata', localDir, [...allKnownMods]);
+	readModMetadata(
+		localDir: string | undefined,
+		allKnownMods: Set<string>,
+		options?: { treatNuterraSteamBetaAsEquivalent?: boolean }
+	): Promise<SessionMods> {
+		return this.invokeElectron('readModMetadata', localDir, [...allKnownMods], options);
 	}
 
 	fetchWorkshopDependencies(workshopID: bigint): Promise<boolean> {

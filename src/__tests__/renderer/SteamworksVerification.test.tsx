@@ -4,6 +4,18 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-rou
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SteamworksVerification from '../../renderer/components/loading/SteamworksVerification';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
+import type { SteamworksReadinessKind, SteamworksStatus } from '../../shared/ipc';
+
+function steamworksStatus(kind: SteamworksReadinessKind, error?: string): SteamworksStatus {
+	return {
+		inited: kind === 'ready' || kind === 'bypassed',
+		error,
+		readiness: {
+			kind,
+			retryable: kind === 'steam-not-running' || kind === 'native-module-unavailable' || kind === 'unknown-failure'
+		}
+	};
+}
 
 function AppStateSeeder({ currentPath, initializedConfigs }: { currentPath: string; initializedConfigs: boolean }) {
 	const config = useAppStateSelector((state) => state.config);
@@ -64,7 +76,7 @@ describe('SteamworksVerification', () => {
 	});
 
 	it('returns to mod collections after reloading Steamworks', async () => {
-		vi.mocked(window.electron.steamworksInited).mockResolvedValue({ inited: true });
+		vi.mocked(window.electron.steamworksInited).mockResolvedValue(steamworksStatus('ready'));
 
 		render(
 			<MemoryRouter initialEntries={['/loading/steamworks']}>
@@ -84,10 +96,10 @@ describe('SteamworksVerification', () => {
 		});
 	}, 10000);
 
-	it('shows a retry state when Steamworks verification rejects and recovers on retry', async () => {
+	it('shows a retry state when Steamworks verification fails and recovers on retry', async () => {
 		vi.mocked(window.electron.steamworksInited)
-			.mockRejectedValueOnce(new Error('steam unavailable'))
-			.mockResolvedValueOnce({ inited: true });
+			.mockResolvedValueOnce(steamworksStatus('steam-not-running', 'Error: steam unavailable'))
+			.mockResolvedValueOnce(steamworksStatus('ready'));
 
 		render(
 			<MemoryRouter initialEntries={['/loading/steamworks']}>
@@ -110,10 +122,75 @@ describe('SteamworksVerification', () => {
 		});
 	}, 10000);
 
+	it.each([
+		{
+			status: steamworksStatus('steam-not-running', 'Error: steam unavailable'),
+			expectedTitle: 'Steam is not available right now.',
+			expectedDetail: 'Start Steam, sign in, then retry the Steamworks check.'
+		},
+		{
+			status: steamworksStatus('bypassed'),
+			expectedTitle: 'Steamworks is bypassed for this development run.',
+			expectedDetail: /Workshop metadata and Steam actions are disabled/
+		},
+		{
+			status: steamworksStatus(
+				'wrong-app-id',
+				"Error: Steam initialization failed, but Steam is running, and steam_appid.txt is present and valid.Maybe that's not really YOUR app ID? 285920"
+			),
+			expectedTitle: 'Steam rejected this app ID for the signed-in account.',
+			expectedDetail: /Sign in with an account that owns TerraTech/
+		},
+		{
+			status: steamworksStatus('native-module-unavailable', 'Error: greenworks unavailable'),
+			expectedTitle: 'The Steamworks files are not ready on this machine.',
+			expectedDetail: 'Make sure Steamworks dependencies are installed for this build, then retry.'
+		},
+		{
+			status: steamworksStatus('ready'),
+			expectedTitle: 'Steamworks is ready',
+			expectedDetail: 'Continuing to mod collections.'
+		}
+	])('maps $expectedTitle readiness to a user-facing startup state', async ({ expectedDetail, expectedTitle, status }) => {
+		vi.mocked(window.electron.steamworksInited).mockResolvedValueOnce(status);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/steamworks']}>
+				<Routes>
+					<Route path="*" element={<SteamworksAppHarness currentPath="/settings" initializedConfigs />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByText(expectedTitle).length).toBeGreaterThan(0);
+			expect(screen.getAllByText(expectedDetail).length).toBeGreaterThan(0);
+		});
+	});
+
+	it('uses typed readiness instead of raw native error strings for wrong app ID failures', async () => {
+		vi.mocked(window.electron.steamworksInited).mockResolvedValue(
+			steamworksStatus('wrong-app-id', 'Error: Something new from native code')
+		);
+
+		render(
+			<MemoryRouter initialEntries={['/loading/steamworks']}>
+				<Routes>
+					<Route path="*" element={<SteamworksAppHarness currentPath="/settings" initializedConfigs />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		await waitFor(() => {
+			expect(screen.getAllByText('Steam rejected this app ID for the signed-in account.').length).toBeGreaterThan(0);
+			expect(screen.getAllByText(/Sign in with an account that owns TerraTech/).length).toBeGreaterThan(0);
+		});
+	});
+
 	it('does not schedule follow-up timers after unmount', async () => {
 		vi.useFakeTimers();
 		const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
-		let resolveVerification!: (value: { inited: boolean }) => void;
+		let resolveVerification!: (value: SteamworksStatus) => void;
 		vi.mocked(window.electron.steamworksInited).mockImplementationOnce(() => {
 			return new Promise((resolve) => {
 				resolveVerification = resolve;
@@ -130,7 +207,7 @@ describe('SteamworksVerification', () => {
 		const scheduledTimeoutsBeforeUnmount = setTimeoutSpy.mock.calls.length;
 
 		view.unmount();
-		resolveVerification({ inited: true });
+		resolveVerification(steamworksStatus('ready'));
 		await Promise.resolve();
 		await Promise.resolve();
 

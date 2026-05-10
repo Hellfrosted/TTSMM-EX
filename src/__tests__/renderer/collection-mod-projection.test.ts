@@ -3,11 +3,15 @@ import { ModType, SessionMods } from '../../model';
 import type { ModData } from '../../model';
 import {
 	filterCollectionRows,
+	filterCollectionRowsByTags,
+	getCollectionRowFilterTags,
 	getCollectionModDataList,
 	getCollectionRows,
+	getCollectionRowsWithMissingSelections,
 	getCollectionSelectionState,
 	getDisplayedCollectionRecord,
 	getVisibleCollectionRows,
+	projectCollectionRowsWithErrors,
 	setVisibleCollectionRowsSelected
 } from '../../renderer/collection-mod-projection';
 
@@ -36,7 +40,7 @@ describe('collection-mod-projection', () => {
 				name: 'Paint Pack',
 				type: ModType.WORKSHOP,
 				authors: ['Alice'],
-				tags: ['Blocks']
+				tags: ['Blocks', 'bf']
 			},
 			{
 				uid: 'local:one',
@@ -56,6 +60,63 @@ describe('collection-mod-projection', () => {
 		expect(filterCollectionRows(rows, 'bob')).toEqual([rows[1]]);
 		expect(filterCollectionRows(rows, 'customoverride')).toEqual([rows[1]]);
 		expect(filterCollectionRows(rows, 'he')).toEqual([rows[1]]);
+		expect(filterCollectionRows(rows, 'Better Future')).toEqual([rows[0]]);
+		expect(getCollectionRowFilterTags(rows[0])).toEqual(['Blocks', 'Better Future']);
+		expect(filterCollectionRowsByTags(rows, ['Better Future'])).toEqual([rows[0]]);
+	});
+
+	it('filters rows by uid and workshop id text', () => {
+		const rows: ModData[] = [
+			{
+				uid: 'workshop:2793060967',
+				id: null,
+				name: 'Workshop item 2793060967',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(2793060967)
+			},
+			{
+				uid: 'local:one',
+				id: 'LocalOne',
+				name: 'Utility Mod',
+				type: ModType.LOCAL
+			}
+		];
+
+		expect(filterCollectionRows(rows, '27')).toEqual([rows[0]]);
+		expect(filterCollectionRows(rows, 'workshop:279')).toEqual([rows[0]]);
+	});
+
+	it('adds missing selected workshop ids as searchable placeholder rows', () => {
+		const available = { uid: 'local:one', id: 'LocalOne', type: ModType.LOCAL };
+		const session = sessionWithRows([available]);
+
+		const rows = getCollectionRowsWithMissingSelections(session, {
+			name: 'default',
+			mods: ['local:one', 'workshop:2793060967']
+		});
+
+		expect(rows).toEqual([
+			available,
+			expect.objectContaining({
+				uid: 'workshop:2793060967',
+				id: null,
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(2793060967),
+				name: 'Workshop item 2793060967'
+			})
+		]);
+		expect(filterCollectionRows(rows, '27')).toEqual([rows[1]]);
+	});
+
+	it('ignores non-printable workshop tags when filtering', () => {
+		const rows: ModData[] = [
+			{ uid: 'workshop:1', id: 'BadTag', name: 'Bad Tag Mod', type: ModType.WORKSHOP, tags: ['\u0000\u0000\u0000\u0000'] },
+			{ uid: 'workshop:2', id: 'GoodTag', name: 'Good Tag Mod', type: ModType.WORKSHOP, tags: ['Blocks'] }
+		];
+
+		expect(getCollectionRowFilterTags(rows[0])).toEqual([]);
+		expect(filterCollectionRows(rows, '\u0000')).toEqual([]);
+		expect(filterCollectionRowsByTags(rows, ['Blocks'])).toEqual([rows[1]]);
 	});
 
 	it('uses the latest session record for the displayed details row and falls back to the current record', () => {
@@ -70,6 +131,26 @@ describe('collection-mod-projection', () => {
 			type: ModType.LOCAL
 		});
 		expect(getDisplayedCollectionRecord(session, undefined)).toBeUndefined();
+	});
+
+	it('projects validation errors onto rows without mutating session records', () => {
+		const rowWithStaleErrors = {
+			uid: 'workshop:1',
+			id: 'WorkshopOne',
+			type: ModType.WORKSHOP,
+			errors: { notInstalled: true }
+		};
+		const rowWithNextErrors = { uid: 'local:one', id: 'LocalOne', type: ModType.LOCAL };
+		const nextErrors = { 'local:one': { invalidId: true } };
+
+		const projectedRows = projectCollectionRowsWithErrors([rowWithStaleErrors, rowWithNextErrors], nextErrors);
+
+		expect(projectedRows).toEqual([
+			{ uid: 'workshop:1', id: 'WorkshopOne', type: ModType.WORKSHOP },
+			{ uid: 'local:one', id: 'LocalOne', type: ModType.LOCAL, errors: { invalidId: true } }
+		]);
+		expect(rowWithStaleErrors.errors).toEqual({ notInstalled: true });
+		expect(rowWithNextErrors).not.toHaveProperty('errors');
 	});
 
 	it('maps selected collection mod ids to available mod data', () => {

@@ -98,7 +98,9 @@ describe('ModLoading', () => {
 			expect(modLoadCompleteCallback).toHaveBeenCalledTimes(1);
 		});
 
-		expect(window.electron.readModMetadata).toHaveBeenCalledWith(undefined, [`workshop:${DEFAULT_CONFIG.workshopID}`]);
+		expect(window.electron.readModMetadata).toHaveBeenCalledWith(undefined, [`workshop:${DEFAULT_CONFIG.workshopID}`], {
+			treatNuterraSteamBetaAsEquivalent: true
+		});
 		expect(appState.activeCollection).toBe(activeCollection);
 		expect(appState.mods).toBe(refreshedMods);
 		expect(appState.loadingMods).toBe(false);

@@ -1,4 +1,3 @@
-import childProcess from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,13 +5,18 @@ import {
 	buildBlockLookupAliases,
 	buildBlockLookupIndex,
 	extractNuterraBlocksFromText,
+	readBlockLookupIndex,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
-import { createBlockLookupIndexer } from '../../main/block-lookup-indexer';
+import { extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
+import { createBlockLookupIndexBuild } from '../../main/block-lookup-index-build';
+import { createBlockLookupIndexModule } from '../../main/block-lookup-indexer';
 import { createBlockLookupIndexPlan } from '../../main/block-lookup-index-planner';
+import { createBlockLookupRecordsFromTextAssets } from '../../main/block-lookup-nuterra-text';
 import { searchBlockLookupRecords } from '../../main/block-lookup-search';
 import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
+import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
 
@@ -162,34 +166,82 @@ describe('block lookup index', () => {
 		expect(secondBuild.stats.scanned).toBe(0);
 	});
 
-	it('uses Python UnityPy extraction for bundle sources when available', async () => {
+	it('executes the Block Lookup Index build recipe without owning persisted storage', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-build-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const blockJsonPath = path.join(blockJsonDir, 'TestCannon.json');
+		fs.mkdirSync(blockJsonDir, { recursive: true });
+		fs.writeFileSync(
+			blockJsonPath,
+			JSON.stringify({
+				Type: 'NuterraBlock',
+				Name: 'Alpha Cannon',
+				ID: 42
+			}),
+			'utf8'
+		);
+		const emptyIndex = {
+			version: 1,
+			builtAt: '',
+			sources: [],
+			records: []
+		} as const;
+
+		const firstBuild = await createBlockLookupIndexBuild(emptyIndex, {
+			workshopRoot,
+			modSources: [
+				{
+					uid: 'workshop:12345',
+					name: 'Test Blocks',
+					path: modDir,
+					workshopID: '12345'
+				}
+			]
+		});
+		const secondBuild = await createBlockLookupIndexBuild(firstBuild.index, {
+			workshopRoot,
+			modSources: [
+				{
+					uid: 'workshop:12345',
+					name: 'Test Blocks',
+					path: modDir,
+					workshopID: '12345'
+				}
+			]
+		});
+
+		expect(firstBuild.settings).toEqual({ workshopRoot });
+		expect(firstBuild.stats).toMatchObject({
+			sources: 1,
+			scanned: 1,
+			skipped: 0,
+			removed: 0,
+			blocks: 1,
+			updatedBlocks: 1
+		});
+		expect(firstBuild.index.records[0]).toMatchObject({
+			blockName: 'Alpha Cannon',
+			sourcePath: path.normalize(blockJsonPath),
+			spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
+		});
+		expect(secondBuild.stats).toMatchObject({
+			scanned: 0,
+			skipped: 1,
+			blocks: 1,
+			updatedBlocks: 0
+		});
+		expect(secondBuild.index.records).toEqual(firstBuild.index.records);
+	});
+
+	it('uses native bundle text extraction without Python dependencies', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-bundle-');
 		const userDataPath = path.join(tempDir, 'user-data');
 		const modDir = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920', '24680');
 		const bundlePath = path.join(modDir, 'BundleBlocks_bundle');
 		fs.mkdirSync(modDir, { recursive: true });
-		fs.writeFileSync(bundlePath, 'compressed unity asset bundle', 'utf8');
-
-		vi.spyOn(childProcess, 'execFile').mockImplementation((...args: unknown[]) => {
-			const callback = args.find((arg): arg is (error: Error | null, stdout: string, stderr: string) => void => typeof arg === 'function');
-			callback?.(
-				null,
-				JSON.stringify({
-					available: true,
-					results: {
-						[bundlePath]: [
-							{
-								blockName: 'Bundle Block',
-								blockId: '77',
-								internalName: 'Bundle_Block_Internal'
-							}
-						]
-					}
-				}),
-				''
-			);
-			return { stdin: { end: vi.fn() } } as never;
-		});
+		fs.writeFileSync(bundlePath, 'UnityFS\0{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
 
 		await buildBlockLookupIndex(userDataPath, {
 			modSources: [
@@ -211,12 +263,182 @@ describe('block lookup index', () => {
 			spawnCommand: 'SpawnBlock Bundle_Block(Bundle_Blocks)'
 		});
 	});
+
+	it('keeps bundle extraction as TextAsset payloads before Nuterra parsing', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-text-assets-');
+		const bundlePath = path.join(tempDir, 'BundleBlocks_bundle');
+		fs.writeFileSync(bundlePath, 'UnityFS\0{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
+		const stats = fs.statSync(bundlePath);
+
+		const textAssetsBySource = await extractBundleTextAssets([bundlePath], {
+			allowEmbeddedFallback: true,
+			extractorPath: null
+		});
+		const textAssets = textAssetsBySource.get(bundlePath) ?? [];
+		const records = createBlockLookupRecordsFromTextAssets(
+			{
+				modTitle: 'Bundle Blocks',
+				mtimeMs: stats.mtimeMs,
+				size: stats.size,
+				sourceKind: 'bundle',
+				sourcePath: bundlePath,
+				workshopId: '24680'
+			},
+			textAssets
+		);
+
+		expect(textAssets).toEqual([
+			expect.objectContaining({
+				assetName: 'BundleBlocks_bundle',
+				text: expect.stringContaining('NuterraBlock')
+			})
+		]);
+		expect(records[0]).toMatchObject({
+			blockName: 'Bundle Block',
+			internalName: 'Bundle_Block_Internal',
+			spawnCommand: 'SpawnBlock Bundle_Block(Bundle_Blocks)'
+		});
+	});
+
+	it('requires the sidecar when embedded bundle fallback is disabled', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-required-sidecar-');
+		const bundlePath = path.join(tempDir, 'BundleBlocks_bundle');
+		fs.writeFileSync(bundlePath, '{"Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
+
+		await expect(
+			extractBundleTextAssets([bundlePath], {
+				allowEmbeddedFallback: false,
+				extractorPath: null
+			})
+		).rejects.toThrow('Block Lookup native extractor is unavailable');
+	});
 });
 
 describe('block lookup indexer facade', () => {
+	it('owns build, persisted JSON shape, stats, and search behind one main-process interface', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-module-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const blockJsonPath = path.join(blockJsonDir, 'TestCannon.json');
+		fs.mkdirSync(blockJsonDir, { recursive: true });
+		fs.writeFileSync(
+			blockJsonPath,
+			JSON.stringify({
+				Type: 'NuterraBlock',
+				Name: 'Alpha Cannon',
+				ID: 42
+			}),
+			'utf8'
+		);
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+		const buildResult = await indexModule.buildIndex({
+			workshopRoot,
+			modSources: [
+				{
+					uid: 'workshop:12345',
+					name: 'Test Blocks',
+					path: modDir,
+					workshopID: '12345'
+				}
+			]
+		});
+
+		expect(buildResult.settings).toEqual({ workshopRoot });
+		expect(buildResult.stats).toEqual({
+			sources: 1,
+			scanned: 1,
+			skipped: 0,
+			removed: 0,
+			blocks: 1,
+			updatedBlocks: 1,
+			builtAt: expect.any(String)
+		});
+		expect(indexModule.readSettings()).toEqual({ workshopRoot });
+		expect(indexModule.getStats()).toEqual({
+			sources: 1,
+			scanned: 0,
+			skipped: 0,
+			removed: 0,
+			blocks: 1,
+			updatedBlocks: 0,
+			builtAt: buildResult.stats.builtAt
+		});
+		expect(indexModule.search({ query: 'alpha cannon', limit: 5 })).toMatchObject({
+			rows: [
+				{
+					blockName: 'Alpha Cannon',
+					internalName: 'TestCannon',
+					modTitle: 'Test Blocks',
+					sourceKind: 'json',
+					sourcePath: path.normalize(blockJsonPath),
+					spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
+				}
+			],
+			stats: {
+				blocks: 1,
+				builtAt: buildResult.stats.builtAt
+			}
+		});
+
+		const persistedIndex = JSON.parse(fs.readFileSync(path.join(userDataPath, 'block-lookup-index.json'), 'utf8'));
+		expect(persistedIndex).toEqual({
+			version: 1,
+			builtAt: buildResult.stats.builtAt,
+			sources: [
+				{
+					sourcePath: path.normalize(blockJsonPath),
+					workshopId: '12345',
+					modTitle: 'Test Blocks',
+					sourceKind: 'json',
+					size: expect.any(Number),
+					mtimeMs: expect.any(Number)
+				}
+			],
+			records: [
+				{
+					blockName: 'Alpha Cannon',
+					internalName: 'TestCannon',
+					blockId: '42',
+					modTitle: 'Test Blocks',
+					workshopId: '12345',
+					sourceKind: 'json',
+					sourcePath: path.normalize(blockJsonPath),
+					preferredAlias: 'Alpha_Cannon(Test_Blocks)',
+					fallbackAlias: 'Alpha_Cannon(Test_Blocks)',
+					spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)',
+					fallbackSpawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
+				}
+			]
+		});
+	});
+
+	it('auto-detects workshop roots through the main-process interface', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-autodetect-');
+		const userDataPath = path.join(tempDir, 'user-data');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '12345');
+		fs.mkdirSync(modDir, { recursive: true });
+
+		const indexModule = createBlockLookupIndexModule(userDataPath);
+
+		expect(
+			indexModule.autoDetectWorkshopRoot({
+				modSources: [
+					{
+						uid: 'workshop:12345',
+						path: modDir
+					}
+				]
+			})
+		).toBe(path.normalize(workshopRoot));
+	});
+
 	it('delegates settings, stats, and search to one user data boundary', () => {
 		const userDataPath = createTempDir('ttsmm-block-lookup-indexer-');
-		const indexer = createBlockLookupIndexer(userDataPath);
+		const indexer = createBlockLookupIndexModule(userDataPath);
 		const workshopRoot = path.normalize('C:/Steam/workshop/content/285920');
 
 		expect(indexer.readSettings()).toEqual({ workshopRoot: '' });
@@ -229,6 +451,78 @@ describe('block lookup indexer facade', () => {
 			rows: [],
 			stats: null
 		});
+	});
+
+	it('reuses a warm parsed search index across repeated queries and refreshes after rebuilds', async () => {
+		const userDataPath = createTempDir('ttsmm-block-lookup-warm-indexer-');
+		const indexPath = path.join(userDataPath, 'block-lookup-index.json');
+		fs.mkdirSync(userDataPath, { recursive: true });
+		fs.writeFileSync(
+			indexPath,
+			JSON.stringify(
+				{
+					version: 1,
+					builtAt: '2026-04-26T00:00:00.000Z',
+					sources: [],
+					records: [
+						{
+							blockId: '42',
+							blockName: 'Alpha Cannon',
+							fallbackAlias: 'Alpha_Cannon(Test_Blocks)',
+							fallbackSpawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)',
+							internalName: 'TestCannon',
+							modTitle: 'Test Blocks',
+							preferredAlias: 'Alpha_Cannon(Test_Blocks)',
+							sourceKind: 'json',
+							sourcePath: path.normalize('/mods/TestCannon.json'),
+							spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)',
+							workshopId: '12345'
+						}
+					]
+				},
+				null,
+				2
+			),
+			'utf8'
+		);
+		let readCount = 0;
+		const indexer = createBlockLookupIndexModule(userDataPath, {
+			readBlockLookupIndex: (pathToRead) => {
+				readCount += 1;
+				return JSON.parse(fs.readFileSync(path.join(pathToRead, 'block-lookup-index.json'), 'utf8'));
+			},
+			buildBlockLookupIndex: async () => {
+				fs.writeFileSync(
+					indexPath,
+					JSON.stringify({ version: 1, builtAt: '2026-04-26T01:00:00.000Z', sources: [], records: [] }, null, 2),
+					'utf8'
+				);
+				return {
+					settings: { workshopRoot: '' },
+					stats: {
+						sources: 0,
+						scanned: 0,
+						skipped: 0,
+						removed: 0,
+						blocks: 0,
+						updatedBlocks: 0,
+						builtAt: '2026-04-26T01:00:00.000Z'
+					}
+				};
+			}
+		});
+
+		expect(indexer.search({ query: 'alpha', limit: 10 }).rows).toHaveLength(1);
+		expect(indexer.search({ query: 'cannon', limit: 10 }).rows).toHaveLength(1);
+		expect(readCount).toBe(1);
+
+		await indexer.buildIndex({ workshopRoot: path.join(userDataPath, 'missing-workshop-root'), modSources: [], forceRebuild: true });
+
+		expect(indexer.search({ query: 'alpha', limit: 10 })).toMatchObject({
+			rows: [],
+			stats: expect.objectContaining({ blocks: 0 })
+		});
+		expect(readCount).toBe(2);
 	});
 });
 
@@ -313,7 +607,136 @@ describe('block lookup search adapter', () => {
 			'Cab'
 		);
 
-		expect(result.rows.map((record) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
+		expect(result.rows.map((record: BlockLookupRecord) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
+	});
+
+	it('keeps limit handling, empty index behavior, and stats behavior stable', () => {
+		const createRecord = (blockName: string) => ({
+			blockId: blockName,
+			blockName,
+			fallbackAlias: `${blockName}(Core)`,
+			fallbackSpawnCommand: `SpawnBlock ${blockName}(Core)`,
+			internalName: blockName,
+			modTitle: 'Core',
+			preferredAlias: `${blockName}(Core)`,
+			sourceKind: 'json' as const,
+			sourcePath: path.normalize(`/mods/${blockName}.json`),
+			spawnCommand: `SpawnBlock ${blockName}(Core)`,
+			workshopId: 'core'
+		});
+
+		expect(searchBlockLookupRecords({ version: 1, builtAt: '', sources: [], records: [] }, '', 10)).toEqual({
+			rows: [],
+			stats: null
+		});
+
+		const result = searchBlockLookupRecords(
+			{
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [],
+				records: [createRecord('Alpha'), createRecord('Beta'), createRecord('Gamma')]
+			},
+			'',
+			2
+		);
+
+		expect(result.rows.map((record: BlockLookupRecord) => record.blockName)).toEqual(['Alpha', 'Beta']);
+		expect(result.stats).toMatchObject({
+			blocks: 3,
+			sources: 0,
+			builtAt: '2026-04-26T00:00:00.000Z'
+		});
+	});
+
+	it('normalizes malformed persisted index records before warming search', () => {
+		const userDataPath = createTempDir('ttsmm-block-lookup-malformed-index-');
+		fs.mkdirSync(userDataPath, { recursive: true });
+		fs.writeFileSync(
+			path.join(userDataPath, 'block-lookup-index.json'),
+			JSON.stringify({
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [
+					{
+						sourcePath: path.normalize('/mods/valid.json'),
+						workshopId: 'core',
+						modTitle: 'Core',
+						sourceKind: 'json',
+						size: 10,
+						mtimeMs: 20
+					},
+					{
+						sourcePath: path.normalize('/mods/bad.json'),
+						workshopId: 'core',
+						modTitle: 'Core',
+						sourceKind: 'invalid',
+						size: 10,
+						mtimeMs: 20
+					}
+				],
+				records: [
+					{
+						blockId: '1',
+						blockName: 'Cab',
+						fallbackAlias: 'Cab(Core)',
+						fallbackSpawnCommand: 'SpawnBlock Cab(Core)',
+						internalName: 'Cab',
+						modTitle: 'Core',
+						preferredAlias: 'Cab(Core)',
+						sourceKind: 'json',
+						sourcePath: path.normalize('/mods/valid.json'),
+						spawnCommand: 'SpawnBlock Cab(Core)',
+						workshopId: 'core'
+					},
+					{
+						blockId: 2,
+						blockName: 'Bad Cab',
+						internalName: 'BadCab',
+						modTitle: 'Core',
+						sourceKind: 'json'
+					}
+				]
+			}),
+			'utf8'
+		);
+
+		const index = readBlockLookupIndex(userDataPath);
+		expect(index.sources).toHaveLength(1);
+		expect(index.records).toHaveLength(1);
+		expect(searchBlockLookupIndex(userDataPath, 'cab')).toEqual({
+			rows: [expect.objectContaining({ blockName: 'Cab' })],
+			stats: expect.objectContaining({
+				blocks: 1,
+				sources: 1
+			})
+		});
+	});
+
+	it('treats invalid persisted index versions and container shapes as empty indexes', () => {
+		const userDataPath = createTempDir('ttsmm-block-lookup-invalid-index-');
+		fs.mkdirSync(userDataPath, { recursive: true });
+		fs.writeFileSync(
+			path.join(userDataPath, 'block-lookup-index.json'),
+			JSON.stringify({
+				version: 999,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: {},
+				records: {}
+			}),
+			'utf8'
+		);
+
+		expect(readBlockLookupIndex(userDataPath)).toEqual({
+			version: 1,
+			builtAt: '',
+			sources: [],
+			records: []
+		});
+		expect(searchBlockLookupIndex(userDataPath, 'cab')).toEqual({
+			rows: [],
+			stats: null
+		});
 	});
 });
 

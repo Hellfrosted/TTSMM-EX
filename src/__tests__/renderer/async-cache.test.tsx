@@ -3,17 +3,29 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import type { ElectronApi } from '../../shared/electron-api';
 import {
+	applyCollectionLifecycleResultToCache,
+	blockLookupBootstrapQueryOptions,
+	blockLookupSearchQueryOptions,
 	collectionQueryOptions,
 	collectionsListQueryOptions,
 	configQueryOptions,
+	fetchBlockLookupBootstrap,
+	fetchBlockLookupSearch,
 	queryKeys,
-	useDeleteCollectionMutation,
-	useRenameCollectionMutation,
+	useBuildBlockLookupIndexMutation,
 	useUpdateCollectionMutation,
 	useWriteConfigMutation
 } from '../../renderer/async-cache';
+import { persistConfigChange, writeConfig } from '../../renderer/util/config-write';
 import { createQueryWrapper, createTestQueryClient } from './test-utils';
+
+declare global {
+	interface Window {
+		electron: ElectronApi;
+	}
+}
 
 function spyOnCollectionRefetch(queryClient: QueryClient) {
 	return {
@@ -55,7 +67,29 @@ describe('renderer async cache', () => {
 		expect(queryClient.getQueryData(queryKeys.config.current())).toEqual(nextConfig);
 	});
 
-	it('updates collection detail and list cache entries after collection writes', async () => {
+	it('writes config through the shared config persistence seam', async () => {
+		const queryClient = createTestQueryClient();
+		const nextConfig: AppConfig = {
+			...DEFAULT_CONFIG,
+			currentPath: '/block-lookup',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		};
+		const commit = vi.fn();
+
+		await writeConfig(nextConfig, queryClient);
+		expect(window.electron.updateConfig).toHaveBeenCalledWith(nextConfig);
+		expect(queryClient.getQueryData(queryKeys.config.current())).toEqual(nextConfig);
+
+		await expect(persistConfigChange(undefined, commit)).resolves.toBe(true);
+		expect(commit).not.toHaveBeenCalled();
+
+		await persistConfigChange(nextConfig, commit);
+		expect(commit).toHaveBeenCalledWith(nextConfig);
+	});
+
+	it('updates collection detail cache entries after collection content writes', async () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
 		const collection = { name: 'fresh', mods: ['local:mod-a'] };
@@ -66,10 +100,39 @@ describe('renderer async cache', () => {
 			await result.current.mutateAsync(collection);
 		});
 
-		expect(window.electron.updateCollection).toHaveBeenCalledWith(collection);
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'fresh', mods: ['local:mod-a'] });
 		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toBe(collection);
-		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default', 'fresh']);
+		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default']);
 		expectNoCollectionRefetch(refetchSpies);
+	});
+
+	it('applies successful Collection Lifecycle Command results to renderer cache projections', () => {
+		const queryClient = createTestQueryClient();
+		const defaultCollection = { name: 'default', mods: ['local:old'] };
+		const renamedCollection = { name: 'renamed', mods: ['local:new'] };
+		const nextConfig: AppConfig = {
+			...DEFAULT_CONFIG,
+			activeCollection: 'renamed',
+			viewConfigs: {},
+			ignoredValidationErrors: new Map(),
+			userOverrides: new Map()
+		};
+		queryClient.setQueryData(queryKeys.config.current(), DEFAULT_CONFIG);
+		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
+		queryClient.setQueryData(queryKeys.collections.detail('default'), defaultCollection);
+
+		applyCollectionLifecycleResultToCache(queryClient, {
+			ok: true,
+			activeCollection: renamedCollection,
+			collections: [renamedCollection],
+			collectionNames: ['renamed'],
+			config: nextConfig
+		});
+
+		expect(queryClient.getQueryData(queryKeys.config.current())).toEqual(nextConfig);
+		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['renamed']);
+		expect(queryClient.getQueryData(queryKeys.collections.detail('renamed'))).toBe(renamedCollection);
+		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
 	});
 
 	it('does not refetch observed collection queries after exact collection writes', async () => {
@@ -99,47 +162,11 @@ describe('renderer async cache', () => {
 			await result.current.mutateAsync(nextCollection);
 		});
 
-		expect(window.electron.updateCollection).toHaveBeenCalledWith(nextCollection);
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'fresh', mods: ['local:new'] });
 		expect(window.electron.readCollectionsList).not.toHaveBeenCalled();
 		expect(window.electron.readCollection).not.toHaveBeenCalled();
 		expect(queryClient.getQueryData(queryKeys.collections.detail('fresh'))).toEqual(nextCollection);
 		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['fresh']);
-	});
-
-	it('removes collection detail and list cache entries after collection deletes', async () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(queryKeys.collections.list(), ['default', 'archived']);
-		queryClient.setQueryData(queryKeys.collections.detail('archived'), { name: 'archived', mods: [] });
-		const refetchSpies = spyOnCollectionRefetch(queryClient);
-
-		const { result } = renderHook(() => useDeleteCollectionMutation(), { wrapper: createQueryWrapper(queryClient) });
-		await act(async () => {
-			await result.current.mutateAsync('archived');
-		});
-
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
-		expect(queryClient.getQueryData(queryKeys.collections.detail('archived'))).toBeUndefined();
-		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['default']);
-		expectNoCollectionRefetch(refetchSpies);
-	});
-
-	it('moves collection detail and list cache entries after collection renames', async () => {
-		const queryClient = createTestQueryClient();
-		const collection = { name: 'default', mods: ['local:mod-a'] };
-		queryClient.setQueryData(queryKeys.collections.list(), ['default']);
-		queryClient.setQueryData(queryKeys.collections.detail('default'), collection);
-		const refetchSpies = spyOnCollectionRefetch(queryClient);
-
-		const { result } = renderHook(() => useRenameCollectionMutation(), { wrapper: createQueryWrapper(queryClient) });
-		await act(async () => {
-			await result.current.mutateAsync({ collection, newName: 'renamed' });
-		});
-
-		expect(window.electron.renameCollection).toHaveBeenCalledWith(collection, 'renamed');
-		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBeUndefined();
-		expect(queryClient.getQueryData(queryKeys.collections.detail('renamed'))).toEqual({ name: 'renamed', mods: ['local:mod-a'] });
-		expect(queryClient.getQueryData(queryKeys.collections.list())).toEqual(['renamed']);
-		expectNoCollectionRefetch(refetchSpies);
 	});
 
 	it('loads individual collections through query options', async () => {
@@ -151,5 +178,40 @@ describe('renderer async cache', () => {
 
 		expect(window.electron.readCollection).toHaveBeenCalledWith('default');
 		expect(queryClient.getQueryData(queryKeys.collections.detail('default'))).toBe(collection);
+	});
+
+	it('loads Block Lookup bootstrap and search through named cache helpers', async () => {
+		const queryClient = createTestQueryClient();
+		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' };
+		const stats = { sources: 1, scanned: 1, skipped: 0, removed: 0, blocks: 2, updatedBlocks: 1, builtAt: new Date(0).toISOString() };
+		const searchResult = { rows: [], stats };
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValueOnce(settings);
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValueOnce(stats);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValueOnce(searchResult);
+
+		await expect(fetchBlockLookupBootstrap(queryClient)).resolves.toEqual([settings, stats]);
+		await expect(fetchBlockLookupSearch(queryClient, { query: 'cab', limit: 50 })).resolves.toBe(searchResult);
+
+		expect(queryClient.getQueryData(blockLookupBootstrapQueryOptions().queryKey)).toEqual([settings, stats]);
+		expect(queryClient.getQueryData(blockLookupSearchQueryOptions({ query: 'cab', limit: 50 }).queryKey)).toBe(searchResult);
+		expect(window.electron.searchBlockLookup).toHaveBeenCalledWith({ query: 'cab', limit: 50 });
+	});
+
+	it('updates Block Lookup bootstrap cache and invalidates searches after index builds', async () => {
+		const queryClient = createTestQueryClient();
+		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' };
+		const stats = { sources: 1, scanned: 1, skipped: 0, removed: 0, blocks: 2, updatedBlocks: 1, builtAt: new Date(0).toISOString() };
+		const resultPayload = { settings, stats };
+		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValueOnce(resultPayload);
+
+		const { result } = renderHook(() => useBuildBlockLookupIndexMutation(), { wrapper: createQueryWrapper(queryClient) });
+		await act(async () => {
+			await result.current.mutateAsync({ workshopRoot: settings.workshopRoot, forceRebuild: true });
+		});
+
+		expect(window.electron.buildBlockLookupIndex).toHaveBeenCalledWith({ workshopRoot: settings.workshopRoot, forceRebuild: true });
+		expect(queryClient.getQueryData(blockLookupBootstrapQueryOptions().queryKey)).toEqual([settings, stats]);
+		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.blockLookup.searchRoot() });
 	});
 });

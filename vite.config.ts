@@ -73,7 +73,7 @@ function rendererContentSecurityPolicyPlugin(isDevelopment: boolean): PluginOpti
 	return {
 		name: 'ttsmm-renderer-csp',
 		transformIndexHtml(html) {
-			return applyRendererContentSecurityPolicy(html, { isDevelopment });
+			return applyRendererContentSecurityPolicy(html, { isDevelopment }).replaceAll(' crossorigin', '');
 		}
 	};
 }
@@ -137,6 +137,7 @@ export function createRendererConfig(isDevelopment: boolean): InlineConfig {
 	return {
 		configFile: false,
 		root: resolvePath('src/renderer'),
+		base: './',
 		resolve: {
 			alias
 		},
@@ -150,7 +151,15 @@ export function createRendererConfig(isDevelopment: boolean): InlineConfig {
 			emptyOutDir: true,
 			// Electron loads the generated HTML directly from disk in production; keep asset loading explicit.
 			modulePreload: false,
+			// Keep image/font handling as emitted files so the renderer build does not spend time encoding
+			// small assets into JS chunks during production builds.
+			assetsInlineLimit: 0,
 			rollupOptions: {
+				// Tailwind v4 runs through Vite's CSS post-processing plugin; Rolldown can flag that
+				// as significant accumulated plugin time even when renderer wall-clock builds are fast.
+				checks: {
+					pluginTimings: false
+				},
 				input: resolvePath('src/renderer/index.html'),
 				output: {
 					manualChunks: getRendererManualChunk

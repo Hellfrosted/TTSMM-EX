@@ -12,6 +12,7 @@
 		"src/renderer/**/*.ts",
 		"src/renderer/**/*.tsx",
 		"src/renderer/types/**/*.d.ts",
+		"src/__tests__/types/**/*.d.ts",
 		"src/model/**/*.ts",
 		"src/shared/**/*.ts",
 		"src/util/**/*.ts",

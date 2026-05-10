@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppStateSelector } from 'renderer/state/app-state';
+import type { SteamworksReadinessKind, SteamworksStatus } from 'shared/ipc';
 import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,
@@ -21,37 +22,77 @@ import {
 	StartupTitle
 } from './StartupPrimitives';
 
-interface VerificationMessage {
-	inited: boolean;
-	error?: string;
+function describeSteamworksReadiness(kind: SteamworksReadinessKind) {
+	switch (kind) {
+		case 'bypassed':
+			return {
+				title: 'Steamworks is bypassed for this development run.',
+				detail: 'Workshop metadata and Steam actions are disabled until the app is launched without TTSMM_BYPASS_STEAMWORKS.'
+			};
+		case 'steam-not-running':
+			return {
+				title: 'Steam is not available right now.',
+				detail: 'Start Steam, sign in, then retry the Steamworks check.'
+			};
+		case 'wrong-app-id':
+			return {
+				title: 'Steam rejected this app ID for the signed-in account.',
+				detail:
+					'Sign in with an account that owns TerraTech, or launch with TTSMM_BYPASS_STEAMWORKS=1 for local UI work without Workshop access.'
+			};
+		case 'native-module-unavailable':
+			return {
+				title: 'The Steamworks files are not ready on this machine.',
+				detail: 'Make sure Steamworks dependencies are installed for this build, then retry.'
+			};
+		case 'ready':
+			return {
+				title: 'Steamworks is ready',
+				detail: 'Continuing to mod collections.'
+			};
+		case 'unknown-failure':
+			return {
+				title: 'Steamworks could not be initialized.',
+				detail: 'Start Steam, confirm this build has its Steamworks files available, then retry.'
+			};
+	}
 }
 
-function describeSteamworksError(error: string | undefined) {
-	const normalizedError = (error || '').toLowerCase();
+interface SteamworksVerificationState {
+	error?: string;
+	status?: SteamworksStatus;
+	verifying: boolean;
+}
 
-	if (normalizedError.includes('steam unavailable') || normalizedError.includes('steam is not running')) {
-		return {
-			title: 'Steam is not available right now.',
-			detail: 'Start Steam, sign in, then retry the Steamworks check.'
-		};
+type SteamworksVerificationAction =
+	| { type: 'started' }
+	| { type: 'resolved'; status: SteamworksStatus }
+	| { type: 'failed'; message: string };
+
+function reduceSteamworksVerificationState(
+	state: SteamworksVerificationState,
+	action: SteamworksVerificationAction
+): SteamworksVerificationState {
+	switch (action.type) {
+		case 'started':
+			return {
+				...state,
+				error: undefined,
+				verifying: true
+			};
+		case 'resolved':
+			return {
+				error: action.status.inited ? undefined : action.status.error,
+				status: action.status,
+				verifying: false
+			};
+		case 'failed':
+			return {
+				...state,
+				error: action.message,
+				verifying: false
+			};
 	}
-
-	if (
-		normalizedError.includes('dll') ||
-		normalizedError.includes('module') ||
-		normalizedError.includes('greenworks') ||
-		normalizedError.includes('steamworks')
-	) {
-		return {
-			title: 'The Steamworks files are not ready on this machine.',
-			detail: 'Make sure Steamworks dependencies are installed for this build, then retry.'
-		};
-	}
-
-	return {
-		title: 'Steamworks could not be initialized.',
-		detail: 'Start Steam, confirm this build has its Steamworks files available, then retry.'
-	};
 }
 
 export default function SteamworksVerification() {
@@ -59,8 +100,12 @@ export default function SteamworksVerification() {
 	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
 	const navigate = useAppStateSelector((state) => state.navigate);
 	const updateState = useAppStateSelector((state) => state.updateState);
-	const [verifying, setVerifying] = useState(true);
-	const [error, setError] = useState<string>();
+	const [state, dispatchVerification] = useReducer(reduceSteamworksVerificationState, {
+		error: undefined,
+		status: undefined,
+		verifying: true
+	});
+	const { error, status, verifying } = state;
 	const appStateRef = useRef({ config, initializedConfigs, navigate, updateState });
 	const mountedRef = useRef(true);
 	const timeoutIdsRef = useRef<number[]>([]);
@@ -105,14 +150,9 @@ export default function SteamworksVerification() {
 	}, []);
 
 	const processVerificationMessage = useCallback(
-		(message: VerificationMessage) => {
+		(message: SteamworksStatus) => {
 			scheduleTimeout(() => {
-				if (message.inited) {
-					setError(undefined);
-				} else {
-					setError(message.error);
-				}
-				setVerifying(false);
+				dispatchVerification({ type: 'resolved', status: message });
 				if (message.inited) {
 					scheduleTimeout(() => {
 						goToConfig();
@@ -129,8 +169,7 @@ export default function SteamworksVerification() {
 		(cause: unknown) => {
 			const message = cause instanceof Error ? cause.message : String(cause);
 			scheduleTimeout(() => {
-				setError(message);
-				setVerifying(false);
+				dispatchVerification({ type: 'failed', message });
 			}, 100);
 		},
 		[scheduleTimeout]
@@ -155,8 +194,7 @@ export default function SteamworksVerification() {
 	}, [processVerificationFailure, processVerificationMessage]);
 
 	function verify() {
-		setError(undefined);
-		setVerifying(true);
+		dispatchVerification({ type: 'started' });
 		void api
 			.steamworksInited()
 			.then(processVerificationMessage)
@@ -166,17 +204,17 @@ export default function SteamworksVerification() {
 			});
 	}
 
-	const describedError = error ? describeSteamworksError(error) : undefined;
+	const describedReadiness = status ? describeSteamworksReadiness(status.readiness.kind) : undefined;
 	const statusLabel = verifying
 		? 'Checking Steamworks integration'
 		: error
-			? describedError?.title || 'Steamworks initialization failed'
-			: 'Steamworks is ready';
+			? describedReadiness?.title || 'Steamworks initialization failed'
+			: describedReadiness?.title || 'Steamworks is ready';
 	const statusDetail = verifying
 		? 'Confirming the manager can talk to Steam before restoring your saved workspace.'
 		: error
-			? describedError?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
-			: 'Continuing to mod collections.';
+			? describedReadiness?.detail || 'Retry after Steam is running and the Steamworks dependencies are available on this machine.'
+			: describedReadiness?.detail || 'Continuing to mod collections.';
 	const statusIcon = verifying ? 'loading' : error ? 'error' : 'success';
 
 	return (
@@ -205,8 +243,8 @@ export default function SteamworksVerification() {
 				</StartupStatusCard>
 				{error ? (
 					<StartupActions key="error">
-						<StatusCallout tone="error" heading={describedError?.title || 'Resolve this before retrying'}>
-							{describedError?.detail || error}
+						<StatusCallout tone="error" heading={describedReadiness?.title || 'Resolve this before retrying'}>
+							{describedReadiness?.detail || error}
 						</StatusCallout>
 					</StartupActions>
 				) : null}

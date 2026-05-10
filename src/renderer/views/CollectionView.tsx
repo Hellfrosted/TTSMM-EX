@@ -8,34 +8,30 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useReducer,
 	useRef,
 	useState,
-	type CSSProperties
+	type CSSProperties,
+	type KeyboardEvent as ReactKeyboardEvent,
+	type MouseEvent as ReactMouseEvent
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
 import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection } from 'model';
-import api from 'renderer/Api';
-import {
-	desktopButtonBaseClassName,
-	desktopControlFocusClassName,
-	desktopDangerButtonToneClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledClassName,
-	desktopPrimaryButtonToneClassName
-} from 'renderer/components/desktop-control-classes';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { logProfilerRender, measurePerf } from '../perf';
-import { getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
-import type { CollectionWorkspaceAppState } from '../state/app-state';
+import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
 import {
-	moveMainCollectionColumn,
-	persistViewConfig,
-	setMainCollectionColumnVisibility,
-	setMainCollectionColumnWidth
-} from '../view-config-persistence';
+	filterCollectionRowsByTags,
+	getCollectionRowFilterTags,
+	getCollectionRowsWithMissingSelections,
+	getDisplayedCollectionRecord,
+	projectCollectionRowsWithErrors
+} from '../collection-mod-projection';
+import { getCollectionLaunchCommandState } from '../collection-workspace-session';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { useViewConfigCommands } from '../view-config-command';
+import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../view-config-persistence';
 import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
@@ -62,6 +58,14 @@ const ModLoadingViewLazy = lazy(async () => {
 	const module = await loadModLoadingView();
 	return { default: module.default };
 });
+
+const modDetailsLoadingFallback = (
+	<ViewStageLoadingFallback
+		title="Loading mod details"
+		detail="Preparing metadata, dependencies, and override controls for this mod."
+		compact
+	/>
+);
 
 interface MeasuredAreaProps {
 	children: (size: { width: number; height: number }) => ReactNode;
@@ -113,7 +117,7 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 		return () => {
 			observer.disconnect();
 		};
-	}, [onSizeChange]);
+	}, []);
 
 	return (
 		<div ref={containerRef} className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
@@ -122,40 +126,50 @@ function MeasuredArea({ children, onSizeChange }: MeasuredAreaProps) {
 	);
 }
 
-function collectionSplitSizeStyle(size: number): CSSProperties {
+function collectionOverlaySizeStyle(size: number): CSSProperties {
 	return {
-		'--collection-split-size': `${size}px`
+		'--collection-details-overlay-size': `${size}px`
 	} as CSSProperties;
 }
 
-const collectionFooterButtonClassName = [
-	desktopButtonBaseClassName,
-	desktopDefaultButtonToneClassName,
-	desktopDisabledClassName,
-	'px-4',
-	desktopControlFocusClassName
-].join(' ');
-const collectionFooterPrimaryButtonClassName = [collectionFooterButtonClassName, desktopPrimaryButtonToneClassName].join(' ');
-const collectionFooterDangerButtonClassName = [collectionFooterButtonClassName, desktopDangerButtonToneClassName].join(' ');
 const collectionContentStageBaseClassName =
-	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
-const collectionContentStageActiveClassName = 'opacity-100 visible pointer-events-auto [content-visibility:visible]';
-const collectionSplitLayoutBaseClassName = 'flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden';
-const collectionSplitPaneBaseClassName = 'min-h-0 min-w-0 overflow-hidden';
+	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden contain-[layout_paint_style] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
+const collectionContentStageActiveClassName = 'opacity-100 visible';
+const collectionContentStageInactiveClassName = 'opacity-0 invisible';
+const collectionOverlayLayoutBaseClassName = 'relative flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden';
+const collectionOverlayPaneBaseClassName =
+	'CollectionDetailsOverlayPane absolute z-20 flex min-h-0 min-w-0 overflow-hidden bg-surface shadow-[0_18px_44px_color-mix(in_srgb,var(--app-color-background)_68%,transparent)]';
+const collectionOverlayPaneActiveClassName = 'opacity-100 translate-x-0 translate-y-0';
+const collectionOverlayPaneSideClassName =
+	'bottom-0 right-0 top-0 w-(--collection-details-overlay-size) animate-[detailsOverlaySideIn_120ms_ease-out] border-l border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
+const collectionOverlayPaneBottomClassName =
+	'bottom-0 left-0 right-0 h-(--collection-details-overlay-size) animate-[detailsOverlayBottomIn_120ms_ease-out] border-t border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
 
 type HalfDetailsLayout = 'bottom' | 'side';
 const MIN_SIDE_BY_SIDE_WIDTH = 1120;
 const MIN_COLLECTION_TABLE_WIDTH = 640;
 const MIN_COLLECTION_TABLE_HEIGHT = 320;
+const DETAIL_OVERLAY_KEYBOARD_STEP = 10;
+const DETAIL_OVERLAY_KEYBOARD_LARGE_STEP = 40;
+const DETAIL_OVERLAY_KEYBOARD_PERSIST_DELAY_MS = 180;
+
+function clampDetailsOverlaySize(size: number, minSize: number, maxSize: number) {
+	return Math.min(Math.max(minSize, maxSize), Math.max(minSize, Math.round(size)));
+}
+
+function preferredHalfDetailsLayoutReducer(_currentLayout: HalfDetailsLayout | undefined, nextLayout: HalfDetailsLayout) {
+	return nextLayout;
+}
 
 interface CollectionViewRouteProps {
 	appState: CollectionWorkspaceAppState;
 }
 
-function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
+function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const { openNotification } = useNotifications();
 	const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
-	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useState<HalfDetailsLayout>();
+	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useReducer(preferredHalfDetailsLayoutReducer, undefined);
+	const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
 	const guidedFixActive = false;
 	const { activeCollection, config, loadingMods, mods, updateState } = appState;
 
@@ -163,18 +177,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		bigDetails,
 		closeCurrentRecord,
 		closeModal,
-		gameRunning,
 		getModDetails: handleGetModDetails,
 		launchGame,
 		launchAnyway: handleLaunchAnyway,
-		overrideGameRunning,
 		launchGameWithErrors,
 		modalType,
 		openMainViewSettings,
 		prewarmAlternateDetails,
 		setPrewarmAlternateDetails,
 		collections,
-		validation,
+		collectionWorkspaceSession,
 		currentValidationStatus,
 		currentCollectionErrors,
 		currentRecord,
@@ -190,9 +202,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const {
 		searchString,
-		madeEdits,
 		filteredRows,
-		savingCollection,
 		onSearchChange,
 		onSearch,
 		changeActiveCollection,
@@ -205,20 +215,51 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		toggleMod,
 		setModSubset
 	} = collections;
-	const { validatingMods } = validation;
+	const hasUnsavedDraft = collectionWorkspaceSession.hasUnsavedDraft;
+	const savingDraft = collectionWorkspaceSession.savingDraft;
+	const validatingDraft = collectionWorkspaceSession.validatingDraft;
 
 	const currentView = CollectionViewType.MAIN;
 
-	const rows = useMemo(
+	const baseRows = useMemo(
 		() =>
-			measurePerf('collection.rows.derive', () => getCollectionRows(mods), {
+			measurePerf('collection.rows.derive', () => getCollectionRowsWithMissingSelections(mods, activeCollection), {
 				totalMods: mods.modIdToModDataMap.size
 			}),
-		[mods]
+		[activeCollection, mods]
 	);
-	const visibleRows = filteredRows || rows;
-	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord);
+	const rows = useMemo(() => projectCollectionRowsWithErrors(baseRows, currentCollectionErrors), [baseRows, currentCollectionErrors]);
+	const availableFilterTags = useMemo(() => {
+		const tags = new Set<string>();
+		baseRows.forEach((row) => {
+			getCollectionRowFilterTags(row).forEach((tag) => tags.add(tag));
+		});
+		return Array.from(tags).sort((left, right) => left.localeCompare(right));
+	}, [baseRows]);
+	const visibleRows = useMemo(
+		() => filterCollectionRowsByTags(filteredRows || rows, selectedFilterTags),
+		[filteredRows, rows, selectedFilterTags]
+	);
+	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord, currentCollectionErrors);
 	const currentViewConfig = config.viewConfigs?.[currentView];
+	const {
+		setMainDetailsOverlaySize: persistMainDetailsOverlaySize,
+		setMainColumnOrder: persistMainColumnOrder,
+		setMainColumnVisibility: persistMainColumnVisibility,
+		setMainColumnWidth: persistMainColumnWidth
+	} = useViewConfigCommands({ config, openNotification, updateState });
+	const [draftDetailsOverlaySize, setDraftDetailsOverlaySize] = useState<{ layout: HalfDetailsLayout; size: number } | null>(null);
+	useEffect(() => {
+		if (!draftDetailsOverlaySize) {
+			return;
+		}
+
+		const persistedSize =
+			draftDetailsOverlaySize.layout === 'side' ? currentViewConfig?.detailsOverlayWidth : currentViewConfig?.detailsOverlayHeight;
+		if (persistedSize === draftDetailsOverlaySize.size) {
+			setDraftDetailsOverlaySize(null);
+		}
+	}, [currentViewConfig?.detailsOverlayHeight, currentViewConfig?.detailsOverlayWidth, draftDetailsOverlaySize]);
 	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
 	const automaticHalfDetailsLayout: HalfDetailsLayout =
 		sideBySideEligible && contentSize.width > contentSize.height * 1.45 ? 'side' : 'bottom';
@@ -252,73 +293,45 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	}, [activeCollection, saveCollection]);
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
-			try {
-				return await persistViewConfig(setMainCollectionColumnWidth(config, column, width), (nextConfig) =>
-					updateState({ config: nextConfig })
-				);
-			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message: 'Failed to update view settings',
-						placement: 'bottomLeft',
-						duration: null
-					},
-					'error'
-				);
-				return false;
-			}
+			return persistMainColumnWidth(column, width);
 		},
-		[config, openNotification, updateState]
+		[persistMainColumnWidth]
 	);
 	const handleSetMainColumnVisibility = useCallback(
 		async (column: MainColumnTitles, visible: boolean) => {
-			try {
-				return await persistViewConfig(setMainCollectionColumnVisibility(config, column, visible), (nextConfig) =>
-					updateState({ config: nextConfig })
-				);
-			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message: 'Failed to update view settings',
-						placement: 'bottomLeft',
-						duration: null
-					},
-					'error'
-				);
-				return false;
-			}
+			return persistMainColumnVisibility(column, visible);
 		},
-		[config, openNotification, updateState]
+		[persistMainColumnVisibility]
 	);
 	const handleSetMainColumnOrder = useCallback(
 		async (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => {
-			try {
-				return await persistViewConfig(moveMainCollectionColumn(config, fromColumn, toColumn), (nextConfig) =>
-					updateState({ config: nextConfig })
-				);
-			} catch (error) {
-				api.logger.error(error);
-				openNotification(
-					{
-						message: 'Failed to update view settings',
-						placement: 'bottomLeft',
-						duration: null
-					},
-					'error'
-				);
-				return false;
-			}
+			return persistMainColumnOrder(fromColumn, toColumn);
 		},
-		[config, openNotification, updateState]
+		[persistMainColumnOrder]
+	);
+	const handleResizeHalfDetails = useCallback((layout: HalfDetailsLayout, size: number) => {
+		setDraftDetailsOverlaySize({ layout, size });
+	}, []);
+	const handleResizeHalfDetailsEnd = useCallback(
+		async (layout: HalfDetailsLayout, size: number) => {
+			setDraftDetailsOverlaySize({ layout, size });
+			return persistMainDetailsOverlaySize(layout, size);
+		},
+		[persistMainDetailsOverlaySize]
+	);
+	const handleResetHalfDetailsSize = useCallback(
+		async (layout: HalfDetailsLayout) => {
+			setDraftDetailsOverlaySize(null);
+			return persistMainDetailsOverlaySize(layout, undefined);
+		},
+		[persistMainDetailsOverlaySize]
 	);
 	const handleDeleteCollection = useCallback(() => {
 		void deleteCollection();
 	}, [deleteCollection]);
 
 	useEffect(() => {
-		if (!displayedCurrentRecord || loadingMods || currentView !== CollectionViewType.MAIN) {
+		if (!displayedCurrentRecord || loadingMods) {
 			if (!prewarmAlternateDetails) {
 				return;
 			}
@@ -359,19 +372,23 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails, setPrewarmAlternateDetails]);
+	}, [displayedCurrentRecord, loadingMods, prewarmAlternateDetails, setPrewarmAlternateDetails]);
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({
-			madeEdits,
+			madeEdits: hasUnsavedDraft,
 			lastValidationStatus: currentValidationStatus,
 			rows,
 			filteredRows: visibleRows,
 			height: '100%',
 			width: '100%',
+			detailsOpen: !!displayedCurrentRecord,
 			collection: appState.activeCollection as ModCollection,
 			launchingGame: appState.launchingGame,
 			config: currentViewConfig,
+			availableTags: availableFilterTags,
+			selectedTags: selectedFilterTags,
+			onSelectedTagsChange: setSelectedFilterTags,
 			tableCommands: {
 				getModDetails: handleGetModDetails,
 				openSettings: openMainViewSettings,
@@ -386,7 +403,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		[
 			appState.activeCollection,
 			appState.launchingGame,
+			availableFilterTags,
 			currentViewConfig,
+			displayedCurrentRecord,
 			handleDisableMod,
 			handleEnableMod,
 			handleGetModDetails,
@@ -395,8 +414,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleSetMainColumnVisibility,
 			openMainViewSettings,
 			currentValidationStatus,
-			madeEdits,
+			hasUnsavedDraft,
 			rows,
+			selectedFilterTags,
 			setEnabledMods,
 			visibleRows
 		]
@@ -404,27 +424,38 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 
 	const showSideBySideDetails =
 		currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && !bigDetails && halfDetailsLayout === 'side';
-	const maxSideDetailsWidth = Math.max(360, contentSize.width - MIN_COLLECTION_TABLE_WIDTH);
+	const maxSideDetailsWidth = Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, contentSize.width - MIN_COLLECTION_TABLE_WIDTH);
+	const automaticSideDetailsWidth = Math.min(
+		maxSideDetailsWidth,
+		Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, Math.min(Math.round(contentSize.width * 0.38), 680))
+	);
+	const configuredSideDetailsWidth =
+		draftDetailsOverlaySize?.layout === 'side'
+			? draftDetailsOverlaySize.size
+			: (currentViewConfig?.detailsOverlayWidth ?? automaticSideDetailsWidth);
 	const sideDetailsWidth = showSideBySideDetails
-		? Math.min(maxSideDetailsWidth, Math.max(360, Math.min(Math.round(contentSize.width * 0.38), 680)))
+		? clampDetailsOverlaySize(configuredSideDetailsWidth, MAIN_DETAILS_OVERLAY_MIN_WIDTH, maxSideDetailsWidth)
 		: 0;
+	const maxBottomDetailsHeight = Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT);
+	const automaticBottomDetailsHeight = Math.min(
+		Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, Math.round(contentSize.height * 0.36)),
+		maxBottomDetailsHeight
+	);
+	const configuredBottomDetailsHeight =
+		draftDetailsOverlaySize?.layout === 'bottom'
+			? draftDetailsOverlaySize.size
+			: (currentViewConfig?.detailsOverlayHeight ?? automaticBottomDetailsHeight);
 	const bottomDetailsHeight =
 		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
-			? Math.min(Math.max(220, Math.round(contentSize.height * 0.36)), Math.max(180, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT))
+			? clampDetailsOverlaySize(configuredBottomDetailsHeight, MAIN_DETAILS_OVERLAY_MIN_HEIGHT, maxBottomDetailsHeight)
 			: 0;
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
-	const launchDisabled =
-		appState.loadingMods || overrideGameRunning || gameRunning || modalType !== CollectionManagerModalType.NONE || appState.launchingGame;
-	const validateIcon =
-		currentValidationStatus === true ? (
-			<CheckCircle size={16} aria-hidden="true" />
-		) : currentValidationStatus === false ? (
-			<XCircle size={16} aria-hidden="true" />
-		) : (
-			<RefreshCw className={validatingMods ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
-		);
+	const launchCommandState = getCollectionLaunchCommandState({
+		launchReadiness: collectionWorkspaceSession.launchReadiness,
+		modalOpen: modalType !== CollectionManagerModalType.NONE
+	});
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
 				lastValidationStatus: currentValidationStatus,
@@ -444,13 +475,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				openModal: setModalType
 			}
 		: undefined;
-	const detailsFallback = (
-		<ViewStageLoadingFallback
-			title="Loading mod details"
-			detail="Preparing metadata, dependencies, and override controls for this mod."
-			compact
-		/>
-	);
+	const detailsFallback = modDetailsLoadingFallback;
 	const collectionSurfaceFallback = (
 		<ViewStageLoadingFallback
 			title={appState.loadingMods ? 'Loading mod inventory' : 'Loading collection table'}
@@ -493,25 +518,493 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		</Suspense>
 	) : null;
 	const isCollectionModalOpen = modalType !== CollectionManagerModalType.NONE;
-	const launchDisabledReason = appState.launchingGame
-		? 'Already launching game'
-		: gameRunning || overrideGameRunning
-			? 'Game already running'
-			: undefined;
+	const launchDisabledReason = launchCommandState.reason;
+
+	return {
+		appState,
+		bigDetails,
+		bottomDetailsHeight,
+		changeActiveCollection,
+		closeModal,
+		collectionComponentProps,
+		collectionSurface,
+		collectionSurfaceFallback,
+		createNewCollection,
+		currentCollectionErrors,
+		currentView,
+		currentValidationStatus,
+		displayedCurrentRecord,
+		duplicateCollection,
+		fullDetailsFooter,
+		handleCloseDetails: closeCurrentRecord,
+		handleDeleteCollection,
+		handleLaunchAnyway,
+		handleReloadModList,
+		handleResetHalfDetailsSize,
+		handleResizeHalfDetails,
+		handleResizeHalfDetailsEnd,
+		handleSaveCollection,
+		handleValidateCollection,
+		hasUnsavedDraft,
+		halfDetailsFooter,
+		isCollectionModalOpen,
+		launchCommandState,
+		launchDisabledReason,
+		launchGame,
+		launchGameWithErrors,
+		modalType,
+		onSearch,
+		onSearchChange,
+		openMainViewSettings,
+		openNotification,
+		renameCollection,
+		saveCollection,
+		searchString,
+		setContentSize,
+		setModalType,
+		showExpandedDetailsSurface,
+		showHalfDetails: showSideBySideDetails || bottomDetailsHeight > 0,
+		showSideBySideDetails,
+		sideDetailsWidth,
+		maxBottomDetailsHeight,
+		maxSideDetailsWidth,
+		shouldRenderExpandedDetailsSurface,
+		savingDraft,
+		validatingDraft,
+		visibleRows
+	};
+}
+
+function DetailsOverlayResizeHandle({
+	layout,
+	maxSize,
+	minSize,
+	onReset,
+	onResize,
+	onResizeEnd,
+	size
+}: {
+	layout: HalfDetailsLayout;
+	maxSize: number;
+	minSize: number;
+	onReset: (layout: HalfDetailsLayout) => void;
+	onResize: (layout: HalfDetailsLayout, size: number) => void;
+	onResizeEnd: (layout: HalfDetailsLayout, size: number) => void;
+	size: number;
+}) {
+	const cleanupRef = useRef<(() => void) | null>(null);
+	const keyboardPersistTimeoutRef = useRef<number | undefined>(undefined);
+	const sizeRef = useRef(size);
+	const handleRef = useRef<HTMLButtonElement | null>(null);
+	const isSideLayout = layout === 'side';
+	const orientation = isSideLayout ? 'vertical' : 'horizontal';
+	const cursor = isSideLayout ? 'col-resize' : 'row-resize';
+	const label = isSideLayout ? 'Resize side details panel' : 'Resize bottom details panel';
+
+	const syncHandleValue = useCallback(
+		(nextSize: number) => {
+			const clampedSize = clampDetailsOverlaySize(nextSize, minSize, maxSize);
+			sizeRef.current = clampedSize;
+			const handle = handleRef.current;
+			if (!handle) {
+				return;
+			}
+
+			handle.setAttribute('aria-valuenow', `${clampedSize}`);
+			handle.setAttribute('aria-valuetext', `${clampedSize}px`);
+			handle.setAttribute('aria-valuemax', `${Math.max(minSize, maxSize)}`);
+		},
+		[maxSize, minSize]
+	);
+
+	useEffect(() => {
+		syncHandleValue(size);
+	}, [size, syncHandleValue]);
+
+	useEffect(() => {
+		return () => {
+			cleanupRef.current?.();
+			if (keyboardPersistTimeoutRef.current !== undefined) {
+				window.clearTimeout(keyboardPersistTimeoutRef.current);
+			}
+		};
+	}, []);
+
+	const startResize = useCallback(
+		(startX: number, startY: number) => {
+			const startSize = clampDetailsOverlaySize(sizeRef.current || size, minSize, maxSize);
+			let nextSize = startSize;
+			const previousBodyCursor = document.body.style.cursor;
+			const previousBodyUserSelect = document.body.style.userSelect;
+			markPerfInteraction('collection.detailsOverlayResize.start', {
+				layout,
+				size: startSize
+			});
+
+			const updateSize = (clientX: number, clientY: number) => {
+				const delta = isSideLayout ? startX - clientX : startY - clientY;
+				nextSize = clampDetailsOverlaySize(startSize + delta, minSize, maxSize);
+				syncHandleValue(nextSize);
+				onResize(layout, nextSize);
+			};
+
+			const stopResize = () => {
+				window.removeEventListener('mousemove', handleMouseMove);
+				window.removeEventListener('mouseup', handleMouseUp);
+				document.body.style.cursor = previousBodyCursor;
+				document.body.style.userSelect = previousBodyUserSelect;
+				cleanupRef.current = null;
+				markPerfInteraction('collection.detailsOverlayResize.end', {
+					layout,
+					size: nextSize
+				});
+				onResizeEnd(layout, nextSize);
+			};
+
+			const handleMouseMove = (event: MouseEvent) => {
+				updateSize(event.clientX, event.clientY);
+			};
+
+			const handleMouseUp = () => {
+				stopResize();
+			};
+
+			document.body.style.cursor = cursor;
+			document.body.style.userSelect = 'none';
+			window.addEventListener('mousemove', handleMouseMove);
+			window.addEventListener('mouseup', handleMouseUp);
+			cleanupRef.current = stopResize;
+		},
+		[cursor, isSideLayout, layout, maxSize, minSize, onResize, onResizeEnd, size, syncHandleValue]
+	);
+
+	const handleMouseDown = useCallback(
+		(event: ReactMouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			startResize(event.clientX, event.clientY);
+		},
+		[startResize]
+	);
+
+	const handleDoubleClick = useCallback(
+		(event: ReactMouseEvent<HTMLButtonElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			markPerfInteraction('collection.detailsOverlayResize.reset', { layout });
+			onReset(layout);
+		},
+		[layout, onReset]
+	);
+
+	const handleKeyDown = useCallback(
+		(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+			let nextSize: number | undefined;
+			const step = event.shiftKey ? DETAIL_OVERLAY_KEYBOARD_LARGE_STEP : DETAIL_OVERLAY_KEYBOARD_STEP;
+
+			if (isSideLayout) {
+				if (event.key === 'ArrowLeft') {
+					nextSize = sizeRef.current + step;
+				} else if (event.key === 'ArrowRight') {
+					nextSize = sizeRef.current - step;
+				}
+			} else if (event.key === 'ArrowUp') {
+				nextSize = sizeRef.current + step;
+			} else if (event.key === 'ArrowDown') {
+				nextSize = sizeRef.current - step;
+			}
+
+			if (event.key === 'Home') {
+				nextSize = minSize;
+			} else if (event.key === 'End') {
+				nextSize = maxSize;
+			}
+
+			if (typeof nextSize !== 'number') {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+			const clampedSize = clampDetailsOverlaySize(nextSize, minSize, maxSize);
+			markPerfInteraction('collection.detailsOverlayResize.keyboard', {
+				layout,
+				size: clampedSize
+			});
+			syncHandleValue(clampedSize);
+			onResize(layout, clampedSize);
+			if (keyboardPersistTimeoutRef.current !== undefined) {
+				window.clearTimeout(keyboardPersistTimeoutRef.current);
+			}
+			keyboardPersistTimeoutRef.current = window.setTimeout(() => {
+				keyboardPersistTimeoutRef.current = undefined;
+				onResizeEnd(layout, clampedSize);
+			}, DETAIL_OVERLAY_KEYBOARD_PERSIST_DELAY_MS);
+		},
+		[isSideLayout, layout, maxSize, minSize, onResize, onResizeEnd, syncHandleValue]
+	);
 
 	return (
-		<div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
-			<header className="flex-none border-b border-border bg-surface px-5 py-3 max-[720px]:px-4">
+		<button
+			type="button"
+			ref={handleRef}
+			className={`CollectionDetailsOverlayResizeHandle CollectionDetailsOverlayResizeHandle--${layout}`}
+			role="separator"
+			aria-label={label}
+			aria-orientation={orientation}
+			aria-valuemin={minSize}
+			aria-valuenow={size}
+			aria-valuemax={Math.max(minSize, maxSize)}
+			aria-valuetext={`${size}px`}
+			title={`${label}. Double-click to reset.`}
+			onClick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+			}}
+			onDoubleClick={handleDoubleClick}
+			onKeyDown={handleKeyDown}
+			onMouseDown={handleMouseDown}
+		/>
+	);
+}
+
+function CollectionContentStage({
+	collectionSurface,
+	displayedCurrentRecord,
+	halfDetailsFooter,
+	showHalfDetails,
+	showExpandedDetailsSurface,
+	showSideBySideDetails,
+	bottomDetailsHeight,
+	maxBottomDetailsHeight,
+	maxSideDetailsWidth,
+	onCloseDetails,
+	onResetHalfDetailsSize,
+	onResizeHalfDetails,
+	onResizeHalfDetailsEnd,
+	sideDetailsWidth,
+	setContentSize
+}: {
+	collectionSurface: ReactNode;
+	displayedCurrentRecord?: unknown;
+	halfDetailsFooter: ReactNode;
+	showHalfDetails: boolean;
+	showExpandedDetailsSurface: boolean;
+	showSideBySideDetails: boolean;
+	bottomDetailsHeight: number;
+	maxBottomDetailsHeight: number;
+	maxSideDetailsWidth: number;
+	onCloseDetails: () => void;
+	onResetHalfDetailsSize: (layout: HalfDetailsLayout) => void;
+	onResizeHalfDetails: (layout: HalfDetailsLayout, size: number) => void;
+	onResizeHalfDetailsEnd: (layout: HalfDetailsLayout, size: number) => void;
+	sideDetailsWidth: number;
+	setContentSize: (size: { width: number; height: number }) => void;
+}) {
+	return (
+		<div
+			className={[
+				collectionContentStageBaseClassName,
+				showExpandedDetailsSurface ? collectionContentStageInactiveClassName : collectionContentStageActiveClassName
+			]
+				.filter(Boolean)
+				.join(' ')}
+			style={{ pointerEvents: showExpandedDetailsSurface ? 'none' : 'auto' }}
+		>
+			<MeasuredArea onSizeChange={setContentSize}>
+				{() => {
+					let actualContent = null;
+					if (collectionSurface) {
+						const outlet = collectionSurface;
+						let detailsPane: ReactNode = null;
+
+						if (displayedCurrentRecord && showHalfDetails) {
+							const layout = showSideBySideDetails ? 'side' : 'bottom';
+							const overlaySize = showSideBySideDetails ? sideDetailsWidth : bottomDetailsHeight;
+							const overlayMaxSize = showSideBySideDetails ? maxSideDetailsWidth : maxBottomDetailsHeight;
+							if (showSideBySideDetails) {
+								detailsPane = (
+									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: Escape closes this transient details region after child controls can handle it.
+									// biome-ignore lint/a11y/noStaticElementInteractions: The details pane is a focus-containing region, not a standalone button.
+									<div
+										className={[
+											collectionOverlayPaneBaseClassName,
+											collectionOverlayPaneActiveClassName,
+											collectionOverlayPaneSideClassName
+										].join(' ')}
+										style={collectionOverlaySizeStyle(overlaySize)}
+										onKeyDown={(event) => {
+											if (event.key === 'Escape' && !event.defaultPrevented) {
+												event.preventDefault();
+												event.stopPropagation();
+												onCloseDetails();
+											}
+										}}
+									>
+										<DetailsOverlayResizeHandle
+											layout={layout}
+											maxSize={overlayMaxSize}
+											minSize={MAIN_DETAILS_OVERLAY_MIN_WIDTH}
+											size={overlaySize}
+											onReset={onResetHalfDetailsSize}
+											onResize={onResizeHalfDetails}
+											onResizeEnd={onResizeHalfDetailsEnd}
+										/>
+										{halfDetailsFooter}
+									</div>
+								);
+							} else {
+								detailsPane = (
+									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: Escape closes this transient details region after child controls can handle it.
+									// biome-ignore lint/a11y/noStaticElementInteractions: The details pane is a focus-containing region, not a standalone button.
+									<div
+										className={[
+											collectionOverlayPaneBaseClassName,
+											collectionOverlayPaneActiveClassName,
+											collectionOverlayPaneBottomClassName
+										].join(' ')}
+										style={collectionOverlaySizeStyle(overlaySize)}
+										onKeyDown={(event) => {
+											if (event.key === 'Escape' && !event.defaultPrevented) {
+												event.preventDefault();
+												event.stopPropagation();
+												onCloseDetails();
+											}
+										}}
+									>
+										<DetailsOverlayResizeHandle
+											layout={layout}
+											maxSize={overlayMaxSize}
+											minSize={MAIN_DETAILS_OVERLAY_MIN_HEIGHT}
+											size={overlaySize}
+											onReset={onResetHalfDetailsSize}
+											onResize={onResizeHalfDetails}
+											onResizeEnd={onResizeHalfDetailsEnd}
+										/>
+										{halfDetailsFooter}
+									</div>
+								);
+							}
+						}
+
+						actualContent = (
+							<div className={collectionOverlayLayoutBaseClassName}>
+								<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+									{outlet}
+								</div>
+								{detailsPane}
+							</div>
+						);
+					}
+
+					return actualContent || <></>;
+				}}
+			</MeasuredArea>
+		</div>
+	);
+}
+
+function ExpandedDetailsStage({
+	fullDetailsFooter,
+	shouldRenderExpandedDetailsSurface,
+	showExpandedDetailsSurface
+}: {
+	fullDetailsFooter: ReactNode;
+	shouldRenderExpandedDetailsSurface: boolean;
+	showExpandedDetailsSurface: boolean;
+}) {
+	if (!shouldRenderExpandedDetailsSurface) {
+		return null;
+	}
+
+	return (
+		<div
+			className={[
+				collectionContentStageBaseClassName,
+				showExpandedDetailsSurface ? collectionContentStageActiveClassName : collectionContentStageInactiveClassName
+			]
+				.filter(Boolean)
+				.join(' ')}
+			style={{ pointerEvents: showExpandedDetailsSurface ? 'auto' : 'none' }}
+		>
+			{fullDetailsFooter}
+		</div>
+	);
+}
+
+function CollectionViewComponent(props: CollectionViewRouteProps) {
+	const {
+		appState,
+		bottomDetailsHeight,
+		changeActiveCollection,
+		closeModal,
+		collectionSurface,
+		createNewCollection,
+		currentCollectionErrors,
+		currentView,
+		currentValidationStatus,
+		displayedCurrentRecord,
+		duplicateCollection,
+		fullDetailsFooter,
+		handleCloseDetails,
+		handleDeleteCollection,
+		handleLaunchAnyway,
+		handleReloadModList,
+		handleResetHalfDetailsSize,
+		handleResizeHalfDetails,
+		handleResizeHalfDetailsEnd,
+		handleSaveCollection,
+		handleValidateCollection,
+		hasUnsavedDraft,
+		halfDetailsFooter,
+		isCollectionModalOpen,
+		launchCommandState,
+		launchDisabledReason,
+		launchGame,
+		launchGameWithErrors,
+		modalType,
+		onSearch,
+		onSearchChange,
+		openMainViewSettings,
+		openNotification,
+		renameCollection,
+		searchString,
+		setContentSize,
+		setModalType,
+		showExpandedDetailsSurface,
+		showHalfDetails,
+		showSideBySideDetails,
+		sideDetailsWidth,
+		maxBottomDetailsHeight,
+		maxSideDetailsWidth,
+		shouldRenderExpandedDetailsSurface,
+		savingDraft,
+		validatingDraft,
+		visibleRows
+	} = useCollectionViewController(props);
+
+	return (
+		<div className="CollectionViewLayout flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-background">
+			<header className="flex h-auto flex-none flex-col gap-2.5 border-b border-border bg-surface px-5 pb-3 pt-3.5 leading-[1.4] max-[760px]:px-3.5">
 				<CollectionManagerToolbar
 					appState={appState}
 					searchString={searchString || ''}
-					savingCollection={savingCollection}
+					savingCollection={savingDraft}
 					onSearchChangeCallback={onSearchChange}
-					madeEdits={madeEdits}
+					madeEdits={hasUnsavedDraft}
+					currentValidationStatus={currentValidationStatus}
+					validatingCollection={validatingDraft}
+					launchingGame={appState.launchingGame}
+					launchGameDisabled={launchCommandState.disabled}
+					launchGameDisabledReason={launchDisabledReason}
 					onReloadModListCallback={handleReloadModList}
+					validateCollectionCallback={handleValidateCollection}
+					launchGameCallback={() => {
+						void launchGame();
+					}}
 					onSearchCallback={onSearch}
 					changeActiveCollectionCallback={changeActiveCollection}
-					numResults={filteredRows ? filteredRows.length : appState.mods.modIdToModDataMap.size}
+					numResults={visibleRows.length}
 					newCollectionCallback={createNewCollection}
 					duplicateCollectionCallback={duplicateCollection}
 					renameCollectionCallback={renameCollection}
@@ -539,116 +1032,30 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			) : null}
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 				<div className="relative isolate min-h-0 min-w-0 flex-1 overflow-hidden">
-					<div
-						className={[collectionContentStageBaseClassName, showExpandedDetailsSurface ? undefined : collectionContentStageActiveClassName]
-							.filter(Boolean)
-							.join(' ')}
-					>
-						<MeasuredArea onSizeChange={setContentSize}>
-							{() => {
-								let actualContent = null;
-								if (collectionSurface) {
-									const outlet = collectionSurface;
-
-									if (displayedCurrentRecord && currentView === CollectionViewType.MAIN && !bigDetails) {
-										if (showSideBySideDetails) {
-											actualContent = (
-												<div className={collectionSplitLayoutBaseClassName}>
-													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-														{outlet}
-													</div>
-													<div
-														className={[
-															collectionSplitPaneBaseClassName,
-															'flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-l border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
-														].join(' ')}
-														style={collectionSplitSizeStyle(sideDetailsWidth)}
-													>
-														{halfDetailsFooter}
-													</div>
-												</div>
-											);
-										} else {
-											actualContent = (
-												<div className={[collectionSplitLayoutBaseClassName, 'flex-col'].join(' ')}>
-													<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-														{outlet}
-													</div>
-													<div
-														className={[
-															collectionSplitPaneBaseClassName,
-															'max-h-[var(--collection-split-size)] min-h-[var(--collection-split-size)] flex-[0_0_var(--collection-split-size)] animate-[splitPaneFade_140ms_ease] border-t border-[color-mix(in_srgb,var(--app-color-text-base)_8%,transparent)] motion-reduce:animate-none'
-														].join(' ')}
-														style={collectionSplitSizeStyle(bottomDetailsHeight)}
-													>
-														{halfDetailsFooter}
-													</div>
-												</div>
-											);
-										}
-									} else {
-										actualContent = (
-											<div key="collection" className="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-												{outlet}
-											</div>
-										);
-									}
-								}
-
-								return actualContent || <></>;
-							}}
-						</MeasuredArea>
-					</div>
-					{shouldRenderExpandedDetailsSurface ? (
-						<div
-							className={[
-								collectionContentStageBaseClassName,
-								showExpandedDetailsSurface ? collectionContentStageActiveClassName : undefined
-							]
-								.filter(Boolean)
-								.join(' ')}
-						>
-							{fullDetailsFooter}
-						</div>
-					) : null}
+					<CollectionContentStage
+						bottomDetailsHeight={bottomDetailsHeight}
+						collectionSurface={collectionSurface}
+						displayedCurrentRecord={displayedCurrentRecord}
+						halfDetailsFooter={halfDetailsFooter}
+						maxBottomDetailsHeight={maxBottomDetailsHeight}
+						maxSideDetailsWidth={maxSideDetailsWidth}
+						onCloseDetails={handleCloseDetails}
+						onResetHalfDetailsSize={handleResetHalfDetailsSize}
+						onResizeHalfDetails={handleResizeHalfDetails}
+						onResizeHalfDetailsEnd={handleResizeHalfDetailsEnd}
+						setContentSize={setContentSize}
+						showExpandedDetailsSurface={showExpandedDetailsSurface}
+						showHalfDetails={showHalfDetails}
+						showSideBySideDetails={showSideBySideDetails}
+						sideDetailsWidth={sideDetailsWidth}
+					/>
+					<ExpandedDetailsStage
+						fullDetailsFooter={fullDetailsFooter}
+						shouldRenderExpandedDetailsSurface={shouldRenderExpandedDetailsSurface}
+						showExpandedDetailsSurface={showExpandedDetailsSurface}
+					/>
 				</div>
 			</div>
-			{showExpandedDetails ? null : (
-				<footer className="MainFooter">
-					<div className="flex w-full items-center justify-end gap-3">
-						<button
-							aria-label="Validate Collection"
-							className={currentValidationStatus === false ? collectionFooterDangerButtonClassName : collectionFooterButtonClassName}
-							disabled={appState.loadingMods || modalType !== CollectionManagerModalType.NONE || validatingMods || appState.launchingGame}
-							onClick={() => {
-								handleValidateCollection();
-							}}
-							type="button"
-						>
-							{validateIcon}
-							Validate Collection
-						</button>
-						<span title={launchDisabledReason}>
-							<button
-								className={collectionFooterPrimaryButtonClassName}
-								disabled={launchDisabled}
-								onClick={() => {
-									void launchGame();
-								}}
-								type="button"
-							>
-								{appState.launchingGame ? (
-									<span
-										className="h-3.5 w-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-										aria-hidden="true"
-									/>
-								) : null}
-								Launch Game
-							</button>
-						</span>
-					</div>
-				</footer>
-			)}
 		</div>
 	);
 }

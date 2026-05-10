@@ -2,8 +2,15 @@ import child_process from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PathType } from '../../model';
-import { discoverGameExecutablePath, launchGameProcess, pathExists } from '../../main/ipc/game-handlers';
+import { PathType, ValidChannel } from '../../model';
+import {
+	discoverGameExecutablePath,
+	launchGameProcess,
+	parseLaunchGamePayload,
+	parsePathExistsPayload,
+	parseSelectPathPayload,
+	pathExists
+} from '../../main/ipc/game-handlers';
 import { createTempDir } from './test-utils';
 
 describe('game handlers', () => {
@@ -30,6 +37,33 @@ describe('game handlers', () => {
 		expect(pathExists('', PathType.FILE)).toBe(false);
 		expect(pathExists('   ', PathType.DIRECTORY)).toBe(false);
 		expect(pathExists(path.join(tempDir, 'missing'), PathType.FILE)).toBe(false);
+	});
+
+	it('validates game IPC payloads before they reach OS adapters', () => {
+		expect(parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, 'game.exe', BigInt(42), true, ['-batchmode'])).toEqual({
+			gameExec: 'game.exe',
+			workshopID: BigInt(42),
+			closeOnLaunch: true,
+			args: ['-batchmode']
+		});
+		expect(parsePathExistsPayload(ValidChannel.PATH_EXISTS, '/tmp/game.exe', PathType.FILE)).toEqual({
+			targetPath: '/tmp/game.exe',
+			expectedType: PathType.FILE
+		});
+		expect(parseSelectPathPayload(ValidChannel.SELECT_PATH, true, 'Choose folder')).toEqual({
+			directory: true,
+			title: 'Choose folder'
+		});
+
+		expect(() => parseLaunchGamePayload(ValidChannel.LAUNCH_GAME, 'game.exe', BigInt(42), true, [1])).toThrow(
+			'Invalid IPC payload for launch-game'
+		);
+		expect(() => parsePathExistsPayload(ValidChannel.PATH_EXISTS, '/tmp/game.exe', 'file')).toThrow(
+			'Invalid IPC payload for path-exists'
+		);
+		expect(() => parseSelectPathPayload(ValidChannel.SELECT_PATH, 'yes', 'Choose folder')).toThrow(
+			'Invalid IPC payload for select-path'
+		);
 	});
 
 	it('expands home-relative paths when checking existence', () => {

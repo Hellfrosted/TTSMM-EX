@@ -7,12 +7,13 @@ import {
 	getColumnWidthVariableName,
 	getColumnWidths,
 	getMainCollectionTableScrollWidth,
+	getMainCollectionVirtualColumnStyle,
 	isMainColumnTitle,
 	setColumnWidthVariable
 } from '../../renderer/components/collections/main-collection-table-layout';
 
 describe('main-collection-table-layout', () => {
-	it('uses the lower per-column minimums and gives unsaved extra width to Name instead of Tags', () => {
+	it('keeps headers readable and fills the viewport with flexible columns', () => {
 		const autoColumnWidths: Record<string, number> = {
 			[MainColumnTitles.TYPE]: 65,
 			[MainColumnTitles.NAME]: 300,
@@ -27,15 +28,17 @@ describe('main-collection-table-layout', () => {
 		};
 
 		const widths = getColumnWidths(undefined, autoColumnWidths, 1400);
-		expect(widths[MainColumnTitles.AUTHORS]).toBe(40);
-		expect(widths[MainColumnTitles.STATE]).toBe(40);
-		expect(widths[MainColumnTitles.ID]).toBe(32);
-		expect(widths[MainColumnTitles.SIZE]).toBe(32);
-		expect(widths[MainColumnTitles.TAGS]).toBe(200);
-		expect(widths[MainColumnTitles.NAME]).toBe(553);
+		const totalWidth = Object.values(widths).reduce((sum, width) => sum + width, DEFAULT_SELECTION_COLUMN_WIDTH);
+		expect(widths[MainColumnTitles.AUTHORS]).toBeGreaterThan(40);
+		expect(widths[MainColumnTitles.NAME]).toBeGreaterThan(300);
+		expect(widths[MainColumnTitles.TAGS]).toBeGreaterThan(200);
+		expect(widths[MainColumnTitles.ID]).toBeGreaterThan(50);
+		expect(widths[MainColumnTitles.SIZE]).toBeGreaterThan(66);
+		expect(widths[MainColumnTitles.TAGS] - 200).toBeGreaterThan(widths[MainColumnTitles.SIZE] - 66);
+		expect(totalWidth).toBe(1400);
 	});
 
-	it('does not override a saved Name width when filling the table', () => {
+	it('uses a saved Name width instead of auto measurement', () => {
 		const config: MainCollectionConfig = {
 			columnWidthConfig: {
 				[MainColumnTitles.NAME]: 320
@@ -55,22 +58,24 @@ describe('main-collection-table-layout', () => {
 		};
 
 		const widths = getColumnWidths(config, autoColumnWidths, 1400);
-		expect(widths[MainColumnTitles.NAME]).toBe(320);
+		const totalWidth = Object.values(widths).reduce((sum, width) => sum + width, DEFAULT_SELECTION_COLUMN_WIDTH);
+		expect(widths[MainColumnTitles.NAME]).toBeGreaterThanOrEqual(320);
+		expect(totalWidth).toBe(1400);
 	});
 
 	it('uses tighter fallback widths when auto measurement is unavailable', () => {
 		const widths = getColumnWidths(undefined, {}, 0);
 
-		expect(widths[MainColumnTitles.TYPE]).toBe(56);
+		expect(widths[MainColumnTitles.TYPE]).toBeGreaterThanOrEqual(56);
 		expect(widths[MainColumnTitles.NAME]).toBe(288);
-		expect(widths[MainColumnTitles.AUTHORS]).toBe(120);
-		expect(widths[MainColumnTitles.STATE]).toBe(112);
-		expect(widths[MainColumnTitles.ID]).toBe(132);
-		expect(widths[MainColumnTitles.SIZE]).toBe(72);
-		expect(widths[MainColumnTitles.LAST_UPDATE]).toBe(116);
-		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBe(116);
-		expect(widths[MainColumnTitles.DATE_ADDED]).toBe(116);
-		expect(widths[MainColumnTitles.TAGS]).toBe(180);
+		expect(widths[MainColumnTitles.AUTHORS]).toBeGreaterThanOrEqual(88);
+		expect(widths[MainColumnTitles.STATE]).toBeGreaterThanOrEqual(64);
+		expect(widths[MainColumnTitles.ID]).toBe(96);
+		expect(widths[MainColumnTitles.SIZE]).toBeGreaterThanOrEqual(64);
+		expect(widths[MainColumnTitles.LAST_UPDATE]).toBeGreaterThanOrEqual(104);
+		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBeGreaterThanOrEqual(104);
+		expect(widths[MainColumnTitles.DATE_ADDED]).toBeGreaterThanOrEqual(104);
+		expect(widths[MainColumnTitles.TAGS]).toBe(128);
 	});
 
 	it('drops low-priority columns first when the available table width is narrow', () => {
@@ -89,11 +94,11 @@ describe('main-collection-table-layout', () => {
 
 		const widths = getColumnWidths(undefined, autoColumnWidths, 900);
 
-		expect(widths[MainColumnTitles.TYPE]).toBe(65);
+		expect(widths[MainColumnTitles.TYPE]).toBeGreaterThanOrEqual(65);
 		expect(widths[MainColumnTitles.NAME]).toBeGreaterThanOrEqual(300);
-		expect(widths[MainColumnTitles.AUTHORS]).toBe(80);
-		expect(widths[MainColumnTitles.STATE]).toBe(120);
-		expect(widths[MainColumnTitles.ID]).toBe(52);
+		expect(widths[MainColumnTitles.AUTHORS]).toBeGreaterThanOrEqual(80);
+		expect(widths[MainColumnTitles.STATE]).toBeGreaterThanOrEqual(120);
+		expect(widths[MainColumnTitles.ID]).toBeGreaterThanOrEqual(52);
 		expect(widths[MainColumnTitles.SIZE]).toBeUndefined();
 		expect(widths[MainColumnTitles.LAST_UPDATE]).toBeUndefined();
 		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBeUndefined();
@@ -109,6 +114,10 @@ describe('main-collection-table-layout', () => {
 		expect(getColumnWidthStyle(MainColumnTitles.LAST_WORKSHOP_UPDATE, 116)).toBe(
 			'var(--main-collection-column-width-workshop-update, 116px)'
 		);
+		expect(getMainCollectionVirtualColumnStyle('var(--main-collection-column-width-workshop-update, 116px)')).toEqual({
+			width: 'var(--main-collection-column-width-workshop-update, 116px)',
+			flex: '0 0 var(--main-collection-column-width-workshop-update, 116px)'
+		});
 
 		setColumnWidthVariable(element, MainColumnTitles.LAST_WORKSHOP_UPDATE, 144);
 		expect(element.style.getPropertyValue('--main-collection-column-width-workshop-update')).toBe('144px');
@@ -128,5 +137,13 @@ describe('main-collection-table-layout', () => {
 				[MainColumnTitles.ID]: 132
 			})
 		).toBe(DEFAULT_SELECTION_COLUMN_WIDTH + 320 + 132);
+	});
+
+	it('fills viewport width even when configured widths are narrow', () => {
+		const widths = getColumnWidths({ columnWidthConfig: { [MainColumnTitles.NAME]: 180 } }, {}, 900);
+		const totalWidth = Object.values(widths).reduce((sum, width) => sum + width, DEFAULT_SELECTION_COLUMN_WIDTH);
+
+		expect(widths[MainColumnTitles.NAME]).toBeGreaterThanOrEqual(180);
+		expect(totalWidth).toBe(900);
 	});
 });

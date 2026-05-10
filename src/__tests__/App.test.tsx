@@ -1,6 +1,4 @@
 import React from 'react';
-import fs from 'node:fs';
-import path from 'node:path';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -35,15 +33,6 @@ describe('App', () => {
 		expect(stage).toHaveAttribute('aria-hidden', 'true');
 		expect(stage).toHaveAttribute('data-active', 'false');
 		expect(stage).not.toHaveAttribute('inert');
-	});
-
-	it('defines the view stage fill contract for staged route roots', () => {
-		const css = fs.readFileSync(path.resolve(__dirname, '../renderer/App.global.css'), 'utf8');
-
-		expect(css).toMatch(/\.AppViewStage\s*>\s*\*\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
-		expect(css).toMatch(/\.SettingsView\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
-		expect(css).toMatch(/\.BlockLookupViewLayout\s*{[^}]*flex:\s*1 1 auto;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
-		expect(css).toMatch(/body\s*{[^}]*background:\s*var\(--app-color-background,\s*#131517\);/s);
 	});
 
 	it('renders an accessible view-stage loading fallback', () => {

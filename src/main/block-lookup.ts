@@ -4,20 +4,18 @@ import log from 'electron-log';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	BlockLookupBuildRequest,
-	BlockLookupIndexSource,
 	BlockLookupIndexStats,
-	BlockLookupRecord,
 	BlockLookupSearchResult,
 	BlockLookupSettings,
 	PersistedBlockLookupIndex
 } from 'shared/block-lookup';
 import { writeUtf8FileAtomic } from './storage';
-import { extractBundleBlocksWithPython, extractRecordsFromSource } from './block-lookup-extraction';
-import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
+import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 import { searchBlockLookupRecords } from './block-lookup-search';
-import { collectBlockLookupSources, normalizeWorkshopRoot } from './block-lookup-source-discovery';
+import { normalizeWorkshopRoot } from './block-lookup-source-discovery';
+import { createBlockLookupIndexBuild } from './block-lookup-index-build';
 
-export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-extraction';
+export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-nuterra-text';
 
 const BLOCK_LOOKUP_INDEX_FILENAME = 'block-lookup-index.json';
 const BLOCK_LOOKUP_SETTINGS_FILENAME = 'block-lookup-settings.json';
@@ -72,13 +70,119 @@ function createEmptyIndex(): PersistedBlockLookupIndex {
 	};
 }
 
-function readBlockLookupIndex(userDataPath: string): PersistedBlockLookupIndex {
-	const index = readJsonFile<PersistedBlockLookupIndex>(getBlockLookupIndexPath(userDataPath));
-	if (!index || index.version !== BLOCK_LOOKUP_INDEX_VERSION || !Array.isArray(index.sources) || !Array.isArray(index.records)) {
+function isBlockLookupSourceKind(value: unknown): value is PersistedBlockLookupIndex['records'][number]['sourceKind'] {
+	return value === 'vanilla' || value === 'json' || value === 'bundle';
+}
+
+function readString(value: unknown) {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function normalizeBlockLookupSource(source: unknown): PersistedBlockLookupIndex['sources'][number] | undefined {
+	if (!source || typeof source !== 'object') {
+		return undefined;
+	}
+	const sourceRecord = source as Record<string, unknown>;
+	const sourcePath = readString(sourceRecord.sourcePath);
+	const workshopId = readString(sourceRecord.workshopId);
+	const modTitle = readString(sourceRecord.modTitle);
+	const sourceKind = sourceRecord.sourceKind;
+	const size = sourceRecord.size;
+	const mtimeMs = sourceRecord.mtimeMs;
+
+	if (
+		!sourcePath ||
+		workshopId === undefined ||
+		modTitle === undefined ||
+		!isBlockLookupSourceKind(sourceKind) ||
+		typeof size !== 'number' ||
+		typeof mtimeMs !== 'number'
+	) {
+		return undefined;
+	}
+
+	return {
+		sourcePath,
+		workshopId,
+		modTitle,
+		sourceKind,
+		size,
+		mtimeMs
+	};
+}
+
+function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex['records'][number] | undefined {
+	if (!record || typeof record !== 'object') {
+		return undefined;
+	}
+	const indexRecord = record as Record<string, unknown>;
+	const blockName = readString(indexRecord.blockName);
+	const internalName = readString(indexRecord.internalName);
+	const blockId = readString(indexRecord.blockId);
+	const modTitle = readString(indexRecord.modTitle);
+	const workshopId = readString(indexRecord.workshopId);
+	const sourceKind = indexRecord.sourceKind;
+	const sourcePath = readString(indexRecord.sourcePath);
+	const preferredAlias = readString(indexRecord.preferredAlias);
+	const fallbackAlias = readString(indexRecord.fallbackAlias);
+	const spawnCommand = readString(indexRecord.spawnCommand);
+	const fallbackSpawnCommand = readString(indexRecord.fallbackSpawnCommand);
+
+	if (
+		blockName === undefined ||
+		internalName === undefined ||
+		blockId === undefined ||
+		modTitle === undefined ||
+		workshopId === undefined ||
+		!isBlockLookupSourceKind(sourceKind) ||
+		sourcePath === undefined ||
+		preferredAlias === undefined ||
+		fallbackAlias === undefined ||
+		spawnCommand === undefined ||
+		fallbackSpawnCommand === undefined
+	) {
+		return undefined;
+	}
+
+	return {
+		blockName,
+		internalName,
+		blockId,
+		modTitle,
+		workshopId,
+		sourceKind,
+		sourcePath,
+		preferredAlias,
+		fallbackAlias,
+		spawnCommand,
+		fallbackSpawnCommand
+	};
+}
+
+function normalizeBlockLookupIndex(index: unknown): PersistedBlockLookupIndex {
+	if (!index || typeof index !== 'object') {
 		return createEmptyIndex();
 	}
 
-	return index;
+	const indexRecord = index as Record<string, unknown>;
+	if (indexRecord.version !== BLOCK_LOOKUP_INDEX_VERSION || !Array.isArray(indexRecord.sources) || !Array.isArray(indexRecord.records)) {
+		return createEmptyIndex();
+	}
+
+	return {
+		version: BLOCK_LOOKUP_INDEX_VERSION,
+		builtAt: typeof indexRecord.builtAt === 'string' ? indexRecord.builtAt : '',
+		sources: indexRecord.sources
+			.map((source) => normalizeBlockLookupSource(source))
+			.filter((source): source is PersistedBlockLookupIndex['sources'][number] => !!source),
+		records: indexRecord.records
+			.map((record) => normalizeBlockLookupRecord(record))
+			.filter((record): record is PersistedBlockLookupIndex['records'][number] => !!record)
+	};
+}
+
+export function readBlockLookupIndex(userDataPath: string): PersistedBlockLookupIndex {
+	return normalizeBlockLookupIndex(readJsonFile<unknown>(getBlockLookupIndexPath(userDataPath)));
 }
 
 function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookupIndex) {
@@ -90,47 +194,12 @@ export async function buildBlockLookupIndex(
 	request: BlockLookupBuildRequest
 ): Promise<{ stats: BlockLookupIndexStats; settings: BlockLookupSettings }> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
-	const { sources, workshopRoot } = collectBlockLookupSources(request);
-	const indexPlan = createBlockLookupIndexPlan(existingIndex, sources, request.forceRebuild);
-	const nextRecords: BlockLookupRecord[] = [];
-	const nextSources: BlockLookupIndexSource[] = [];
-	let scanned = 0;
-	let skipped = 0;
-	let updatedBlocks = 0;
-	const changedBundleSources = indexPlan.tasks
-		.filter((task) => task.source.sourceKind === 'bundle' && !task.reusedRecords)
-		.map((task) => task.source);
-	const pythonBundleBlocks = await extractBundleBlocksWithPython(changedBundleSources.map((source) => source.sourcePath));
-
-	for (const task of indexPlan.tasks) {
-		if (task.reusedRecords) {
-			skipped += 1;
-			nextSources.push(task.existingSource!);
-			nextRecords.push(...task.reusedRecords);
-			continue;
-		}
-
-		const source = task.source;
-		const records = await extractRecordsFromSource(source, pythonBundleBlocks?.get(source.sourcePath));
-		scanned += 1;
-		updatedBlocks += records.length;
-		nextSources.push(createBlockLookupSourceIndexRecord(source));
-		nextRecords.push(...records);
-	}
-
-	const builtAt = new Date().toISOString();
-	const nextIndex: PersistedBlockLookupIndex = {
-		version: BLOCK_LOOKUP_INDEX_VERSION,
-		builtAt,
-		sources: nextSources,
-		records: nextRecords
-	};
-
-	writeBlockLookupIndex(userDataPath, nextIndex);
-	const settings = writeBlockLookupSettings(userDataPath, { workshopRoot });
+	const build = await createBlockLookupIndexBuild(existingIndex, request);
+	writeBlockLookupIndex(userDataPath, build.index);
+	const settings = writeBlockLookupSettings(userDataPath, build.settings);
 	return {
 		settings,
-		stats: createBlockLookupIndexStats(nextIndex, scanned, skipped, indexPlan.removed, updatedBlocks)
+		stats: build.stats
 	};
 }
 

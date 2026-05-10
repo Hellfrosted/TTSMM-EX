@@ -1,8 +1,38 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import type { ElectronApi } from '../../shared/electron-api';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
 import { createAppState, createQueryWrapper } from './test-utils';
+import { cloneCollection, type AppConfig, type ModCollection } from '../../model';
+import type { CollectionLifecycleFailureCode } from '../../shared/collection-lifecycle';
+
+declare global {
+	interface Window {
+		electron: ElectronApi;
+	}
+}
+
+function lifecycleSuccess(config: AppConfig, activeCollection: ModCollection, collections: ModCollection[]) {
+	return {
+		ok: true,
+		activeCollection: cloneCollection(activeCollection),
+		collections: collections.map(cloneCollection),
+		collectionNames: collections.map((collection) => collection.name),
+		config: {
+			...config,
+			activeCollection: activeCollection.name
+		}
+	} as const;
+}
+
+function lifecycleFailure(message: string, code: CollectionLifecycleFailureCode = 'config-write-failed') {
+	return {
+		ok: false,
+		code,
+		message
+	} as const;
+}
 
 function renderCollectionsHook(appState: ReturnType<typeof createAppState>, overrides: Partial<Parameters<typeof useCollections>[0]> = {}) {
 	return renderHook(
@@ -10,10 +40,8 @@ function renderCollectionsHook(appState: ReturnType<typeof createAppState>, over
 			useCollections({
 				appState,
 				openNotification: vi.fn(),
-				cancelValidation: vi.fn(),
 				resetValidationState: vi.fn(),
-				validateActiveCollection: vi.fn(async () => undefined),
-				setModalType: vi.fn(),
+				onDraftEditWorkflow: vi.fn(),
 				...overrides
 			}),
 		{ wrapper: createQueryWrapper() }
@@ -40,6 +68,9 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'alt']),
 			activeCollection: defaultCollection
 		});
+		vi.mocked(window.electron.switchCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleSuccess(appState.config, altCollection, [defaultCollection, altCollection])
+		);
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -48,7 +79,11 @@ describe('useCollections', () => {
 		});
 
 		await waitFor(() => {
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'alt' }));
+			expect(window.electron.switchCollectionLifecycle).toHaveBeenCalledWith({
+				config: expect.objectContaining({ activeCollection: 'default' }),
+				dirtyCollection: undefined,
+				name: 'alt'
+			});
 		});
 		expect(appState.activeCollection).toEqual(altCollection);
 		expect(appState.activeCollection).not.toBe(altCollection);
@@ -74,12 +109,10 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'archived']),
 			activeCollection: defaultCollection
 		});
-		const cancelValidation = vi.fn();
-		const validateActiveCollection = vi.fn(async () => undefined);
+		const onDraftEditWorkflow = vi.fn();
 
 		const { result, rerender } = renderCollectionsHook(appState, {
-			cancelValidation,
-			validateActiveCollection
+			onDraftEditWorkflow
 		});
 
 		act(() => {
@@ -88,9 +121,15 @@ describe('useCollections', () => {
 		rerender();
 
 		await waitFor(() => {
-			expect(validateActiveCollection).toHaveBeenCalledWith(false);
+			expect(onDraftEditWorkflow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					pendingValidationDraft: {
+						name: 'default',
+						mods: [`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]
+					}
+				})
+			);
 		});
-		expect(cancelValidation).toHaveBeenCalled();
 		expect(appState.activeCollection?.mods).toEqual([`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]);
 		expect(appState.allCollections.get('archived')).toBe(archivedCollection);
 		expect(result.current.madeEdits).toBe(true);
@@ -115,6 +154,9 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'archived']),
 			activeCollection: defaultCollection
 		});
+		vi.mocked(window.electron.createCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleSuccess(appState.config, { name: 'fresh', mods: [] }, [defaultCollection, archivedCollection, { name: 'fresh', mods: [] }])
+		);
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -123,11 +165,15 @@ describe('useCollections', () => {
 		});
 
 		await waitFor(() => {
-			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'fresh', mods: [] });
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'fresh' }));
+			expect(window.electron.createCollectionLifecycle).toHaveBeenCalledWith({
+				config: expect.objectContaining({ activeCollection: 'default' }),
+				dirtyCollection: undefined,
+				name: 'fresh',
+				mods: []
+			});
 		});
-		expect(appState.allCollections.get('default')).toBe(defaultCollection);
-		expect(appState.allCollections.get('archived')).toBe(archivedCollection);
+		expect(appState.allCollections.get('default')).toEqual(defaultCollection);
+		expect(appState.allCollections.get('archived')).toEqual(archivedCollection);
 		expect(appState.activeCollection).toEqual({ name: 'fresh', mods: [] });
 	});
 
@@ -151,6 +197,9 @@ describe('useCollections', () => {
 			activeCollection: defaultCollection
 		});
 		const resetValidationState = vi.fn();
+		vi.mocked(window.electron.switchCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleSuccess(appState.config, altCollection, [defaultCollection, altCollection])
+		);
 
 		const { result } = renderCollectionsHook(appState, {
 			resetValidationState
@@ -165,12 +214,191 @@ describe('useCollections', () => {
 		});
 
 		await waitFor(() => {
-			expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'default', mods: ['local:dirty'] });
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ activeCollection: 'alt' }));
+			expect(window.electron.switchCollectionLifecycle).toHaveBeenCalledWith({
+				config: expect.objectContaining({ activeCollection: 'default' }),
+				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+				name: 'alt'
+			});
 		});
 		expect(resetValidationState).toHaveBeenCalled();
 		expect(result.current.madeEdits).toBe(false);
 		expect(appState.activeCollection).toEqual(altCollection);
+	});
+
+	it('clears dirty draft state after validation persists collection content', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		const { result } = renderCollectionsHook(appState);
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.persistCollection(defaultCollection);
+		});
+
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'default', mods: ['local:dirty'] });
+		expect(result.current.madeEdits).toBe(false);
+	});
+
+	it('keeps dirty draft state and notifies when validation-backed collection persistence fails', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openNotification = vi.fn();
+		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce({
+			ok: false,
+			code: 'write-failed',
+			message: 'Failed to save collection default'
+		});
+
+		const { result } = renderCollectionsHook(appState, { openNotification });
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.persistCollection(defaultCollection);
+		});
+
+		expect(openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Failed to save collection default',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(result.current.madeEdits).toBe(true);
+	});
+
+	it('clears dirty draft state after an explicit pure collection save succeeds', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		const { result } = renderCollectionsHook(appState);
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.saveCollection(defaultCollection, true);
+		});
+
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'default', mods: ['local:dirty'] });
+		expect(result.current.madeEdits).toBe(false);
+	});
+
+	it('keeps dirty draft state when an explicit collection save fails', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openNotification = vi.fn();
+		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce({
+			ok: false,
+			code: 'write-failed',
+			message: 'Failed to save collection default'
+		});
+
+		const { result } = renderCollectionsHook(appState, { openNotification });
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.saveCollection(defaultCollection, true);
+		});
+
+		expect(openNotification).toHaveBeenCalledWith(
+			{
+				message: 'Failed to save collection default',
+				placement: 'bottomRight',
+				duration: null
+			},
+			'error'
+		);
+		expect(result.current.madeEdits).toBe(true);
+	});
+
+	it('keeps dirty draft state after non-pure collection content persistence succeeds', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		const { result } = renderCollectionsHook(appState);
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.saveCollection(defaultCollection, false);
+		});
+
+		expect(window.electron.updateCollection).toHaveBeenCalledWith({ collectionName: 'default', mods: ['local:dirty'] });
+		expect(result.current.madeEdits).toBe(true);
 	});
 
 	it('does not switch active collections when persisting the new selection fails', async () => {
@@ -192,7 +420,7 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'alt']),
 			activeCollection: defaultCollection
 		});
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.switchCollectionLifecycle).mockResolvedValueOnce(lifecycleFailure('Failed to switch to collection alt'));
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -204,7 +432,49 @@ describe('useCollections', () => {
 		expect(appState.config.activeCollection).toBe('default');
 	});
 
-	it('rolls back a new collection when activating it fails to persist', async () => {
+	it('keeps dirty draft state when a lifecycle command fails to persist bundled draft edits', async () => {
+		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
+		const altCollection = { name: 'alt', mods: ['local:mod-a'] };
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				currentPath: '/collections/main',
+				activeCollection: 'default',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			},
+			allCollections: new Map([
+				['default', defaultCollection],
+				['alt', altCollection]
+			]),
+			allCollectionNames: new Set(['default', 'alt']),
+			activeCollection: defaultCollection
+		});
+		vi.mocked(window.electron.switchCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Failed to save collection default', 'dirty-collection-write-failed')
+		);
+
+		const { result } = renderCollectionsHook(appState);
+
+		act(() => {
+			result.current.setMadeEdits(true);
+		});
+
+		await act(async () => {
+			await result.current.changeActiveCollection('alt');
+		});
+
+		expect(window.electron.switchCollectionLifecycle).toHaveBeenCalledWith({
+			config: expect.objectContaining({ activeCollection: 'default' }),
+			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
+			name: 'alt'
+		});
+		expect(result.current.madeEdits).toBe(true);
+		expect(appState.activeCollection).toEqual(defaultCollection);
+	});
+
+	it('does not apply a failed create lifecycle result', async () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			config: {
@@ -219,7 +489,9 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default']),
 			activeCollection: defaultCollection
 		});
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.createCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Created collection fresh but failed to activate it')
+		);
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -227,8 +499,12 @@ describe('useCollections', () => {
 			await result.current.createNewCollection('fresh');
 		});
 
-		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'fresh', mods: [] });
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('fresh');
+		expect(window.electron.createCollectionLifecycle).toHaveBeenCalledWith({
+			config: expect.objectContaining({ activeCollection: 'default' }),
+			dirtyCollection: undefined,
+			name: 'fresh',
+			mods: []
+		});
 		expect(appState.allCollections.has('fresh')).toBe(false);
 		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.config.activeCollection).toBe('default');
@@ -250,7 +526,9 @@ describe('useCollections', () => {
 			activeCollection: defaultCollection
 		});
 		const openNotification = vi.fn();
-		vi.mocked(window.electron.updateCollection).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.createCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Failed to create collection fresh', 'collection-write-failed')
+		);
 
 		const { result } = renderCollectionsHook(appState, { openNotification });
 
@@ -260,7 +538,7 @@ describe('useCollections', () => {
 
 		expect(openNotification).toHaveBeenCalledWith(
 			{
-				message: 'Failed to create new collection fresh',
+				message: 'Failed to create collection fresh',
 				placement: 'bottomRight',
 				duration: null
 			},
@@ -269,7 +547,7 @@ describe('useCollections', () => {
 		expect(appState.allCollections.has('fresh')).toBe(false);
 	});
 
-	it('rolls back a rename when the active collection config update fails', async () => {
+	it('does not apply a failed rename lifecycle result', async () => {
 		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
 		const appState = createAppState({
 			config: {
@@ -284,7 +562,9 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default']),
 			activeCollection: defaultCollection
 		});
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.renameCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Renamed collection default but failed to persist the active collection change')
+		);
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -292,8 +572,11 @@ describe('useCollections', () => {
 			await result.current.renameCollection('renamed');
 		});
 
-		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(1, { name: 'default', mods: ['local:dirty'] }, 'renamed');
-		expect(window.electron.renameCollection).toHaveBeenNthCalledWith(2, { name: 'renamed', mods: ['local:dirty'] }, 'default');
+		expect(window.electron.renameCollectionLifecycle).toHaveBeenCalledWith({
+			config: expect.objectContaining({ activeCollection: 'default' }),
+			dirtyCollection: undefined,
+			name: 'renamed'
+		});
 		expect(appState.activeCollection).toEqual(defaultCollection);
 		expect(appState.config.activeCollection).toBe('default');
 		expect(appState.allCollections.has('renamed')).toBe(false);
@@ -315,7 +598,9 @@ describe('useCollections', () => {
 			activeCollection: defaultCollection
 		});
 		const openNotification = vi.fn();
-		vi.mocked(window.electron.renameCollection).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.renameCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Failed to rename collection default to renamed')
+		);
 
 		const { result } = renderCollectionsHook(appState, { openNotification });
 
@@ -326,7 +611,7 @@ describe('useCollections', () => {
 		expect(openNotification).toHaveBeenCalledWith(
 			{
 				message: 'Failed to rename collection default to renamed',
-				placement: 'bottomRight',
+				placement: 'bottomLeft',
 				duration: null
 			},
 			'error'
@@ -335,7 +620,7 @@ describe('useCollections', () => {
 		expect(appState.allCollections.has('renamed')).toBe(false);
 	});
 
-	it('restores a deleted collection when selecting the replacement fails to persist', async () => {
+	it('does not apply a failed delete lifecycle result', async () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
 		const appState = createAppState({
@@ -354,7 +639,9 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'archived']),
 			activeCollection: archivedCollection
 		});
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.deleteCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleFailure('Deleted collection archived but failed to persist the replacement selection')
+		);
 
 		const { result } = renderCollectionsHook(appState);
 
@@ -362,8 +649,10 @@ describe('useCollections', () => {
 			await result.current.deleteCollection();
 		});
 
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('archived');
-		expect(window.electron.updateCollection).toHaveBeenCalledWith({ name: 'archived', mods: ['local:dirty'] });
+		expect(window.electron.deleteCollectionLifecycle).toHaveBeenCalledWith({
+			config: expect.objectContaining({ activeCollection: 'archived' }),
+			dirtyCollection: undefined
+		});
 		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.config.activeCollection).toBe('archived');
 		expect(appState.allCollections.has('archived')).toBe(true);
@@ -389,7 +678,11 @@ describe('useCollections', () => {
 			activeCollection: archivedCollection
 		});
 		const openNotification = vi.fn();
-		vi.mocked(window.electron.deleteCollection).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.deleteCollectionLifecycle).mockResolvedValueOnce({
+			ok: false,
+			code: 'collection-delete-failed',
+			message: 'Failed to delete collection'
+		});
 
 		const { result } = renderCollectionsHook(appState, { openNotification });
 
@@ -409,7 +702,7 @@ describe('useCollections', () => {
 		expect(appState.allCollections.has('archived')).toBe(true);
 	});
 
-	it('deletes the default collection from disk when another collection remains', async () => {
+	it('applies delete lifecycle state when another collection remains', async () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const archivedCollection = { name: 'archived', mods: ['local:dirty'] };
 		const appState = createAppState({
@@ -429,13 +722,20 @@ describe('useCollections', () => {
 			activeCollection: defaultCollection
 		});
 
+		vi.mocked(window.electron.deleteCollectionLifecycle).mockResolvedValueOnce(
+			lifecycleSuccess(appState.config, archivedCollection, [archivedCollection])
+		);
+
 		const { result } = renderCollectionsHook(appState);
 
 		await act(async () => {
 			await result.current.deleteCollection();
 		});
 
-		expect(window.electron.deleteCollection).toHaveBeenCalledWith('default');
+		expect(window.electron.deleteCollectionLifecycle).toHaveBeenCalledWith({
+			config: expect.objectContaining({ activeCollection: 'default' }),
+			dirtyCollection: undefined
+		});
 		expect(appState.activeCollection).toEqual(archivedCollection);
 		expect(appState.config.activeCollection).toBe('archived');
 		expect(appState.allCollections.has('default')).toBe(false);

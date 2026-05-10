@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionManagementToolbar from '../../renderer/components/collections/CollectionManagementToolbar';
 import { createAppState } from './test-utils';
@@ -24,8 +25,20 @@ async function clickToolbarAction(name: string | RegExp) {
 	fireEvent.click(await screen.findByRole('button', { name }));
 }
 
+async function clickCollectionMenuAction(name: string | RegExp) {
+	await clickToolbarAction('Collection');
+	fireEvent.click(await screen.findByRole('menuitem', { name }));
+}
+
 async function findCollectionNameInput() {
 	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 5000 });
+}
+
+function renderInAppRoot(ui: ReactElement) {
+	const appRoot = document.createElement('div');
+	appRoot.className = 'AppRoot';
+	document.body.appendChild(appRoot);
+	return render(ui, { container: appRoot });
 }
 
 describe('CollectionManagementToolbar', () => {
@@ -39,7 +52,7 @@ describe('CollectionManagementToolbar', () => {
 			activeCollection: defaultCollection
 		});
 
-		render(
+		renderInAppRoot(
 			<CollectionManagementToolbar
 				appState={appState}
 				madeEdits={false}
@@ -58,9 +71,7 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		const renameButton = screen.getByText('Rename').closest('button');
-		expect(renameButton).not.toBeNull();
-		fireEvent.click(renameButton!);
+		await clickCollectionMenuAction('Rename collection');
 
 		expect(await findCollectionNameInput()).toHaveValue('default');
 		expect(screen.getByText('Rename the saved collection without changing its enabled mods.')).toBeInTheDocument();
@@ -77,7 +88,7 @@ describe('CollectionManagementToolbar', () => {
 			activeCollection: defaultCollection
 		});
 
-		render(
+		renderInAppRoot(
 			<CollectionManagementToolbar
 				appState={appState}
 				madeEdits={false}
@@ -96,7 +107,7 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		await clickToolbarAction('Duplicate');
+		await clickCollectionMenuAction('Duplicate collection');
 
 		expect(await findCollectionNameInput()).toHaveValue('default copy');
 		expect(screen.getByText('The duplicate keeps the current mod list and saves it under a new name.')).toBeInTheDocument();
@@ -119,7 +130,7 @@ describe('CollectionManagementToolbar', () => {
 			value: { writeText }
 		});
 
-		render(
+		renderInAppRoot(
 			<CollectionManagementToolbar
 				appState={appState}
 				madeEdits={false}
@@ -138,7 +149,7 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		await clickToolbarAction('Copy JSON');
+		await clickCollectionMenuAction('Copy JSON export');
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith(JSON.stringify(defaultCollection, null, '\t'));
@@ -150,6 +161,52 @@ describe('CollectionManagementToolbar', () => {
 			}),
 			'success'
 		);
+	});
+
+	it('supports keyboard navigation inside the collection action menu', async () => {
+		stubResizeObserver();
+
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		renderInAppRoot(
+			<CollectionManagementToolbar
+				appState={appState}
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={vi.fn()}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={vi.fn()}
+			/>
+		);
+
+		await clickToolbarAction('Collection');
+		const renameItem = await screen.findByRole('menuitem', { name: 'Rename collection' });
+		await waitFor(() => {
+			expect(renameItem).toHaveFocus();
+		});
+
+		fireEvent.keyDown(window, { key: 'ArrowDown' });
+		expect(screen.getByRole('menuitem', { name: 'New collection' })).toHaveFocus();
+
+		fireEvent.keyDown(window, { key: 'End' });
+		expect(screen.getByRole('menuitem', { name: 'Delete collection' })).toHaveFocus();
+
+		fireEvent.keyDown(window, { key: 'Escape' });
+		expect(screen.getByRole('button', { name: 'Collection' })).toHaveFocus();
+		expect(screen.queryByRole('menuitem', { name: 'Rename collection' })).not.toBeInTheDocument();
 	});
 
 	it('reports a clipboard error instead of claiming success when export copying fails', async () => {
@@ -168,7 +225,7 @@ describe('CollectionManagementToolbar', () => {
 			value: { writeText }
 		});
 
-		render(
+		renderInAppRoot(
 			<CollectionManagementToolbar
 				appState={appState}
 				madeEdits={false}
@@ -187,7 +244,7 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		await clickToolbarAction('Copy JSON');
+		await clickCollectionMenuAction('Copy JSON export');
 
 		await waitFor(() => {
 			expect(openNotification).toHaveBeenCalledWith(
@@ -200,6 +257,42 @@ describe('CollectionManagementToolbar', () => {
 		});
 	});
 
+	it('opens table settings directly from the toolbar', async () => {
+		stubResizeObserver();
+
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+		const openViewSettingsCallback = vi.fn();
+
+		renderInAppRoot(
+			<CollectionManagementToolbar
+				appState={appState}
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={openViewSettingsCallback}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={vi.fn()}
+			/>
+		);
+
+		expect(screen.queryByRole('button', { name: 'Table' })).not.toBeInTheDocument();
+		fireEvent.click(screen.getByRole('button', { name: 'Table Settings' }));
+
+		expect(openViewSettingsCallback).toHaveBeenCalledOnce();
+	});
+
 	it('labels the mod search field for assistive technologies', () => {
 		stubResizeObserver();
 
@@ -210,7 +303,7 @@ describe('CollectionManagementToolbar', () => {
 			activeCollection: defaultCollection
 		});
 
-		render(
+		renderInAppRoot(
 			<CollectionManagementToolbar
 				appState={appState}
 				madeEdits={false}

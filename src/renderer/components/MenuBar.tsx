@@ -13,10 +13,15 @@ interface MenuProps {
 	updateState: AppState['updateState'];
 }
 
+const navigationItems = [
+	{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
+	{ key: '/block-lookup', icon: <Search size={18} />, label: 'Block Lookup' },
+	{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
+];
+
 export default function MenuBar({ config, disableNavigation, firstModLoad, updateState }: MenuProps) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const loadModsOnNavigate = !firstModLoad;
 	const configRef = useRef(config);
 	const persistedPathRef = useRef(config.currentPath);
 	const scheduledPersistHandleRef = useRef<number | null>(null);
@@ -24,11 +29,6 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 	const persistInFlightRef = useRef(false);
 	const mountedRef = useRef(true);
 	const selectedPath = getStoredViewPath(location.pathname);
-	const items = [
-		{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
-		{ key: '/block-lookup', icon: <Search size={18} />, label: 'Block Lookup' },
-		{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
-	];
 
 	useEffect(() => {
 		configRef.current = config;
@@ -50,7 +50,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 		scheduledPersistHandleRef.current = null;
 	}, []);
 
-	function flushPendingPath() {
+	const flushPendingPath = useCallback(() => {
 		if (persistInFlightRef.current) {
 			return;
 		}
@@ -76,18 +76,15 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 				if (!mountedRef.current) {
 					return;
 				}
-				if (configRef.current.currentPath !== nextPath) {
+				if (pendingPathRef.current !== null) {
 					return;
 				}
 
 				const rollbackConfig = { ...configRef.current, currentPath: rollbackPath };
 				configRef.current = rollbackConfig;
 				startTransition(() => {
-					updateState({
-						config: rollbackConfig,
-						...(loadModsOnNavigate ? { loadingMods: false } : {})
-					});
-					navigate(rollbackPath);
+					updateState({ config: rollbackConfig, loadingMods: false });
+					void navigate(rollbackPath);
 				});
 			} finally {
 				persistInFlightRef.current = false;
@@ -98,27 +95,72 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 		};
 
 		void persistPath();
-	}
+	}, [navigate, updateState]);
 
-	function schedulePathPersist(nextPath: string) {
-		pendingPathRef.current = nextPath;
-		cancelScheduledPersist();
-		if (persistInFlightRef.current) {
-			return;
-		}
+	const schedulePathPersist = useCallback(
+		(nextPath: string) => {
+			pendingPathRef.current = nextPath;
+			cancelScheduledPersist();
+			if (persistInFlightRef.current) {
+				return;
+			}
 
-		const scheduleFlush = () => {
-			scheduledPersistHandleRef.current = null;
-			flushPendingPath();
+			const scheduleFlush = () => {
+				scheduledPersistHandleRef.current = null;
+				flushPendingPath();
+			};
+
+			if (typeof window.requestIdleCallback === 'function') {
+				scheduledPersistHandleRef.current = window.requestIdleCallback(scheduleFlush, { timeout: 750 });
+				return;
+			}
+
+			scheduledPersistHandleRef.current = window.setTimeout(scheduleFlush, 250);
+		},
+		[cancelScheduledPersist, flushPendingPath]
+	);
+
+	const navigateToItem = useCallback(
+		(nextPath: string) => {
+			if (disableNavigation || nextPath === selectedPath) {
+				return;
+			}
+
+			const shouldLoadModsOnNavigate = !firstModLoad && nextPath.startsWith('/collections');
+			startTransition(() => {
+				if (shouldLoadModsOnNavigate) {
+					updateState({ loadingMods: true });
+				}
+				void navigate(nextPath);
+			});
+			schedulePathPersist(nextPath);
+		},
+		[disableNavigation, firstModLoad, navigate, schedulePathPersist, selectedPath, updateState]
+	);
+
+	useEffect(() => {
+		const handleKeyboardNavigation = (event: KeyboardEvent) => {
+			if (!event.ctrlKey || event.altKey || event.metaKey || event.key !== 'Tab') {
+				return;
+			}
+
+			event.preventDefault();
+			event.stopPropagation();
+
+			const currentIndex = Math.max(
+				0,
+				navigationItems.findIndex((item) => item.key === selectedPath)
+			);
+			const direction = event.shiftKey ? -1 : 1;
+			const nextIndex = (currentIndex + direction + navigationItems.length) % navigationItems.length;
+			navigateToItem(navigationItems[nextIndex].key);
 		};
 
-		if (typeof window.requestIdleCallback === 'function') {
-			scheduledPersistHandleRef.current = window.requestIdleCallback(scheduleFlush, { timeout: 750 });
-			return;
-		}
-
-		scheduledPersistHandleRef.current = window.setTimeout(scheduleFlush, 250);
-	}
+		window.addEventListener('keydown', handleKeyboardNavigation, { capture: true });
+		return () => {
+			window.removeEventListener('keydown', handleKeyboardNavigation, { capture: true });
+		};
+	}, [navigateToItem, selectedPath]);
 
 	useEffect(() => {
 		return () => {
@@ -131,7 +173,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 	return (
 		<nav id="MenuBar" className="MenuBarNav" aria-label="Primary">
 			<ul className="MenuBarNavList">
-				{items.map((item) => {
+				{navigationItems.map((item) => {
 					const selected = item.key === selectedPath;
 					return (
 						<li key={item.key} data-menu-id={item.key} className={`MenuBarNavItem${selected ? ' is-selected' : ''}`}>
@@ -141,20 +183,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 								disabled={disableNavigation}
 								aria-current={selected ? 'page' : undefined}
 								onClick={() => {
-									if (item.key === selectedPath) {
-										return;
-									}
-
-									const nextConfig = { ...configRef.current, currentPath: item.key };
-									configRef.current = nextConfig;
-									startTransition(() => {
-										updateState({
-											config: nextConfig,
-											...(loadModsOnNavigate ? { loadingMods: true } : {})
-										});
-										navigate(item.key);
-									});
-									schedulePathPersist(item.key);
+									navigateToItem(item.key);
 								}}
 							>
 								<span className="MenuBarNavIcon" aria-hidden="true">

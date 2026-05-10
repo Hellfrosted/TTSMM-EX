@@ -1,9 +1,65 @@
+/// <reference types="node" />
 import '@testing-library/jest-dom/vitest';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { beforeEach, vi } from 'vitest';
 import { SessionMods } from './src/model';
+import type { AppConfig, ModCollection } from './src/model';
+import type { SteamworksStatus } from './src/shared/ipc';
+
+const electronLogMock = vi.hoisted(() => {
+	const quiet = (..._args: unknown[]) => undefined;
+	return {
+		transports: {
+			file: { level: 'debug' },
+			console: { level: 'debug' }
+		},
+		functions: {
+			info: quiet,
+			debug: quiet,
+			warn: quiet,
+			error: quiet,
+			silly: quiet,
+			verbose: quiet
+		},
+		info: quiet,
+		debug: quiet,
+		warn: quiet,
+		error: quiet,
+		silly: quiet,
+		verbose: quiet,
+		processMessage: quiet,
+		initialize: quiet
+	};
+});
+
+vi.mock('electron-log', () => ({
+	default: electronLogMock
+}));
 
 const noop = () => undefined;
+
+function lifecycleSuccess(config: AppConfig, activeCollection: ModCollection, collections: ModCollection[] = [activeCollection]) {
+	return {
+		ok: true,
+		activeCollection,
+		collections,
+		collectionNames: collections.map((collection) => collection.name),
+		config: {
+			...config,
+			activeCollection: activeCollection.name
+		}
+	};
+}
+
+function steamworksReadyStatus(): SteamworksStatus {
+	return {
+		inited: true,
+		readiness: {
+			kind: 'ready',
+			retryable: false
+		}
+	};
+}
 
 function createElectronMock() {
 	return {
@@ -21,12 +77,47 @@ function createElectronMock() {
 		updateLogLevel: noop,
 		getUserDataPath: vi.fn(async () => ''),
 		readConfig: vi.fn(async () => null),
-		updateConfig: vi.fn(async () => true),
+		updateConfig: vi.fn(async (config) => config),
 		readCollection: vi.fn(async () => null),
 		readCollectionsList: vi.fn(async () => []),
-		updateCollection: vi.fn(async () => true),
-		renameCollection: vi.fn(async () => true),
-		deleteCollection: vi.fn(async () => true),
+		updateCollection: vi.fn(async () => ({ ok: true })),
+		createCollectionLifecycle: vi.fn(async (request) =>
+			lifecycleSuccess(request.config, {
+				name: request.name,
+				mods: request.mods ?? []
+			})
+		),
+		duplicateCollectionLifecycle: vi.fn(async (request) =>
+			lifecycleSuccess(request.config, {
+				name: request.name,
+				mods: request.dirtyCollection?.mods ?? []
+			})
+		),
+		renameCollectionLifecycle: vi.fn(async (request) =>
+			lifecycleSuccess(request.config, {
+				name: request.name,
+				mods: request.dirtyCollection?.mods ?? []
+			})
+		),
+		deleteCollectionLifecycle: vi.fn(async (request) =>
+			lifecycleSuccess(request.config, {
+				name: 'default',
+				mods: []
+			})
+		),
+		switchCollectionLifecycle: vi.fn(async (request) =>
+			lifecycleSuccess(request.config, {
+				name: request.name,
+				mods: []
+			})
+		),
+		resolveStartupCollection: vi.fn(async (request) => {
+			const activeCollection: ModCollection = {
+				name: request.config.activeCollection || 'default',
+				mods: []
+			};
+			return lifecycleSuccess(request.config, activeCollection);
+		}),
 		pathExists: vi.fn(async () => true),
 		discoverGameExecutable: vi.fn(async () => null),
 		selectPath: vi.fn(async () => null),
@@ -51,7 +142,7 @@ function createElectronMock() {
 		isGameRunning: vi.fn(async () => false),
 		readModMetadata: vi.fn(async () => new SessionMods('', [])),
 		fetchWorkshopDependencies: vi.fn(async () => true),
-		steamworksInited: vi.fn(async () => ({ inited: true })),
+		steamworksInited: vi.fn(async () => steamworksReadyStatus()),
 		downloadMod: vi.fn(async () => true),
 		subscribeMod: vi.fn(async () => true),
 		unsubscribeMod: vi.fn(async () => true),

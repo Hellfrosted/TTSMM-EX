@@ -16,7 +16,7 @@ try {
 } catch (error) {
 	console.error(chalk.red('Steamworks native dependency setup failed.'));
 	console.error(
-		chalk.red('Ensure the Steamworks SDK files required by the greenworks fork are available before running "npm run setup:steamworks".')
+		chalk.red('Ensure the Steamworks SDK files required by the greenworks fork are available before running "pnpm run setup:steamworks".')
 	);
 	throw error;
 }

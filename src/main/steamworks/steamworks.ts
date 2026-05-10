@@ -44,7 +44,7 @@ const getGreenworksModule = () => {
 
 const getGreenworksUnavailableMessage = () => {
 	const details = greenworksLoadError ? ` Details: ${greenworksLoadError.message}` : '';
-	return `Greenworks native module is unavailable. Run "npm run setup:steamworks" after installing the Steamworks SDK if you need Steam integration locally.${details}`;
+	return `Greenworks native module is unavailable. Run "pnpm run setup:steamworks" after installing the Steamworks SDK if you need Steam integration locally.${details}`;
 };
 
 type RawWorkshopItem = {

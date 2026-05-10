@@ -20,38 +20,23 @@ const subscribe = <TArgs extends unknown[]>(channel: ValidChannel, callback: (..
 	};
 };
 
+type IpcInvokeApi = Pick<ElectronApi, keyof typeof ipcInvokeChannels>;
+
+function createInvokeApi(): IpcInvokeApi {
+	return Object.fromEntries(
+		Object.entries(ipcInvokeChannels).map(([method, channel]) => [method, (...args: unknown[]) => invoke(channel, ...args)])
+	) as IpcInvokeApi;
+}
+
 const electronApi: ElectronApi = {
+	...createInvokeApi(),
 	platform: process.platform,
+	uiSmokeMode:
+		process.env.TTSMM_EX_UI_SMOKE === '1' || process.argv.includes('--ttsmm-ex-ui-smoke') || process.argv.includes('ttsmm-ex-ui-smoke'),
 	log: log.functions,
 	updateLogLevel: (level) => {
 		send(ipcSendChannels.updateLogLevel, level);
 	},
-	getUserDataPath: () => invoke(ipcInvokeChannels.getUserDataPath),
-	readConfig: () => invoke(ipcInvokeChannels.readConfig),
-	updateConfig: (config) => invoke(ipcInvokeChannels.updateConfig, config),
-	readCollection: (collection) => invoke(ipcInvokeChannels.readCollection, collection),
-	readCollectionsList: () => invoke(ipcInvokeChannels.readCollectionsList),
-	updateCollection: (collection) => invoke(ipcInvokeChannels.updateCollection, collection),
-	renameCollection: (collection, newName) => invoke(ipcInvokeChannels.renameCollection, collection, newName),
-	deleteCollection: (collection) => invoke(ipcInvokeChannels.deleteCollection, collection),
-	pathExists: (targetPath, expectedType) => invoke(ipcInvokeChannels.pathExists, targetPath, expectedType),
-	discoverGameExecutable: () => invoke(ipcInvokeChannels.discoverGameExecutable),
-	selectPath: (directory, title) => invoke(ipcInvokeChannels.selectPath, directory, title),
-	readBlockLookupSettings: () => invoke(ipcInvokeChannels.readBlockLookupSettings),
-	saveBlockLookupSettings: (settings) => invoke(ipcInvokeChannels.saveBlockLookupSettings, settings),
-	buildBlockLookupIndex: (request) => invoke(ipcInvokeChannels.buildBlockLookupIndex, request),
-	searchBlockLookup: (request) => invoke(ipcInvokeChannels.searchBlockLookup, request),
-	getBlockLookupStats: () => invoke(ipcInvokeChannels.getBlockLookupStats),
-	autoDetectBlockLookupWorkshopRoot: (request) => invoke(ipcInvokeChannels.autoDetectBlockLookupWorkshopRoot, request),
-	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) =>
-		invoke(ipcInvokeChannels.launchGame, gameExec, workshopID, closeOnLaunch, args),
-	isGameRunning: () => invoke(ipcInvokeChannels.isGameRunning),
-	readModMetadata: (localDir, allKnownMods) => invoke(ipcInvokeChannels.readModMetadata, localDir, allKnownMods),
-	fetchWorkshopDependencies: (workshopID) => invoke(ipcInvokeChannels.fetchWorkshopDependencies, workshopID),
-	steamworksInited: () => invoke(ipcInvokeChannels.steamworksInited),
-	downloadMod: (workshopID) => invoke(ipcInvokeChannels.downloadMod, workshopID),
-	subscribeMod: (workshopID) => invoke(ipcInvokeChannels.subscribeMod, workshopID),
-	unsubscribeMod: (workshopID) => invoke(ipcInvokeChannels.unsubscribeMod, workshopID),
 	openModBrowser: (workshopID) => {
 		send(ipcSendChannels.openModBrowser, workshopID);
 	},

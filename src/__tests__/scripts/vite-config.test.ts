@@ -1,7 +1,10 @@
 // @vitest-environment node
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createMainConfig, createPreloadConfig, createRendererConfig } from '../../../vite.config';
+import vitestConfig from '../../../vitest.config';
 
 const normalizePath = (value: unknown) => String(value).replaceAll('\\', '/');
 
@@ -28,6 +31,21 @@ const manualChunkMeta = {
 	getModuleIds: function* getModuleIds() {},
 	getModuleInfo: () => null
 };
+const expectedAliasKeys = ['model', 'model/*', 'renderer/*', 'shared/*', 'util/*'];
+const expectedVitestAliasKeys = [
+	'electron/common',
+	'electron/main',
+	'electron/renderer',
+	'model',
+	'renderer/*',
+	'shared/*',
+	'util/*'
+].sort();
+
+function readJsonFile<T>(relativePath: string): T {
+	const jsonc = fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+	return JSON.parse(jsonc) as T;
+}
 
 function getExternalPredicate(rollupOptions: RollupOptionsLike | undefined) {
 	const external = rollupOptions?.external;
@@ -44,6 +62,43 @@ function getManualChunks(rollupOptions: RollupOptionsLike | undefined) {
 		throw new TypeError('Expected renderer config to expose a manualChunks function.');
 	}
 	return manualChunks as ManualChunks;
+}
+
+function getViteAliasKeys(alias: unknown) {
+	if (!Array.isArray(alias)) {
+		throw new TypeError('Expected Vite config to expose an alias array.');
+	}
+
+	return alias
+		.map((entry) => {
+			const find = (entry as { find?: unknown }).find;
+			if (!(find instanceof RegExp)) {
+				throw new TypeError('Expected Vite alias entries to use RegExp find patterns.');
+			}
+			if (find.source === '^model$') {
+				return 'model';
+			}
+			const prefixMatch = /^\^(.+)\\\/$/.exec(find.source);
+			if (!prefixMatch) {
+				throw new Error(`Unexpected Vite alias pattern: ${find.source}`);
+			}
+			return `${prefixMatch[1]}/*`;
+		})
+		.sort();
+}
+
+function getObjectAliasKeys(alias: unknown) {
+	if (!alias || Array.isArray(alias) || typeof alias !== 'object') {
+		throw new TypeError('Expected config to expose an alias object.');
+	}
+
+	return Object.keys(alias).sort();
+}
+
+function getVitestAliasKeys(alias: unknown) {
+	return getObjectAliasKeys(alias)
+		.map((key) => (['renderer', 'shared', 'util'].includes(key) ? `${key}/*` : key))
+		.sort();
 }
 
 describe('vite config', () => {
@@ -91,5 +146,18 @@ describe('vite config', () => {
 		expect(manualChunks('/repo/node_modules/react-router-dom/dist/index.js', manualChunkMeta)).toBe('vendor-react');
 		expect(manualChunks('/repo/node_modules/axios/index.js', manualChunkMeta)).toBe('vendor-data');
 		expect(manualChunks('/repo/src/renderer/App.tsx', manualChunkMeta)).toBeUndefined();
+	});
+
+	it('keeps path aliases aligned across TypeScript, Vite, Vitest, and Knip', () => {
+		const tsconfig = readJsonFile<{ compilerOptions?: { paths?: Record<string, string[]> } }>('tsconfig.base.json');
+		const knip = readJsonFile<{ paths?: Record<string, string[]> }>('knip.jsonc');
+		const importedVitestConfig = vitestConfig as { resolve?: { alias?: unknown } };
+
+		expect(Object.keys(tsconfig.compilerOptions?.paths ?? {}).sort()).toEqual(expectedAliasKeys);
+		expect(Object.keys(knip.paths ?? {}).sort()).toEqual(expectedAliasKeys);
+		expect(getVitestAliasKeys(importedVitestConfig.resolve?.alias)).toEqual(expectedVitestAliasKeys);
+		expect(getViteAliasKeys(createRendererConfig(false).resolve?.alias)).toEqual(expectedAliasKeys);
+		expect(createRendererConfig(false).resolve?.alias).toEqual(createMainConfig().resolve?.alias);
+		expect(createRendererConfig(false).resolve?.alias).toEqual(createPreloadConfig().resolve?.alias);
 	});
 });

@@ -1,20 +1,5 @@
 import { EAccountType } from './steam_api';
 
-export enum FriendFlags {
-	None = 0,
-	Blocked = 1,
-	FriendshipRequested = 2,
-	Immediate = 4,
-	ClanMember = 8,
-	OnGameServer = 16,
-	RequestingFriendship = 128,
-	RequestingInfo = 256,
-	Ignored = 512,
-	IgnoredFriend = 1024,
-	ChatMember = 4096,
-	All = 65535
-}
-
 export enum FriendRelationship {
 	None = 0,
 	Blocked = 1,
@@ -25,38 +10,6 @@ export enum FriendRelationship {
 	IgnoredFriend = 6,
 	Suggested_DEPRECATED = 7,
 	Max = 8
-}
-
-export enum PersonaChange {
-	Name = 1,
-	Status = 2,
-	ComeOnline = 4,
-	GoneOffline = 8,
-	GamePlayed = 16,
-	GameServer = 32,
-	Avatar = 64,
-	JoinedSource = 128,
-	LeftSource = 256,
-	RelationshipChanged = 512,
-	NameFirstSet = 1024,
-	FacebookInfo = 2048,
-	NickName = 4096,
-	SteamLevel = 8192
-}
-
-export enum ChatEntryType {
-	Invalid = 0,
-	ChatMsg = 1,
-	Typing = 2,
-	InviteGame = 3,
-	Emote = 4,
-	LeftConversation = 6,
-	Entered = 7,
-	WasKicked = 8,
-	WasBanned = 9,
-	Disconnected = 10,
-	HistoricalChat = 11,
-	LinkBlocked = 14
 }
 
 export interface SteamID {

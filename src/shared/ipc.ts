@@ -17,10 +17,14 @@ export enum ValidChannel {
 	READ_CONFIG = 'read-config',
 	UPDATE_CONFIG = 'update-config',
 	READ_COLLECTION = 'read-collection',
-	DELETE_COLLECTION = 'delete-collection',
-	RENAME_COLLECTION = 'rename-collection',
 	READ_COLLECTIONS = 'read-collections-list',
 	UPDATE_COLLECTION = 'update-collection',
+	CREATE_COLLECTION_LIFECYCLE = 'collection-lifecycle-create',
+	DUPLICATE_COLLECTION_LIFECYCLE = 'collection-lifecycle-duplicate',
+	RENAME_COLLECTION_LIFECYCLE = 'collection-lifecycle-rename',
+	DELETE_COLLECTION_LIFECYCLE = 'collection-lifecycle-delete',
+	SWITCH_COLLECTION_LIFECYCLE = 'collection-lifecycle-switch',
+	RESOLVE_STARTUP_COLLECTION = 'startup-collection-resolve',
 	SELECT_PATH = 'select-path',
 	BLOCK_LOOKUP_READ_SETTINGS = 'block-lookup-read-settings',
 	BLOCK_LOOKUP_SAVE_SETTINGS = 'block-lookup-save-settings',
@@ -52,9 +56,23 @@ export enum LogLevel {
 	SILLY = 'silly'
 }
 
+export type SteamworksReadinessKind =
+	| 'ready'
+	| 'bypassed'
+	| 'native-module-unavailable'
+	| 'steam-not-running'
+	| 'wrong-app-id'
+	| 'unknown-failure';
+
+export interface SteamworksReadiness {
+	kind: SteamworksReadinessKind;
+	retryable: boolean;
+}
+
 export interface SteamworksStatus {
 	inited: boolean;
 	error?: string;
+	readiness: SteamworksReadiness;
 }
 
 export interface ProgressUpdatePayload {

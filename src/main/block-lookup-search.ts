@@ -1,6 +1,22 @@
 import type { BlockLookupSearchResult, PersistedBlockLookupIndex } from 'shared/block-lookup';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 
+interface SearchableBlockLookupRecord {
+	record: PersistedBlockLookupIndex['records'][number];
+	blob: string;
+	blockName: string;
+	internalName: string;
+	blockId: string;
+	deprecated: boolean;
+	sortLabel: string;
+}
+
+export interface WarmBlockLookupSearchIndex {
+	builtAt: string;
+	stats: BlockLookupSearchResult['stats'];
+	records: SearchableBlockLookupRecord[];
+}
+
 function buildSearchBlob(record: PersistedBlockLookupIndex['records'][number]) {
 	return [
 		record.blockName,
@@ -17,8 +33,37 @@ function buildSearchBlob(record: PersistedBlockLookupIndex['records'][number]) {
 		.toLowerCase();
 }
 
-export function searchBlockLookupRecords(index: PersistedBlockLookupIndex, query: string, limit?: number): BlockLookupSearchResult {
+export function createWarmBlockLookupSearchIndex(index: PersistedBlockLookupIndex): WarmBlockLookupSearchIndex | null {
 	if (!index.builtAt) {
+		return null;
+	}
+
+	return {
+		builtAt: index.builtAt,
+		stats: createBlockLookupIndexStats(index),
+		records: index.records.map((record) => {
+			const blockName = record.blockName.toLowerCase();
+			const internalName = record.internalName.toLowerCase();
+			const blockId = record.blockId.toLowerCase();
+			return {
+				record,
+				blob: buildSearchBlob(record),
+				blockName,
+				internalName,
+				blockId,
+				deprecated: internalName.startsWith('_deprecated_') || blockName.startsWith('deprecated '),
+				sortLabel: `${record.modTitle}\0${record.blockName}`
+			};
+		})
+	};
+}
+
+export function searchWarmBlockLookupRecords(
+	index: WarmBlockLookupSearchIndex | null,
+	query: string,
+	limit?: number
+): BlockLookupSearchResult {
+	if (!index) {
 		return {
 			rows: [],
 			stats: null
@@ -33,33 +78,31 @@ export function searchBlockLookupRecords(index: PersistedBlockLookupIndex, query
 				return true;
 			}
 
-			const blob = buildSearchBlob(record);
-			return tokens.every((token) => blob.includes(token));
+			return tokens.every((token) => record.blob.includes(token));
 		})
 		.sort((left, right) => {
-			const leftBlock = left.blockName.toLowerCase();
-			const rightBlock = right.blockName.toLowerCase();
-			const leftInternal = left.internalName.toLowerCase();
-			const rightInternal = right.internalName.toLowerCase();
-			const leftId = left.blockId.toLowerCase();
-			const rightId = right.blockId.toLowerCase();
-			const leftRank = leftBlock === normalizedQuery ? 0 : leftInternal === normalizedQuery ? 1 : leftId === normalizedQuery ? 2 : 3;
-			const rightRank = rightBlock === normalizedQuery ? 0 : rightInternal === normalizedQuery ? 1 : rightId === normalizedQuery ? 2 : 3;
+			const leftRank =
+				left.blockName === normalizedQuery ? 0 : left.internalName === normalizedQuery ? 1 : left.blockId === normalizedQuery ? 2 : 3;
+			const rightRank =
+				right.blockName === normalizedQuery ? 0 : right.internalName === normalizedQuery ? 1 : right.blockId === normalizedQuery ? 2 : 3;
 			if (leftRank !== rightRank) {
 				return leftRank - rightRank;
 			}
 
-			const leftDeprecated = leftInternal.startsWith('_deprecated_') || leftBlock.startsWith('deprecated ');
-			const rightDeprecated = rightInternal.startsWith('_deprecated_') || rightBlock.startsWith('deprecated ');
-			if (leftDeprecated !== rightDeprecated) {
-				return leftDeprecated ? 1 : -1;
+			if (left.deprecated !== right.deprecated) {
+				return left.deprecated ? 1 : -1;
 			}
 
-			return `${left.modTitle}\0${left.blockName}`.localeCompare(`${right.modTitle}\0${right.blockName}`);
-		});
+			return left.sortLabel.localeCompare(right.sortLabel);
+		})
+		.map((record) => record.record);
 
 	return {
 		rows: limit && limit > 0 ? rows.slice(0, limit) : rows,
-		stats: createBlockLookupIndexStats(index)
+		stats: index.stats
 	};
+}
+
+export function searchBlockLookupRecords(index: PersistedBlockLookupIndex, query: string, limit?: number): BlockLookupSearchResult {
+	return searchWarmBlockLookupRecords(createWarmBlockLookupSearchIndex(index), query, limit);
 }

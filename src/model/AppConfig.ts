@@ -27,6 +27,7 @@ export interface AppConfig {
 	language: string;
 
 	pureVanilla?: boolean;
+	treatNuterraSteamBetaAsEquivalent?: boolean;
 
 	[AppConfigKeys.LOCAL_DIR]?: string;
 	[AppConfigKeys.GAME_EXEC]: string;

@@ -1,0 +1,2 @@
+export const TERRATECH_STEAM_APP_ID = '285920';
+export const MOD_MANAGER_WORKSHOP_ID = BigInt(2571814511);

@@ -3,6 +3,16 @@ import type { ModData } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import type { SessionMods } from 'model/SessionMods';
 import type {
+	CollectionLifecycleResult,
+	CreateCollectionLifecycleRequest,
+	DeleteCollectionLifecycleRequest,
+	DuplicateCollectionLifecycleRequest,
+	RenameCollectionLifecycleRequest,
+	SwitchCollectionLifecycleRequest
+} from './collection-lifecycle';
+import type { CollectionContentSaveRequest, CollectionContentSaveResult } from './collection-content-save';
+import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from './startup-collection-resolution';
+import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
 	BlockLookupIndexStats,
@@ -43,16 +53,21 @@ export type ProgressChangeCallback = (
 
 export interface ElectronApi {
 	platform: ElectronPlatform;
+	uiSmokeMode: boolean;
 	log: ElectronLogFunctions;
 	updateLogLevel: (level: LogLevel) => void;
 	getUserDataPath: () => Promise<string>;
 	readConfig: () => Promise<AppConfig | null>;
-	updateConfig: (config: AppConfig) => Promise<boolean>;
+	updateConfig: (config: AppConfig) => Promise<AppConfig | null>;
 	readCollection: (collection: string) => Promise<ModCollection | null>;
 	readCollectionsList: () => Promise<string[]>;
-	updateCollection: (collection: ModCollection) => Promise<boolean>;
-	renameCollection: (collection: ModCollection, newName: string) => Promise<boolean>;
-	deleteCollection: (collection: string) => Promise<boolean>;
+	updateCollection: (request: CollectionContentSaveRequest) => Promise<CollectionContentSaveResult>;
+	createCollectionLifecycle: (request: CreateCollectionLifecycleRequest) => Promise<CollectionLifecycleResult>;
+	duplicateCollectionLifecycle: (request: DuplicateCollectionLifecycleRequest) => Promise<CollectionLifecycleResult>;
+	renameCollectionLifecycle: (request: RenameCollectionLifecycleRequest) => Promise<CollectionLifecycleResult>;
+	deleteCollectionLifecycle: (request: DeleteCollectionLifecycleRequest) => Promise<CollectionLifecycleResult>;
+	switchCollectionLifecycle: (request: SwitchCollectionLifecycleRequest) => Promise<CollectionLifecycleResult>;
+	resolveStartupCollection: (request: StartupCollectionResolutionRequest) => Promise<StartupCollectionResolutionResult>;
 	pathExists: (targetPath: string, expectedType?: PathType) => Promise<boolean>;
 	discoverGameExecutable: () => Promise<string | null>;
 	selectPath: (directory: boolean, title: string) => Promise<string | null>;
@@ -64,7 +79,11 @@ export interface ElectronApi {
 	autoDetectBlockLookupWorkshopRoot: (request: BlockLookupBuildRequest) => Promise<string | null>;
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => Promise<boolean>;
 	isGameRunning: () => Promise<boolean>;
-	readModMetadata: (localDir: string | undefined, allKnownMods: string[]) => Promise<SessionMods>;
+	readModMetadata: (
+		localDir: string | undefined,
+		allKnownMods: string[],
+		options?: { treatNuterraSteamBetaAsEquivalent?: boolean }
+	) => Promise<SessionMods>;
 	fetchWorkshopDependencies: (workshopID: bigint) => Promise<boolean>;
 	steamworksInited: () => Promise<SteamworksStatus>;
 	downloadMod: (workshopID: bigint) => Promise<boolean>;

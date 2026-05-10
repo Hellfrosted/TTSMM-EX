@@ -1,6 +1,8 @@
 import type { ButtonHTMLAttributes, ComponentType, HTMLAttributes, ReactNode } from 'react';
 import { Check, LoaderCircle, X } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import { DesktopButton } from '../DesktopControls';
+import { getStatusSurfaceClassName } from '../status-surface-classes';
 
 interface StartupCardProps extends HTMLAttributes<HTMLElement> {
 	wide?: boolean;
@@ -158,7 +160,7 @@ export function StartupStatusDetail({ children, className, ...props }: HTMLAttri
 
 export function StartupProgressBar({ percent, showInfo = true, status = 'active' }: StartupProgressBarProps) {
 	const clampedPercent = Math.min(100, Math.max(0, Math.round(percent)));
-	const valueToneClassName = status === 'exception' ? 'bg-error' : status === 'success' ? 'bg-success' : 'bg-primary';
+	const valueToneClassName = status === 'exception' ? 'bg-destructive' : status === 'success' ? 'bg-success' : 'bg-primary';
 
 	return (
 		<div className="mt-4 flex w-full items-center gap-3">
@@ -170,7 +172,7 @@ export function StartupProgressBar({ percent, showInfo = true, status = 'active'
 				aria-valuenow={clampedPercent}
 			>
 				<div
-					className={`absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-[160ms] ease-out ${valueToneClassName}`}
+					className={`absolute inset-y-0 left-0 rounded-[inherit] transition-[width] duration-160 ease-out ${valueToneClassName}`}
 					style={{ width: `${clampedPercent}%` }}
 				/>
 			</div>
@@ -187,37 +189,11 @@ export function StartupStatusIcon({ size = 32, status }: StartupStatusIconProps)
 	return <Icon className={`block shrink-0 ${toneClassName}`} size={size} aria-hidden="true" />;
 }
 
-export function StartupButton({
-	children,
-	className,
-	disabled,
-	loading,
-	type = 'button',
-	variant = 'default',
-	...props
-}: StartupButtonProps) {
-	const buttonClassName = [
-		'box-border inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border px-4 font-[650] text-text',
-		'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--app-color-text-base)_78%,var(--app-color-primary)_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-		'disabled:cursor-not-allowed disabled:opacity-[0.55]',
-		variant === 'primary'
-			? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
-			: 'border-border bg-surface-elevated enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-		className
-	]
-		.filter(Boolean)
-		.join(' ');
-
+export function StartupButton({ children, className, ...props }: StartupButtonProps) {
 	return (
-		<button {...props} type={type} disabled={disabled || loading} className={buttonClassName}>
-			{loading ? (
-				<span
-					className="size-3.5 animate-[spin_700ms_linear_infinite] rounded-full border-2 border-[color-mix(in_srgb,currentColor_35%,transparent)] border-t-current"
-					aria-hidden="true"
-				/>
-			) : null}
+		<DesktopButton {...props} className={['px-4', className].filter(Boolean).join(' ')}>
 			{children}
-		</button>
+		</DesktopButton>
 	);
 }
 
@@ -232,8 +208,8 @@ export function StartupActions({ children, className, ...props }: StartupActions
 
 export function StartupErrorText({ children, className, ...props }: StartupErrorTextProps) {
 	const errorClassName = [
-		'block max-w-full rounded-md border border-[color-mix(in_srgb,var(--app-color-error)_40%,var(--app-color-border))]',
-		'bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))] px-3 py-2.5 text-error [overflow-wrap:anywhere]',
+		'block max-w-full rounded-md border px-3 py-2.5 text-error [overflow-wrap:anywhere]',
+		getStatusSurfaceClassName('error'),
 		className
 	]
 		.filter(Boolean)

@@ -109,10 +109,12 @@ describe('ModDetailsFooter', () => {
 			openModal: vi.fn()
 		});
 
-		expect(screen.getByRole('button', { name: 'Switch to side-by-side split layout' })).toHaveAttribute('aria-pressed', 'false');
+		expect(screen.getByRole('button', { name: 'Switch to side details panel' })).toHaveAttribute('aria-pressed', 'false');
 		expect(screen.getByRole('button', { name: 'Expand details to full view' })).toHaveAttribute('aria-pressed', 'false');
 		expect(screen.getByRole('button', { name: 'Close details' })).toBeInTheDocument();
+		expect(screen.getByText('Preview')).toBeInTheDocument();
 		expect(screen.getByAltText('Workshop Title preview image')).toBeInTheDocument();
+		expect(document.querySelector('.ModDetailFooterPreviewCol')).not.toBeInTheDocument();
 	});
 
 	it('shows pending dependency rows with the workshop id in the ID column while validation is stale', () => {
@@ -351,7 +353,7 @@ describe('ModDetailsFooter', () => {
 			activeCollection: { name: 'default', mods: [currentMod.uid, dependencyMod.uid] }
 		});
 		const validateCollection = vi.fn();
-		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(false);
+		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 
 		setupDescriptors(mods, appState.config.userOverrides);
 		const [currentRecord] = mods.foundMods;

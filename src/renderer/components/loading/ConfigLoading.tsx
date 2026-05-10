@@ -1,10 +1,9 @@
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useReducer } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
-import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
-import { useAppDispatch, useAppStateSelector, setActiveCollection, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
+import { useAppDispatch, useAppStateSelector, setAppConfig, setCollectionsState } from 'renderer/state/app-state';
 import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,
@@ -19,14 +18,9 @@ import {
 	StartupTitle
 } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
-import { collectionQueryOptions, collectionsListQueryOptions, configQueryOptions, useUpdateCollectionMutation } from 'renderer/async-cache';
+import { configQueryOptions } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
-import {
-	describeStartupBootError,
-	resolveStartupCollection,
-	resolveStartupNavigation,
-	shouldAutoDiscoverGameExec
-} from 'renderer/startup-loading';
+import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
 
 async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: string } | undefined> {
 	const errors: { [field: string]: string } = {};
@@ -68,25 +62,95 @@ async function validateAppConfig(config: AppConfig): Promise<{ [field: string]: 
 	return {};
 }
 
+interface ConfigLoadingState {
+	bootPersistenceError?: string;
+	bootResolved: boolean;
+	configLoadError?: string;
+	loadedCollections: number;
+	loadingConfig: boolean;
+	totalCollections: number;
+	updatingSteamMod: boolean;
+	userDataPathError?: string;
+}
+
+type ConfigLoadingAction =
+	| { type: 'user-data-path-failed'; message: string }
+	| { type: 'config-load-failed'; message: string }
+	| { type: 'config-loaded' }
+	| { type: 'steam-mod-updated' }
+	| { type: 'boot-persistence-failed'; message: string }
+	| { type: 'boot-started' }
+	| { type: 'collections-loaded'; totalCollections: number };
+
+function reduceConfigLoadingState(state: ConfigLoadingState, action: ConfigLoadingAction): ConfigLoadingState {
+	switch (action.type) {
+		case 'user-data-path-failed':
+			return {
+				...state,
+				userDataPathError: action.message
+			};
+		case 'config-load-failed':
+			return {
+				...state,
+				configLoadError: action.message,
+				loadingConfig: false
+			};
+		case 'config-loaded':
+			return {
+				...state,
+				loadingConfig: false
+			};
+		case 'steam-mod-updated':
+			return {
+				...state,
+				updatingSteamMod: false
+			};
+		case 'boot-persistence-failed':
+			return {
+				...state,
+				bootPersistenceError: action.message
+			};
+		case 'boot-started':
+			return {
+				...state,
+				bootResolved: true
+			};
+		case 'collections-loaded':
+			return {
+				...state,
+				loadedCollections: action.totalCollections,
+				totalCollections: action.totalCollections
+			};
+	}
+}
+
 export default function ConfigLoading() {
 	const queryClient = useQueryClient();
-	const { mutateAsync: updateCollection } = useUpdateCollectionMutation();
-	const dispatch = useAppDispatch();
-	const allCollectionNames = useAppStateSelector((state) => state.allCollectionNames);
-	const allCollections = useAppStateSelector((state) => state.allCollections);
+	const appDispatch = useAppDispatch();
 	const config = useAppStateSelector((state) => state.config);
 	const configErrors = useAppStateSelector((state) => state.configErrors);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
 	const updateAppState = useAppStateSelector((state) => state.updateState);
-	const [loadingConfig, setLoadingConfig] = useState(true);
-	const [userDataPathError, setUserDataPathError] = useState<string>();
-	const [configLoadError, setConfigLoadError] = useState<string>();
-	const [bootPersistenceError, setBootPersistenceError] = useState<string>();
-	const [collectionLoadError, setCollectionLoadError] = useState<string>();
-	const [loadedCollections, setLoadedCollections] = useState(0);
-	const [totalCollections, setTotalCollections] = useState(-1);
-	const [updatingSteamMod, setUpdatingSteamMod] = useState(true);
-	const [bootResolved, setBootResolved] = useState(false);
+	const [state, dispatchLoading] = useReducer(reduceConfigLoadingState, {
+		bootPersistenceError: undefined,
+		bootResolved: false,
+		configLoadError: undefined,
+		loadedCollections: 0,
+		loadingConfig: true,
+		totalCollections: -1,
+		updatingSteamMod: true,
+		userDataPathError: undefined
+	});
+	const {
+		bootPersistenceError,
+		bootResolved,
+		configLoadError,
+		loadedCollections,
+		loadingConfig,
+		totalCollections,
+		updatingSteamMod,
+		userDataPathError
+	} = state;
 
 	const readUserDataPath = useEffectEvent(async () => {
 		try {
@@ -94,7 +158,7 @@ export default function ConfigLoading() {
 			updateAppState({ userDataPath: path });
 		} catch (error) {
 			api.logger.error(error);
-			setUserDataPathError(String(error));
+			dispatchLoading({ type: 'user-data-path-failed', message: String(error) });
 		}
 	});
 
@@ -111,7 +175,7 @@ export default function ConfigLoading() {
 				}
 			});
 		} finally {
-			setLoadingConfig(false);
+			dispatchLoading({ type: 'config-loaded' });
 		}
 	});
 
@@ -148,75 +212,27 @@ export default function ConfigLoading() {
 			const response = await queryClient.fetchQuery(configQueryOptions());
 			if (response) {
 				const discoveredConfig = await populateDiscoveredGameExec(response as AppConfig, true);
-				dispatch(setAppConfig(discoveredConfig));
+				appDispatch(setAppConfig(discoveredConfig));
 				await validateConfig(discoveredConfig);
 			} else {
 				api.logger.info('No config present - using default config');
 				const discoveredConfig = await populateDiscoveredGameExec(DEFAULT_CONFIG, false);
-				dispatch(setAppConfig(discoveredConfig));
+				appDispatch(setAppConfig(discoveredConfig));
 				await validateConfig(discoveredConfig);
 			}
 		} catch (error) {
 			api.logger.error(error);
-			setConfigLoadError(String(error));
-			setLoadingConfig(false);
+			dispatchLoading({ type: 'config-load-failed', message: String(error) });
 		}
 	});
 
 	const updateSteamMod = useEffectEvent(() => {
-		setUpdatingSteamMod(false);
-	});
-
-	const loadCollections = useEffectEvent(async () => {
-		try {
-			const collectionNames = await queryClient.fetchQuery(collectionsListQueryOptions());
-			setTotalCollections(collectionNames.length);
-
-			const nextCollections = new Map<string, ModCollection>();
-			const nextCollectionNames = new Set<string>();
-			const loadedCollectionResults = await Promise.allSettled(
-				collectionNames.map(async (collectionName) => {
-					try {
-						const collection = await queryClient.fetchQuery(collectionQueryOptions(collectionName));
-						return { collectionName, collection };
-					} finally {
-						setLoadedCollections((current) => current + 1);
-					}
-				})
-			);
-
-			const rejectedCollectionLoad = loadedCollectionResults.find(
-				(result): result is PromiseRejectedResult => result.status === 'rejected'
-			);
-			if (rejectedCollectionLoad) {
-				throw rejectedCollectionLoad.reason;
-			}
-
-			loadedCollectionResults.forEach((result) => {
-				if (result.status !== 'fulfilled') {
-					return;
-				}
-
-				const { collection } = result.value;
-				if (!collection) {
-					return;
-				}
-
-				nextCollections.set(collection.name, collection);
-				nextCollectionNames.add(collection.name);
-			});
-
-			dispatch(setCollectionsState(nextCollections, nextCollectionNames));
-		} catch (error) {
-			api.logger.error(error);
-			setCollectionLoadError(String(error));
-			setTotalCollections(0);
-		}
+		dispatchLoading({ type: 'steam-mod-updated' });
 	});
 
 	const haltBootOnPersistenceFailure = useEffectEvent((message: string) => {
 		api.logger.warn(message);
-		setBootPersistenceError(message);
+		dispatchLoading({ type: 'boot-persistence-failed', message });
 	});
 
 	const proceedToNext = useEffectEvent((baseConfig?: AppConfig) => {
@@ -229,94 +245,38 @@ export default function ConfigLoading() {
 	useEffect(() => {
 		void readUserDataPath();
 		void readConfig();
-		void loadCollections();
 		updateSteamMod();
 	}, []);
 
 	useEffect(() => {
-		if (
-			bootResolved ||
-			bootPersistenceError ||
-			configLoadError ||
-			collectionLoadError ||
-			updatingSteamMod ||
-			totalCollections < 0 ||
-			loadedCollections < totalCollections ||
-			loadingConfig
-		) {
+		if (bootResolved || bootPersistenceError || configLoadError || updatingSteamMod || loadingConfig) {
 			return;
 		}
 
-		setBootResolved(true);
+		dispatchLoading({ type: 'boot-started' });
 		void (async () => {
-			const collectionResolution = resolveStartupCollection({
-				activeCollection: undefined,
-				allCollectionNames,
-				allCollections,
-				config
-			});
-
-			if (collectionResolution.kind === 'failed') {
-				haltBootOnPersistenceFailure(collectionResolution.message);
-				return;
-			}
-
-			if (collectionResolution.kind === 'active') {
-				dispatch(setActiveCollection(collectionResolution.activeCollection));
-				proceedToNext(collectionResolution.config);
-				return;
-			}
-
-			if (collectionResolution.kind === 'repair-active') {
-				const { collectionName, lifecycleResult } = collectionResolution;
-				const persistedActiveCollection = await tryWriteConfig(lifecycleResult.config);
-				if (!persistedActiveCollection) {
-					haltBootOnPersistenceFailure(`Failed to persist repaired active collection ${collectionName}`);
+			try {
+				const result = await api.resolveStartupCollection({ config });
+				if (!result.ok) {
+					haltBootOnPersistenceFailure(result.message);
 					return;
 				}
-				dispatch(setAppConfig(lifecycleResult.config));
-				dispatch(setActiveCollection(lifecycleResult.activeCollection));
-				proceedToNext(lifecycleResult.config);
-				return;
-			}
 
-			const { lifecycleResult } = collectionResolution;
-			const defaultCollection: ModCollection = lifecycleResult.activeCollection;
-			const createdDefaultCollection = await updateCollection(defaultCollection)
-				.then(() => true)
-				.catch(() => false);
-			if (!createdDefaultCollection) {
-				haltBootOnPersistenceFailure('Failed to persist the default collection during boot');
+				const nextCollections = new Map(result.collections.map((collection) => [collection.name, collection]));
+				dispatchLoading({ type: 'collections-loaded', totalCollections: result.collectionNames.length });
+				appDispatch(setCollectionsState(nextCollections, new Set(result.collectionNames), result.activeCollection));
+				appDispatch(setAppConfig(result.config));
+				proceedToNext(result.config);
+			} catch (error) {
+				api.logger.error(error);
+				haltBootOnPersistenceFailure(String(error));
 				return;
 			}
-			const persistedActiveCollection = await tryWriteConfig(lifecycleResult.config);
-			if (!persistedActiveCollection) {
-				haltBootOnPersistenceFailure('Failed to persist the default active collection during boot');
-				return;
-			}
-			dispatch(setCollectionsState(lifecycleResult.allCollections, lifecycleResult.allCollectionNames, defaultCollection));
-			dispatch(setAppConfig(lifecycleResult.config));
-			proceedToNext(lifecycleResult.config);
 		})();
-	}, [
-		allCollectionNames,
-		allCollections,
-		config,
-		configErrors,
-		bootResolved,
-		bootPersistenceError,
-		configLoadError,
-		dispatch,
-		collectionLoadError,
-		loadedCollections,
-		loadingConfig,
-		totalCollections,
-		updateCollection,
-		updatingSteamMod
-	]);
+	}, [config, bootResolved, bootPersistenceError, configLoadError, appDispatch, loadingConfig, updatingSteamMod]);
 
 	const percent = totalCollections > 0 ? Math.ceil((100 * loadedCollections) / totalCollections) : 100;
-	const bootError = configLoadError || bootPersistenceError || userDataPathError || collectionLoadError;
+	const bootError = configLoadError || bootPersistenceError || userDataPathError;
 	const describedBootError = bootError ? describeStartupBootError(bootError) : undefined;
 	const statusLabel = bootError ? describedBootError?.title || 'Startup needs attention' : 'Preparing your mod manager';
 	const statusDetail = bootError

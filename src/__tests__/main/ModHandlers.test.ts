@@ -8,8 +8,9 @@ import {
 	createSteamworksInitHandler,
 	createSubscribeModHandler
 } from '../../main/ipc/mod-handlers';
-import Steamworks, { EResult, UGCItemState } from '../../main/steamworks';
-import ModFetcher, { getModDetailsFromPath } from '../../main/mod-fetcher';
+import Steamworks from '../../main/steamworks';
+import { EResult, UGCItemState } from '../../main/steamworks/types';
+import { getModDetailsFromPath } from '../../main/mod-fetcher';
 import { SteamworksRuntime } from '../../main/steamworks-runtime';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
@@ -58,14 +59,15 @@ describe('mod handlers', () => {
 			}),
 			on: vi.fn()
 		};
-		const tryInitSteamworks = vi.fn(() => ({ inited: true }));
+		const readyStatus = { inited: true, readiness: { kind: 'ready', retryable: false } } as const;
+		const tryInitSteamworks = vi.fn(() => readyStatus);
 
 		registerModHandlers(
 			ipcMain as never,
 			{
 				getWebContents: () => null
 			},
-			() => ({ inited: true }),
+			() => readyStatus,
 			tryInitSteamworks
 		);
 
@@ -151,9 +153,11 @@ describe('mod handlers', () => {
 	});
 
 	it('rejects mod metadata requests when scanning mods fails', async () => {
-		vi.spyOn(ModFetcher.prototype, 'fetchMods').mockRejectedValueOnce(new Error('scan failed'));
+		const scanInventory = vi.fn().mockRejectedValueOnce(new Error('scan failed'));
 
-		await expect(createReadModMetadataHandler()({ sender: {} as never }, 'C:\\mods', [])).rejects.toThrow('scan failed');
+		await expect(
+			createReadModMetadataHandler(undefined, undefined, scanInventory)({ sender: {} as never }, 'C:\\mods', [])
+		).rejects.toThrow('scan failed');
 	});
 
 	it('rejects malformed mod metadata payloads before clearing caches', async () => {
@@ -168,11 +172,12 @@ describe('mod handlers', () => {
 
 	it('clears cached workshop dependency lookups before rescanning mod metadata', async () => {
 		const clearDependencyLookupCache = vi.fn();
-		vi.spyOn(ModFetcher.prototype, 'fetchMods').mockResolvedValueOnce([]);
+		const scanInventory = vi.fn().mockResolvedValueOnce([]);
 
-		await createReadModMetadataHandler(clearDependencyLookupCache)({ sender: {} as never }, 'C:\\mods', []);
+		await createReadModMetadataHandler(clearDependencyLookupCache, undefined, scanInventory)({ sender: {} as never }, 'C:\\mods', []);
 
 		expect(clearDependencyLookupCache).toHaveBeenCalledTimes(1);
+		expect(scanInventory).toHaveBeenCalledTimes(1);
 	});
 
 	it('returns ready without initializing Steamworks when the development bypass is enabled', async () => {
@@ -194,10 +199,24 @@ describe('mod handlers', () => {
 			() => runtime.tryInit()
 		)();
 
-		expect(result).toEqual({ inited: true });
+		expect(result).toEqual({ inited: true, readiness: { kind: 'bypassed', retryable: false } });
 		expect(init).not.toHaveBeenCalled();
 		expect(logger.warn).toHaveBeenCalledTimes(1);
 		expect(logger.error).not.toHaveBeenCalled();
+	});
+
+	it('skips native Steam actions when readiness is bypassed', async () => {
+		const steamworks = {
+			ugcSubscribe: vi.fn()
+		};
+
+		const result = await createSubscribeModHandler(steamworks as never, () => ({
+			inited: true,
+			readiness: { kind: 'bypassed', retryable: false }
+		}))({} as never, BigInt(42));
+
+		expect(result).toBe(false);
+		expect(steamworks.ugcSubscribe).not.toHaveBeenCalled();
 	});
 
 	it('preserves Steam metadata when refreshing workshop state from the context menu', async () => {
@@ -207,7 +226,8 @@ describe('mod handlers', () => {
 		};
 
 		vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_workshopID, success) => {
-			success();
+			success(EResult.k_EResultOK);
+			return true;
 		});
 		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed | UGCItemState.Installed);
 		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue({
@@ -236,7 +256,7 @@ describe('mod handlers', () => {
 		const updateAction = template.find((item) => item.label === 'Update');
 		expect(updateAction?.click).toBeTypeOf('function');
 
-		updateAction?.click?.();
+		updateAction?.click?.({} as never, {} as never, {} as never);
 		await new Promise((resolve) => {
 			setTimeout(resolve, 0);
 		});
@@ -273,7 +293,8 @@ describe('mod handlers', () => {
 
 		vi.mocked(getModDetailsFromPath).mockRejectedValueOnce(new Error('bad metadata'));
 		vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_workshopID, success) => {
-			success();
+			success(EResult.k_EResultOK);
+			return true;
 		});
 		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed | UGCItemState.Installed);
 		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue({
@@ -300,7 +321,7 @@ describe('mod handlers', () => {
 		);
 
 		const updateAction = template.find((item) => item.label === 'Update');
-		updateAction?.click?.();
+		updateAction?.click?.({} as never, {} as never, {} as never);
 		await new Promise((resolve) => {
 			setTimeout(resolve, 0);
 		});

@@ -1,51 +1,58 @@
 import type { IpcMain } from 'electron';
 import type { BlockLookupBuildRequest, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { ValidChannel } from '../../model';
-import { createBlockLookupIndexer } from '../block-lookup-indexer';
+import { createBlockLookupIndexModule, type BlockLookupIndexModule } from '../block-lookup-indexer';
 import {
 	parseBlockLookupBuildRequestPayload,
 	parseBlockLookupSearchRequestPayload,
 	parseBlockLookupSettingsPayload
 } from './block-lookup-validation';
-import { assertValidIpcSender } from './ipc-sender-validation';
+import { registerValidatedIpcHandler } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
 }
 
 export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvider: UserDataPathProvider) {
-	const getIndexer = () => createBlockLookupIndexer(userDataPathProvider.getUserDataPath());
+	const indexModulesByUserDataPath = new Map<string, BlockLookupIndexModule>();
+	const getIndexModule = () => {
+		const userDataPath = userDataPathProvider.getUserDataPath();
+		let indexModule = indexModulesByUserDataPath.get(userDataPath);
+		if (!indexModule) {
+			indexModule = createBlockLookupIndexModule(userDataPath);
+			indexModulesByUserDataPath.set(userDataPath, indexModule);
+		}
+		return indexModule;
+	};
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_READ_SETTINGS, async (event) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_READ_SETTINGS, event);
-		return getIndexer().readSettings();
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_READ_SETTINGS, async () => {
+		return getIndexModule().readSettings();
 	});
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, async (event, settings: BlockLookupSettings) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, event);
-		return getIndexer().saveSettings(parseBlockLookupSettingsPayload(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings));
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, async (_event, settings: BlockLookupSettings) => {
+		return getIndexModule().saveSettings(parseBlockLookupSettingsPayload(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings));
 	});
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (event, request: BlockLookupBuildRequest) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, event);
-		return getIndexer().buildIndex(parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request));
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (_event, request: BlockLookupBuildRequest) => {
+		return getIndexModule().buildIndex(parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request));
 	});
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_SEARCH, async (event, request: BlockLookupSearchRequest) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_SEARCH, event);
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_SEARCH, async (_event, request: BlockLookupSearchRequest) => {
 		const validatedRequest = parseBlockLookupSearchRequestPayload(ValidChannel.BLOCK_LOOKUP_SEARCH, request);
-		return getIndexer().search(validatedRequest);
+		return getIndexModule().search(validatedRequest);
 	});
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_STATS, async (event) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_STATS, event);
-		return getIndexer().getStats();
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_STATS, async () => {
+		return getIndexModule().getStats();
 	});
 
-	ipcMain.handle(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, async (event, request: BlockLookupBuildRequest) => {
-		assertValidIpcSender(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, event);
-		return getIndexer().autoDetectWorkshopRoot(
-			parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, request)
-		);
-	});
+	registerValidatedIpcHandler(
+		ipcMain,
+		ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT,
+		async (_event, request: BlockLookupBuildRequest) => {
+			return getIndexModule().autoDetectWorkshopRoot(
+				parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, request)
+			);
+		}
+	);
 }

@@ -1,12 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import Steamworks, { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks';
+import Steamworks from '../../main/steamworks';
+import { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks/types';
 import ModFetcher from '../../main/mod-fetcher';
+import { ModType } from '../../model/Mod';
 import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
 import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
+import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
+import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
 import { createTempDir } from './test-utils';
@@ -130,28 +134,25 @@ describe('ModFetcher', () => {
 	});
 
 	it('scans inventory through the facade entrypoint', async () => {
-		const fetchMods = vi.spyOn(ModFetcher.prototype, 'fetchMods').mockResolvedValueOnce([
-			{
-				uid: 'local:FacadePack',
-				id: 'FacadePack',
-				type: 'local',
-				hasCode: false,
-				path: 'C:\\mods\\FacadePack'
-			}
-		]);
+		const tempDir = createTempDir('ttsmm-inventory-facade-');
+		const modDir = path.join(tempDir, 'FacadePack');
+		fs.mkdirSync(modDir);
+		fs.writeFileSync(path.join(modDir, 'FacadeBundle_bundle'), '');
 		const progressSender = { send: vi.fn() };
 
-		await expect(
-			scanModInventory({
-				knownWorkshopMods: [BigInt(42)],
-				localPath: 'C:\\mods',
-				platform: 'win32',
-				progressSender,
-				skipWorkshopSteamworks: true
-			})
-		).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadePack' })]);
-
-		expect(fetchMods).toHaveBeenCalledTimes(1);
+		try {
+			await expect(
+				scanModInventory({
+					knownWorkshopMods: [BigInt(42)],
+					localPath: tempDir,
+					platform: 'win32',
+					progressSender,
+					skipWorkshopSteamworks: true
+				})
+			).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadeBundle' })]);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	it('reports inventory progress through a shared progress tracker', async () => {
@@ -181,6 +182,40 @@ describe('ModFetcher', () => {
 		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
 	});
 
+	it('hydrates uninstalled workshop metadata behind the hydration module', async () => {
+		const workshopID = BigInt(42);
+		vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+		vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+		vi.spyOn(Steamworks, 'on').mockImplementation(() => undefined);
+		vi.spyOn(Steamworks, 'getFriendPersonaName').mockReturnValue('Steam Author');
+		vi.spyOn(Steamworks, 'requestUserInformation').mockReturnValue(false);
+		const onProgress = vi.fn();
+
+		await expect(
+			hydrateWorkshopMod({
+				onProgress,
+				steamUGCDetails: createWorkshopDetails({
+					publishedFileId: workshopID,
+					title: 'Steam Workshop Title',
+					description: 'Steam description',
+					tags: ['Mods'],
+					tagsDisplayNames: ['Mods']
+				}),
+				workshopID
+			})
+		).resolves.toEqual(
+			expect.objectContaining({
+				uid: `workshop:${workshopID}`,
+				workshopID,
+				name: 'Steam Workshop Title',
+				description: 'Steam description',
+				subscribed: true,
+				authors: ['Steam Author']
+			})
+		);
+		expect(onProgress).toHaveBeenCalledWith(1);
+	});
+
 	it('keeps the workshop platform guard behind the paging adapter', () => {
 		expect(shouldSkipWorkshopFetch('win32')).toBe(false);
 		vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
@@ -202,7 +237,7 @@ describe('ModFetcher', () => {
 					{
 						uid: 'workshop:1',
 						id: null,
-						type: 'workshop',
+						type: ModType.WORKSHOP,
 						hasCode: false,
 						steamDependencies: [loadedDependency, invalidDependency, missingDependency]
 					}
@@ -211,6 +246,130 @@ describe('ModFetcher', () => {
 				knownInvalidMods
 			)
 		).toEqual(new Set([missingDependency]));
+	});
+
+	it('does not re-add NuterraSteam Beta as a missing workshop dependency when compatibility is enabled', () => {
+		const stableNuterraWorkshopID = BigInt(2484820102);
+		const betaNuterraWorkshopID = BigInt(2790966966);
+		const workshopMap = new Map<bigint, { uid: string; id: string; name: string }>([
+			[
+				stableNuterraWorkshopID,
+				{
+					uid: `workshop:${stableNuterraWorkshopID}`,
+					id: 'NuterraSteam',
+					name: 'NuterraSteam'
+				}
+			]
+		]);
+
+		expect(
+			collectMissingWorkshopDependencies(
+				[
+					{
+						uid: 'workshop:1',
+						id: 'NeedsNuterra',
+						type: ModType.WORKSHOP,
+						hasCode: false,
+						steamDependencies: [betaNuterraWorkshopID]
+					}
+				],
+				workshopMap as never,
+				new Set(),
+				{ treatNuterraSteamBetaAsEquivalent: true }
+			)
+		).toEqual(new Set());
+	});
+
+	it('uses the shared NuterraSteam variant policy when loaded workshop metadata only has a beta name', () => {
+		const loadedWorkshopID = BigInt(123);
+		const betaNuterraWorkshopID = BigInt(2790966966);
+		const workshopMap = new Map<bigint, { uid: string; id: string | null; name: string }>([
+			[
+				loadedWorkshopID,
+				{
+					uid: `workshop:${loadedWorkshopID}`,
+					id: null,
+					name: 'NuterraSteam (Beta)'
+				}
+			]
+		]);
+
+		expect(
+			collectMissingWorkshopDependencies(
+				[
+					{
+						uid: 'workshop:1',
+						id: 'NeedsNuterra',
+						type: ModType.WORKSHOP,
+						hasCode: false,
+						steamDependencies: [betaNuterraWorkshopID]
+					}
+				],
+				workshopMap as never,
+				new Set(),
+				{ treatNuterraSteamBetaAsEquivalent: true }
+			)
+		).toEqual(new Set());
+	});
+
+	it('re-adds NuterraSteam Beta as a missing workshop dependency when compatibility is disabled', () => {
+		const stableNuterraWorkshopID = BigInt(2484820102);
+		const betaNuterraWorkshopID = BigInt(2790966966);
+		const workshopMap = new Map<bigint, { uid: string; id: string; name: string }>([
+			[
+				stableNuterraWorkshopID,
+				{
+					uid: `workshop:${stableNuterraWorkshopID}`,
+					id: 'NuterraSteam',
+					name: 'NuterraSteam'
+				}
+			]
+		]);
+
+		expect(
+			collectMissingWorkshopDependencies(
+				[
+					{
+						uid: 'workshop:1',
+						id: 'NeedsNuterra',
+						type: ModType.WORKSHOP,
+						hasCode: false,
+						steamDependencies: [betaNuterraWorkshopID]
+					}
+				],
+				workshopMap as never,
+				new Set(),
+				{ treatNuterraSteamBetaAsEquivalent: false }
+			)
+		).toEqual(new Set([betaNuterraWorkshopID]));
+	});
+
+	it('expands known workshop chunks through the Workshop inventory module', async () => {
+		const parentWorkshopID = BigInt(10);
+		const childWorkshopID = BigInt(11);
+		const knownWorkshopMods = new Set([parentWorkshopID]);
+		const workshopMap = new Map<bigint, { uid: string }>();
+		const getDetailsForWorkshopModList = vi.fn(async () => [
+			{
+				uid: `workshop:${parentWorkshopID}`,
+				id: null,
+				type: ModType.WORKSHOP,
+				hasCode: false,
+				workshopID: parentWorkshopID,
+				steamDependencies: [childWorkshopID]
+			}
+		]);
+
+		await expect(
+			resolveWorkshopDependencyChunk(workshopMap as never, new Set(), new Set([parentWorkshopID]), {
+				getDetailsForWorkshopModList,
+				knownWorkshopMods,
+				updateModLoadingProgress: vi.fn()
+			})
+		).resolves.toEqual(new Set([childWorkshopID]));
+
+		expect(knownWorkshopMods).toEqual(new Set());
+		expect(workshopMap.get(parentWorkshopID)).toEqual(expect.objectContaining({ uid: `workshop:${parentWorkshopID}` }));
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {
@@ -316,14 +475,13 @@ describe('ModFetcher', () => {
 				expect.objectContaining({
 					uid: `workshop:${validWorkshopID}`,
 					workshopID: validWorkshopID,
-					name: 'Green Tech Expansion',
-					id: 'GreenTech',
-					tags: ['Mods', 'Blocks'],
-					steamDependencies: [BigInt(789)],
-					steamDependenciesFetchedAt: expect.any(Number),
-					authors: ['Test Author']
-				})
-			]);
+						name: 'Green Tech Expansion',
+						id: 'GreenTech',
+						tags: ['Mods', 'Blocks'],
+						steamDependencies: [BigInt(789)],
+						authors: ['Test Author']
+					})
+				]);
 
 			expect(getSubscribedItems).toHaveBeenCalledTimes(1);
 			expect(getUGCDetails).toHaveBeenCalledTimes(1);

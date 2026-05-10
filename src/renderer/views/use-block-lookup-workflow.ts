@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AppState } from 'model';
-import type { BlockLookupSettings } from 'shared/block-lookup';
 import api from 'renderer/Api';
 import {
 	collectBlockLookupModSources,
 	createBlockLookupBuildRequest,
 	createBlockLookupSearchState,
-	getBlockLookupRecordKey
+	createBlockLookupWorkspaceSessionState,
+	getBlockLookupRecordKey,
+	reduceBlockLookupWorkspaceSession
 } from 'renderer/block-lookup-workspace';
-import { invalidateBlockLookupSearchQueries, queryKeys, setBlockLookupBootstrapQueryData } from 'renderer/async-cache';
+import {
+	fetchBlockLookupBootstrap,
+	fetchBlockLookupSearch,
+	setBlockLookupBootstrapQueryData,
+	useBuildBlockLookupIndexMutation
+} from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { measurePerfAsync } from 'renderer/perf';
 import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
@@ -25,16 +31,10 @@ interface BlockLookupWorkflowOptions {
 export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions) {
 	const { openNotification } = useNotifications();
 	const queryClient = useQueryClient();
-	const [settings, setSettings] = useState<BlockLookupSettings>({ workshopRoot: '' });
-	const [workshopRoot, setWorkshopRoot] = useState('');
+	const [sessionState, dispatchSessionEvent] = useReducer(reduceBlockLookupWorkspaceSession, createBlockLookupWorkspaceSessionState());
+	const { loadingResults, rows, settings, stats, workshopRoot } = sessionState;
 	const query = useBlockLookupStore((state) => state.query);
 	const setQuery = useBlockLookupStore((state) => state.setQuery);
-	const rows = useBlockLookupStore((state) => state.rows);
-	const setRows = useBlockLookupStore((state) => state.setRows);
-	const stats = useBlockLookupStore((state) => state.stats);
-	const setStats = useBlockLookupStore((state) => state.setStats);
-	const loadingResults = useBlockLookupStore((state) => state.loadingResults);
-	const setLoadingResults = useBlockLookupStore((state) => state.setLoadingResults);
 	const buildingIndex = useBlockLookupStore((state) => state.buildingIndex);
 	const setBuildingIndex = useBlockLookupStore((state) => state.setBuildingIndex);
 	const selectedRowKey = useBlockLookupStore((state) => state.selectedRowKey);
@@ -49,33 +49,23 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		(forceRebuild = false) => createBlockLookupBuildRequest({ gameExec }, workshopRoot, modSources, forceRebuild),
 		[gameExec, modSources, workshopRoot]
 	);
-	const buildIndexMutation = useMutation({
-		mutationFn: (forceRebuild: boolean) =>
-			measurePerfAsync('blockLookup.buildIndex.ipc', () => api.buildBlockLookupIndex(buildRequest(forceRebuild)), {
-				forceRebuild,
-				modSources: modSources.length
-			})
-	});
+	const buildIndexMutation = useBuildBlockLookupIndexMutation();
 
 	const refreshResults = useCallback(
 		async (nextQuery: string) => {
 			const requestId = searchRequestIdRef.current + 1;
 			searchRequestIdRef.current = requestId;
-			setLoadingResults(true);
+			dispatchSessionEvent({ type: 'search-started' });
 			try {
-				const result = await queryClient.fetchQuery({
-					queryKey: queryKeys.blockLookup.search(nextQuery, MAX_SEARCH_RESULTS),
-					queryFn: () =>
-						measurePerfAsync('blockLookup.search.ipc', () => api.searchBlockLookup({ query: nextQuery, limit: MAX_SEARCH_RESULTS }), {
-							queryLength: nextQuery.length,
-							limit: MAX_SEARCH_RESULTS
-						})
+				const request = { query: nextQuery, limit: MAX_SEARCH_RESULTS };
+				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(queryClient, request), {
+					queryLength: nextQuery.length,
+					limit: MAX_SEARCH_RESULTS
 				});
 				if (requestId !== searchRequestIdRef.current) {
 					return;
 				}
-				setRows(result.rows);
-				setStats(result.stats);
+				dispatchSessionEvent({ type: 'search-completed', result });
 				setSelectedRowKey((current) => createBlockLookupSearchState(result, current).selectedRowKey);
 			} catch (error) {
 				api.logger.error(error);
@@ -90,27 +80,22 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 			} finally {
 				if (requestId === searchRequestIdRef.current) {
-					setLoadingResults(false);
+					dispatchSessionEvent({ type: 'search-finished' });
 				}
 			}
 		},
-		[openNotification, queryClient, setLoadingResults, setRows, setSelectedRowKey, setStats]
+		[openNotification, queryClient, setSelectedRowKey]
 	);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			try {
-				const [nextSettings, nextStats] = await queryClient.fetchQuery({
-					queryKey: queryKeys.blockLookup.bootstrap(),
-					queryFn: () => Promise.all([api.readBlockLookupSettings(), api.getBlockLookupStats()])
-				});
+				const [nextSettings, nextStats] = await fetchBlockLookupBootstrap(queryClient);
 				if (cancelled) {
 					return;
 				}
-				setSettings(nextSettings);
-				setWorkshopRoot(nextSettings.workshopRoot);
-				setStats(nextStats);
+				dispatchSessionEvent({ type: 'bootstrap-loaded', settings: nextSettings, stats: nextStats });
 				await refreshResults('');
 			} catch (error) {
 				api.logger.error(error);
@@ -120,7 +105,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		return () => {
 			cancelled = true;
 		};
-	}, [queryClient, refreshResults, setStats]);
+	}, [queryClient, refreshResults]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -134,9 +119,9 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const handleSaveSettings = useCallback(async () => {
 		try {
 			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
-			setSettings(nextSettings);
-			setWorkshopRoot(nextSettings.workshopRoot);
-			setBlockLookupBootstrapQueryData(queryClient, [nextSettings, stats]);
+			const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
+			dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
+			setBlockLookupBootstrapQueryData(queryClient, [settingsState.settings, settingsState.stats]);
 			openNotification(
 				{
 					message: 'Block lookup path saved',
@@ -158,12 +143,12 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				'error'
 			);
 		}
-	}, [openNotification, queryClient, stats, workshopRoot]);
+	}, [openNotification, queryClient, sessionState, workshopRoot]);
 
 	const handleBrowseWorkshopRoot = useCallback(async () => {
 		const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
 		if (selectedPath) {
-			setWorkshopRoot(selectedPath);
+			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: selectedPath });
 		}
 	}, []);
 
@@ -182,7 +167,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 				return;
 			}
-			setWorkshopRoot(detectedRoot);
+			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: detectedRoot });
 		} catch (error) {
 			api.logger.error(error);
 			openNotification(
@@ -201,12 +186,12 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		async (forceRebuild = false) => {
 			setBuildingIndex(true);
 			try {
-				const result = await buildIndexMutation.mutateAsync(forceRebuild);
-				setSettings(result.settings);
-				setWorkshopRoot(result.settings.workshopRoot);
-				setStats(result.stats);
-				setBlockLookupBootstrapQueryData(queryClient, [result.settings, result.stats]);
-				await invalidateBlockLookupSearchQueries(queryClient);
+				const request = buildRequest(forceRebuild);
+				const result = await measurePerfAsync('blockLookup.buildIndex.ipc', () => buildIndexMutation.mutateAsync(request), {
+					forceRebuild,
+					modSources: modSources.length
+				});
+				dispatchSessionEvent({ type: 'build-index-completed', result });
 				await refreshResults(query);
 				openNotification(
 					{
@@ -232,7 +217,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				setBuildingIndex(false);
 			}
 		},
-		[buildIndexMutation, openNotification, query, queryClient, refreshResults, setBuildingIndex, setStats]
+		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults, setBuildingIndex]
 	);
 
 	return {
@@ -251,7 +236,9 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		selectedRowKey,
 		setQuery,
 		setSelectedRowKey,
-		setWorkshopRoot,
+		setWorkshopRoot: (nextWorkshopRoot: string) => {
+			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: nextWorkshopRoot });
+		},
 		settings,
 		stats,
 		workshopRoot

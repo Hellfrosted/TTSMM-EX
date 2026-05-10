@@ -9,6 +9,13 @@ afterEach(() => {
 	cleanup();
 });
 
+function renderInAppRoot(children: React.ReactNode) {
+	const appRoot = document.createElement('div');
+	appRoot.className = 'AppRoot';
+	document.body.appendChild(appRoot);
+	return render(<>{children}</>, { container: appRoot });
+}
+
 describe('CollectionManagerModal', () => {
 	it('shows per-mod validation details in the configuration error modal', async () => {
 		const brokenMod = {
@@ -30,7 +37,7 @@ describe('CollectionManagerModal', () => {
 		mods.modIdToModDataMap.set(conflictingMod.uid, conflictingMod);
 		const appState = createAppState({ mods });
 
-		render(
+		renderInAppRoot(
 			<CollectionManagerModal
 				appState={appState}
 				modalType={CollectionManagerModalType.ERRORS_FOUND}
@@ -63,7 +70,7 @@ describe('CollectionManagerModal', () => {
 		const appState = createAppState();
 		const closeModal = vi.fn();
 
-		render(
+		renderInAppRoot(
 			<CollectionManagerModal
 				appState={appState}
 				modalType={CollectionManagerModalType.VIEW_SETTINGS}
@@ -101,7 +108,7 @@ describe('CollectionManagerModal', () => {
 		};
 		const appState = createAppState();
 
-		render(
+		renderInAppRoot(
 			<CollectionManagerModal
 				appState={appState}
 				modalType={CollectionManagerModalType.EDIT_OVERRIDES}

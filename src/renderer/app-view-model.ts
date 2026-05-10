@@ -1,5 +1,5 @@
 import type { AppState } from 'model/AppState';
-import type { CollectionWorkspaceAppState } from './state/app-state';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 interface AppShellInputs {
 	activeCollection?: AppState['activeCollection'];

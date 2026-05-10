@@ -144,14 +144,97 @@ describe('MainCollectionView', () => {
 			/>
 		);
 
-		fireEvent.click(await screen.findByRole('button', { name: 'Open details for HumanReadableModId' }));
+		const detailsButton = await screen.findByRole('button', { name: 'Open details for HumanReadableModId' });
+		fireEvent.click(detailsButton);
 		fireEvent.click(screen.getByRole('checkbox', { name: 'Include HumanReadableModId in collection' }));
+		const row = screen.getByText('3264187221').closest('tr') as HTMLTableRowElement;
+		fireEvent.click(row);
+		fireEvent.doubleClick(row);
 
 		expect(getModDetails).toHaveBeenCalledWith('workshop:3264187221', expect.objectContaining({ uid: 'workshop:3264187221' }));
 		expect(setDisabled).toHaveBeenCalledWith('workshop:3264187221');
+		expect(setDisabled).toHaveBeenCalledTimes(1);
+		expect(row).toHaveAttribute('aria-selected', 'true');
 	});
 
-	it('defaults to name sorting and supports size and date added sorting without an unsorted state', async () => {
+	it('opens row details when the highlighted row details icon is clicked', async () => {
+		stubResizeObserver();
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					getModDetails: undefined,
+					tableCommands: {
+						getModDetails,
+						setDisabled: vi.fn(),
+						setEnabled: vi.fn(),
+						setEnabledMods: vi.fn()
+					}
+				})}
+			/>
+		);
+
+		const detailsButton = await screen.findByRole('button', { name: 'Open details for HumanReadableModId' });
+		fireEvent.click(detailsButton);
+		expect(getModDetails).not.toHaveBeenCalled();
+
+		const detailsHint = await screen.findByTitle('Open mod details');
+		fireEvent.click(detailsHint);
+
+		expect(getModDetails).toHaveBeenCalledWith('workshop:3264187221', expect.objectContaining({ uid: 'workshop:3264187221' }));
+	});
+
+	it('switches visible mod details when another mod is clicked', async () => {
+		stubResizeObserver();
+		const getModDetails = vi.fn();
+		const rows = [
+			{
+				uid: 'workshop:3264187221',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(3264187221),
+				id: 'HumanReadableModId',
+				name: 'HHI Custom Paint GT',
+				subscribed: true,
+				installed: true
+			},
+			{
+				uid: 'workshop:2',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(2),
+				id: 'SecondMod',
+				name: 'Second Mod',
+				subscribed: true,
+				installed: true
+			}
+		];
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					detailsOpen: true,
+					getModDetails: undefined,
+					tableCommands: {
+						getModDetails,
+						setDisabled: vi.fn(),
+						setEnabled: vi.fn(),
+						setEnabledMods: vi.fn()
+					}
+				})}
+			/>
+		);
+
+		fireEvent.click(await screen.findByRole('button', { name: 'Open details for HumanReadableModId' }));
+		fireEvent.click(await screen.findByRole('button', { name: 'Open details for SecondMod' }));
+
+		expect(getModDetails).toHaveBeenNthCalledWith(1, 'workshop:3264187221', expect.objectContaining({ uid: 'workshop:3264187221' }));
+		expect(getModDetails).toHaveBeenNthCalledWith(2, 'workshop:2', expect.objectContaining({ uid: 'workshop:2' }));
+		expect(getModDetails).toHaveBeenCalledWith('workshop:2', expect.objectContaining({ uid: 'workshop:2' }));
+	});
+
+	it('defaults to name sorting and supports type, tags, size, and date added sorting without an unsorted state', async () => {
 		stubResizeObserver();
 
 		const rows = [
@@ -162,17 +245,18 @@ describe('MainCollectionView', () => {
 				id: 'Charlie',
 				name: 'Charlie',
 				size: 100,
+				tags: ['Blocks'],
 				dateAdded: new Date('2026-04-12T00:00:00.000Z'),
 				subscribed: true,
 				installed: true
 			},
 			{
-				uid: 'workshop:1',
-				type: ModType.WORKSHOP,
-				workshopID: BigInt(1),
+				uid: 'local:alpha',
+				type: ModType.LOCAL,
 				id: 'Alpha',
 				name: 'Alpha',
 				size: 300,
+				tags: ['bf'],
 				dateAdded: new Date('2026-04-13T00:00:00.000Z'),
 				subscribed: true,
 				installed: true
@@ -184,6 +268,7 @@ describe('MainCollectionView', () => {
 				id: 'Bravo',
 				name: 'Bravo',
 				size: 200,
+				tags: ['GeoCorp'],
 				dateAdded: new Date('2026-04-11T00:00:00.000Z'),
 				subscribed: true,
 				installed: true
@@ -202,6 +287,16 @@ describe('MainCollectionView', () => {
 
 		await waitFor(() => {
 			expect(getRenderedNameOrder()).toEqual(['Alpha', 'Bravo', 'Charlie']);
+		});
+
+		clickHeaderSort('Type');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Alpha', 'Bravo', 'Charlie']);
+		});
+
+		clickHeaderSort('Tags');
+		await waitFor(() => {
+			expect(getRenderedNameOrder()).toEqual(['Alpha', 'Charlie', 'Bravo']);
 		});
 
 		clickHeaderSort('Size');
@@ -312,6 +407,46 @@ describe('MainCollectionView', () => {
 		fireEvent.click(await screen.findByText('Show Tags'));
 
 		expect(setMainColumnVisibilityCallback).toHaveBeenCalledWith(MainColumnTitles.TAGS, true);
+	});
+
+	it('renders tag filtering from the Tags column header', async () => {
+		stubResizeObserver();
+		const onSelectedTagsChange = vi.fn();
+		const rows = [
+			{
+				uid: 'workshop:1',
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(1),
+				id: 'Alpha',
+				name: 'Alpha',
+				tags: ['Better Future'],
+				subscribed: true,
+				installed: true
+			}
+		];
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					rows,
+					filteredRows: rows,
+					collection: { name: 'default', mods: rows.map((row) => row.uid) },
+					availableTags: ['Better Future', 'GeoCorp'],
+					selectedTags: ['Better Future'],
+					onSelectedTagsChange
+				})}
+			/>
+		);
+
+		expect(screen.queryByRole('combobox', { name: 'Filter mods by tag' })).not.toBeInTheDocument();
+		const tagFilter = await screen.findByRole('combobox', { name: 'Filter Tags column' });
+		expect(tagFilter).toBeInTheDocument();
+
+		fireEvent.change(tagFilter, { target: { value: 'add:GeoCorp' } });
+		expect(onSelectedTagsChange).toHaveBeenCalledWith(['Better Future', 'GeoCorp']);
+
+		fireEvent.change(tagFilter, { target: { value: 'remove:Better Future' } });
+		expect(onSelectedTagsChange).toHaveBeenCalledWith([]);
 	});
 
 	it('reorders columns by dragging collection table headers', async () => {

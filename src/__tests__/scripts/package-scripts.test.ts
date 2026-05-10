@@ -21,6 +21,10 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.build).toBe('node --import=tsx ./scripts/vite-build.ts');
 		expect(packageJson.scripts?.dev).toContain('./scripts/vite-dev.ts');
 		expect(packageJson.scripts?.start).toBeUndefined();
-		expect(packageJson.scripts?.validate).toContain('npm run build');
+		expect(packageJson.scripts?.validate).toContain('pnpm run build');
+		expect(packageJson.scripts?.['smoke:ui']).toBe('pnpm run build && pnpm run smoke:ui:built');
+		expect(packageJson.scripts?.['smoke:ui:built']).toBe('node --import=tsx ./scripts/smoke-ui.ts');
+		expect(packageJson.scripts?.['smoke:ui:packaged']).toBe('pnpm run package && pnpm run smoke:ui:built -- --packaged');
+		expect(packageJson.scripts?.prepare).toBe('husky');
 	});
 });

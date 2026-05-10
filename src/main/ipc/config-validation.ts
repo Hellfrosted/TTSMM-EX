@@ -3,7 +3,7 @@ import type { AppConfig } from 'model';
 import type { ValidChannel } from 'shared/ipc';
 import { parseIpcPayload } from './ipc-validation';
 
-const appConfigPayloadSchema = z
+export const appConfigPayloadSchema = z
 	.object({
 		closeOnLaunch: z.boolean(),
 		language: z.string(),
@@ -20,7 +20,8 @@ const appConfigPayloadSchema = z
 		viewConfigs: z.record(z.string(), z.unknown()),
 		ignoredValidationErrors: z.instanceof(Map),
 		userOverrides: z.instanceof(Map),
-		pureVanilla: z.boolean().optional()
+		pureVanilla: z.boolean().optional(),
+		treatNuterraSteamBetaAsEquivalent: z.boolean().optional()
 	})
 	.passthrough();
 

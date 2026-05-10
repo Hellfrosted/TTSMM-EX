@@ -43,12 +43,12 @@ export function checkNativeDependencies({
 
 	const plural = nativeDeps.length > 1;
 	log(`
- ${chalk.whiteBright.bgYellow.bold('Native dependencies must stay in "./release/app".')}
+${chalk.whiteBright.bgYellow.bold('Native dependencies must stay in "./release/app".')}
 ${chalk.bold(nativeDeps.join(', '))} ${plural ? 'are native dependencies' : 'is a native dependency'} and should be installed inside of the "./release/app" folder.
  First, uninstall the packages from "./package.json":
-${chalk.whiteBright.bgGreen.bold('npm uninstall your-package')}
+${chalk.whiteBright.bgGreen.bold('pnpm remove your-package')}
  ${chalk.bold('Then install the native dependency in "./release/app/package.json":')}
-${chalk.whiteBright.bgGreen.bold('npm --prefix ./release/app install your-package')}
+${chalk.whiteBright.bgGreen.bold('pnpm --dir ./release/app add your-package')}
 	`);
 	return 1;
 }

@@ -1,5 +1,6 @@
 import log from 'electron-log';
 import fs from 'fs';
+import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 import Steamworks, {
 	type GetUserItemsProps,
 	type SteamPageResults,
@@ -8,7 +9,7 @@ import Steamworks, {
 	UserUGCListSortOrder
 } from './steamworks';
 
-const TERRATECH_APP_ID = 285920;
+const TERRATECH_APP_ID = Number(TERRATECH_STEAM_APP_ID);
 
 export function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
 	if (platform !== 'linux') {

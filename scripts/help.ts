@@ -64,10 +64,10 @@ const readPackageScripts = (manifestPath: string): PackageScripts | null => {
 
 const formatRunCommand = (packageScripts: PackageScripts, scriptName: string) => {
 	if (packageScripts.relativeDir === '.') {
-		return `npm run ${scriptName}`;
+		return `pnpm run ${scriptName}`;
 	}
 
-	return `npm --prefix ${packageScripts.relativeDir.replace(/\\/g, '/')} run ${scriptName}`;
+	return `pnpm --dir ${packageScripts.relativeDir.replace(/\\/g, '/')} run ${scriptName}`;
 };
 
 const packageScriptSets = collectPackageJsonPaths(repoRoot)
@@ -75,7 +75,7 @@ const packageScriptSets = collectPackageJsonPaths(repoRoot)
 	.filter((packageScripts): packageScripts is PackageScripts => packageScripts !== null)
 	.sort((left, right) => left.relativeManifestPath.localeCompare(right.relativeManifestPath));
 
-console.log('Available npm scripts:\n');
+console.log('Available pnpm scripts:\n');
 
 for (const [index, packageScripts] of packageScriptSets.entries()) {
 	console.log(`${packageScripts.relativeManifestPath} (${packageScripts.packageName})`);

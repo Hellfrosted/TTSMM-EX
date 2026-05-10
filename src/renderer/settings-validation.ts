@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { NLogLevel } from 'model';
-import type { EditingConfig } from './hooks/useSettingsForm';
+import type { AppConfig } from 'model';
+
+export interface LogConfig {
+	level: NLogLevel;
+	loggerID: string;
+}
+
+export interface EditingConfig extends AppConfig {
+	editingLogConfig: LogConfig[];
+}
 
 const nLogLevelValues = [
 	NLogLevel.OFF,

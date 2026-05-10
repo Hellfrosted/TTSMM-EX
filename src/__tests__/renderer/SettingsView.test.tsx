@@ -1,12 +1,15 @@
 import React from 'react';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AppConfigKeys, LogLevel } from '../../model';
+import { AppConfigKeys, type AppState, LogLevel } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { SettingsView } from '../../renderer/views/SettingsView';
 import { createAppState, renderWithQueryClient } from './test-utils';
 
 function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}) {
+	const appRoot = document.createElement('div');
+	appRoot.className = 'AppRoot';
+	document.body.appendChild(appRoot);
 	const appState = createAppState({
 		config: {
 			...DEFAULT_CONFIG,
@@ -17,10 +20,24 @@ function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}
 		},
 		...overrides
 	});
+	const updateState = appState.updateState;
+
+	function SettingsHarness() {
+		const [state, setState] = React.useState(appState);
+		const updateHarnessState = React.useCallback((props: Partial<AppState>) => {
+			updateState(props);
+			setState((currentState) => ({
+				...currentState,
+				...props
+			}));
+		}, []);
+
+		return <SettingsView appState={{ ...state, updateState: updateHarnessState }} />;
+	}
 
 	return {
 		appState,
-		...renderWithQueryClient(<SettingsView appState={appState} />)
+		...renderWithQueryClient(<SettingsHarness />, { container: appRoot })
 	};
 }
 
@@ -29,14 +46,34 @@ afterEach(() => {
 });
 
 describe('SettingsView', () => {
-	it('keeps settings switches on the shared desktop switch classes', () => {
+	it('toggles close-on-launch through the shared switch control', () => {
 		renderSettingsView();
 
-		expect(screen.getByRole('checkbox', { name: 'Close the app after launching TerraTech' })).toHaveClass(
-			'SettingsSwitch',
-			'rounded-full',
-			'checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))]'
-		);
+		const closeOnLaunchSwitch = screen.getByRole('checkbox', { name: 'Close the app after launching TerraTech' });
+		expect(closeOnLaunchSwitch).not.toBeChecked();
+
+		fireEvent.click(closeOnLaunchSwitch);
+
+		expect(closeOnLaunchSwitch).toBeChecked();
+	});
+
+	it('saves NuterraSteam compatibility edits through the settings form', async () => {
+		const { container } = renderSettingsView({ madeConfigEdits: true });
+
+		const compatibilitySwitch = screen.getByRole('checkbox', { name: 'Treat NuterraSteam and NuterraSteam Beta as equivalent' });
+		expect(compatibilitySwitch).toBeChecked();
+
+		fireEvent.click(compatibilitySwitch);
+		expect(compatibilitySwitch).not.toBeChecked();
+		fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					treatNuterraSteamBetaAsEquivalent: false
+				})
+			);
+		});
 	});
 
 	it('saves path and log-level edits through the settings form', async () => {

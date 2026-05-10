@@ -1,23 +1,58 @@
-import type { BlockLookupBuildRequest, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
+import type {
+	BlockLookupBuildRequest,
+	BlockLookupBuildResult,
+	BlockLookupIndexStats,
+	BlockLookupSearchRequest,
+	BlockLookupSearchResult,
+	BlockLookupSettings
+} from 'shared/block-lookup';
 import {
 	buildBlockLookupIndex,
 	getBlockLookupStats,
+	readBlockLookupIndex,
 	readBlockLookupSettings,
-	searchBlockLookupIndex,
 	writeBlockLookupSettings
 } from './block-lookup';
+import { createWarmBlockLookupSearchIndex, searchWarmBlockLookupRecords, type WarmBlockLookupSearchIndex } from './block-lookup-search';
 import { autoDetectBlockLookupWorkshopRoot } from './block-lookup-source-discovery';
 
-export function createBlockLookupIndexer(userDataPath: string) {
+interface BlockLookupIndexerAdapters {
+	buildBlockLookupIndex?: typeof buildBlockLookupIndex;
+	readBlockLookupIndex?: typeof readBlockLookupIndex;
+}
+
+export interface BlockLookupIndexModule {
+	autoDetectWorkshopRoot(request: BlockLookupBuildRequest): string | null;
+	buildIndex(request: BlockLookupBuildRequest): Promise<BlockLookupBuildResult>;
+	getStats(): BlockLookupIndexStats | null;
+	readSettings(): BlockLookupSettings;
+	saveSettings(settings: BlockLookupSettings): BlockLookupSettings;
+	search(request: BlockLookupSearchRequest): BlockLookupSearchResult;
+}
+
+export function createBlockLookupIndexModule(userDataPath: string, adapters: BlockLookupIndexerAdapters = {}): BlockLookupIndexModule {
+	const buildIndexImpl = adapters.buildBlockLookupIndex ?? buildBlockLookupIndex;
+	const readIndexImpl = adapters.readBlockLookupIndex ?? readBlockLookupIndex;
+	let warmSearchIndex: WarmBlockLookupSearchIndex | null | undefined;
+	const getWarmSearchIndex = () => {
+		if (warmSearchIndex === undefined) {
+			warmSearchIndex = createWarmBlockLookupSearchIndex(readIndexImpl(userDataPath));
+		}
+
+		return warmSearchIndex;
+	};
+
 	return {
 		autoDetectWorkshopRoot(request: BlockLookupBuildRequest) {
 			return autoDetectBlockLookupWorkshopRoot(request);
 		},
-		buildIndex(request: BlockLookupBuildRequest) {
-			return buildBlockLookupIndex(userDataPath, request);
+		async buildIndex(request: BlockLookupBuildRequest) {
+			const result = await buildIndexImpl(userDataPath, request);
+			warmSearchIndex = undefined;
+			return result;
 		},
 		getStats() {
-			return getBlockLookupStats(userDataPath);
+			return getWarmSearchIndex()?.stats ?? getBlockLookupStats(userDataPath);
 		},
 		readSettings() {
 			return readBlockLookupSettings(userDataPath);
@@ -26,7 +61,7 @@ export function createBlockLookupIndexer(userDataPath: string) {
 			return writeBlockLookupSettings(userDataPath, settings);
 		},
 		search(request: BlockLookupSearchRequest) {
-			return searchBlockLookupIndex(userDataPath, request.query, request.limit);
+			return searchWarmBlockLookupRecords(getWarmSearchIndex(), request.query, request.limit);
 		}
 	};
 }

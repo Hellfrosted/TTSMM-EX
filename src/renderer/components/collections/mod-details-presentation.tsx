@@ -70,17 +70,17 @@ export function ModDetailsFooterHeader({
 			</div>
 			<div className="ModDetailFooterHeaderActions">
 				<DetailIconButton
-					aria-label={halfLayoutMode === 'side' ? 'Switch to bottom split layout' : 'Switch to side-by-side split layout'}
+					aria-label={halfLayoutMode === 'side' ? 'Switch to bottom details panel' : 'Switch to side details panel'}
 					aria-pressed={halfLayoutMode === 'side'}
-					title={halfLayoutMode === 'side' ? 'Use bottom split for half view' : 'Use side-by-side split for half view'}
+					title={halfLayoutMode === 'side' ? 'Use bottom details panel' : 'Use side details panel'}
 					onClick={onToggleHalfLayout}
 				>
 					{halfLayoutMode === 'side' ? <PanelBottom size={18} aria-hidden="true" /> : <PanelRight size={18} aria-hidden="true" />}
 				</DetailIconButton>
 				<DetailIconButton
-					aria-label={bigDetails ? 'Return details to split view' : 'Expand details to full view'}
+					aria-label={bigDetails ? 'Return details to panel view' : 'Expand details to full view'}
 					aria-pressed={bigDetails}
-					title={bigDetails ? 'Return to split details' : 'Expand details to full view'}
+					title={bigDetails ? 'Return to details panel' : 'Expand details to full view'}
 					onClick={() => {
 						onExpandChange(!bigDetails);
 					}}
@@ -98,6 +98,7 @@ export function ModDetailsFooterHeader({
 export function ModDetailsPreview({ altText, path }: ModDetailsPreviewProps) {
 	return (
 		<div className="ModDetailFooterPreview">
+			{/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: image error handling swaps in the bundled missing-preview asset. */}
 			<img
 				src={path || missing}
 				alt={altText}

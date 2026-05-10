@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
-import { readConfigFile, registerConfigHandlers, writeConfigFile } from '../../main/ipc/config-handlers';
-import type { AppConfig } from '../../model';
+import { readConfigFile, writeConfigFile } from '../../main/config-store';
+import { registerConfigHandlers } from '../../main/ipc/config-handlers';
+import { ModErrorType, type AppConfig } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
 
@@ -92,7 +93,62 @@ describe('config handlers', () => {
 		expect(() => readConfigFile(configPath, true)).toThrow(`Failed to load config file "${configPath}"`);
 	});
 
-	it('strips obsolete persisted config fields when loading older config files', () => {
+	it('defaults NuterraSteam compatibility on when loading older config files', () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				closeOnLaunch: false,
+				language: 'en',
+				gameExec: 'TerraTech.exe',
+				workshopID: '1',
+				logsDir: tempDir,
+				steamMaxConcurrency: 1,
+				currentPath: '/collections/main',
+				viewConfigs: {},
+				ignoredValidationErrors: {},
+				userOverrides: {}
+			}),
+			'utf8'
+		);
+
+		const config = readConfigFile(configPath, true);
+		expect(config).not.toBeNull();
+		expect(config?.treatNuterraSteamBetaAsEquivalent).toBe(true);
+	});
+
+	it('fills missing config defaults when loading older config files', () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(
+			configPath,
+			JSON.stringify({
+				gameExec: 'TerraTech.exe',
+				workshopID: '1'
+			}),
+			'utf8'
+		);
+
+		const config = readConfigFile(configPath, true);
+		expect(config).toEqual(
+			expect.objectContaining({
+				closeOnLaunch: false,
+				currentPath: '/collections/main',
+				gameExec: 'TerraTech.exe',
+				language: 'english',
+				logsDir: '',
+				steamMaxConcurrency: 5,
+				treatNuterraSteamBetaAsEquivalent: true,
+				viewConfigs: {},
+				workshopID: BigInt(1)
+			})
+		);
+		expect(config?.ignoredValidationErrors).toBeInstanceOf(Map);
+		expect(config?.userOverrides).toBeInstanceOf(Map);
+	});
+
+	it('preserves explicit NuterraSteam compatibility opt-out when loading config files', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');
 		fs.writeFileSync(
@@ -115,7 +171,7 @@ describe('config handlers', () => {
 
 		const config = readConfigFile(configPath, true);
 		expect(config).not.toBeNull();
-		expect(config).not.toHaveProperty('treatNuterraSteamBetaAsEquivalent');
+		expect(config?.treatNuterraSteamBetaAsEquivalent).toBe(false);
 	});
 
 	it('keeps the original config when replacing an existing config fails', () => {
@@ -149,7 +205,7 @@ describe('config handlers', () => {
 			userOverrides: new Map()
 		});
 
-		expect(writeSuccess).toBe(false);
+		expect(writeSuccess).toBeNull();
 		expect(readConfigFile(configPath, true)).toEqual(
 			expect.objectContaining({
 				gameExec: 'old.exe'
@@ -177,12 +233,63 @@ describe('config handlers', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const { invoke } = createConfigHandlerHarness(tempDir);
 
-		await expect(invoke(ValidChannel.UPDATE_CONFIG, createValidConfig({ gameExec: 'new.exe' }))).resolves.toBe(true);
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, createValidConfig({ gameExec: 'new.exe' }))).resolves.toEqual(
+			expect.objectContaining({
+				gameExec: 'new.exe',
+				workshopID: BigInt(1)
+			})
+		);
 
 		expect(readConfigFile(path.join(tempDir, 'config.json'), true)).toEqual(
 			expect.objectContaining({
 				gameExec: 'new.exe',
 				workshopID: BigInt(1)
+			})
+		);
+	});
+
+	it('keeps config storage as the json adapter while shared defaults restore runtime types', () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+
+		expect(
+			writeConfigFile(
+				configPath,
+				createValidConfig({
+					ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:broken': ['Invalid mod ID'] }]]),
+					userOverrides: new Map([['local:override', { id: 'OverrideId', tags: ['utility'] }]])
+				})
+			)
+		).toEqual(
+			expect.objectContaining({
+				workshopID: BigInt(1),
+				ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:broken': ['Invalid mod ID'] }]]),
+				userOverrides: new Map([['local:override', { id: 'OverrideId', tags: ['utility'] }]])
+			})
+		);
+
+		expect(JSON.parse(fs.readFileSync(configPath, 'utf8'))).toEqual(
+			expect.objectContaining({
+				workshopID: '1',
+				ignoredValidationErrors: {
+					[ModErrorType.INVALID_ID]: {
+						'local:broken': ['Invalid mod ID']
+					}
+				},
+				userOverrides: {
+					'local:override': {
+						id: 'OverrideId',
+						tags: ['utility']
+					}
+				}
+			})
+		);
+
+		expect(readConfigFile(configPath, true)).toEqual(
+			expect.objectContaining({
+				workshopID: BigInt(1),
+				ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:broken': ['Invalid mod ID'] }]]),
+				userOverrides: new Map([['local:override', { id: 'OverrideId', tags: ['utility'] }]])
 			})
 		);
 	});

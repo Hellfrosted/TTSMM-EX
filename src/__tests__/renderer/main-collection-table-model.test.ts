@@ -60,8 +60,8 @@ describe('main-collection-table-model', () => {
 			availableTableWidth: 640
 		});
 
-		expect(model.resolvedColumnWidths[MainColumnTitles.NAME]).toBe(320);
-		expect(model.resolvedColumnWidths[MainColumnTitles.ID]).toBe(32);
+		expect(model.resolvedColumnWidths[MainColumnTitles.NAME]).toBe(354);
+		expect(model.resolvedColumnWidths[MainColumnTitles.ID]).toBe(138);
 		expect(Object.keys(model.resolvedColumnWidths)).toEqual([MainColumnTitles.TYPE, MainColumnTitles.NAME, MainColumnTitles.ID]);
 	});
 
