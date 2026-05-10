@@ -9,6 +9,7 @@ import Steamworks, {
 	UserUGCList,
 	UserUGCListSortOrder
 } from './steamworks';
+import { WorkshopPagingFailure } from './workshop-errors';
 
 const TERRATECH_APP_ID = Number(TERRATECH_STEAM_APP_ID);
 
@@ -34,7 +35,9 @@ export function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: t
 	}
 }
 
-export const getSteamSubscribedPage = Effect.fnUntraced(function* (pageNum: number): Effect.fn.Return<SteamPageResults, Error> {
+export const getSteamSubscribedPage = Effect.fnUntraced(function* (
+	pageNum: number
+): Effect.fn.Return<SteamPageResults, WorkshopPagingFailure> {
 	return yield* Effect.tryPromise({
 		try: () =>
 			new Promise<SteamPageResults>((resolve, reject) => {
@@ -56,6 +59,6 @@ export const getSteamSubscribedPage = Effect.fnUntraced(function* (pageNum: numb
 				};
 				Steamworks.ugcGetUserItems(options);
 			}),
-		catch: (error) => (error instanceof Error ? error : new Error(String(error)))
+		catch: (error) => new WorkshopPagingFailure(pageNum, error)
 	});
 });

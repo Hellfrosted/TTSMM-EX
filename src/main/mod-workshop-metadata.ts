@@ -4,6 +4,7 @@ import type { ModData } from '../model';
 import { createWorkshopPlaceholderMod } from '../model';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { SteamPersonaCache } from './steam-persona-cache';
+import { WorkshopMetadataLookupFailure } from './workshop-errors';
 
 const MAX_MODS_PER_PAGE = 50;
 
@@ -15,7 +16,7 @@ export function chunkWorkshopIds(workshopIDs: bigint[]): bigint[][] {
 
 export const getRawWorkshopDetailsForList = Effect.fnUntraced(function* (
 	workshopIDs: bigint[]
-): Effect.fn.Return<SteamUGCDetails[], Error> {
+): Effect.fn.Return<SteamUGCDetails[], WorkshopMetadataLookupFailure> {
 	return yield* Effect.tryPromise({
 		try: () =>
 			new Promise<SteamUGCDetails[]>((resolve, reject) => {
@@ -34,7 +35,7 @@ export const getRawWorkshopDetailsForList = Effect.fnUntraced(function* (
 					}
 				);
 			}),
-		catch: (error) => (error instanceof Error ? error : new Error(String(error)))
+		catch: (error) => new WorkshopMetadataLookupFailure(workshopIDs, error)
 	});
 });
 

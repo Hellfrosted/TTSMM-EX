@@ -12,8 +12,14 @@ import { ModInventoryProgress } from '../../main/mod-inventory-progress';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
-import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
-import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
+import {
+	chunkWorkshopIds,
+	createWorkshopPotentialMod,
+	getRawWorkshopDetailsForList,
+	hasWorkshopModTag
+} from '../../main/mod-workshop-metadata';
+import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
+import { WorkshopMetadataLookupFailure, WorkshopPagingFailure } from '../../main/workshop-errors';
 import { SteamPersonaCacheLive } from '../../main/steam-persona-cache';
 import { createTempDir, createWorkshopDetails } from './test-utils';
 
@@ -129,6 +135,33 @@ describe('ModFetcher', () => {
 		);
 		expect(hasWorkshopModTag(['Blocks', 'Mods'])).toBe(true);
 		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
+	});
+
+	it('reports Steamworks detail lookup failures as typed recoverable failures', async () => {
+		const cause = new Error('Steamworks unavailable');
+		vi.spyOn(Steamworks, 'getUGCDetails').mockImplementation((_workshopIDs, _successCallback, errorCallback) => {
+			errorCallback?.(cause);
+		});
+
+		await expect(Effect.runPromise(getRawWorkshopDetailsForList([BigInt(42), BigInt(77)]))).rejects.toMatchObject({
+			_tag: 'WorkshopMetadataLookupFailure',
+			workshopIDs: [BigInt(42), BigInt(77)],
+			cause
+		} satisfies Partial<WorkshopMetadataLookupFailure>);
+	});
+
+	it('reports Steamworks subscription page failures as typed recoverable failures', async () => {
+		const cause = new Error('Steamworks page unavailable');
+		vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			props.error_callback(cause);
+			return true;
+		});
+
+		await expect(Effect.runPromise(getSteamSubscribedPage(3))).rejects.toMatchObject({
+			_tag: 'WorkshopPagingFailure',
+			pageNum: 3,
+			cause
+		} satisfies Partial<WorkshopPagingFailure>);
 	});
 
 	it('hydrates uninstalled workshop metadata behind the hydration module', async () => {
