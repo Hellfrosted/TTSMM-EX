@@ -153,8 +153,8 @@ function normalizeBlockLookupRenderedPreview(value: unknown): BlockLookupRecord[
 		return undefined;
 	}
 	const previewRecord = value as Record<string, unknown>;
-	const imageUrl = readString(previewRecord.imageUrl);
-	if (!imageUrl) {
+	const cacheRelativePath = readString(previewRecord.cacheRelativePath);
+	if (!cacheRelativePath) {
 		return undefined;
 	}
 
@@ -163,7 +163,7 @@ function normalizeBlockLookupRenderedPreview(value: unknown): BlockLookupRecord[
 	const height =
 		typeof previewRecord.height === 'number' && Number.isFinite(previewRecord.height) ? Math.round(previewRecord.height) : undefined;
 	return {
-		imageUrl,
+		cacheRelativePath,
 		...(width !== undefined ? { width } : {}),
 		...(height !== undefined ? { height } : {})
 	};

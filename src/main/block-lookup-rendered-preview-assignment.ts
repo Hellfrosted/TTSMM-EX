@@ -1,5 +1,4 @@
 import type { BlockLookupRecord } from 'shared/block-lookup';
-import { createBlockLookupPreviewImageUrl } from './preview-protocol';
 import { normalizedBlockLookupKey } from './block-lookup-nuterra-text';
 
 export interface BlockLookupRenderedPreviewAsset {
@@ -11,6 +10,22 @@ export interface BlockLookupRenderedPreviewAsset {
 
 export interface BlockLookupRenderedPreviewAssignmentOptions {
 	renderedPreviewsEnabled?: boolean;
+}
+
+export function getBlockLookupRecordPreviewMatchNameCandidates(records: readonly BlockLookupRecord[]): string[] {
+	return [
+		...new Set(
+			records
+				.flatMap((record) => [
+					record.internalName,
+					record.blockName,
+					record.preferredAlias.replace(/\(.*$/, ''),
+					...(record.previewAssetNames ?? [])
+				])
+				.map((value) => value.trim())
+				.filter(Boolean)
+		)
+	];
 }
 
 function normalizePreviewAssetMatchKey(value: string): string {
@@ -79,13 +94,13 @@ function isStrongPreviewMatchToken(token: string): boolean {
 }
 
 function getRecordPreviewMatchKeys(record: BlockLookupRecord): string[] {
-	return [record.internalName, record.blockName, record.preferredAlias.replace(/\(.*$/, ''), ...(record.previewAssetNames ?? [])]
+	return getBlockLookupRecordPreviewMatchNameCandidates([record])
 		.map(normalizePreviewAssetMatchKey)
 		.filter((key) => key.length > 0);
 }
 
 function getRecordPreviewMatchTokenSets(record: BlockLookupRecord): string[][] {
-	return [record.internalName, record.blockName, record.preferredAlias.replace(/\(.*$/, ''), ...(record.previewAssetNames ?? [])]
+	return getBlockLookupRecordPreviewMatchNameCandidates([record])
 		.map(tokenizePreviewMatchValue)
 		.filter((tokens) => tokens.length >= 2);
 }
@@ -181,13 +196,8 @@ function findPreviewAssetForRecord(
 }
 
 function createRenderedPreviewFromAsset(previewAsset: BlockLookupRenderedPreviewAsset): BlockLookupRecord['renderedPreview'] {
-	const imageUrl = createBlockLookupPreviewImageUrl(previewAsset.cacheRelativePath);
-	if (!imageUrl) {
-		return undefined;
-	}
-
 	return {
-		imageUrl,
+		cacheRelativePath: previewAsset.cacheRelativePath,
 		...(previewAsset.width ? { width: Math.round(previewAsset.width) } : {}),
 		...(previewAsset.height ? { height: Math.round(previewAsset.height) } : {})
 	};

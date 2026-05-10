@@ -1,5 +1,6 @@
 import { BLOCK_LOOKUP_COLUMN_KEYS, type BlockLookupViewConfig } from 'model';
-import { defaultEquivalentOrder, normalizedOrder } from './view-config-shared';
+import { normalizeBlockLookupColumnWidth } from 'shared/block-lookup-view-config';
+import { defaultEquivalentOrder, normalizedOrder } from 'shared/view-config';
 import {
 	DEFAULT_BLOCK_LOOKUP_COLUMNS,
 	cloneBlockLookupColumnConfig,
@@ -13,11 +14,11 @@ export function getConfiguredBlockLookupColumns(config?: BlockLookupViewConfig):
 
 	return orderedKeys.map((key) => {
 		const column = columnByKey.get(key)!;
-		const configuredWidth = config?.columnWidthConfig?.[key];
+		const width = normalizeBlockLookupColumnWidth(key, config?.columnWidthConfig?.[key]);
 		return {
 			...column,
 			visible: config?.columnActiveConfig?.[key] !== false,
-			width: typeof configuredWidth === 'number' ? Math.max(column.minWidth, Math.round(configuredWidth)) : undefined
+			width
 		};
 	});
 }
@@ -38,12 +39,10 @@ export function blockLookupColumnsToConfig(columns: BlockLookupColumnConfig[], s
 		return config;
 	}, {});
 	const columnWidthConfig = uniqueColumns.reduce<Record<string, number>>((config, column) => {
-		if (defaultColumnKeySet.has(column.key) && typeof column.width === 'number') {
-			const width = Math.max(column.minWidth, Math.round(column.width));
-			const defaultColumn = defaultColumnByKey.get(column.key)!;
-			if (width !== defaultColumn.defaultWidth) {
-				config[column.key] = width;
-			}
+		const width = defaultColumnKeySet.has(column.key) ? normalizeBlockLookupColumnWidth(column.key, column.width) : undefined;
+		const defaultColumn = defaultColumnByKey.get(column.key);
+		if (width !== undefined && defaultColumn && width !== defaultColumn.defaultWidth) {
+			config[column.key] = width;
 		}
 		return config;
 	}, {});

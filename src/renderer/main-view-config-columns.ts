@@ -1,12 +1,11 @@
 import { MainColumnTitles, type AppConfig } from 'model';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
-import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
+import { normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
+import { defaultEquivalentOrder, normalizedOrder } from 'shared/view-config';
 import { canSetMainColumnVisibility } from './main-column-visibility';
-import { normalizeMainCollectionConfig } from './main-view-config-normalize';
-import { defaultEquivalentOrder, normalizedOrder } from './view-config-shared';
 
 export function setMainCollectionColumnWidth(config: AppConfig, column: MainColumnTitles, width: number) {
-	const normalizedWidth = Math.max(getResolvedMainColumnMinWidth(column), Math.round(width));
+	const normalizedWidth = normalizeMainColumnWidth(column, width);
 	if (config.viewConfigs.main?.columnWidthConfig?.[column] === normalizedWidth) {
 		return undefined;
 	}

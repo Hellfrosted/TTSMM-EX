@@ -5,7 +5,7 @@ import type {
 	BlockLookupIndexProgress,
 	BlockLookupIndexStats,
 	BlockLookupModSource,
-	BlockLookupRecord,
+	BlockLookupSearchRow,
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from 'shared/block-lookup';
@@ -35,12 +35,12 @@ interface BlockLookupWorkspaceSessionState extends BlockLookupSettingsState {
 	availableModFilters: string[];
 	buildingIndex: boolean;
 	copyRowKeys: string[];
-	filteredRows: BlockLookupRecord[];
+	filteredRows: BlockLookupSearchRow[];
 	loadingResults: boolean;
 	query: string;
-	rows: BlockLookupRecord[];
+	rows: BlockLookupSearchRow[];
 	selectedFilterMods: string[];
-	selectedRecord?: BlockLookupRecord;
+	selectedRecord?: BlockLookupSearchRow;
 	selectedRowKey?: string;
 	selectedRowKeys: string[];
 	selectedRowKeysInCopyOrder: string[];
@@ -242,7 +242,7 @@ export function createBlockLookupSearchRequest(query: string) {
 	};
 }
 
-export function getBlockLookupRecordKey(record: BlockLookupRecord) {
+export function getBlockLookupRecordKey(record: BlockLookupSearchRow) {
 	return `${record.sourcePath}:${record.internalName}:${record.blockName}:${record.blockId}`;
 }
 
@@ -283,13 +283,13 @@ export function createBlockLookupBuildRequest(
 	};
 }
 
-export function getAvailableBlockLookupModFilters(rows: BlockLookupRecord[]) {
+export function getAvailableBlockLookupModFilters(rows: BlockLookupSearchRow[]) {
 	return Array.from(new Set(rows.map((record) => record.modTitle).filter((modTitle) => modTitle.trim()))).sort((leftMod, rightMod) =>
 		leftMod.localeCompare(rightMod)
 	);
 }
 
-export function filterBlockLookupRowsByMods(rows: BlockLookupRecord[], selectedMods: string[]) {
+export function filterBlockLookupRowsByMods(rows: BlockLookupSearchRow[], selectedMods: string[]) {
 	if (selectedMods.length === 0) {
 		return rows;
 	}
@@ -329,8 +329,8 @@ function createInitialBlockLookupIndexProgress(): BlockLookupIndexProgress {
 }
 
 function formatBlockLookupIndexProgressDetail(progress: BlockLookupIndexProgress): string {
-	if ((progress.phase === 'indexing-sources' || progress.phase === 'extracting-rendered-previews') && progress.total > 0) {
-		return `${progress.phaseLabel} (${progress.completed}/${progress.total} sources)`;
+	if (progress.countUnit && progress.total > 0) {
+		return `${progress.phaseLabel} (${progress.completed}/${progress.total} ${progress.countUnit})`;
 	}
 	return progress.phaseLabel;
 }
@@ -413,7 +413,7 @@ export function createBlockLookupBootstrapCacheProjection(
 	return [state.settings, state.stats] as const;
 }
 
-function getBlockLookupSortValue(record: BlockLookupRecord, sortKey: BlockLookupColumnKey) {
+function getBlockLookupSortValue(record: BlockLookupSearchRow, sortKey: BlockLookupColumnKey) {
 	switch (sortKey) {
 		case 'preview':
 			return record.blockName;
@@ -440,7 +440,7 @@ function compareBlockLookupSortValues(leftValue: string, rightValue: string) {
 	return leftValue.localeCompare(rightValue, undefined, { numeric: true, sensitivity: 'base' });
 }
 
-export function sortBlockLookupRecords(rows: BlockLookupRecord[], sortKey: BlockLookupSortKey, sortDirection: BlockLookupSortDirection) {
+export function sortBlockLookupRecords(rows: BlockLookupSearchRow[], sortKey: BlockLookupSortKey, sortDirection: BlockLookupSortDirection) {
 	if (sortKey === 'relevance') {
 		return rows;
 	}

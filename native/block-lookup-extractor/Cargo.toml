@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 anyhow = "1.0"
 image = "0.24"
-io_unity = { version = "0.3.0", features = ["external-class-handle-texture2d"] }
+io_unity = { version = "0.3.0", features = ["external-class-handle", "external-class-handle-texture2d"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"

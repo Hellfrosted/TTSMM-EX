@@ -1,4 +1,4 @@
-export const BLOCK_LOOKUP_INDEX_VERSION = 6;
+export const BLOCK_LOOKUP_INDEX_VERSION = 7;
 export const BLOCK_LOOKUP_SEARCH_RESULT_LIMIT = 1000;
 export { TERRATECH_STEAM_APP_ID } from './terratech';
 
@@ -8,6 +8,12 @@ export interface BlockLookupPreviewBounds {
 	x: number;
 	y: number;
 	z: number;
+}
+
+export interface BlockLookupPersistedRenderedPreview {
+	cacheRelativePath: string;
+	width?: number;
+	height?: number;
 }
 
 export interface BlockLookupRenderedPreview {
@@ -34,7 +40,7 @@ export interface BlockLookupRecord {
 	sourcePath: string;
 	previewBounds?: BlockLookupPreviewBounds;
 	previewAssetNames?: string[];
-	renderedPreview?: BlockLookupRenderedPreview;
+	renderedPreview?: BlockLookupPersistedRenderedPreview;
 	preferredAlias: string;
 	fallbackAlias: string;
 	spawnCommand: string;
@@ -88,6 +94,7 @@ export type BlockLookupIndexProgressPhase =
 export interface BlockLookupIndexProgress {
 	phase: BlockLookupIndexProgressPhase;
 	phaseLabel: string;
+	countUnit?: string;
 	completed: number;
 	total: number;
 	percent: number;
@@ -100,8 +107,12 @@ export interface BlockLookupSearchRequest {
 	limit?: number;
 }
 
+export interface BlockLookupSearchRow extends Omit<BlockLookupRecord, 'renderedPreview'> {
+	renderedPreview?: BlockLookupRenderedPreview;
+}
+
 export interface BlockLookupSearchResult {
-	rows: BlockLookupRecord[];
+	rows: BlockLookupSearchRow[];
 	stats: BlockLookupIndexStats | null;
 }
 

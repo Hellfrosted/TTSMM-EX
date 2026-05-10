@@ -28,7 +28,7 @@ import {
 	X
 } from 'lucide-react';
 import type { AppState } from 'model';
-import type { BlockLookupIndexStats, BlockLookupRecord } from 'shared/block-lookup';
+import type { BlockLookupIndexStats, BlockLookupSearchRow } from 'shared/block-lookup';
 import {
 	formatBlockLookupIndexStatus,
 	getBlockLookupRecordKey,
@@ -330,10 +330,10 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 
 interface BlockLookupVirtualCellContentProps {
 	columnKey: BlockLookupColumnKey;
-	record: BlockLookupRecord;
+	record: BlockLookupSearchRow;
 }
 
-function BlockLookupRenderedPreviewImage({ record, size }: { record: BlockLookupRecord; size: 'cell' | 'detail' }) {
+function BlockLookupRenderedPreviewImage({ record, size }: { record: BlockLookupSearchRow; size: 'cell' | 'detail' }) {
 	if (!record.renderedPreview) {
 		return null;
 	}
@@ -650,7 +650,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		[sortedRows]
 	);
 	const selectedRecordsInCopyOrder = useMemo(() => {
-		const records: BlockLookupRecord[] = [];
+		const records: BlockLookupSearchRow[] = [];
 		for (const rowKey of selectedRowKeysInCopyOrder) {
 			const record = sortedRowsByKey.get(rowKey);
 			if (record) {

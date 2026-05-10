@@ -14,13 +14,13 @@ import {
 	NotificationProps
 } from 'model';
 import api from 'renderer/Api';
-import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
 import { getValidationIssueList } from 'renderer/collection-validation-run';
 import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { persistConfigChange } from 'renderer/util/config-write';
 import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import {
 	createMainTableSettingsFormValues,
 	mainCollectionTableSettingsSchema,

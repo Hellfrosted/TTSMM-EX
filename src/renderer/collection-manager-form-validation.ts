@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { MainColumnTitles, type MainCollectionConfig } from 'model';
-import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
-import { normalizeMainCollectionConfig } from 'renderer/main-view-config-normalize';
+import { getResolvedMainColumnMinWidth, normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
 
 export interface MainCollectionTableSettingsFormValues {
 	smallRows: boolean;
@@ -64,7 +63,7 @@ export function setMainTableSettingsColumnWidth(
 ): MainCollectionTableSettingsFormValues {
 	const nextColumnWidthConfig = { ...values.columnWidthConfig };
 	if (typeof width === 'number') {
-		nextColumnWidthConfig[column] = Math.max(getResolvedMainColumnMinWidth(column), Math.round(width));
+		nextColumnWidthConfig[column] = normalizeMainColumnWidth(column, width);
 	} else {
 		delete nextColumnWidthConfig[column];
 	}

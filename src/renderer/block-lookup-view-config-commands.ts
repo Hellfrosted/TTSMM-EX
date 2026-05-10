@@ -10,9 +10,7 @@ export function setBlockLookupColumnWidth(
 	columnKey: BlockLookupColumnKey,
 	width: number
 ) {
-	const nextColumns = columns.map((column) =>
-		column.key === columnKey ? { ...column, width: Math.max(column.minWidth, Math.round(width)) } : column
-	);
+	const nextColumns = columns.map((column) => (column.key === columnKey ? { ...column, width } : column));
 	const nextConfig = cloneAppConfig(config);
 	nextConfig.viewConfigs.blockLookup = blockLookupColumnsToConfig(nextColumns, config.viewConfigs.blockLookup?.smallRows);
 	return nextConfig;

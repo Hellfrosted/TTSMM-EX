@@ -9,7 +9,6 @@ import {
 } from '../../model';
 import { canSetMainColumnVisibility } from '../../renderer/main-column-visibility';
 import { moveMainCollectionColumn } from '../../renderer/main-view-config-columns';
-import { normalizeMainCollectionConfig } from '../../renderer/main-view-config-normalize';
 import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
 import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
 import { DEFAULT_BLOCK_LOOKUP_COLUMNS } from '../../renderer/block-lookup-column-definitions';
@@ -19,6 +18,8 @@ import {
 	setBlockLookupDraftColumnVisibility,
 	setBlockLookupDraftColumnWidth
 } from '../../renderer/block-lookup-draft-config';
+import { normalizeBlockLookupViewConfig } from '../../shared/block-lookup-view-config';
+import { normalizeMainCollectionConfig } from '../../shared/main-collection-view-config';
 
 describe('view-config-persistence', () => {
 	it('normalizes main collection config by dropping unknown columns and clamping widths', () => {
@@ -172,6 +173,7 @@ describe('view-config-persistence', () => {
 			},
 			columnWidthConfig: {
 				blockName: 10,
+				preview: 92,
 				Legacy: 999
 			},
 			columnOrder: ['Legacy', 'source', 'blockId', 'internalName', 'blockName']
@@ -179,6 +181,16 @@ describe('view-config-persistence', () => {
 
 		const columns = getConfiguredBlockLookupColumns(config);
 
+		expect(normalizeBlockLookupViewConfig(config)).toEqual({
+			smallRows: true,
+			columnActiveConfig: {
+				blockName: false
+			},
+			columnWidthConfig: {
+				blockName: 96
+			},
+			columnOrder: ['internalName', 'blockName']
+		});
 		expect(columns.map((column) => column.title)).toEqual([
 			BlockLookupColumnTitles.INTERNAL_NAME,
 			BlockLookupColumnTitles.BLOCK,

@@ -1,5 +1,11 @@
-import { BLOCK_LOOKUP_SEARCH_RESULT_LIMIT, type BlockLookupSearchResult, type PersistedBlockLookupIndex } from 'shared/block-lookup';
+import {
+	BLOCK_LOOKUP_SEARCH_RESULT_LIMIT,
+	type BlockLookupSearchResult,
+	type BlockLookupSearchRow,
+	type PersistedBlockLookupIndex
+} from 'shared/block-lookup';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
+import { createBlockLookupPreviewImageUrl } from './preview-protocol';
 
 interface SearchableBlockLookupRecord {
 	record: PersistedBlockLookupIndex['records'][number];
@@ -31,6 +37,27 @@ function buildSearchBlob(record: PersistedBlockLookupIndex['records'][number]) {
 		.filter(Boolean)
 		.join(' ')
 		.toLowerCase();
+}
+
+function createSearchRow(record: PersistedBlockLookupIndex['records'][number]): BlockLookupSearchRow {
+	const { renderedPreview, ...row } = record;
+	if (!renderedPreview) {
+		return row;
+	}
+
+	const imageUrl = createBlockLookupPreviewImageUrl(renderedPreview.cacheRelativePath);
+	return {
+		...row,
+		...(imageUrl
+			? {
+					renderedPreview: {
+						imageUrl,
+						...(renderedPreview.width !== undefined ? { width: renderedPreview.width } : {}),
+						...(renderedPreview.height !== undefined ? { height: renderedPreview.height } : {})
+					}
+				}
+			: {})
+	};
 }
 
 export function createWarmBlockLookupSearchIndex(index: PersistedBlockLookupIndex): WarmBlockLookupSearchIndex | null {
@@ -96,7 +123,7 @@ export function searchWarmBlockLookupRecords(
 
 			return left.sortLabel.localeCompare(right.sortLabel);
 		})
-		.map((record) => record.record);
+		.map((record) => createSearchRow(record.record));
 
 	return {
 		rows: effectiveLimit && effectiveLimit > 0 ? rows.slice(0, effectiveLimit) : rows,

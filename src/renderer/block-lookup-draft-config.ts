@@ -1,4 +1,5 @@
 import type { BlockLookupColumnKey, BlockLookupViewConfig } from 'model';
+import { normalizeBlockLookupColumnWidth } from 'shared/block-lookup-view-config';
 import { cloneBlockLookupColumnConfig, type BlockLookupColumnConfig } from './block-lookup-column-definitions';
 import { getConfiguredBlockLookupColumns } from './block-lookup-column-config';
 
@@ -58,12 +59,13 @@ export function setBlockLookupDraftColumnWidth(
 		if (column.key !== columnKey) {
 			return column;
 		}
-		if (typeof width !== 'number') {
+		const normalizedWidth = normalizeBlockLookupColumnWidth(column.key, width);
+		if (normalizedWidth === undefined) {
 			const nextColumn = { ...column };
 			delete nextColumn.width;
 			return nextColumn;
 		}
 
-		return { ...column, width: Math.max(column.minWidth, Math.round(width)) };
+		return { ...column, width: normalizedWidth };
 	});
 }

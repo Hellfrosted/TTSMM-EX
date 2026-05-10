@@ -9,6 +9,7 @@
 		"ignoreUnknown": true,
 		"includes": [
 			"**/*.{cjs,css,js,jsx,json,jsonc,mjs,ts,tsx}",
+			"!.codex/**",
 			"!assets/**",
 			"!coverage/**",
 			"!logs/**",

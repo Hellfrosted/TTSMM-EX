@@ -103,10 +103,6 @@ export function getWorkshopDependencySnapshotState(
 	};
 }
 
-export function shouldRefreshWorkshopDependencySnapshot(state: WorkshopDependencySnapshotState) {
-	return state.shouldRefresh;
-}
-
 export function getWorkshopDependencySnapshotMetadataUpdate(
 	result: WorkshopDependencySnapshotLookupResult
 ): WorkshopDependencySnapshotMetadata | undefined {

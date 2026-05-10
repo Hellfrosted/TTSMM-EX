@@ -3,7 +3,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { readBlockLookupIndex, searchBlockLookupIndex } from '../../main/block-lookup';
 import { searchBlockLookupRecords } from '../../main/block-lookup-search';
-import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupRecord } from '../../shared/block-lookup';
+import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupSearchRow } from '../../shared/block-lookup';
 import { createTempDir } from './test-utils';
 
 describe('block lookup search adapter', () => {
@@ -33,7 +33,7 @@ describe('block lookup search adapter', () => {
 			'Cab'
 		);
 
-		expect(result.rows.map((record: BlockLookupRecord) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
+		expect(result.rows.map((record: BlockLookupSearchRow) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
 	});
 
 	it('keeps limit handling, empty index behavior, and stats behavior stable', () => {
@@ -74,12 +74,51 @@ describe('block lookup search adapter', () => {
 			2
 		);
 
-		expect(result.rows.map((record: BlockLookupRecord) => record.blockName)).toEqual(['Alpha', 'Beta']);
+		expect(result.rows.map((record: BlockLookupSearchRow) => record.blockName)).toEqual(['Alpha', 'Beta']);
 		expect(result.stats).toMatchObject({
 			blocks: 3,
 			sources: 0,
 			builtAt: '2026-04-26T00:00:00.000Z'
 		});
+	});
+
+	it('projects persisted rendered preview paths into search row image urls', () => {
+		const result = searchBlockLookupRecords(
+			{
+				version: BLOCK_LOOKUP_INDEX_VERSION,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: true,
+				sources: [],
+				records: [
+					{
+						blockId: 'alpha',
+						blockName: 'Alpha Cab',
+						fallbackAlias: 'Alpha_Cab(Core)',
+						fallbackSpawnCommand: 'SpawnBlock Alpha_Cab(Core)',
+						internalName: 'AlphaCab',
+						modTitle: 'Core',
+						preferredAlias: 'Alpha_Cab(Core)',
+						renderedPreview: {
+							cacheRelativePath: 'bundle/alpha-cab.png',
+							height: 64,
+							width: 96
+						},
+						sourceKind: 'json',
+						sourcePath: path.normalize('/mods/alpha.json'),
+						spawnCommand: 'SpawnBlock Alpha_Cab(Core)',
+						workshopId: 'core'
+					}
+				]
+			},
+			'alpha'
+		);
+
+		expect(result.rows[0].renderedPreview).toEqual({
+			height: 64,
+			imageUrl: 'image://block-preview/bundle/alpha-cab.png',
+			width: 96
+		});
+		expect(result.rows[0].renderedPreview).not.toHaveProperty('cacheRelativePath');
 	});
 
 	it('normalizes malformed persisted index records before warming search', () => {

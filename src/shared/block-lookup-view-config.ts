@@ -1,53 +1,59 @@
 import { BLOCK_LOOKUP_COLUMN_KEYS, type BlockLookupViewConfig } from 'model/BlockLookupView';
+import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber } from './view-config';
 
-function isFiniteNumber(value: unknown): value is number {
-	return typeof value === 'number' && Number.isFinite(value);
+export const BLOCK_LOOKUP_COLUMN_WIDTHS = {
+	preview: { defaultWidth: 92, minWidth: 76 },
+	blockName: { defaultWidth: 200, minWidth: 96 },
+	spawnCommand: { defaultWidth: 320, minWidth: 140 },
+	internalName: { defaultWidth: 220, minWidth: 136 },
+	modTitle: { defaultWidth: 176, minWidth: 96 }
+} satisfies Record<(typeof BLOCK_LOOKUP_COLUMN_KEYS)[number], { defaultWidth: number; minWidth: number }>;
+
+export function getDefaultBlockLookupColumnWidth(columnKey: (typeof BLOCK_LOOKUP_COLUMN_KEYS)[number]) {
+	return BLOCK_LOOKUP_COLUMN_WIDTHS[columnKey].defaultWidth;
 }
 
-function compactRecord<T>(record: unknown, validKeys: Set<string>, isValidValue: (value: unknown) => value is T) {
-	if (!record || typeof record !== 'object' || Array.isArray(record)) {
+export function getMinBlockLookupColumnWidth(columnKey: (typeof BLOCK_LOOKUP_COLUMN_KEYS)[number]) {
+	return BLOCK_LOOKUP_COLUMN_WIDTHS[columnKey].minWidth;
+}
+
+export function normalizeBlockLookupColumnWidth(columnKey: (typeof BLOCK_LOOKUP_COLUMN_KEYS)[number], width: unknown) {
+	if (!isFiniteNumber(width)) {
 		return undefined;
 	}
 
-	const compacted = Object.entries(record).reduce<Record<string, T>>((nextRecord, [key, value]) => {
-		if (validKeys.has(key) && isValidValue(value)) {
-			nextRecord[key] = value;
+	return Math.max(getMinBlockLookupColumnWidth(columnKey), Math.round(width));
+}
+
+export function normalizeBlockLookupColumnWidthConfig(config: unknown) {
+	if (!config || typeof config !== 'object' || Array.isArray(config)) {
+		return undefined;
+	}
+
+	const columnKeySet = new Set<string>(BLOCK_LOOKUP_COLUMN_KEYS);
+	const columnWidthConfig = Object.entries(config).reduce<Record<string, number>>((nextConfig, [key, value]) => {
+		if (!columnKeySet.has(key)) {
+			return nextConfig;
 		}
-		return nextRecord;
+
+		const columnKey = key as (typeof BLOCK_LOOKUP_COLUMN_KEYS)[number];
+		const width = normalizeBlockLookupColumnWidth(columnKey, value);
+		if (width !== undefined && width !== getDefaultBlockLookupColumnWidth(columnKey)) {
+			nextConfig[key] = width;
+		}
+		return nextConfig;
 	}, {});
 
-	return Object.keys(compacted).length > 0 ? compacted : undefined;
-}
-
-function compactColumnOrder(value: unknown) {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-
-	const validKeySet = new Set<string>(BLOCK_LOOKUP_COLUMN_KEYS);
-	const configuredKeySet = new Set<string>();
-	const columnOrder = value.filter((key): key is string => {
-		if (typeof key !== 'string' || !validKeySet.has(key) || configuredKeySet.has(key)) {
-			return false;
-		}
-		configuredKeySet.add(key);
-		return true;
-	});
-
-	return columnOrder.length > 0 ? columnOrder : undefined;
-}
-
-function defaultEquivalentOrder(order: readonly string[]) {
-	return order.length === BLOCK_LOOKUP_COLUMN_KEYS.length && order.every((key, index) => key === BLOCK_LOOKUP_COLUMN_KEYS[index]);
+	return Object.keys(columnWidthConfig).length > 0 ? columnWidthConfig : undefined;
 }
 
 export function normalizeBlockLookupViewConfig(config?: BlockLookupViewConfig | Record<string, unknown>): BlockLookupViewConfig {
 	const columnKeySet = new Set<string>(BLOCK_LOOKUP_COLUMN_KEYS);
-	const columnOrder = compactColumnOrder(config?.columnOrder);
+	const columnOrder = compactConfiguredOrder(config?.columnOrder, BLOCK_LOOKUP_COLUMN_KEYS);
 	const normalizedConfig: BlockLookupViewConfig = {
 		columnActiveConfig: compactRecord(config?.columnActiveConfig, columnKeySet, (value): value is boolean => typeof value === 'boolean'),
-		columnWidthConfig: compactRecord(config?.columnWidthConfig, columnKeySet, isFiniteNumber),
-		columnOrder: columnOrder && !defaultEquivalentOrder(columnOrder) ? columnOrder : undefined
+		columnWidthConfig: normalizeBlockLookupColumnWidthConfig(config?.columnWidthConfig),
+		columnOrder: columnOrder && !defaultEquivalentOrder(columnOrder, BLOCK_LOOKUP_COLUMN_KEYS) ? columnOrder : undefined
 	};
 
 	if (config?.smallRows === true) {

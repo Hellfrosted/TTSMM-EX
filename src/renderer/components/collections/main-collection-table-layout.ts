@@ -1,7 +1,7 @@
 import { type DisplayModData, type MainCollectionConfig, MainColumnTitles, getModDataDisplayId, getModDataDisplayName } from 'model';
 import { getAllCollectionTags } from 'renderer/collection-tags';
-import { getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
-import { getDefaultMainColumnWidth } from 'shared/main-collection-view-config';
+import { getDefaultMainColumnWidth, getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
+import { normalizedOrder } from 'shared/view-config';
 import { APP_FONT_FAMILY } from 'renderer/theme';
 import { formatDateStr } from 'util/Date';
 import {
@@ -72,15 +72,7 @@ export function isMainColumnTitle(value: string): value is MainColumnTitles {
 }
 
 export function getActiveMainColumnTitles(config: MainCollectionConfig | undefined) {
-	const configuredColumnSet = new Set<MainColumnTitles>();
-	const configuredOrder = (config?.columnOrder || []).filter((column): column is MainColumnTitles => {
-		if (!isMainColumnTitle(column) || configuredColumnSet.has(column)) {
-			return false;
-		}
-		configuredColumnSet.add(column);
-		return true;
-	});
-	const orderedColumns = [...configuredOrder, ...ALL_MAIN_COLUMN_TITLES.filter((column) => !configuredColumnSet.has(column))];
+	const orderedColumns = normalizedOrder(config?.columnOrder, ALL_MAIN_COLUMN_TITLES);
 	const columnActiveConfig = config?.columnActiveConfig;
 	if (!columnActiveConfig) {
 		return orderedColumns;

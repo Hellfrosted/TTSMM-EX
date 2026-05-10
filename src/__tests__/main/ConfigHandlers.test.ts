@@ -190,9 +190,10 @@ describe('config handlers', () => {
 						},
 						columnOrder: ['Legacy', 'blockName', 'blockName', 'preview'],
 						columnWidthConfig: {
+							blockName: 10,
 							modTitle: 177,
-							Legacy: 999,
-							preview: null
+							preview: 92,
+							Legacy: 999
 						},
 						smallRows: true
 					},
@@ -239,6 +240,7 @@ describe('config handlers', () => {
 						},
 						columnOrder: ['blockName', 'preview'],
 						columnWidthConfig: {
+							blockName: 96,
 							modTitle: 177
 						},
 						smallRows: true

@@ -10,10 +10,16 @@ import {
 	type PersistedBlockLookupIndex
 } from 'shared/block-lookup';
 import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
+import { extractBlockLookupBundleOutcomes } from './block-lookup-bundle-text-assets';
+import {
+	assignRenderedBlockPreviewsToRecords,
+	getBlockLookupRecordPreviewMatchNameCandidates
+} from './block-lookup-rendered-preview-assignment';
 import { collectBlockLookupSources } from './block-lookup-source-discovery';
 import { indexBlockLookupSources } from './block-lookup-source-indexing';
 
 interface BlockLookupIndexBuildAdapters {
+	extractBlockLookupBundleOutcomes?: typeof extractBlockLookupBundleOutcomes;
 	indexBlockLookupSources?: typeof indexBlockLookupSources;
 }
 
@@ -47,11 +53,13 @@ export function createBlockLookupIndexProgress(
 	phase: BlockLookupIndexProgressPhase,
 	completed: number,
 	total: number,
-	percent: number
+	percent: number,
+	countUnit?: string
 ): BlockLookupIndexProgress {
 	return {
 		phase,
 		phaseLabel: BLOCK_LOOKUP_INDEX_PROGRESS_LABELS[phase],
+		countUnit,
 		completed: Math.max(0, completed),
 		total: Math.max(0, total),
 		percent: Math.max(0, Math.min(100, Math.round(percent)))
@@ -63,9 +71,10 @@ function reportBlockLookupIndexProgress(
 	phase: BlockLookupIndexProgressPhase,
 	completed: number,
 	total: number,
-	percent: number
+	percent: number,
+	countUnit?: string
 ) {
-	onProgress?.(createBlockLookupIndexProgress(phase, completed, total, percent));
+	onProgress?.(createBlockLookupIndexProgress(phase, completed, total, percent, countUnit));
 }
 
 function getBlockLookupSourceProgressWeight(source: BlockLookupIndexSource): number {
@@ -169,6 +178,67 @@ function dedupeBlockLookupRecords(records: readonly BlockLookupRecord[]): BlockL
 	return entries.map((entry) => entry.record);
 }
 
+function createModPreviewGroupKey(value: Pick<BlockLookupRecord | BlockLookupIndexSource, 'modTitle' | 'workshopId'>): string {
+	return `${value.workshopId}\0${value.modTitle}`;
+}
+
+async function assignModBundleRenderedPreviewsToRecords(
+	records: readonly BlockLookupRecord[],
+	sources: readonly BlockLookupIndexSource[],
+	options: BlockLookupIndexBuildOptions,
+	extractBlockLookupBundleOutcomesImpl: typeof extractBlockLookupBundleOutcomes
+): Promise<BlockLookupRecord[]> {
+	if (!options.previewCacheDir || records.every((record) => record.renderedPreview)) {
+		return [...records];
+	}
+
+	const bundleSourcesByMod = new Map<string, BlockLookupIndexSource[]>();
+	for (const source of sources) {
+		if (source.sourceKind !== 'bundle') {
+			continue;
+		}
+		const key = createModPreviewGroupKey(source);
+		const bundleSources = bundleSourcesByMod.get(key) ?? [];
+		bundleSources.push(source);
+		bundleSourcesByMod.set(key, bundleSources);
+	}
+
+	const recordsByMod = new Map<string, Array<{ index: number; record: BlockLookupRecord }>>();
+	records.forEach((record, index) => {
+		if (record.sourceKind === 'vanilla' || record.renderedPreview) {
+			return;
+		}
+		const key = createModPreviewGroupKey(record);
+		const modRecords = recordsByMod.get(key) ?? [];
+		modRecords.push({ index, record });
+		recordsByMod.set(key, modRecords);
+	});
+
+	const assignedRecords = [...records];
+	for (const [key, modRecords] of recordsByMod) {
+		const bundleSources = bundleSourcesByMod.get(key);
+		if (!bundleSources?.length) {
+			continue;
+		}
+		const previewMatchNames = getBlockLookupRecordPreviewMatchNameCandidates(modRecords.map((entry) => entry.record));
+		const outcomes = await extractBlockLookupBundleOutcomesImpl(
+			bundleSources.map((source) => source.sourcePath),
+			{ previewCacheDir: options.previewCacheDir, previewMatchNames }
+		);
+		const previewAssets = [...outcomes.values()].flatMap((outcome) => outcome.previewAssets);
+		const recordsWithPreviews = assignRenderedBlockPreviewsToRecords(
+			modRecords.map((entry) => entry.record),
+			previewAssets,
+			{ renderedPreviewsEnabled: true }
+		);
+		recordsWithPreviews.forEach((record, index) => {
+			assignedRecords[modRecords[index].index] = record;
+		});
+	}
+
+	return assignedRecords;
+}
+
 export async function createBlockLookupIndexBuild(
 	existingIndex: PersistedBlockLookupIndex,
 	request: BlockLookupBuildRequest,
@@ -177,6 +247,7 @@ export async function createBlockLookupIndexBuild(
 	options: BlockLookupIndexBuildOptions = {}
 ): Promise<BlockLookupIndexBuild> {
 	const indexBlockLookupSourcesImpl = adapters.indexBlockLookupSources ?? indexBlockLookupSources;
+	const extractBlockLookupBundleOutcomesImpl = adapters.extractBlockLookupBundleOutcomes ?? extractBlockLookupBundleOutcomes;
 	reportBlockLookupIndexProgress(onProgress, 'planning', 0, 1, 0);
 	const { sources, workshopRoot } = collectBlockLookupSources(request);
 	const renderedPreviewsEnabled = request.renderedPreviewsEnabled === true;
@@ -191,10 +262,10 @@ export async function createBlockLookupIndexBuild(
 	let scanned = 0;
 	let skipped = 0;
 	const changedSources = indexPlan.tasks.filter((task) => !task.reusedRecords).map((task) => task.source);
-	reportBlockLookupIndexProgress(onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10);
-	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', 0, changedSources.length, 10);
+	reportBlockLookupIndexProgress(onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10, 'sources');
+	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', 0, changedSources.length, 10, 'sources');
 	if (renderedPreviewsEnabled) {
-		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', 0, changedSources.length, 45);
+		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', 0, changedSources.length, 45, 'sources');
 	}
 	const sourceIndexingOptions =
 		renderedPreviewsEnabled || onProgress
@@ -209,7 +280,8 @@ export async function createBlockLookupIndexBuild(
 										'indexing-sources',
 										completed,
 										total,
-										getBlockLookupSourceProgressPercent(changedSources, completed, total, 10, renderedPreviewsEnabled ? 45 : 75)
+										getBlockLookupSourceProgressPercent(changedSources, completed, total, 10, renderedPreviewsEnabled ? 45 : 75),
+										'sources'
 									);
 									if (renderedPreviewsEnabled) {
 										reportBlockLookupIndexProgress(
@@ -217,7 +289,8 @@ export async function createBlockLookupIndexBuild(
 											'extracting-rendered-previews',
 											completed,
 											total,
-											getBlockLookupSourceProgressPercent(changedSources, completed, total, 45, 75)
+											getBlockLookupSourceProgressPercent(changedSources, completed, total, 45, 75),
+											'sources'
 										);
 									}
 								}
@@ -238,10 +311,11 @@ export async function createBlockLookupIndexBuild(
 		'indexing-sources',
 		changedSources.length,
 		changedSources.length,
-		renderedPreviewsEnabled ? 45 : 75
+		renderedPreviewsEnabled ? 45 : 75,
+		'sources'
 	);
 	if (renderedPreviewsEnabled) {
-		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', changedSources.length, changedSources.length, 75);
+		reportBlockLookupIndexProgress(onProgress, 'extracting-rendered-previews', changedSources.length, changedSources.length, 75, 'sources');
 	}
 
 	for (const [taskIndex, task] of indexPlan.tasks.entries()) {
@@ -274,7 +348,10 @@ export async function createBlockLookupIndexBuild(
 		);
 	}
 
-	const dedupedRecords = dedupeBlockLookupRecords(nextRecords);
+	const previewCompletedRecords = renderedPreviewsEnabled
+		? await assignModBundleRenderedPreviewsToRecords(nextRecords, nextSources, options, extractBlockLookupBundleOutcomesImpl)
+		: nextRecords;
+	const dedupedRecords = dedupeBlockLookupRecords(previewCompletedRecords);
 	const dedupedChangedRecords = dedupeBlockLookupRecords(changedRecords);
 	const index: PersistedBlockLookupIndex = {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
@@ -282,7 +359,7 @@ export async function createBlockLookupIndexBuild(
 		renderedPreviewsEnabled,
 		sources: nextSources,
 		records: dedupedRecords,
-		sourceRecords: nextRecords
+		sourceRecords: previewCompletedRecords
 	};
 
 	return {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
 	getWorkshopDependencySnapshotMetadataUpdate,
 	getWorkshopDependencySnapshotState,
-	shouldRefreshWorkshopDependencySnapshot,
 	WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS
 } from '../../shared/workshop-dependency-snapshot';
 
@@ -113,8 +112,8 @@ describe('Workshop Dependency Snapshot state', () => {
 		);
 		const staleUnknown = getWorkshopDependencySnapshotState({ steamDependenciesFetchedAt: staleFetchedAt }, now);
 
-		expect(shouldRefreshWorkshopDependencySnapshot(freshKnown)).toBe(false);
-		expect(shouldRefreshWorkshopDependencySnapshot(staleUnknown)).toBe(true);
+		expect(freshKnown.shouldRefresh).toBe(false);
+		expect(staleUnknown.shouldRefresh).toBe(true);
 	});
 
 	it('maps updated refresh outcomes to full metadata updates', () => {

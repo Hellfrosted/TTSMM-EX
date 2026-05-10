@@ -584,6 +584,7 @@ describe('BlockLookupView', () => {
 			progressCallback?.({
 				phase: 'indexing-sources',
 				phaseLabel: 'Extracting block records',
+				countUnit: 'sources',
 				completed: 3,
 				total: 6,
 				percent: 50

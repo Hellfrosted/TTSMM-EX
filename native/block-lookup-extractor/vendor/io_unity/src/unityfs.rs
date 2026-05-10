@@ -167,6 +167,17 @@ impl UnityFS {
         paths
     }
 
+    pub fn get_serialized_file_paths(&self) -> Vec<String> {
+        let mut paths = vec![];
+        for file in &self.content.blocks_info.directory_info {
+            let path = file.path();
+            if !path.ends_with(".resource") {
+                paths.push(path);
+            }
+        }
+        paths
+    }
+
     pub fn get_file_paths(&self) -> Vec<String> {
         let mut paths = vec![];
         for file in &self.content.blocks_info.directory_info {

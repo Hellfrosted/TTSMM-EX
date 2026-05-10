@@ -1,4 +1,5 @@
 import { MainColumnTitles, type MainCollectionConfig } from 'model/MainCollectionView';
+import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber } from './view-config';
 
 const MAIN_DETAILS_OVERLAY_MIN_WIDTH = 360;
 const MAIN_DETAILS_OVERLAY_MIN_HEIGHT = 220;
@@ -42,50 +43,18 @@ export function getDefaultMainColumnWidth(column: MainColumnTitles) {
 	return DEFAULT_MAIN_COLUMN_WIDTHS[column];
 }
 
-function isFiniteNumber(value: unknown): value is number {
-	return typeof value === 'number' && Number.isFinite(value);
-}
-
-function compactRecord<T>(record: Record<string, T>, validKeys: Set<string>, isValidValue: (value: T) => boolean) {
-	const compacted = Object.entries(record).reduce<Record<string, T>>((nextRecord, [key, value]) => {
-		if (validKeys.has(key) && isValidValue(value)) {
-			nextRecord[key] = value;
-		}
-		return nextRecord;
-	}, {});
-
-	return Object.keys(compacted).length > 0 ? compacted : undefined;
-}
-
-function collectConfiguredColumnOrder(configuredOrder: readonly string[] | undefined, defaultOrder: readonly MainColumnTitles[]) {
-	const defaultColumnSet = new Set<string>(defaultOrder);
-	const configuredColumnSet = new Set<MainColumnTitles>();
-	return (configuredOrder || []).filter((column): column is MainColumnTitles => {
-		if (!defaultColumnSet.has(column) || configuredColumnSet.has(column as MainColumnTitles)) {
-			return false;
-		}
-		configuredColumnSet.add(column as MainColumnTitles);
-		return true;
-	});
-}
-
-function compactOrder(configuredOrder: readonly string[] | undefined, defaultOrder: readonly MainColumnTitles[]) {
-	if (!configuredOrder) {
-		return undefined;
-	}
-
-	const configuredColumns = collectConfiguredColumnOrder(configuredOrder, defaultOrder);
-	return configuredColumns.length > 0 ? configuredColumns : undefined;
-}
-
-function defaultEquivalentOrder(order: readonly MainColumnTitles[], defaultOrder: readonly MainColumnTitles[]) {
-	return order.length === defaultOrder.length && order.every((column, index) => column === defaultOrder[index]);
+export function normalizeMainColumnWidth(column: MainColumnTitles, width: number) {
+	return Math.max(getResolvedMainColumnMinWidth(column), Math.round(width));
 }
 
 function normalizeMainColumnActiveConfig(config?: MainCollectionConfig) {
 	const mainColumnTitles = Object.values(MainColumnTitles);
 	const knownColumnSet = new Set<string>(mainColumnTitles);
-	const columnActiveConfig = compactRecord(config?.columnActiveConfig || {}, knownColumnSet, (active) => typeof active === 'boolean');
+	const columnActiveConfig = compactRecord(
+		config?.columnActiveConfig,
+		knownColumnSet,
+		(active): active is boolean => typeof active === 'boolean'
+	);
 	if (columnActiveConfig?.[MainColumnTitles.NAME] === false && columnActiveConfig[MainColumnTitles.ID] === false) {
 		delete columnActiveConfig[MainColumnTitles.NAME];
 	}
@@ -95,14 +64,14 @@ function normalizeMainColumnActiveConfig(config?: MainCollectionConfig) {
 function normalizeMainColumnWidthConfig(config?: MainCollectionConfig) {
 	const mainColumnTitles = Object.values(MainColumnTitles);
 	const knownColumnSet = new Set<string>(mainColumnTitles);
-	const columnWidthConfig = compactRecord(config?.columnWidthConfig || {}, knownColumnSet, isFiniteNumber);
+	const columnWidthConfig = compactRecord(config?.columnWidthConfig, knownColumnSet, isFiniteNumber);
 	if (!columnWidthConfig) {
 		return undefined;
 	}
 
 	const normalizedWidths = Object.entries(columnWidthConfig).reduce<Record<string, number>>((nextWidths, [column, width]) => {
 		const columnTitle = column as MainColumnTitles;
-		const normalizedWidth = Math.max(getResolvedMainColumnMinWidth(columnTitle), Math.round(width));
+		const normalizedWidth = normalizeMainColumnWidth(columnTitle, width);
 		if (normalizedWidth !== getDefaultMainColumnWidth(columnTitle)) {
 			nextWidths[column] = normalizedWidth;
 		}
@@ -113,7 +82,7 @@ function normalizeMainColumnWidthConfig(config?: MainCollectionConfig) {
 
 export function normalizeMainCollectionConfig(config?: MainCollectionConfig): MainCollectionConfig {
 	const mainColumnTitles = Object.values(MainColumnTitles);
-	const columnOrder = compactOrder(config?.columnOrder, mainColumnTitles);
+	const columnOrder = compactConfiguredOrder(config?.columnOrder, mainColumnTitles);
 
 	const normalizedConfig: MainCollectionConfig = {
 		columnActiveConfig: normalizeMainColumnActiveConfig(config),

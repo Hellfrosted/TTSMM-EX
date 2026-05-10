@@ -12,7 +12,7 @@ import type {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { MainColumnTitles } from 'model';
-import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
 import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';

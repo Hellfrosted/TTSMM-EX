@@ -61,19 +61,23 @@ impl UnityAssetViewer {
         let unity_fs = UnityFS::read(bundle_file_reader, resource_search_path)?;
         let unity_fs_id = self.unity_fs_count;
         self.unity_fs_count += 1;
-        for cab_path in unity_fs.get_cab_path() {
-            let cab_buff = unity_fs.get_file_data_by_path(&cab_path)?;
-            let cab_buff_reader = Box::new(Cursor::new(cab_buff));
+        for serialized_path in unity_fs.get_serialized_file_paths() {
+            let serialized_data = unity_fs.get_file_data_by_path(&serialized_path)?;
+            let serialized_reader = Box::new(Cursor::new(serialized_data));
             // let cab_buff_reader = Box::new(BufReader::new(
             //     unity_fs
             //         .get_file_reader_by_path(&cab_path)
             //         .ok_or(anyhow!("can not get cab reader"))?,
             // ));
 
-            let serialized_file_id = self.add_serialized_file(cab_buff_reader, None)?;
+            let serialized_file_id = match self.add_serialized_file(serialized_reader, None) {
+                Ok(serialized_file_id) => serialized_file_id,
+                Err(error) if serialized_path.starts_with("CAB-") => return Err(error),
+                Err(_) => continue,
+            };
             self.serialized_file_to_unity_fs_map
                 .insert(serialized_file_id, unity_fs_id);
-            self.cab_maps.insert(cab_path, serialized_file_id);
+            self.cab_maps.insert(serialized_path, serialized_file_id);
         }
         self.unity_fs_map.insert(unity_fs_id, unity_fs);
         Ok(unity_fs_id)

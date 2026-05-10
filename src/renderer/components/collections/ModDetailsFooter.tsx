@@ -17,11 +17,7 @@ import {
 	CollectionManagerModalType,
 	getCollectionStatusTags
 } from 'model';
-import {
-	getWorkshopDependencySnapshotState,
-	shouldRefreshWorkshopDependencySnapshot,
-	type WorkshopDependencySnapshotState
-} from 'shared/workshop-dependency-snapshot';
+import { getWorkshopDependencySnapshotState, type WorkshopDependencySnapshotState } from 'shared/workshop-dependency-snapshot';
 import { formatDateStr } from 'util/Date';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
@@ -441,7 +437,7 @@ function useModDetailsFooterContent({
 			steamDependencies: currentRecordSteamDependencies,
 			steamDependenciesFetchedAt: currentRecordSteamDependenciesFetchedAt
 		});
-		const shouldRefreshWorkshopDependencies = shouldRefreshWorkshopDependencySnapshot(currentWorkshopDependencySnapshotState);
+		const shouldRefreshWorkshopDependencies = currentWorkshopDependencySnapshotState.shouldRefresh;
 		const shouldRunManualLookup = manualLookupRequest !== handledManualDependencyLookupRequestRef.current;
 
 		if (

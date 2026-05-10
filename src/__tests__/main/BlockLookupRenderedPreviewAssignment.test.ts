@@ -62,7 +62,9 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(record.renderedPreview?.imageUrl).toBe('image://block-preview/blockpedia/GSO_Cab_211-thumb.jpg');
+		expect(record.renderedPreview).toMatchObject({
+			cacheRelativePath: 'blockpedia/GSO_Cab_211-thumb.jpg'
+		});
 	});
 
 	it('matches previews when block and asset names use different token order', () => {
@@ -75,7 +77,7 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(record.renderedPreview?.imageUrl).toBe('image://block-preview/bundle/reordered-preview.png');
+		expect(record.renderedPreview?.cacheRelativePath).toBe('bundle/reordered-preview.png');
 	});
 
 	it('matches side-specific blocks to shared family preview assets', () => {
@@ -89,11 +91,11 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(records.find((record) => record.internalName === 'BF Hollow Wing left')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/bf-hollow-wing.png'
+		expect(records.find((record) => record.internalName === 'BF Hollow Wing left')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/bf-hollow-wing.png'
 		);
-		expect(records.find((record) => record.internalName === 'BF Hollow Wing Right')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/bf-hollow-wing.png'
+		expect(records.find((record) => record.internalName === 'BF Hollow Wing Right')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/bf-hollow-wing.png'
 		);
 		expect(records.find((record) => record.internalName === 'BF Dark Core')?.renderedPreview).toBeUndefined();
 	});
@@ -108,8 +110,8 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(records.find((record) => record.internalName === 'HE_minigun_small_VerSteam')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/he-mini-minigun.png'
+		expect(records.find((record) => record.internalName === 'HE_minigun_small_VerSteam')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/he-mini-minigun.png'
 		);
 		expect(records.find((record) => record.internalName === 'HE_HeavyMG')?.renderedPreview).toBeUndefined();
 	});
@@ -128,8 +130,8 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(records.find((record) => record.internalName === 'HE_Jormungand_Railgun')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/he-jormungand.png'
+		expect(records.find((record) => record.internalName === 'HE_Jormungand_Railgun')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/he-jormungand.png'
 		);
 		expect(records.find((record) => record.internalName === 'HE_Muspell_Railgun')?.renderedPreview).toBeUndefined();
 	});
@@ -151,11 +153,11 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(records.find((record) => record.internalName === 'GC_Bedrock_Foundation_Block')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/gc-foundation.png'
+		expect(records.find((record) => record.internalName === 'GC_Bedrock_Foundation_Block')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/gc-foundation.png'
 		);
-		expect(records.find((record) => record.internalName === 'GSO_Foundation_Block')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/gso-foundation.png'
+		expect(records.find((record) => record.internalName === 'GSO_Foundation_Block')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/gso-foundation.png'
 		);
 	});
 
@@ -169,8 +171,8 @@ describe('rendered block preview assignment', () => {
 			{ renderedPreviewsEnabled: true }
 		);
 
-		expect(records.find((record) => record.internalName === 'HE_Cirrus_Wing_Left')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/he-cirrus-left.png'
+		expect(records.find((record) => record.internalName === 'HE_Cirrus_Wing_Left')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/he-cirrus-left.png'
 		);
 		expect(records.find((record) => record.internalName === 'HE_Cirrus_Wing_Right')?.renderedPreview).toBeUndefined();
 	});
@@ -186,8 +188,8 @@ describe('rendered block preview assignment', () => {
 		);
 
 		expect(records.find((record) => record.internalName === 'HE_Jormungand_Railgun')?.renderedPreview).toBeUndefined();
-		expect(records.find((record) => record.internalName === 'HE_Muspell_Railgun')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/he-muspell.png'
+		expect(records.find((record) => record.internalName === 'HE_Muspell_Railgun')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/he-muspell.png'
 		);
 	});
 
@@ -202,8 +204,8 @@ describe('rendered block preview assignment', () => {
 		);
 
 		expect(records.find((record) => record.internalName === 'HE_Small_Nuclear_Battery')?.renderedPreview).toBeUndefined();
-		expect(records.find((record) => record.internalName === 'HE_Small_T_Bracket')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/bundle/he-small-t-bracket.png'
+		expect(records.find((record) => record.internalName === 'HE_Small_T_Bracket')?.renderedPreview?.cacheRelativePath).toBe(
+			'bundle/he-small-t-bracket.png'
 		);
 	});
 
@@ -223,8 +225,8 @@ describe('rendered block preview assignment', () => {
 
 		expect(records.find((record) => record.internalName === 'EXPRadar_323')?.renderedPreview).toBeUndefined();
 		expect(records.find((record) => record.internalName === 'EXP_RR_LaserGun_Test_323')?.renderedPreview).toBeUndefined();
-		expect(records.find((record) => record.internalName === 'EXP_Scrapper_322')?.renderedPreview?.imageUrl).toBe(
-			'image://block-preview/blockpedia/EXP_Scrapper_322.jpg'
+		expect(records.find((record) => record.internalName === 'EXP_Scrapper_322')?.renderedPreview?.cacheRelativePath).toBe(
+			'blockpedia/EXP_Scrapper_322.jpg'
 		);
 	});
 

@@ -11,7 +11,10 @@ import {
 } from './block-lookup-bundle-text-assets';
 import { loadBlockpediaVanillaPreviewAssets } from './block-lookup-blockpedia-previews';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
-import { assignRenderedBlockPreviewsToRecords } from './block-lookup-rendered-preview-assignment';
+import {
+	assignRenderedBlockPreviewsToRecords,
+	getBlockLookupRecordPreviewMatchNameCandidates
+} from './block-lookup-rendered-preview-assignment';
 import {
 	createBlockLookupRecord,
 	createBlockLookupRecordsFromTextAssets,
@@ -101,6 +104,15 @@ function isDeprecatedVanillaBlockIdentifier(value: string): boolean {
 	return /^deprecated(?:$|[_\s-])/i.test(identifier) || /^Deprecated[A-Z]/.test(identifier) || /^deprecated[A-Z]/.test(identifier);
 }
 
+function isReservedVanillaBlockIdentifier(value: string): boolean {
+	const identifier = value.trim();
+	return /^SPE_Reserved_/i.test(identifier) || /^GSO_ArmourNew3_(?:Left|Right)_226$/i.test(identifier);
+}
+
+function shouldSkipVanillaBlockIdentifier(value: string): boolean {
+	return isDeprecatedVanillaBlockIdentifier(value) || isReservedVanillaBlockIdentifier(value);
+}
+
 function createSingleSourceExtractionAdapter(
 	extractSourceRecords: (
 		source: BlockLookupSourceRecord,
@@ -118,22 +130,6 @@ function createSingleSourceExtractionAdapter(
 	};
 }
 
-function getRecordPreviewMatchNameCandidates(records: readonly BlockLookupRecord[]): string[] {
-	return [
-		...new Set(
-			records
-				.flatMap((record) => [
-					record.internalName,
-					record.blockName,
-					record.preferredAlias.replace(/\(.*$/, ''),
-					...(record.previewAssetNames ?? [])
-				])
-				.map((value) => value.trim())
-				.filter(Boolean)
-		)
-	];
-}
-
 async function extractLocalVanillaPreviewAssets(
 	assemblyPath: string,
 	records: readonly BlockLookupRecord[],
@@ -148,6 +144,7 @@ async function extractLocalVanillaPreviewAssets(
 	}
 	const sourcePaths = [
 		path.join(dataRoot, 'StreamingAssets', 'blocks_shared'),
+		path.join(dataRoot, 'StreamingAssets', 'gamescene'),
 		path.join(dataRoot, 'resources.assets'),
 		...fs
 			.readdirSync(dataRoot, { withFileTypes: true })
@@ -157,7 +154,7 @@ async function extractLocalVanillaPreviewAssets(
 	if (!sourcePaths.length) {
 		return [];
 	}
-	const previewMatchNames = getRecordPreviewMatchNameCandidates(records);
+	const previewMatchNames = getBlockLookupRecordPreviewMatchNameCandidates(records);
 	try {
 		const outcomes = await extractBlockLookupBundleOutcomes(sourcePaths, {
 			previewCacheDir: options.previewCacheDir,
@@ -193,7 +190,7 @@ async function extractVanillaSourceRecords(
 		const enumNames = await loadVanillaEnumNames(source.sourcePath);
 		const records = enumNames.flatMap((enumName) => {
 			const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
-			if (isDeprecatedVanillaBlockIdentifier(enumName) || isDeprecatedVanillaBlockIdentifier(displaySource)) {
+			if (shouldSkipVanillaBlockIdentifier(enumName) || shouldSkipVanillaBlockIdentifier(displaySource)) {
 				return [];
 			}
 			const block: ExtractedTextBlock = {

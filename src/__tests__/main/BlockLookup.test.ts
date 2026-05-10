@@ -59,6 +59,7 @@ function createTestBlockLookupRecord(overrides: Partial<BlockLookupRecord> = {})
 		modTitle,
 		preferredAlias,
 		previewBounds: overrides.previewBounds,
+		previewAssetNames: overrides.previewAssetNames,
 		sourceKind: overrides.sourceKind ?? 'json',
 		sourcePath,
 		spawnCommand: overrides.spawnCommand ?? `SpawnBlock ${preferredAlias}`,
@@ -190,7 +191,11 @@ describe('block lookup index', () => {
 			expect(command).toContain('GetFields');
 			expect(command).toContain('ObsoleteAttribute');
 			if (typeof callback === 'function') {
-				callback(null, '["HE_Cab","_deprecated_HE_Cab","Deprecated_HE_Cab","DeprecatedHECab"]', '');
+				callback(
+					null,
+					'["HE_Cab","_deprecated_HE_Cab","Deprecated_HE_Cab","DeprecatedHECab","SPE_Reserved_13","GSO_ArmourNew3_Left_226","GSO_ArmourNew3_Right_226"]',
+					''
+				);
 			}
 			return {} as childProcess.ChildProcess;
 		}) as typeof childProcess.execFile);
@@ -278,10 +283,13 @@ describe('block lookup index', () => {
 		const previewCacheDir = path.join(tempDir, 'preview-cache');
 		const assemblyPath = path.join(tempDir, 'TerraTechWin64_Data', 'Managed', 'Assembly-CSharp.dll');
 		const blocksSharedPath = path.join(tempDir, 'TerraTechWin64_Data', 'StreamingAssets', 'blocks_shared');
+		const gameScenePath = path.join(tempDir, 'TerraTechWin64_Data', 'StreamingAssets', 'gamescene');
+		let localPreviewSourcePaths: string[] = [];
 		fs.mkdirSync(path.dirname(assemblyPath), { recursive: true });
 		fs.mkdirSync(path.dirname(blocksSharedPath), { recursive: true });
 		fs.writeFileSync(assemblyPath, '');
 		fs.writeFileSync(blocksSharedPath, 'fake serialized asset');
+		fs.writeFileSync(gameScenePath, 'fake serialized scene bundle');
 		process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH = path.join(tempDir, 'fake-extractor');
 		fs.writeFileSync(process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH, '');
 		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, args, _options, callback) => {
@@ -289,6 +297,7 @@ describe('block lookup index', () => {
 				if (_file === 'powershell') {
 					callback(null, '["GSO_Cab_211"]', '');
 				} else {
+					localPreviewSourcePaths.push(...(args as string[]));
 					callback(
 						null,
 						JSON.stringify({
@@ -347,11 +356,13 @@ describe('block lookup index', () => {
 		expect(record).toMatchObject({
 			internalName: 'GSO_Cab_211',
 			renderedPreview: {
+				cacheRelativePath: expect.stringMatching(/^blockpedia\/GSO_Cab_211-/),
 				height: 128,
-				imageUrl: expect.stringMatching(/^image:\/\/block-preview\/blockpedia\/GSO_Cab_211-/),
 				width: 128
 			}
 		});
+		expect(localPreviewSourcePaths).toContain(blocksSharedPath);
+		expect(localPreviewSourcePaths).toContain(gameScenePath);
 	});
 
 	it('routes source extraction through source-kind adapters while preserving source order', async () => {
@@ -796,12 +807,11 @@ describe('block lookup index', () => {
 
 		const [record] = result.recordsBySourcePath.get(bundlePath) ?? [];
 		expect(record.renderedPreview).toMatchObject({
+			cacheRelativePath: expect.stringMatching(/^bundle\//),
 			height: 2,
-			imageUrl: expect.stringMatching(/^image:\/\/block-preview\/bundle\//),
 			width: 3
 		});
-		const renderedCacheRelativePath = decodeURIComponent(new URL(record.renderedPreview!.imageUrl).pathname.replace(/^\/+/, ''));
-		expect(fs.existsSync(path.join(previewCacheDir, renderedCacheRelativePath))).toBe(true);
+		expect(fs.existsSync(path.join(previewCacheDir, record.renderedPreview!.cacheRelativePath))).toBe(true);
 	});
 
 	it('matches extracted bundle previews through Nuterra IconName metadata', async () => {
@@ -862,7 +872,7 @@ describe('block lookup index', () => {
 		);
 
 		const [record] = result.recordsBySourcePath.get(bundlePath) ?? [];
-		expect(record.renderedPreview?.imageUrl).toBe('image://block-preview/bundle/icon-preview.png');
+		expect(record.renderedPreview?.cacheRelativePath).toBe('bundle/icon-preview.png');
 	});
 
 	it('does not attach one matched preview asset to every record in a multi-block bundle', async () => {
@@ -997,7 +1007,7 @@ describe('block lookup index', () => {
 		);
 
 		expect(result.recordsBySourcePath.get(bundlePath)?.[0].renderedPreview).toMatchObject({
-			imageUrl: expect.stringMatching(/reordered-preview\.png$/)
+			cacheRelativePath: expect.stringMatching(/reordered-preview\.png$/)
 		});
 	});
 
@@ -1350,7 +1360,8 @@ describe('block lookup index', () => {
 		fs.mkdirSync(secondBlockJsonDir, { recursive: true });
 		fs.writeFileSync(firstBlockJsonPath, 'a', 'utf8');
 		fs.writeFileSync(secondBlockJsonPath, 'bbbbbbbbb', 'utf8');
-		const progress: Array<{ completed: number; percent: number; phase: string; phaseLabel: string; total: number }> = [];
+		const progress: Array<{ completed: number; countUnit?: string; percent: number; phase: string; phaseLabel: string; total: number }> =
+			[];
 		const indexBlockLookupSourcesAdapter: typeof indexBlockLookupSources = vi.fn(async (sources, _adapters, options) => {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const [index, source] of sources.entries()) {
@@ -1367,7 +1378,7 @@ describe('block lookup index', () => {
 						...(index === 0
 							? {
 									renderedPreview: {
-										imageUrl: 'image://block-preview/progress/first.png',
+										cacheRelativePath: 'progress/first.png',
 										width: 128,
 										height: 128
 									}
@@ -1422,10 +1433,34 @@ describe('block lookup index', () => {
 		);
 		expect(progress.filter((entry) => entry.phase === 'indexing-sources').map((entry) => entry.percent)).toEqual([10, 14, 45, 45]);
 		expect(progress.filter((entry) => entry.phase === 'extracting-rendered-previews')).toEqual([
-			expect.objectContaining({ completed: 0, percent: 45, phaseLabel: 'Extracting rendered block previews', total: 2 }),
-			expect.objectContaining({ completed: 1, percent: 48, phaseLabel: 'Extracting rendered block previews', total: 2 }),
-			expect.objectContaining({ completed: 2, percent: 75, phaseLabel: 'Extracting rendered block previews', total: 2 }),
-			expect.objectContaining({ completed: 2, percent: 75, phaseLabel: 'Extracting rendered block previews', total: 2 })
+			expect.objectContaining({
+				completed: 0,
+				countUnit: 'sources',
+				percent: 45,
+				phaseLabel: 'Extracting rendered block previews',
+				total: 2
+			}),
+			expect.objectContaining({
+				completed: 1,
+				countUnit: 'sources',
+				percent: 48,
+				phaseLabel: 'Extracting rendered block previews',
+				total: 2
+			}),
+			expect.objectContaining({
+				completed: 2,
+				countUnit: 'sources',
+				percent: 75,
+				phaseLabel: 'Extracting rendered block previews',
+				total: 2
+			}),
+			expect.objectContaining({
+				completed: 2,
+				countUnit: 'sources',
+				percent: 75,
+				phaseLabel: 'Extracting rendered block previews',
+				total: 2
+			})
 		]);
 		expect(build.stats).toMatchObject({
 			blocks: 2,
@@ -1550,6 +1585,83 @@ describe('block lookup index', () => {
 		expect(build.stats.renderedPreviewsEnabled).toBe(true);
 		expect(build.stats.renderedPreviews).toBe(0);
 		expect(build.stats.unavailablePreviews).toBe(0);
+	});
+
+	it('uses same-mod bundle preview assets for JSON-only records', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-cross-source-previews-');
+		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
+		const modDir = path.join(workshopRoot, '3429943957');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const bundlePath = path.join(modDir, 'Flaggship Industries_bundle');
+		const jsonPath = path.join(blockJsonDir, 'Classic Megaton.json');
+		fs.mkdirSync(blockJsonDir, { recursive: true });
+		fs.writeFileSync(bundlePath, 'bundle', 'utf8');
+		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"GSO Megaton Cannon, Classic Edition","ID":1700050}', 'utf8');
+		const cacheRelativePath = 'bundle/exp-megaton.png';
+		const previewCacheDir = path.join(tempDir, 'preview-cache');
+		const indexBlockLookupSourcesAdapter = vi.fn(async (sources: BlockLookupSourceRecord[]) => {
+			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
+			for (const source of sources) {
+				recordsBySourcePath.set(
+					source.sourcePath,
+					source.sourceKind === 'json'
+						? [
+								createTestBlockLookupRecord({
+									blockId: '1700050',
+									blockName: 'GSO Megaton Cannon, Classic Edition',
+									internalName: 'Classic Megaton',
+									modTitle: 'Flaggship Industries',
+									previewAssetNames: ['EXP_Megaton.png', 'EXP_Megaton'],
+									sourceKind: 'json',
+									sourcePath: source.sourcePath,
+									workshopId: '3429943957'
+								})
+							]
+						: []
+				);
+			}
+			return { recordsBySourcePath };
+		});
+		const extractBlockLookupBundleOutcomesAdapter = vi.fn(async (_sourcePaths: string[], options?: { previewMatchNames?: string[] }) => {
+			expect(options?.previewMatchNames).toContain('EXP_Megaton');
+			return new Map([
+				[
+					bundlePath,
+					{
+						issues: [],
+						previewAssets: [
+							{
+								assetName: 'EXP_Megaton',
+								cacheRelativePath,
+								height: 64,
+								width: 64
+							}
+						],
+						sourcePath: bundlePath,
+						status: 'success' as const,
+						textAssets: []
+					}
+				]
+			]);
+		});
+
+		const build = await createBlockLookupIndexBuild(
+			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
+			{ workshopRoot, forceRebuild: true, renderedPreviewsEnabled: true },
+			{
+				extractBlockLookupBundleOutcomes: extractBlockLookupBundleOutcomesAdapter as never,
+				indexBlockLookupSources: indexBlockLookupSourcesAdapter as never
+			},
+			undefined,
+			{ previewCacheDir }
+		);
+
+		expect(build.index.records).toHaveLength(1);
+		expect(build.index.records[0].renderedPreview).toMatchObject({
+			cacheRelativePath: 'bundle/exp-megaton.png',
+			height: 64,
+			width: 64
+		});
 	});
 
 	it('keeps ID-bearing block lookup records over ID-less source duplicates', async () => {

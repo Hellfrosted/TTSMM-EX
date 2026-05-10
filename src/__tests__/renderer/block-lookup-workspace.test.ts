@@ -207,6 +207,7 @@ describe('block-lookup-workspace', () => {
 		const progress = {
 			phase: 'indexing-sources' as const,
 			phaseLabel: 'Extracting block records',
+			countUnit: 'sources',
 			completed: 3,
 			total: 6,
 			percent: 50

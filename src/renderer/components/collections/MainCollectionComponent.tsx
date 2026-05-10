@@ -64,7 +64,7 @@ import {
 	getCollectionStatusTags,
 	type CollectionStatusTag
 } from 'model';
-import { getResolvedMainColumnMinWidth } from 'renderer/main-collection-column-layout';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import { formatDateStr } from 'util/Date';
 
 import Corp_Icon_HE from '../../../../assets/Corp_Icon_HE.png';
