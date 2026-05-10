@@ -1,7 +1,7 @@
 import child_process from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PathType, ValidChannel } from '../../model';
 import {
 	discoverGameExecutablePath,
@@ -18,10 +18,6 @@ describe('game handlers', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-game-test-');
-	});
-
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
 
 	it('checks path existence by plain path and expected type', () => {

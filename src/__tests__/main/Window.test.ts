@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	MAIN_WINDOW_DEFAULT_BOUNDS,
 	ensureSteamAppIdFile,
@@ -15,10 +15,6 @@ describe('window helpers', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-window-test-');
-	});
-
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
 
 	it('resolves the packaged steam_appid.txt beside the executable', () => {

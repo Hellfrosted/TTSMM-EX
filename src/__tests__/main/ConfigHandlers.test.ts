@@ -4,39 +4,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { readConfigFile, writeConfigFile } from '../../main/config-store';
 import { registerConfigHandlers } from '../../main/ipc/config-handlers';
 import { ModErrorType, type AppConfig } from '../../model';
+import { createDefaultAppConfig } from '../../shared/app-config-defaults';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir, createValidIpcEvent } from './test-utils';
+import { createIpcHandlerHarness, createTempDir } from './test-utils';
 
 function createConfigHandlerHarness(userDataPath: string) {
-	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
-	const ipcMain = {
-		handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
-			handlers.set(channel, handler);
-		}),
-		on: vi.fn()
-	};
-
-	registerConfigHandlers(ipcMain as never, true, {
-		getUserDataPath: () => userDataPath
-	});
-
-	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
-		const handler = handlers.get(channel);
-		if (!handler) {
-			throw new Error(`Missing handler for ${channel}`);
-		}
-		return handler(createValidIpcEvent(), ...args) as Promise<T>;
-	};
-
-	const invokeWithEvent = <T>(channel: ValidChannel, event: unknown, ...args: unknown[]) => {
-		const handler = handlers.get(channel);
-		if (!handler) {
-			throw new Error(`Missing handler for ${channel}`);
-		}
-		return handler(event, ...args) as Promise<T>;
-	};
-
-	return { invoke, invokeWithEvent };
+	return createIpcHandlerHarness((ipcMain) =>
+		registerConfigHandlers(ipcMain, true, {
+			getUserDataPath: () => userDataPath
+		})
+	);
 }
 
 function createValidConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -152,6 +129,7 @@ describe('config handlers', () => {
 	it('repairs malformed persisted config fields at the app config boundary', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 		const configPath = path.join(tempDir, 'config.json');
+		const defaultConfig = createDefaultAppConfig(process.platform);
 		fs.writeFileSync(
 			configPath,
 			JSON.stringify({
@@ -226,7 +204,7 @@ describe('config handlers', () => {
 				activeCollection: undefined,
 				closeOnLaunch: false,
 				currentPath: '/collections/main',
-				gameExec: '',
+				gameExec: defaultConfig.gameExec,
 				ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:broken': ['BrokenId'] }]]),
 				localDir: undefined,
 				logParams: { Core: 'debug' },

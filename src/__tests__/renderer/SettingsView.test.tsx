@@ -2,22 +2,15 @@ import React from 'react';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, type AppState, LogLevel } from '../../model';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { SettingsView } from '../../renderer/views/SettingsView';
-import { createAppState, renderWithQueryClient } from './test-utils';
+import { createAppState, createTestConfig, renderWithQueryClient } from './test-utils';
 
 function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}) {
 	const appRoot = document.createElement('div');
 	appRoot.className = 'AppRoot';
 	document.body.appendChild(appRoot);
 	const appState = createAppState({
-		config: {
-			...DEFAULT_CONFIG,
-			currentPath: '/settings',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		},
+		config: createTestConfig({ currentPath: '/settings' }),
 		...overrides
 	});
 	const updateState = appState.updateState;
@@ -101,17 +94,13 @@ describe('SettingsView', () => {
 	it('blocks save and surfaces duplicate logger override errors', async () => {
 		renderSettingsView({
 			madeConfigEdits: true,
-			config: {
-				...DEFAULT_CONFIG,
+			config: createTestConfig({
 				currentPath: '/settings',
 				logParams: {
 					TTSMM: 'debug',
 					TTSMMChild: 'trace'
-				},
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			}
+				}
+			})
 		});
 
 		fireEvent.click(screen.getByRole('button', { name: 'Edit logger override 2' }));
@@ -131,17 +120,13 @@ describe('SettingsView', () => {
 	it('allows logger override validation errors to be fixed and saved', async () => {
 		renderSettingsView({
 			madeConfigEdits: true,
-			config: {
-				...DEFAULT_CONFIG,
+			config: createTestConfig({
 				currentPath: '/settings',
 				logParams: {
 					TTSMM: 'debug',
 					TTSMMChild: 'trace'
-				},
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			}
+				}
+			})
 		});
 
 		fireEvent.click(screen.getByRole('button', { name: 'Edit logger override 2' }));

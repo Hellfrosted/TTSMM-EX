@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import type { ElectronApi } from '../../shared/electron-api';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
-import { createAppState, createQueryWrapper } from './test-utils';
+import { createAppState, createQueryWrapper, createTestConfig } from './test-utils';
 import { cloneCollection, type AppConfig, type ModCollection } from '../../model';
 import type { CollectionLifecycleFailureCode } from '../../shared/collection-lifecycle';
 import type { CollectionContentSaveResult } from '../../shared/collection-content-save';
@@ -63,14 +63,7 @@ describe('useCollections', () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const altCollection = { name: 'alt', mods: ['local:mod-a'] };
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			allCollections: new Map([
 				['default', defaultCollection],
 				['alt', altCollection]
@@ -104,14 +97,7 @@ describe('useCollections', () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const archivedCollection = { name: 'archived', mods: ['local:mod-z'] };
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			allCollections: new Map([
 				['default', defaultCollection],
 				['archived', archivedCollection]
@@ -149,14 +135,7 @@ describe('useCollections', () => {
 		const defaultCollection = { name: 'default', mods: ['local:dirty'] };
 		const altCollection = { name: 'alt', mods: ['local:mod-a'] };
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			allCollections: new Map([
 				['default', defaultCollection],
 				['alt', altCollection]
@@ -198,14 +177,7 @@ describe('useCollections', () => {
 		const altCollection = { name: 'alt', mods: ['local:mod-a'] };
 		const saveDeferred = createDeferred<CollectionContentSaveResult>();
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			allCollections: new Map([
 				['default', defaultCollection],
 				['alt', altCollection]
@@ -249,14 +221,7 @@ describe('useCollections', () => {
 	it('notifies when creating a collection fails to write the new collection', async () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			allCollections: new Map([['default', defaultCollection]]),
 			allCollectionNames: new Set(['default']),
 			activeCollection: defaultCollection

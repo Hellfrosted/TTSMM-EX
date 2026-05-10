@@ -1,11 +1,9 @@
 // @vitest-environment node
 
-import { execFileSync } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
-
-const scriptArgs = ['--import=tsx', './scripts/check-port-in-use.ts'];
+import { assertConfiguredPortAvailable } from '../../../scripts/check-port-in-use';
 let openServers: net.Server[] = [];
 
 function listen(port = 0, host = 'localhost') {
@@ -40,13 +38,8 @@ function getServerPort(server: net.Server) {
 }
 
 function runPortCheck(port: string | number) {
-	return execFileSync(process.execPath, scriptArgs, {
-		cwd: process.cwd(),
-		env: {
-			...process.env,
-			PORT: String(port)
-		},
-		encoding: 'utf8'
+	return assertConfiguredPortAvailable({
+		rawPort: String(port)
 	});
 }
 
@@ -69,28 +62,28 @@ describe('check-port-in-use', () => {
 		openServers = [];
 		await closeServer(server);
 
-		expect(() => runPortCheck(port)).not.toThrow();
+		await expect(runPortCheck(port)).resolves.toBeUndefined();
 	});
 
 	it('fails when the requested localhost port is already in use', async () => {
 		const server = await listen();
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(port)).toThrow(/already in use/);
+		await expect(runPortCheck(port)).rejects.toThrow(/already in use/);
 	});
 
 	it('fails when the requested IPv4 loopback port is already in use', async () => {
 		const server = await listen(0, '127.0.0.1');
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(port)).toThrow(/already in use/);
+		await expect(runPortCheck(port)).rejects.toThrow(/already in use/);
 	});
 
 	it('fails when the requested wildcard IPv4 port is already in use', async () => {
 		const server = await listen(0, '0.0.0.0');
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(port)).toThrow(/already in use/);
+		await expect(runPortCheck(port)).rejects.toThrow(/already in use/);
 	});
 
 	it('fails when the requested machine IP port is already in use', async () => {
@@ -101,7 +94,7 @@ describe('check-port-in-use', () => {
 		const server = await listen(0, machineIpAddress);
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(port)).toThrow(/already in use/);
+		await expect(runPortCheck(port)).rejects.toThrow(/already in use/);
 	});
 
 	it('fails when the requested IPv6 loopback port is already in use', async () => {
@@ -116,13 +109,13 @@ describe('check-port-in-use', () => {
 		}
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(port)).toThrow(/already in use/);
+		await expect(runPortCheck(port)).rejects.toThrow(/already in use/);
 	});
 
 	it('parses PORT the same way as the Vite config', async () => {
 		const server = await listen();
 		const port = getServerPort(server);
 
-		expect(() => runPortCheck(`${port}abc`)).toThrow(/already in use/);
+		await expect(runPortCheck(`${port}abc`)).rejects.toThrow(/already in use/);
 	});
 });

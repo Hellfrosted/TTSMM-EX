@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks from '../../main/steamworks';
-import { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks/types';
+import { UGCItemState } from '../../main/steamworks/types';
 import { buildWorkshopMod, createModInventoryContext, fetchWorkshopMods, processSteamModResults } from '../../main/mod-fetcher';
 import { ModType } from '../../model/Mod';
 import { MAX_TTSMM_METADATA_BYTES, createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
@@ -13,40 +13,7 @@ import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
-import { createTempDir } from './test-utils';
-
-function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
-	return {
-		acceptForUse: true,
-		banned: false,
-		tagsTruncated: false,
-		fileType: 0,
-		result: 1,
-		visibility: UGCItemVisibility.Public,
-		score: 1,
-		file: '',
-		fileName: '',
-		fileSize: 1024,
-		previewURL: '',
-		previewFile: '',
-		previewFileSize: 0,
-		steamIDOwner: 'owner-1',
-		consumerAppID: 285920,
-		creatorAppID: 285920,
-		description: '',
-		URL: '',
-		timeAddedToUserList: 0,
-		timeCreated: 0,
-		timeUpdated: 0,
-		votesDown: 0,
-		votesUp: 0,
-		children: [],
-		metadata: '',
-		tags: [],
-		tagsDisplayNames: [],
-		...overrides
-	};
-}
+import { createTempDir, createWorkshopDetails } from './test-utils';
 
 describe('ModFetcher', () => {
 	afterEach(() => {

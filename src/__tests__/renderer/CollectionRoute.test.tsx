@@ -31,14 +31,6 @@ describe('CollectionRoute', () => {
 			allCollections: new Map([['default', activeCollection]]),
 			allCollectionNames: new Set(['default'])
 		});
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				unobserve: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
 		renderWithQueryClient(
 			<MemoryRouter initialEntries={['/collections']}>
@@ -69,14 +61,6 @@ describe('CollectionRoute', () => {
 			allCollections: new Map([['default', activeCollection]]),
 			allCollectionNames: new Set(['default'])
 		});
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				unobserve: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 
 		renderWithQueryClient(

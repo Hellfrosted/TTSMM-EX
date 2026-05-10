@@ -3,35 +3,18 @@ import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir, createValidIpcEvent } from './test-utils';
+import { createIpcHandlerHarness, createTempDir, createValidIpcEvent } from './test-utils';
 
 function createBlockLookupHandlerHarness() {
 	const userDataPath = createTempDir('ttsmm-block-lookup-ipc-');
-	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
-	const ipcMain = {
-		handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
-			handlers.set(channel, handler);
+	const harness = createIpcHandlerHarness((ipcMain) =>
+		registerBlockLookupHandlers(ipcMain, {
+			getUserDataPath: () => userDataPath
 		})
-	};
-
-	registerBlockLookupHandlers(ipcMain as never, {
-		getUserDataPath: () => userDataPath
-	});
-
-	const invokeWithEvent = <T>(channel: ValidChannel, event: unknown, ...args: unknown[]) => {
-		const handler = handlers.get(channel);
-		if (!handler) {
-			throw new Error(`Missing handler for ${channel}`);
-		}
-		return handler(event, ...args) as Promise<T>;
-	};
-	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
-		return invokeWithEvent<T>(channel, createValidIpcEvent(), ...args);
-	};
+	);
 
 	return {
-		invoke,
-		invokeWithEvent,
+		...harness,
 		userDataPath
 	};
 }

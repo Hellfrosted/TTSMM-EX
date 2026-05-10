@@ -1,50 +1,29 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionManagementToolbar from '../../renderer/components/collections/CollectionManagementToolbar';
-import { createAppState } from './test-utils';
+import { createAppState, renderInAppRoot } from './test-utils';
 
 afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
 });
 
-function stubResizeObserver() {
-	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-		return {
-			observe: vi.fn(),
-			unobserve: vi.fn(),
-			disconnect: vi.fn()
-		};
-	});
-	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-}
-
 async function clickToolbarAction(name: string | RegExp) {
 	fireEvent.click(await screen.findByRole('button', { name }));
 }
 
 async function clickCollectionMenuAction(name: string | RegExp) {
-	await clickToolbarAction('Collection');
+	await clickToolbarAction('Collection actions');
 	fireEvent.click(await screen.findByRole('menuitem', { name }));
 }
 
 async function findCollectionNameInput() {
-	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 5000 });
-}
-
-function renderInAppRoot(ui: ReactElement) {
-	const appRoot = document.createElement('div');
-	appRoot.className = 'AppRoot';
-	document.body.appendChild(appRoot);
-	return render(ui, { container: appRoot });
+	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 10000 });
 }
 
 describe('CollectionManagementToolbar', () => {
 	it('opens the collection rename modal when the toolbar action is clicked', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -79,8 +58,6 @@ describe('CollectionManagementToolbar', () => {
 	}, 20000);
 
 	it('prefills the duplicate collection modal with a readable copy name', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -115,8 +92,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('copies the active collection JSON to the clipboard and reports success', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -164,8 +139,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('supports keyboard navigation inside the collection action menu', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -192,7 +165,7 @@ describe('CollectionManagementToolbar', () => {
 			/>
 		);
 
-		await clickToolbarAction('Collection');
+		await clickToolbarAction('Collection actions');
 		const renameItem = await screen.findByRole('menuitem', { name: 'Rename collection' });
 		await waitFor(() => {
 			expect(renameItem).toHaveFocus();
@@ -205,13 +178,11 @@ describe('CollectionManagementToolbar', () => {
 		expect(screen.getByRole('menuitem', { name: 'Delete collection' })).toHaveFocus();
 
 		fireEvent.keyDown(window, { key: 'Escape' });
-		expect(screen.getByRole('button', { name: 'Collection' })).toHaveFocus();
+		expect(screen.getByRole('button', { name: 'Collection actions' })).toHaveFocus();
 		expect(screen.queryByRole('menuitem', { name: 'Rename collection' })).not.toBeInTheDocument();
 	});
 
 	it('reports a clipboard error instead of claiming success when export copying fails', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -258,8 +229,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('opens table settings directly from the toolbar', async () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -294,8 +263,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('labels the mod search field for assistive technologies', () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),
@@ -326,8 +293,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('announces launch-ready validation state without expanding the toolbar label', () => {
-		stubResizeObserver();
-
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({
 			allCollections: new Map([['default', defaultCollection]]),

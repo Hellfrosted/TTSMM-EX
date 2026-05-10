@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppConfig, ModCollection } from '../../model';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	createActiveCollectionTransition,
 	deleteActiveCollectionTransition,
@@ -9,29 +8,9 @@ import {
 	resolveStartupActiveCollectionTransition,
 	switchActiveCollectionTransition
 } from '../../main/active-collection-transition';
-import { readCollectionFile, updateCollectionFile } from '../../main/collection-store';
+import { readCollectionFile } from '../../main/collection-store';
 import { readConfigFile } from '../../main/config-store';
-import { createTempDir } from './test-utils';
-
-function config(activeCollection = 'default'): AppConfig {
-	return {
-		closeOnLaunch: false,
-		language: 'english',
-		gameExec: '',
-		workshopID: BigInt(0),
-		logsDir: '',
-		activeCollection,
-		steamMaxConcurrency: 5,
-		currentPath: '/collections/main',
-		viewConfigs: {},
-		ignoredValidationErrors: new Map(),
-		userOverrides: new Map()
-	};
-}
-
-function writeCollection(userDataPath: string, collection: ModCollection) {
-	expect(updateCollectionFile(userDataPath, collection)).toBe(true);
-}
+import { createTempDir, createTestAppConfig, writeTestCollection } from './test-utils';
 
 describe('active collection transition', () => {
 	let tempDir: string;
@@ -40,15 +19,11 @@ describe('active collection transition', () => {
 		tempDir = createTempDir('ttsmm-active-collection-transition-test-');
 	});
 
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
-	});
-
 	it('creates and activates a collection while preserving a dirty active collection draft', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
 		const result = createActiveCollectionTransition(tempDir, {
-			config: config(),
+			config: createTestAppConfig(),
 			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 			collection: { name: 'fresh', mods: ['local:new'] }
 		});
@@ -68,7 +43,7 @@ describe('active collection transition', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
 		const result = createActiveCollectionTransition(tempDir, {
-			config: config(),
+			config: createTestAppConfig(),
 			collection: { name: 'fresh', mods: [] }
 		});
 
@@ -83,11 +58,11 @@ describe('active collection transition', () => {
 	});
 
 	it('switches active collections after saving dirty edits', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
-		writeCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
 
 		const result = switchActiveCollectionTransition(tempDir, {
-			config: config('default'),
+			config: createTestAppConfig({ activeCollection: 'default' }),
 			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 			name: 'alt'
 		});
@@ -102,7 +77,7 @@ describe('active collection transition', () => {
 
 	it('rejects a switch to a missing collection target', () => {
 		const result = switchActiveCollectionTransition(tempDir, {
-			config: config('default'),
+			config: createTestAppConfig({ activeCollection: 'default' }),
 			name: 'missing'
 		});
 
@@ -114,10 +89,10 @@ describe('active collection transition', () => {
 
 	it('renames and activates an active collection with rollback on activation failure', () => {
 		const activeCollection = { name: 'default', mods: ['local:old'] };
-		writeCollection(tempDir, activeCollection);
+		writeTestCollection(tempDir, activeCollection);
 
 		const result = renameActiveCollectionTransition(tempDir, {
-			config: config(),
+			config: createTestAppConfig(),
 			activeCollection,
 			name: 'renamed'
 		});
@@ -132,7 +107,7 @@ describe('active collection transition', () => {
 		fs.rmSync(path.join(tempDir, 'config.json'), { force: true });
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 		const rollbackResult = renameActiveCollectionTransition(tempDir, {
-			config: config('renamed'),
+			config: createTestAppConfig({ activeCollection: 'renamed' }),
 			activeCollection: { name: 'renamed', mods: ['local:old'] },
 			name: 'rolled-back'
 		});
@@ -150,11 +125,11 @@ describe('active collection transition', () => {
 
 	it('deletes an active collection and activates the replacement or fallback', () => {
 		const activeCollection = { name: 'default', mods: [] };
-		writeCollection(tempDir, activeCollection);
-		writeCollection(tempDir, { name: 'archived', mods: ['local:a'] });
+		writeTestCollection(tempDir, activeCollection);
+		writeTestCollection(tempDir, { name: 'archived', mods: ['local:a'] });
 
 		const result = deleteActiveCollectionTransition(tempDir, {
-			config: config('default'),
+			config: createTestAppConfig({ activeCollection: 'default' }),
 			activeCollection
 		});
 
@@ -165,7 +140,7 @@ describe('active collection transition', () => {
 		}
 
 		const fallbackResult = deleteActiveCollectionTransition(tempDir, {
-			config: config('archived'),
+			config: createTestAppConfig({ activeCollection: 'archived' }),
 			activeCollection: { name: 'archived', mods: ['local:a'] }
 		});
 
@@ -176,11 +151,11 @@ describe('active collection transition', () => {
 
 	it('restores a deleted active collection when replacement selection fails', () => {
 		const activeCollection = { name: 'default', mods: ['local:active'] };
-		writeCollection(tempDir, activeCollection);
+		writeTestCollection(tempDir, activeCollection);
 		fs.writeFileSync(path.join(tempDir, 'collections', 'broken.json'), '{', 'utf8');
 
 		const result = deleteActiveCollectionTransition(tempDir, {
-			config: config('default'),
+			config: createTestAppConfig({ activeCollection: 'default' }),
 			activeCollection
 		});
 
@@ -193,11 +168,11 @@ describe('active collection transition', () => {
 
 	it('restores a deleted active collection when fallback creation fails', () => {
 		const activeCollection = { name: 'active', mods: ['local:active'] };
-		writeCollection(tempDir, activeCollection);
+		writeTestCollection(tempDir, activeCollection);
 		fs.mkdirSync(path.join(tempDir, 'collections', 'default.json'), { recursive: true });
 
 		const result = deleteActiveCollectionTransition(tempDir, {
-			config: config('active'),
+			config: createTestAppConfig({ activeCollection: 'active' }),
 			activeCollection
 		});
 
@@ -211,11 +186,11 @@ describe('active collection transition', () => {
 	});
 
 	it('resolves startup repair through the active collection transition', () => {
-		writeCollection(tempDir, { name: 'zeta', mods: [] });
-		writeCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
+		writeTestCollection(tempDir, { name: 'zeta', mods: [] });
+		writeTestCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
 
 		const result = resolveStartupActiveCollectionTransition(tempDir, {
-			config: config('missing')
+			config: createTestAppConfig({ activeCollection: 'missing' })
 		});
 
 		expect(result.ok).toBe(true);

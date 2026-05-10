@@ -14,33 +14,7 @@ type PackageScripts = {
 	scripts: Record<string, string>;
 };
 
-const ignoredDirectories = new Set(['.git', 'node_modules']);
-const ignoredRelativeDirectories = new Set(['release/build', 'release/package-app']);
-
-const collectPackageJsonPaths = (directoryPath: string): string[] => {
-	const packageJsonPaths: string[] = [];
-	const directoryEntries = fs.readdirSync(directoryPath, { withFileTypes: true });
-
-	for (const entry of directoryEntries) {
-		if (entry.isDirectory()) {
-			const entryPath = path.join(directoryPath, entry.name);
-			const relativeEntryPath = path.relative(repoRoot, entryPath).replace(/\\/g, '/');
-
-			if (ignoredDirectories.has(entry.name) || ignoredRelativeDirectories.has(relativeEntryPath)) {
-				continue;
-			}
-
-			packageJsonPaths.push(...collectPackageJsonPaths(entryPath));
-			continue;
-		}
-
-		if (entry.isFile() && entry.name === 'package.json') {
-			packageJsonPaths.push(path.join(directoryPath, entry.name));
-		}
-	}
-
-	return packageJsonPaths;
-};
+const sourceOwnedManifestPaths = ['package.json', 'release/app/package.json'].map((manifestPath) => path.join(repoRoot, manifestPath));
 
 const readPackageScripts = (manifestPath: string): PackageScripts | null => {
 	const rawPackageJson = fs.readFileSync(manifestPath, 'utf8');
@@ -70,7 +44,8 @@ const formatRunCommand = (packageScripts: PackageScripts, scriptName: string) =>
 	return `pnpm --dir ${packageScripts.relativeDir.replace(/\\/g, '/')} run ${scriptName}`;
 };
 
-const packageScriptSets = collectPackageJsonPaths(repoRoot)
+const packageScriptSets = sourceOwnedManifestPaths
+	.filter((manifestPath) => fs.existsSync(manifestPath))
 	.map(readPackageScripts)
 	.filter((packageScripts): packageScripts is PackageScripts => packageScripts !== null)
 	.sort((left, right) => left.relativeManifestPath.localeCompare(right.relativeManifestPath));

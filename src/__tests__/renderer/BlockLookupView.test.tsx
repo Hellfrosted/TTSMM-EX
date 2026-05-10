@@ -8,7 +8,7 @@ import { AppQueryProvider, queryClient } from '../../renderer/query-client';
 import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
-import { createAppState } from './test-utils';
+import { createAppState, createDataTransfer } from './test-utils';
 
 const TEST_STATS = {
 	sources: 1,
@@ -57,29 +57,6 @@ function createBlockLookupRecord(index: number, overrides: Partial<BlockLookupRe
 		spawnCommand: `SpawnBlock Block_${index}(Test_Blocks)`,
 		fallbackSpawnCommand: `SpawnBlock Block_${index}(Test_Blocks)`,
 		...overrides
-	};
-}
-
-function stubResizeObserver() {
-	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-		return {
-			observe: vi.fn(),
-			unobserve: vi.fn(),
-			disconnect: vi.fn()
-		};
-	});
-	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-}
-
-function createDataTransfer() {
-	const data = new Map<string, string>();
-	return {
-		effectAllowed: '',
-		dropEffect: '',
-		setData: vi.fn((type: string, value: string) => {
-			data.set(type, value);
-		}),
-		getData: vi.fn((type: string) => data.get(type) || '')
 	};
 }
 
@@ -135,7 +112,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('searches indexed block aliases and copies the selected command', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
@@ -158,7 +134,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('asks for a rebuild when rendered previews are enabled against an index without preview support', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
 			...TEST_BLOCK_LOOKUP_SETTINGS,
 			renderedPreviewsEnabled: true
@@ -174,7 +149,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('saves the rendered preview toggle immediately', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.saveBlockLookupSettings).mockResolvedValue({
 			...TEST_BLOCK_LOOKUP_SETTINGS,
@@ -198,7 +172,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('shows only cached rendered preview references after the current index was built with rendered previews', async () => {
-		stubResizeObserver();
 		const previewRecord = {
 			...TEST_RECORD,
 			renderedPreview: {
@@ -219,13 +192,17 @@ describe('BlockLookupView', () => {
 
 		expect(await screen.findByText('Preview')).toBeInTheDocument();
 		expect(screen.queryByText('Rebuild to generate previews')).not.toBeInTheDocument();
-		const previewImages = await screen.findAllByRole('img', { name: 'Alpha Cannon Block preview' });
+		expect(await screen.findByRole('img', { name: 'Alpha Cannon Block preview' })).toHaveAttribute(
+			'src',
+			'image://block-preview/alpha-cannon.png'
+		);
+		fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+		const previewImages = screen.getAllByRole('img', { name: 'Alpha Cannon Block preview' });
 		expect(previewImages).toHaveLength(2);
 		expect(previewImages[0]).toHaveAttribute('src', 'image://block-preview/alpha-cannon.png');
 	});
 
 	it('selects block lookup rows with the keyboard and updates copy/detail state', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
@@ -260,7 +237,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('moves block lookup selection with arrows and extends ranges with Shift+Arrow', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
@@ -305,7 +281,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('keeps block lookup keyboard focus stable across Home and End navigation', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
@@ -339,7 +314,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('copies selected block lookup rows with Ctrl+C in visible table order', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
@@ -376,7 +350,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('selects a block lookup row range with Shift+click', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
@@ -412,7 +385,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('selects all visible block lookup rows with Ctrl+A', async () => {
-		stubResizeObserver();
 		const records = [
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
@@ -441,7 +413,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('filters block lookup rows by mod from the Mod column header', async () => {
-		stubResizeObserver();
 		const records = [
 			{ ...TEST_RECORD, modTitle: 'Alpha Pack', spawnCommand: 'SpawnBlock Alpha_Cannon(Alpha_Pack)' },
 			createBlockLookupRecord(2, {
@@ -453,35 +424,26 @@ describe('BlockLookupView', () => {
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
 
 		renderBlockLookupView();
 
-		const modFilter = await screen.findByRole('combobox', { name: 'Filter Mod column' });
-		fireEvent.change(modFilter, { target: { value: 'add:Beta Pack' } });
-		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+		fireEvent.click(await screen.findByRole('button', { name: 'Filter Mod column' }));
+		fireEvent.click(screen.getByRole('checkbox', { name: 'Beta Pack' }));
 
 		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith('SpawnBlock Beta_Shield(Beta_Pack)');
+			expect(screen.queryByText('Alpha Cannon')).not.toBeInTheDocument();
 		});
-		expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('Alpha_Cannon'));
-		expect(modFilter).toHaveDisplayValue('1 active');
+		expect(screen.getByText('Beta Shield')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: '1 mod filters active' })).toBeInTheDocument();
 
-		fireEvent.change(modFilter, { target: { value: 'clear:' } });
-		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
+		fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
 
 		await waitFor(() => {
-			expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('SpawnBlock Alpha_Cannon(Alpha_Pack)'));
-			expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining('SpawnBlock Beta_Shield(Beta_Pack)'));
+			expect(screen.getByText('Alpha Cannon')).toBeInTheDocument();
 		});
 	});
 
 	it('resizes block lookup columns from the header edge', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
@@ -524,7 +486,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('builds the index from the configured workshop root and loaded mods', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
@@ -559,7 +520,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('shows determinate build progress while the index is running', async () => {
-		stubResizeObserver();
 		let progressCallback: Parameters<typeof window.electron.onBlockLookupIndexProgress>[0] | undefined;
 		let resolveBuild: (value: Awaited<ReturnType<typeof window.electron.buildBlockLookupIndex>>) => void = () => undefined;
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
@@ -605,7 +565,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('keeps the full rebuild result visible after the blocking state closes', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
@@ -625,7 +584,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('keeps the full rebuild failure visible after the blocking state closes', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
@@ -642,31 +600,19 @@ describe('BlockLookupView', () => {
 	});
 
 	it('shows block lookup results without paginating the virtual table', async () => {
-		stubResizeObserver();
 		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
-
 		renderBlockLookupView();
 
 		expect((await screen.findAllByText('Block 001')).length).toBeGreaterThan(0);
-		expect(screen.getByText('125 indexed blocks from 1 source')).toBeInTheDocument();
+		expect(screen.getByText('125 blocks')).toBeInTheDocument();
+		expect(screen.getByText('1 source')).toBeInTheDocument();
 		expect(screen.queryByTitle('Next Page')).toBeNull();
-		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
-
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith(expect.stringContaining('SpawnBlock Block_125(Test_Blocks)'));
-		});
 	});
 
 	it('loads all indexed rows for the blank lookup instead of applying the search result cap', async () => {
-		stubResizeObserver();
 		const records = Array.from({ length: 1005 }, (_value, index) => createBlockLookupRecord(index + 1));
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
@@ -679,25 +625,14 @@ describe('BlockLookupView', () => {
 				stats: { ...TEST_STATS, blocks: records.length }
 			};
 		});
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
-
 		renderBlockLookupView();
 
-		await screen.findByText('1005 indexed blocks from 1 source');
-		fireEvent.click(screen.getByRole('button', { name: /Copy All/ }));
-
-		await waitFor(() => {
-			expect(writeText).toHaveBeenCalledWith(expect.stringContaining('SpawnBlock Block_1005(Test_Blocks)'));
-		});
+		await screen.findByText('1005 blocks');
+		expect(screen.getByText('1 source')).toBeInTheDocument();
 		expect(window.electron.searchBlockLookup).toHaveBeenCalledWith({ query: '', limit: undefined });
 	});
 
 	it('uses fixed row geometry for virtualized block rows', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
@@ -709,7 +644,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('matches compact virtual row geometry to coarse pointer touch sizing', async () => {
-		stubResizeObserver();
 		const mediaQuery = {
 			matches: true,
 			addEventListener: vi.fn(),
@@ -740,7 +674,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('sorts rows without canceling and reorders columns from table headers', async () => {
-		stubResizeObserver();
 		const records = [
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', internalName: '' })
@@ -813,7 +746,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('reorders table settings rows by drag and drop', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
@@ -861,7 +793,6 @@ describe('BlockLookupView', () => {
 	});
 
 	it('reorders table settings rows from keyboard-accessible move controls', async () => {
-		stubResizeObserver();
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });

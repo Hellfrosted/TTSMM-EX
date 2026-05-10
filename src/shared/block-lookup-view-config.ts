@@ -1,7 +1,7 @@
 import { BLOCK_LOOKUP_COLUMN_KEYS, type BlockLookupViewConfig } from 'model/BlockLookupView';
 import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber } from './view-config';
 
-export const BLOCK_LOOKUP_COLUMN_WIDTHS = {
+const BLOCK_LOOKUP_COLUMN_WIDTHS = {
 	preview: { defaultWidth: 92, minWidth: 76 },
 	blockName: { defaultWidth: 200, minWidth: 96 },
 	spawnCommand: { defaultWidth: 320, minWidth: 140 },
@@ -25,7 +25,7 @@ export function normalizeBlockLookupColumnWidth(columnKey: (typeof BLOCK_LOOKUP_
 	return Math.max(getMinBlockLookupColumnWidth(columnKey), Math.round(width));
 }
 
-export function normalizeBlockLookupColumnWidthConfig(config: unknown) {
+function normalizeBlockLookupColumnWidthConfig(config: unknown) {
 	if (!config || typeof config !== 'object' || Array.isArray(config)) {
 		return undefined;
 	}

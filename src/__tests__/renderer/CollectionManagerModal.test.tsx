@@ -1,20 +1,13 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CollectionManagerModalType, CollectionViewType, MainColumnTitles, ModType, SessionMods } from '../../model';
 import CollectionManagerModal from '../../renderer/components/collections/CollectionManagerModal';
-import { createAppState } from './test-utils';
+import { createAppState, renderInAppRoot } from './test-utils';
 
 afterEach(() => {
 	cleanup();
 });
-
-function renderInAppRoot(children: React.ReactNode) {
-	const appRoot = document.createElement('div');
-	appRoot.className = 'AppRoot';
-	document.body.appendChild(appRoot);
-	return render(<>{children}</>, { container: appRoot });
-}
 
 describe('CollectionManagerModal', () => {
 	it('shows per-mod validation details in the configuration error modal', async () => {

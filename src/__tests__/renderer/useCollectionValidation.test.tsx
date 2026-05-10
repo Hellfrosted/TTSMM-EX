@@ -1,10 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ModErrorType, ModType, SessionMods, getDependencies, getModDescriptorKey, setupDescriptors } from '../../model';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { createCollectionWorkspaceSession } from '../../renderer/collection-workspace-session';
 import { useCollectionValidation } from '../../renderer/hooks/collections/useCollectionValidation';
-import { createAppState } from './test-utils';
+import { createAppState, createTestConfig } from './test-utils';
 
 describe('useCollectionValidation', () => {
 	it('does not treat a previous validation result as current after switching collections', async () => {
@@ -12,14 +11,7 @@ describe('useCollectionValidation', () => {
 		const modB = { uid: 'local:b', id: 'ModB', name: 'Mod B', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA, modB]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
@@ -68,14 +60,7 @@ describe('useCollectionValidation', () => {
 	it('treats a validated empty collection as current', async () => {
 		const mods = new SessionMods('', []);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: [] }
 		});
@@ -110,14 +95,7 @@ describe('useCollectionValidation', () => {
 		const mod = { uid: 'local:a', id: 'CoreMod', name: 'Core Mod', type: ModType.LOCAL };
 		const mods = new SessionMods('', [mod]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: [mod.uid] }
 		});
@@ -168,14 +146,7 @@ describe('useCollectionValidation', () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
@@ -210,14 +181,7 @@ describe('useCollectionValidation', () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
@@ -259,14 +223,7 @@ describe('useCollectionValidation', () => {
 		const modB = { uid: 'local:b', id: 'ModB', name: 'Mod B', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA, modB]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
@@ -334,14 +291,7 @@ describe('useCollectionValidation', () => {
 		};
 		const mods = new SessionMods('', [currentMod, dependencyMod]);
 		const appState = createAppState({
-			config: {
-				...DEFAULT_CONFIG,
-				currentPath: '/collections/main',
-				activeCollection: 'default',
-				viewConfigs: {},
-				ignoredValidationErrors: new Map(),
-				userOverrides: new Map()
-			},
+			config: createTestConfig({ activeCollection: 'default' }),
 			mods,
 			activeCollection: { name: 'default', mods: [currentMod.uid] }
 		});

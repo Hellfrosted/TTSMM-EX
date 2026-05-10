@@ -1,8 +1,9 @@
 import { useOutletContext } from 'react-router-dom';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Clock3, Code2, LoaderCircle, PanelRightOpen, TriangleAlert } from 'lucide-react';
+import { ChevronDown, Clock3, Code2, Filter, LoaderCircle, PanelRightOpen, TriangleAlert, X } from 'lucide-react';
 import api from 'renderer/Api';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
@@ -83,6 +84,7 @@ const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
 const SIZE_METER_MIN_BYTES = 10 * 1024;
 const MAIN_COLLECTION_VIRTUAL_OVERSCAN = 28;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
+const TAG_FILTER_MENU_WIDTH = 236;
 
 function useCoarsePointer() {
 	const [coarsePointer, setCoarsePointer] = useState(() =>
@@ -360,45 +362,146 @@ function TagsHeaderFilter({
 	onSelectedTagsChange?: (tags: string[]) => void;
 	selectedTags: string[];
 }) {
+	const buttonRef = useRef<HTMLButtonElement | null>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
+	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 	const selectedTagSet = new Set(selectedTags);
-	const unselectedTags = availableTags.filter((tag) => !selectedTagSet.has(tag));
-	const selectedLabel = selectedTags.length > 0 ? `${selectedTags.length} active` : 'Filter';
+	const disabled = !onSelectedTagsChange || (selectedTags.length === 0 && availableTags.length === 0);
+	const activeLabel = selectedTags.length > 0 ? `${selectedTags.length}` : undefined;
+
+	const closeMenu = useCallback((restoreFocus = true) => {
+		setMenuPosition(null);
+		if (restoreFocus) {
+			buttonRef.current?.focus();
+		}
+	}, []);
+
+	const openMenu = useCallback(() => {
+		const bounds = buttonRef.current?.getBoundingClientRect();
+		if (!bounds) {
+			return;
+		}
+		setMenuPosition({
+			x: Math.min(Math.max(8, bounds.right - TAG_FILTER_MENU_WIDTH), Math.max(8, window.innerWidth - TAG_FILTER_MENU_WIDTH - 8)),
+			y: Math.min(bounds.bottom + 4, Math.max(8, window.innerHeight - 304))
+		});
+	}, []);
+
+	useEffect(() => {
+		if (!menuPosition) {
+			return undefined;
+		}
+
+		const focusFirstOption = window.requestAnimationFrame(() => {
+			menuRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus();
+		});
+		const closeFromPointer = (event: MouseEvent) => {
+			const target = event.target;
+			if (!(target instanceof Node)) {
+				closeMenu(false);
+				return;
+			}
+			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
+				return;
+			}
+			closeMenu(false);
+		};
+		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				closeMenu();
+			}
+		};
+
+		window.addEventListener('mousedown', closeFromPointer);
+		window.addEventListener('keydown', closeFromKeyboard);
+		return () => {
+			window.cancelAnimationFrame(focusFirstOption);
+			window.removeEventListener('mousedown', closeFromPointer);
+			window.removeEventListener('keydown', closeFromKeyboard);
+		};
+	}, [closeMenu, menuPosition]);
+
+	const toggleTag = useCallback(
+		(tag: string) => {
+			if (!onSelectedTagsChange) {
+				return;
+			}
+			onSelectedTagsChange(selectedTagSet.has(tag) ? selectedTags.filter((selectedTag) => selectedTag !== tag) : [...selectedTags, tag]);
+		},
+		[onSelectedTagsChange, selectedTagSet, selectedTags]
+	);
 
 	return (
-		<select
-			className="MainCollectionTagHeaderFilter"
-			aria-label="Filter Tags column"
-			value=""
-			disabled={!onSelectedTagsChange || (selectedTags.length === 0 && unselectedTags.length === 0)}
-			onClick={(event) => {
-				event.stopPropagation();
-			}}
-			onChange={(event) => {
-				const selectedValue = event.target.value;
-				if (selectedValue === 'clear:') {
-					onSelectedTagsChange?.([]);
-				} else if (selectedValue.startsWith('add:')) {
-					onSelectedTagsChange?.([...selectedTags, selectedValue.slice('add:'.length)]);
-				} else if (selectedValue.startsWith('remove:')) {
-					const tag = selectedValue.slice('remove:'.length);
-					onSelectedTagsChange?.(selectedTags.filter((selectedTag) => selectedTag !== tag));
-				}
-				event.currentTarget.value = '';
-			}}
-		>
-			<option value="">{selectedLabel}</option>
-			{selectedTags.length > 0 ? <option value="clear:">Clear tag filters</option> : null}
-			{selectedTags.map((tag) => (
-				<option key={`remove:${tag}`} value={`remove:${tag}`}>
-					Remove {tag}
-				</option>
-			))}
-			{unselectedTags.map((tag) => (
-				<option key={`add:${tag}`} value={`add:${tag}`}>
-					{tag}
-				</option>
-			))}
-		</select>
+		<>
+			<div className="MainCollectionTagHeaderFilter">
+				<button
+					ref={buttonRef}
+					type="button"
+					className="MainCollectionTagHeaderFilterButton"
+					aria-label={selectedTags.length > 0 ? `${selectedTags.length} tag filters active` : 'Filter Tags column'}
+					aria-expanded={!!menuPosition}
+					aria-haspopup="menu"
+					data-active={selectedTags.length > 0}
+					disabled={disabled}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						if (menuPosition) {
+							closeMenu(false);
+						} else {
+							openMenu();
+						}
+					}}
+				>
+					<Filter size={13} aria-hidden="true" />
+					<span>Tags</span>
+					{activeLabel ? <span className="MainCollectionTagHeaderFilterCount">{activeLabel}</span> : null}
+					<ChevronDown size={13} aria-hidden="true" />
+				</button>
+			</div>
+			{menuPosition
+				? createPortal(
+						<div
+							ref={menuRef}
+							className="MainCollectionTagFilterMenu"
+							role="menu"
+							aria-label="Tags column filters"
+							style={{ left: menuPosition.x, top: menuPosition.y }}
+						>
+							<div className="MainCollectionTagFilterMenuHeader">
+								<span>Filter tags</span>
+								<button
+									type="button"
+									className="MainCollectionTagFilterClear"
+									disabled={selectedTags.length === 0}
+									onClick={() => {
+										onSelectedTagsChange?.([]);
+									}}
+								>
+									<X size={13} aria-hidden="true" />
+									Clear
+								</button>
+							</div>
+							<div className="MainCollectionTagFilterList">
+								{availableTags.map((tag) => (
+									<label key={tag} className="MainCollectionTagFilterOption">
+										<input
+											type="checkbox"
+											checked={selectedTagSet.has(tag)}
+											onChange={() => {
+												toggleTag(tag);
+											}}
+										/>
+										<span>{tag}</span>
+									</label>
+								))}
+							</div>
+						</div>,
+						document.body
+					)
+				: null}
+		</>
 	);
 }
 

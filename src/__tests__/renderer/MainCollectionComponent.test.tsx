@@ -1,26 +1,16 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MainCollectionView } from '../../renderer/components/collections/MainCollectionComponent';
 import { resetColumnMeasurementCache } from '../../renderer/components/collections/main-collection-table-layout';
 import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
+import { createDataTransfer } from './test-utils';
 
 afterEach(() => {
 	cleanup();
 	resetColumnMeasurementCache();
 	vi.unstubAllGlobals();
 });
-
-function stubResizeObserver() {
-	const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-		return {
-			observe: vi.fn(),
-			unobserve: vi.fn(),
-			disconnect: vi.fn()
-		};
-	});
-	vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-}
 
 function stubCoarsePointer(matches = true) {
 	Object.defineProperty(window, 'matchMedia', {
@@ -67,18 +57,6 @@ function expectRenderedControlsToHaveAccessibleNames(container: HTMLElement) {
 	});
 }
 
-function createDataTransfer() {
-	const data = new Map<string, string>();
-	return {
-		effectAllowed: '',
-		dropEffect: '',
-		setData: vi.fn((type: string, value: string) => {
-			data.set(type, value);
-		}),
-		getData: vi.fn((type: string) => data.get(type) || '')
-	};
-}
-
 function createProps(overrides: Partial<CollectionViewProps> = {}): CollectionViewProps {
 	const rows = [
 		{
@@ -120,8 +98,6 @@ function createRows(count: number) {
 
 describe('MainCollectionView', () => {
 	it('shows the mod id in the Name column and the workshop id in the ID column', async () => {
-		stubResizeObserver();
-
 		render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByText('3264187221')).toBeInTheDocument();
@@ -129,8 +105,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('labels the row details trigger and type indicator for accessibility', async () => {
-		stubResizeObserver();
-
 		render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByRole('button', { name: 'Open details for HumanReadableModId' })).toBeInTheDocument();
@@ -141,16 +115,12 @@ describe('MainCollectionView', () => {
 	});
 
 	it('labels row selection checkboxes by mod name for accessibility', async () => {
-		stubResizeObserver();
-
 		render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByRole('checkbox', { name: 'Include HumanReadableModId in collection' })).toBeChecked();
 	});
 
 	it('keeps the collection table and rendered controls named for accessibility', async () => {
-		stubResizeObserver();
-
 		const { container } = render(<MainCollectionView {...createProps()} />);
 
 		expect(await screen.findByRole('table', { name: /Mod collection table/ })).toBeInTheDocument();
@@ -158,7 +128,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('keeps compact rows at touch-sized geometry for coarse pointers', async () => {
-		stubResizeObserver();
 		stubCoarsePointer();
 
 		const rows = createRows(2);
@@ -174,7 +143,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('routes row actions through the table command object', async () => {
-		stubResizeObserver();
 		const setDisabled = vi.fn();
 		const getModDetails = vi.fn();
 
@@ -209,7 +177,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('moves the active details row with arrow keys without changing collection inclusion', async () => {
-		stubResizeObserver();
 		const rows = createRows(3);
 		const getModDetails = vi.fn();
 		const setEnabled = vi.fn();
@@ -252,7 +219,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('does not reactivate stale mod name buttons with Space after manual scrolling', async () => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 
@@ -284,7 +250,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it.each(['Enter', ' '])('opens the highlighted mod details with %s from the scrolled table focus', async (key) => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 
@@ -314,7 +279,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('ignores non-navigation keys on an initially unhighlighted mod row', async () => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 
@@ -343,7 +307,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('moves focus to the table pane after arrowing between visible mod rows', async () => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 
@@ -373,7 +336,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('navigates from the focused mod row before any row is highlighted', async () => {
-		stubResizeObserver();
 		const rows = createRows(3);
 
 		render(
@@ -400,7 +362,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('keeps the details panel open when arrow navigation is clamped at the list boundary', async () => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 
@@ -431,7 +392,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('does not navigate mod rows from focused collection inclusion checkboxes', async () => {
-		stubResizeObserver();
 		const rows = createRows(2);
 		const getModDetails = vi.fn();
 		const setEnabled = vi.fn();
@@ -460,7 +420,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('opens row details when the highlighted row details icon is clicked', async () => {
-		stubResizeObserver();
 		const getModDetails = vi.fn();
 
 		render(
@@ -488,7 +447,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('switches visible mod details when another mod is clicked', async () => {
-		stubResizeObserver();
 		const getModDetails = vi.fn();
 		const rows = [
 			{
@@ -537,8 +495,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('defaults to name sorting and supports type, tags, size, and date added sorting without an unsorted state', async () => {
-		stubResizeObserver();
-
 		const rows = [
 			{
 				uid: 'workshop:3',
@@ -623,8 +579,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('allows resizing a column and reports the persisted width', async () => {
-		stubResizeObserver();
-
 		const setMainColumnWidthCallback = vi.fn();
 
 		render(
@@ -651,8 +605,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('updates the column preview during mouse drag without persisting on mousemove', async () => {
-		stubResizeObserver();
-
 		const setMainColumnWidthCallback = vi.fn();
 
 		render(
@@ -676,8 +628,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('offers column options that can hide the current column and restore hidden columns', async () => {
-		stubResizeObserver();
-
 		const setMainColumnVisibilityCallback = vi.fn();
 		const { rerender } = render(
 			<MainCollectionView
@@ -712,7 +662,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('renders tag filtering from the Tags column header', async () => {
-		stubResizeObserver();
 		const onSelectedTagsChange = vi.fn();
 		const rows = [
 			{
@@ -741,19 +690,19 @@ describe('MainCollectionView', () => {
 		);
 
 		expect(screen.queryByRole('combobox', { name: 'Filter mods by tag' })).not.toBeInTheDocument();
-		const tagFilter = await screen.findByRole('combobox', { name: 'Filter Tags column' });
+		const tagFilter = await screen.findByRole('button', { name: '1 tag filters active' });
 		expect(tagFilter).toBeInTheDocument();
 
-		fireEvent.change(tagFilter, { target: { value: 'add:GeoCorp' } });
+		fireEvent.click(tagFilter);
+		const tagFilterMenu = await screen.findByRole('menu', { name: 'Tags column filters' });
+		fireEvent.click(within(tagFilterMenu).getByRole('checkbox', { name: 'GeoCorp' }));
 		expect(onSelectedTagsChange).toHaveBeenCalledWith(['Better Future', 'GeoCorp']);
 
-		fireEvent.change(tagFilter, { target: { value: 'remove:Better Future' } });
+		fireEvent.click(within(tagFilterMenu).getByRole('checkbox', { name: 'Better Future' }));
 		expect(onSelectedTagsChange).toHaveBeenCalledWith([]);
 	});
 
 	it('reorders columns by dragging collection table headers', async () => {
-		stubResizeObserver();
-
 		const setMainColumnOrderCallback = vi.fn();
 		const { container } = render(
 			<MainCollectionView
@@ -778,8 +727,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('auto-sizes from rendered cells and keeps the measured width when sampled rows are reordered', async () => {
-		stubResizeObserver();
-
 		const longDisplayName = 'Charlie Custom Paint With Long Searchable Workshop Identifier And Extra Width';
 		const firstRows = [
 			{
@@ -843,8 +790,6 @@ describe('MainCollectionView', () => {
 	});
 
 	it('keeps fallback widths for very large collections', async () => {
-		stubResizeObserver();
-
 		const rows = createRows(121).map((row, index) =>
 			index === 0
 				? {

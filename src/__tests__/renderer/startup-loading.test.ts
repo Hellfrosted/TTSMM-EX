@@ -3,16 +3,10 @@ import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from '../../renderer/startup-loading';
 import { getStartupRestorablePath } from '../../shared/app-route-policy';
+import { createTestConfig } from './test-utils';
 
 function config(overrides: Partial<AppConfig> = {}): AppConfig {
-	return {
-		...DEFAULT_CONFIG,
-		currentPath: '/collections/main',
-		viewConfigs: {},
-		ignoredValidationErrors: new Map(),
-		userOverrides: new Map(),
-		...overrides
-	};
+	return createTestConfig(overrides);
 }
 
 describe('startup-loading', () => {

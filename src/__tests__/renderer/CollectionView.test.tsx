@@ -18,14 +18,6 @@ describe('CollectionView', () => {
 			allCollectionNames: new Set(['default']),
 			mods: new SessionMods('', [])
 		});
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				unobserve: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
 		const { container } = renderWithQueryClient(<CollectionView appState={appState} />);
 
@@ -43,14 +35,6 @@ describe('CollectionView', () => {
 			loadingMods: true,
 			mods: new SessionMods('', [])
 		});
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				unobserve: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 		vi.mocked(window.electron.readModMetadata).mockRejectedValue(new Error('scan failed'));
 
 		renderWithQueryClient(<CollectionView appState={appState} />);

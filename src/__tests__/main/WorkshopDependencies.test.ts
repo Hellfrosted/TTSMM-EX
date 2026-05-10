@@ -7,40 +7,8 @@ import {
 	ingestWorkshopDependencySnapshotBatch,
 	resolveWorkshopDependencyNames
 } from '../../main/workshop-dependencies';
-import { EResult, UGCItemVisibility, type SteamUGCDetails } from '../../main/steamworks/types';
-
-function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
-	return {
-		acceptForUse: true,
-		banned: false,
-		tagsTruncated: false,
-		fileType: 0,
-		result: 1,
-		visibility: UGCItemVisibility.Public,
-		score: 1,
-		file: '',
-		fileName: '',
-		fileSize: 1024,
-		previewURL: '',
-		previewFile: '',
-		previewFileSize: 0,
-		steamIDOwner: 'owner-1',
-		consumerAppID: 285920,
-		creatorAppID: 285920,
-		description: '',
-		URL: '',
-		timeAddedToUserList: 0,
-		timeCreated: 0,
-		timeUpdated: 0,
-		votesDown: 0,
-		votesUp: 0,
-		metadata: '',
-		tags: [],
-		tagsDisplayNames: [],
-		children: [],
-		...overrides
-	};
-}
+import { EResult } from '../../main/steamworks/types';
+import { createWorkshopDetails } from './test-utils';
 
 describe('workshop dependency snapshots', () => {
 	it('creates a known dependency snapshot from Steamworks children', () => {

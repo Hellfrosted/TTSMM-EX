@@ -1,31 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppConfig, ModCollection } from '../../model';
-import { updateCollectionFile, readCollectionFile } from '../../main/collection-store';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { readCollectionFile } from '../../main/collection-store';
 import { readConfigFile } from '../../main/config-store';
 import { resolveStartupCollection } from '../../main/startup-collection-resolution';
-import { createTempDir } from './test-utils';
-
-function config(activeCollection?: string): AppConfig {
-	return {
-		closeOnLaunch: false,
-		language: 'english',
-		gameExec: '',
-		workshopID: BigInt(0),
-		logsDir: '',
-		activeCollection,
-		steamMaxConcurrency: 5,
-		currentPath: '/collections/main',
-		viewConfigs: {},
-		ignoredValidationErrors: new Map(),
-		userOverrides: new Map()
-	};
-}
-
-function writeCollection(userDataPath: string, collection: ModCollection) {
-	expect(updateCollectionFile(userDataPath, collection)).toBe(true);
-}
+import { createTempDir, createTestAppConfig, writeTestCollection } from './test-utils';
 
 describe('startup collection resolution', () => {
 	let tempDir: string;
@@ -34,15 +13,11 @@ describe('startup collection resolution', () => {
 		tempDir = createTempDir('ttsmm-startup-collection-resolution-');
 	});
 
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
-	});
-
 	it('keeps a valid Active Collection without rewriting persisted shapes', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:a'] });
-		writeCollection(tempDir, { name: 'other', mods: [] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:a'] });
+		writeTestCollection(tempDir, { name: 'other', mods: [] });
 
-		const result = resolveStartupCollection(tempDir, config('default'));
+		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'default' }));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -56,10 +31,10 @@ describe('startup collection resolution', () => {
 	});
 
 	it('selects the first saved fallback when the configured Active Collection is missing', () => {
-		writeCollection(tempDir, { name: 'zeta', mods: [] });
-		writeCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
+		writeTestCollection(tempDir, { name: 'zeta', mods: [] });
+		writeTestCollection(tempDir, { name: 'alpha', mods: ['local:a'] });
 
-		const result = resolveStartupCollection(tempDir, config('missing'));
+		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' }));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -72,7 +47,7 @@ describe('startup collection resolution', () => {
 	});
 
 	it('creates and activates the default collection when none exist', () => {
-		const result = resolveStartupCollection(tempDir, config());
+		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined }));
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
@@ -86,10 +61,10 @@ describe('startup collection resolution', () => {
 	});
 
 	it('returns a user-safe failure when config persistence fails during fallback selection', () => {
-		writeCollection(tempDir, { name: 'alpha', mods: [] });
+		writeTestCollection(tempDir, { name: 'alpha', mods: [] });
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
-		const result = resolveStartupCollection(tempDir, config('missing'));
+		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'missing' }));
 
 		expect(result).toMatchObject({
 			ok: false,
@@ -101,7 +76,7 @@ describe('startup collection resolution', () => {
 	it('rolls back the default collection when default activation fails', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
-		const result = resolveStartupCollection(tempDir, config());
+		const result = resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: undefined }));
 
 		expect(result).toMatchObject({
 			ok: false,

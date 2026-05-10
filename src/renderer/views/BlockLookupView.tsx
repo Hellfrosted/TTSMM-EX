@@ -13,14 +13,17 @@ import {
 	type ReactNode,
 	type SetStateAction
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 	Copy,
 	Database,
+	Filter,
 	Folder,
 	RefreshCw,
 	Search,
@@ -29,12 +32,7 @@ import {
 } from 'lucide-react';
 import type { AppState } from 'model';
 import type { BlockLookupIndexStats, BlockLookupSearchRow } from 'shared/block-lookup';
-import {
-	formatBlockLookupIndexStatus,
-	getBlockLookupRecordKey,
-	sortBlockLookupRecords,
-	type BlockLookupIndexRunStatus
-} from 'renderer/block-lookup-workspace';
+import { getBlockLookupRecordKey, sortBlockLookupRecords, type BlockLookupIndexRunStatus } from 'renderer/block-lookup-workspace';
 import {
 	DesktopButton as BlockLookupButton,
 	DesktopDialog,
@@ -79,14 +77,13 @@ interface BlockLookupViewProps {
 const blockLookupToolbarRowClassName = 'BlockLookupToolbarRow flex min-w-0 items-center gap-2.5 max-[760px]:flex-wrap';
 const blockLookupSearchControlClassName =
 	'min-w-70 max-w-160 flex-[1_1_42rem] max-[760px]:min-w-0 max-[760px]:max-w-none max-[760px]:basis-full';
-const blockLookupPathControlClassName = 'min-w-80 flex-[1_1_34rem] max-[760px]:min-w-0 max-[760px]:basis-full';
-const blockLookupActionGroupClassName =
-	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:w-full max-[760px]:[&>button]:flex-1';
+const blockLookupActionGroupClassName = 'grid w-[31rem] shrink-0 grid-cols-3 items-center gap-2 max-[760px]:w-full';
 const blockLookupIndexActionGroupClassName =
-	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[1120px]:col-span-2 max-[1120px]:w-full max-[1120px]:[&>button]:flex-1 max-[760px]:col-span-1';
+	'grid w-[31rem] shrink-0 grid-cols-3 items-center justify-self-end gap-2 max-[1120px]:col-span-2 max-[1120px]:w-full max-[1120px]:justify-self-stretch max-[760px]:col-span-1';
 const blockLookupColumnMoveButtonClassName = 'shrink-0';
 const blockLookupIndexSourceClassName =
-	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto_auto] items-center gap-x-2.5 gap-y-2 max-[1120px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
+	'BlockLookupIndexSource grid min-w-0 grid-cols-[minmax(17.5rem,40rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2 max-[1120px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:grid-cols-1';
+const BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH = 260;
 const BLOCK_LOOKUP_VIRTUAL_OVERSCAN = 24;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
 
@@ -265,48 +262,148 @@ function BlockLookupModHeaderFilter({
 	onSelectedModsChange: (mods: string[]) => void;
 	selectedMods: string[];
 }) {
+	const buttonRef = useRef<HTMLButtonElement | null>(null);
+	const menuRef = useRef<HTMLDivElement | null>(null);
+	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
 	const selectedModSet = new Set(selectedMods);
-	const unselectedMods = availableMods.filter((mod) => !selectedModSet.has(mod));
-	const selectedLabel = selectedMods.length > 0 ? `${selectedMods.length} active` : 'Filter';
+	const disabled = selectedMods.length === 0 && availableMods.length === 0;
+
+	const closeMenu = useCallback((restoreFocus = true) => {
+		setMenuPosition(null);
+		if (restoreFocus) {
+			buttonRef.current?.focus();
+		}
+	}, []);
+
+	const openMenu = useCallback(() => {
+		const bounds = buttonRef.current?.getBoundingClientRect();
+		if (!bounds) {
+			return;
+		}
+		setMenuPosition({
+			x: Math.min(
+				Math.max(8, bounds.right - BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH),
+				Math.max(8, window.innerWidth - BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH - 8)
+			),
+			y: Math.min(bounds.bottom + 4, Math.max(8, window.innerHeight - 304))
+		});
+	}, []);
+
+	useEffect(() => {
+		if (!menuPosition) {
+			return undefined;
+		}
+
+		const focusFirstOption = window.requestAnimationFrame(() => {
+			menuRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus();
+		});
+		const closeFromPointer = (event: globalThis.MouseEvent) => {
+			const target = event.target;
+			if (!(target instanceof Node)) {
+				closeMenu(false);
+				return;
+			}
+			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
+				return;
+			}
+			closeMenu(false);
+		};
+		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				closeMenu();
+			}
+		};
+
+		window.addEventListener('mousedown', closeFromPointer);
+		window.addEventListener('keydown', closeFromKeyboard);
+		return () => {
+			window.cancelAnimationFrame(focusFirstOption);
+			window.removeEventListener('mousedown', closeFromPointer);
+			window.removeEventListener('keydown', closeFromKeyboard);
+		};
+	}, [closeMenu, menuPosition]);
+
+	const toggleMod = useCallback(
+		(mod: string) => {
+			onSelectedModsChange(selectedModSet.has(mod) ? selectedMods.filter((selectedMod) => selectedMod !== mod) : [...selectedMods, mod]);
+		},
+		[onSelectedModsChange, selectedModSet, selectedMods]
+	);
 
 	return (
-		<select
-			className="MainCollectionTagHeaderFilter BlockLookupModHeaderFilter"
-			aria-label="Filter Mod column"
-			value=""
-			disabled={selectedMods.length === 0 && unselectedMods.length === 0}
-			onClick={(event) => {
-				event.stopPropagation();
-			}}
-			onMouseDown={(event) => {
-				event.stopPropagation();
-			}}
-			onChange={(event) => {
-				const selectedValue = event.target.value;
-				if (selectedValue === 'clear:') {
-					onSelectedModsChange([]);
-				} else if (selectedValue.startsWith('add:')) {
-					onSelectedModsChange([...selectedMods, selectedValue.slice('add:'.length)]);
-				} else if (selectedValue.startsWith('remove:')) {
-					const mod = selectedValue.slice('remove:'.length);
-					onSelectedModsChange(selectedMods.filter((selectedMod) => selectedMod !== mod));
-				}
-				event.currentTarget.value = '';
-			}}
-		>
-			<option value="">{selectedLabel}</option>
-			{selectedMods.length > 0 ? <option value="clear:">Clear mod filters</option> : null}
-			{selectedMods.map((mod) => (
-				<option key={`remove:${mod}`} value={`remove:${mod}`}>
-					Remove {mod}
-				</option>
-			))}
-			{unselectedMods.map((mod) => (
-				<option key={`add:${mod}`} value={`add:${mod}`}>
-					{mod}
-				</option>
-			))}
-		</select>
+		<>
+			<div className="MainCollectionTagHeaderFilter BlockLookupModHeaderFilter">
+				<button
+					ref={buttonRef}
+					type="button"
+					className="MainCollectionTagHeaderFilterButton"
+					aria-label={selectedMods.length > 0 ? `${selectedMods.length} mod filters active` : 'Filter Mod column'}
+					aria-expanded={!!menuPosition}
+					aria-haspopup="menu"
+					data-active={selectedMods.length > 0}
+					disabled={disabled}
+					onClick={(event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						if (menuPosition) {
+							closeMenu(false);
+						} else {
+							openMenu();
+						}
+					}}
+					onMouseDown={(event) => {
+						event.stopPropagation();
+					}}
+				>
+					<Filter size={13} aria-hidden="true" />
+					<span>Mods</span>
+					{selectedMods.length > 0 ? <span className="MainCollectionTagHeaderFilterCount">{selectedMods.length}</span> : null}
+					<ChevronDown size={13} aria-hidden="true" />
+				</button>
+			</div>
+			{menuPosition
+				? createPortal(
+						<div
+							ref={menuRef}
+							className="MainCollectionTagFilterMenu BlockLookupModFilterMenu"
+							role="menu"
+							aria-label="Mod column filters"
+							style={{ left: menuPosition.x, top: menuPosition.y }}
+						>
+							<div className="MainCollectionTagFilterMenuHeader">
+								<span>Filter mods</span>
+								<button
+									type="button"
+									className="MainCollectionTagFilterClear"
+									disabled={selectedMods.length === 0}
+									onClick={() => {
+										onSelectedModsChange([]);
+									}}
+								>
+									<X size={13} aria-hidden="true" />
+									Clear
+								</button>
+							</div>
+							<div className="MainCollectionTagFilterList">
+								{availableMods.map((mod) => (
+									<label key={mod} className="MainCollectionTagFilterOption">
+										<input
+											type="checkbox"
+											checked={selectedModSet.has(mod)}
+											onChange={() => {
+												toggleMod(mod);
+											}}
+										/>
+										<span>{mod}</span>
+									</label>
+								))}
+							</div>
+						</div>,
+						document.body
+					)
+				: null}
+		</>
 	);
 }
 
@@ -371,6 +468,10 @@ function BlockLookupVirtualCellContent({ columnKey, record }: BlockLookupVirtual
 	}
 }
 
+function formatBlockLookupCount(count: number, noun: string) {
+	return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 function getBlockLookupEmptyState(stats: BlockLookupIndexStats | null, query: string, selectedFilterMods: string[]): BlockLookupEmptyState {
 	if (!stats) {
 		return {
@@ -424,11 +525,32 @@ function getBlockLookupBusyState(buildingIndex: boolean): BlockLookupBusyState {
 }
 
 function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndexRunStatus }) {
-	const Icon = status.phase === 'success' ? CheckCircle2 : status.phase === 'error' ? AlertTriangle : RefreshCw;
+	const Icon = status.phase === 'success' ? CheckCircle2 : AlertTriangle;
 	const progressActive = status.phase === 'running' && !!status.progress && status.progress.percent < 100;
 	return (
 		<div className={`BlockLookupIndexRunStatus BlockLookupIndexRunStatus--${status.phase}`} role="status" aria-live="polite">
-			<Icon className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
+			{status.phase === 'running' ? (
+				<svg
+					className="BlockLookupIndexRunStatusIcon"
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="2"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					aria-hidden="true"
+				>
+					<g>
+						<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.9s" repeatCount="indefinite" />
+						<path d="M21 12a9 9 0 1 1-6.219-8.56" />
+					</g>
+				</svg>
+			) : (
+				<Icon className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
+			)}
 			<div className="BlockLookupIndexRunStatusText">
 				<strong>{status.title}</strong>
 				<span>{status.detail}</span>
@@ -536,9 +658,8 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const {
 		availableModFilters,
 		buildingIndex,
-		handleAutoDetectWorkshopRoot,
-		handleBrowseWorkshopRoot,
 		handleBuildIndex,
+		handleFindWorkshopRoot,
 		indexRunStatus,
 		loadingResults,
 		modSources,
@@ -599,6 +720,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		savingTableOptions,
 		tableOptionsOpen
 	} = localState;
+	const [detailsPaneOpen, setDetailsPaneOpen] = useState(false);
 	const setDraftColumnConfig = useCallback((updater: SetStateAction<BlockLookupColumnConfig[]>) => {
 		dispatchLocalState({ type: 'draft-column-config-changed', updater });
 	}, []);
@@ -739,44 +861,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		}
 	}, [openNotification, selectedRecordsInCopyOrder]);
 
-	const handleCopyAll = useCallback(async () => {
-		if (sortedRows.length === 0) {
-			openNotification(
-				{
-					message: 'No commands to copy',
-					description: 'The current lookup has no results.',
-					placement: 'topRight',
-					duration: 2
-				},
-				'warn'
-			);
-			return;
-		}
-
-		try {
-			await copyToClipboard(sortedRows.map((record) => record.spawnCommand).join('\n'));
-			openNotification(
-				{
-					message: 'SpawnBlock commands copied',
-					description: `${sortedRows.length} command${sortedRows.length === 1 ? '' : 's'} copied.`,
-					placement: 'topRight',
-					duration: 1.5
-				},
-				'success'
-			);
-		} catch (error) {
-			openNotification(
-				{
-					message: 'Could not copy commands',
-					description: formatErrorMessage(error),
-					placement: 'topRight',
-					duration: 3
-				},
-				'error'
-			);
-		}
-	}, [openNotification, sortedRows]);
-
 	const handleSelectAllVisibleRows = useCallback(() => {
 		selectAllVisibleRowKeys(sortedRowKeys);
 	}, [selectAllVisibleRowKeys, sortedRowKeys]);
@@ -834,11 +918,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	const hiddenColumns = useMemo(() => tableColumnConfig.filter((column) => !column.visible), [tableColumnConfig]);
 	const emptyState = getBlockLookupEmptyState(stats, query, selectedFilterMods);
 	const lookupBusyState = getBlockLookupBusyState(buildingIndex);
-	const indexStatusText = formatBlockLookupIndexStatus(stats, rows.length, query);
 	const selectedCount = selectedRowKeys.length;
-	const toolbarStatusText = `${sortedRows.length} result${sortedRows.length === 1 ? '' : 's'}${
-		selectedCount > 0 ? `, ${selectedCount} selected` : ''
-	}`;
+	const detailsModStatusText = formatBlockLookupCount(modSources.length, 'mod');
+	const detailsBlockStatusText = formatBlockLookupCount(stats?.blocks ?? rows.length, 'block');
+	const detailsSourceStatusText = stats ? formatBlockLookupCount(stats.sources, 'source') : undefined;
+	const previewStatusText = stats?.renderedPreviewsEnabled === true ? formatBlockLookupCount(stats.renderedPreviews, 'preview') : undefined;
 
 	useEffect(() => {
 		visibleColumns.forEach((column) => {
@@ -997,19 +1081,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							) : null}
 						</div>
 						<div className={`ml-auto ${blockLookupActionGroupClassName} max-[760px]:ml-0`}>
-							<span className="inline-flex min-h-11 min-w-0 shrink-0 items-center text-caption font-[650] text-text-muted max-[760px]:w-full">
-								{toolbarStatusText}
-							</span>
-							<BlockLookupButton
-								icon={<RefreshCw size={16} aria-hidden="true" />}
-								onClick={() => {
-									void refreshResults(query);
-								}}
-								disabled={buildingIndex}
-								loading={loadingResults}
-							>
-								Refresh
-							</BlockLookupButton>
 							<BlockLookupButton
 								icon={<Copy size={16} aria-hidden="true" />}
 								disabled={selectedRecordsInCopyOrder.length === 0 || loadingResults || buildingIndex}
@@ -1023,29 +1094,36 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								Copy Selected
 							</BlockLookupButton>
 							<BlockLookupButton
-								icon={<Copy size={16} aria-hidden="true" />}
-								disabled={sortedRows.length === 0 || loadingResults || buildingIndex}
-								title={sortedRows.length === 0 ? 'No visible commands to copy' : `Copy ${sortedRows.length} visible commands`}
-								onClick={handleCopyAll}
+								aria-label="Find workshop root"
+								icon={<Folder size={16} aria-hidden="true" />}
+								onClick={handleFindWorkshopRoot}
 							>
-								Copy All
+								Find Folder
 							</BlockLookupButton>
-							<BlockLookupButton icon={<Settings2 size={16} aria-hidden="true" />} onClick={openTableOptions}>
-								Table Settings
+							<BlockLookupButton
+								icon={<RefreshCw size={16} aria-hidden="true" />}
+								onClick={() => {
+									void refreshResults(query);
+								}}
+								disabled={buildingIndex}
+								loading={loadingResults}
+							>
+								Refresh
 							</BlockLookupButton>
 						</div>
 					</div>
 					<section className={blockLookupIndexSourceClassName} aria-label="Index source">
-						<span className="BlockLookupIndexLabel shrink-0 text-caption font-[650] uppercase text-text-muted">Index source</span>
-						<DesktopInput
-							aria-label="Workshop root"
-							className={`${blockLookupPathControlClassName} px-3`}
-							value={workshopRoot}
-							onChange={(event) => {
-								setWorkshopRoot(event.target.value);
-							}}
-							placeholder="TerraTech workshop content folder"
-						/>
+						<div className="BlockLookupIndexPathControl">
+							<DesktopInput
+								aria-label="Workshop root"
+								className="w-full min-w-0 px-3"
+								value={workshopRoot}
+								onChange={(event) => {
+									setWorkshopRoot(event.target.value);
+								}}
+								placeholder="TerraTech workshop content folder"
+							/>
+						</div>
 						<div className="inline-flex min-h-11 shrink-0 items-center gap-2 text-body text-text">
 							<BlockLookupSwitch
 								aria-label="Enable rendered block previews"
@@ -1057,13 +1135,14 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 						</div>
 						<div className={blockLookupIndexActionGroupClassName}>
 							<BlockLookupButton
-								aria-label="Browse for workshop root"
-								icon={<Folder size={16} aria-hidden="true" />}
-								onClick={handleBrowseWorkshopRoot}
+								icon={<Database size={16} aria-hidden="true" />}
+								onClick={() => {
+									void handleBuildIndex(true);
+								}}
+								disabled={buildingIndex}
 							>
-								Browse
+								Full Rebuild
 							</BlockLookupButton>
-							<BlockLookupButton onClick={handleAutoDetectWorkshopRoot}>Auto Detect</BlockLookupButton>
 							<BlockLookupButton
 								icon={<Database size={16} aria-hidden="true" />}
 								onClick={() => {
@@ -1073,14 +1152,8 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							>
 								Update Index
 							</BlockLookupButton>
-							<BlockLookupButton
-								icon={<Database size={16} aria-hidden="true" />}
-								onClick={() => {
-									void handleBuildIndex(true);
-								}}
-								disabled={buildingIndex}
-							>
-								Full Rebuild
+							<BlockLookupButton icon={<Settings2 size={16} aria-hidden="true" />} onClick={openTableOptions}>
+								Table Settings
 							</BlockLookupButton>
 						</div>
 						{indexRunStatus ? <BlockLookupIndexRunStatusMessage status={indexRunStatus} /> : null}
@@ -1370,55 +1443,78 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							) : null}
 						</div>
 					</div>
-					<div className="BlockLookupDetailsPane">
+					<div className={`BlockLookupDetailsPane${detailsPaneOpen ? '' : ' is-collapsed'}`}>
 						<div className="BlockLookupDetailsMeta" aria-live="polite">
-							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{indexStatusText}</span>
+							<span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{detailsModStatusText}</span>
+							<span aria-hidden="true">/</span>
+							<span>{detailsBlockStatusText}</span>
+							{detailsSourceStatusText ? (
+								<>
+									<span aria-hidden="true">/</span>
+									<span>{detailsSourceStatusText}</span>
+								</>
+							) : null}
+							{previewStatusText ? (
+								<>
+									<span aria-hidden="true">/</span>
+									<span>{previewStatusText}</span>
+								</>
+							) : null}
 							<span aria-hidden="true">/</span>
 							<span>{selectedCount > 0 ? `${selectedCount} selected` : 'No selection'}</span>
-							<span aria-hidden="true">/</span>
-							<span>
-								{modSources.length} loaded mod source{modSources.length === 1 ? '' : 's'} available
-							</span>
+							<button
+								type="button"
+								className="BlockLookupDetailsToggle"
+								aria-expanded={detailsPaneOpen}
+								onClick={() => {
+									setDetailsPaneOpen((open) => !open);
+								}}
+							>
+								{detailsPaneOpen ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+								{detailsPaneOpen ? 'Hide details' : 'Show details'}
+							</button>
 						</div>
-						{selectedRecord ? (
-							<div className="BlockLookupDetailsGrid">
-								{renderedPreviewSurfacesEnabled && selectedRecord.renderedPreview ? (
-									<div className="col-span-full">
-										<BlockLookupRenderedPreviewImage record={selectedRecord} size="detail" />
-									</div>
-								) : null}
-								<BlockLookupDetailField
-									label="Command"
-									value={selectedRecord.spawnCommand}
-									monospace
-									copyLabel="Copy command"
-									copySuccessMessage="Copied SpawnBlock command"
-									onCopy={copyDetailValue}
-								/>
-								<BlockLookupDetailField
-									label="Fallback"
-									value={selectedRecord.fallbackSpawnCommand}
-									monospace
-									copyLabel="Copy fallback command"
-									copySuccessMessage="Copied fallback command"
-									emptyText="No fallback command"
-									onCopy={copyDetailValue}
-								/>
-								<BlockLookupDetailField label="Block" value={selectedRecord.blockName} />
-								<BlockLookupDetailField label="Internal" value={selectedRecord.internalName} />
-								<BlockLookupDetailField label="Mod" value={selectedRecord.modTitle} />
-								<BlockLookupDetailField label="Workshop ID" value={selectedRecord.workshopId} emptyText="Local source" />
-								<BlockLookupDetailField
-									className="col-span-full"
-									label="Source"
-									value={selectedRecord.sourcePath}
-									emptyText="Source path unavailable"
-									wrap
-								/>
-							</div>
-						) : (
-							<span className="BlockLookupMutedText">Select a block row to inspect command, fallback, mod, and source path.</span>
-						)}
+						{detailsPaneOpen ? (
+							selectedRecord ? (
+								<div className="BlockLookupDetailsGrid">
+									{renderedPreviewSurfacesEnabled && selectedRecord.renderedPreview ? (
+										<div className="BlockLookupDetailsPreview">
+											<BlockLookupRenderedPreviewImage record={selectedRecord} size="detail" />
+										</div>
+									) : null}
+									<BlockLookupDetailField
+										label="Command"
+										value={selectedRecord.spawnCommand}
+										monospace
+										copyLabel="Copy command"
+										copySuccessMessage="Copied SpawnBlock command"
+										onCopy={copyDetailValue}
+									/>
+									<BlockLookupDetailField
+										label="Fallback"
+										value={selectedRecord.fallbackSpawnCommand}
+										monospace
+										copyLabel="Copy fallback command"
+										copySuccessMessage="Copied fallback command"
+										emptyText="No fallback command"
+										onCopy={copyDetailValue}
+									/>
+									<BlockLookupDetailField label="Block" value={selectedRecord.blockName} />
+									<BlockLookupDetailField label="Internal" value={selectedRecord.internalName} />
+									<BlockLookupDetailField label="Mod" value={selectedRecord.modTitle} />
+									<BlockLookupDetailField label="Workshop ID" value={selectedRecord.workshopId} emptyText="Local source" />
+									<BlockLookupDetailField
+										className="col-span-full"
+										label="Source"
+										value={selectedRecord.sourcePath}
+										emptyText="Source path unavailable"
+										wrap
+									/>
+								</div>
+							) : (
+								<span className="BlockLookupMutedText">Select a block row to inspect command, fallback, mod, and source path.</span>
+							)
+						) : null}
 					</div>
 				</main>
 				{tableOptionsOpen ? (

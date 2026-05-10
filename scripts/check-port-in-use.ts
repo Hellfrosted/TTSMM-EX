@@ -1,15 +1,30 @@
 import net from 'node:net';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { terminalStyle } from './lib/terminal-style';
 
-const port = Number.parseInt(process.env.PORT || '1212', 10);
-const machineHosts = Object.values(os.networkInterfaces())
-	.flatMap((addresses) => addresses ?? [])
-	.filter((address) => !address.internal && address.family === 'IPv4')
-	.map((address) => address.address);
-const probeHosts = [undefined, '0.0.0.0', '127.0.0.1', 'localhost', '::1', ...machineHosts];
+interface PortCheckOptions {
+	hosts?: Array<string | undefined>;
+	port?: number;
+	rawPort?: string;
+}
 
-function assertPortAvailable(host: string | undefined) {
+export function parseConfiguredPort(rawPort = process.env.PORT || '1212') {
+	return Number.parseInt(rawPort, 10);
+}
+
+export function getMachineHosts(networkInterfaces = os.networkInterfaces()) {
+	return Object.values(networkInterfaces)
+		.flatMap((addresses) => addresses ?? [])
+		.filter((address) => !address.internal && address.family === 'IPv4')
+		.map((address) => address.address);
+}
+
+export function createProbeHosts(machineHosts = getMachineHosts()) {
+	return [undefined, '0.0.0.0', '127.0.0.1', 'localhost', '::1', ...machineHosts];
+}
+
+export function assertPortAvailable(port: number, host: string | undefined) {
 	return new Promise<void>((resolve, reject) => {
 		const server = net.createServer();
 		server.once('error', (error: NodeJS.ErrnoException) => {
@@ -46,13 +61,35 @@ function assertPortAvailable(host: string | undefined) {
 	});
 }
 
-async function main() {
-	for (const host of probeHosts) {
-		await assertPortAvailable(host);
+export async function assertConfiguredPortAvailable(options: PortCheckOptions = {}) {
+	const port = options.port ?? parseConfiguredPort(options.rawPort);
+	const hosts = options.hosts ?? createProbeHosts();
+
+	for (const host of hosts) {
+		await assertPortAvailable(port, host);
 	}
 }
 
-void main().catch((error: Error) => {
-	console.error(error.message);
-	process.exit(1);
-});
+export async function runCheckPortInUseCli(options: PortCheckOptions = {}) {
+	try {
+		await assertConfiguredPortAvailable(options);
+		return 0;
+	} catch (error) {
+		console.error((error as Error).message);
+		return 1;
+	}
+}
+
+function isExecutedDirectly() {
+	if (!process.argv[1]) {
+		return false;
+	}
+
+	return pathToFileURL(process.argv[1]).href === import.meta.url;
+}
+
+if (isExecutedDirectly()) {
+	void runCheckPortInUseCli().then((exitCode) => {
+		process.exit(exitCode);
+	});
+}

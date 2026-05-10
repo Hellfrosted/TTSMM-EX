@@ -1,6 +1,5 @@
-import type { ButtonHTMLAttributes, ComponentType, CSSProperties, HTMLAttributes, ReactNode } from 'react';
-import { Check, LoaderCircle, X } from 'lucide-react';
-import type { LucideProps } from 'lucide-react';
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react';
+import { Check, X } from 'lucide-react';
 import { DesktopButton } from '../DesktopControls';
 import { getStatusSurfaceClassName } from '../status-surface-classes';
 
@@ -186,9 +185,30 @@ export function StartupProgressBar({ label = 'Startup progress', percent, showIn
 }
 
 export function StartupStatusIcon({ size = 32, status }: StartupStatusIconProps) {
-	const Icon: ComponentType<LucideProps> = status === 'loading' ? LoaderCircle : status === 'error' ? X : Check;
-	const toneClassName =
-		status === 'loading' ? 'animate-[spin_900ms_linear_infinite] text-primary' : status === 'error' ? 'text-error' : 'text-success';
+	if (status === 'loading') {
+		return (
+			<svg
+				className="StartupStatusIcon block shrink-0 text-primary"
+				width={size}
+				height={size}
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				strokeWidth="2"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				aria-hidden="true"
+			>
+				<g>
+					<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.9s" repeatCount="indefinite" />
+					<path d="M21 12a9 9 0 1 1-6.219-8.56" />
+				</g>
+			</svg>
+		);
+	}
+
+	const Icon = status === 'error' ? X : Check;
+	const toneClassName = status === 'error' ? 'text-error' : 'text-success';
 
 	return <Icon className={`StartupStatusIcon block shrink-0 ${toneClassName}`} size={size} aria-hidden="true" />;
 }

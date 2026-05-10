@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
-import { createTestQueryClient } from './test-utils';
+import { createTestConfig, createTestQueryClient } from './test-utils';
 import type { AppConfig, ModCollection } from '../../model';
 import { queryKeys } from '../../renderer/async-cache';
 
@@ -65,13 +65,7 @@ describe('ConfigLoading', () => {
 
 	it('loads config and collections through the provider-owned boot flow', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
 			startupSuccess(config, { name: 'default', mods: [] })
 		);
@@ -146,14 +140,7 @@ describe('ConfigLoading', () => {
 	it('boots Linux with a blank game executable without redirecting to settings', async () => {
 		window.electron.platform = 'linux';
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			gameExec: '',
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: '' }));
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -175,14 +162,7 @@ describe('ConfigLoading', () => {
 	it('ignores stale TerraTech executable paths during Linux boot', async () => {
 		window.electron.platform = 'linux';
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			gameExec: 'C:\\Missing\\TerraTechWin64.exe',
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: 'C:\\Missing\\TerraTechWin64.exe' }));
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -203,14 +183,7 @@ describe('ConfigLoading', () => {
 
 	it('routes invalid configs to settings without kicking off mod loading', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			gameExec: 'C:\\Missing\\TerraTechWin64.exe',
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: 'C:\\Missing\\TerraTechWin64.exe' }));
 		vi.mocked(window.electron.pathExists).mockResolvedValue(false);
 
 		render(
@@ -234,13 +207,7 @@ describe('ConfigLoading', () => {
 		'/block-lookup'
 	])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath,
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ currentPath }));
 
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
@@ -258,13 +225,7 @@ describe('ConfigLoading', () => {
 	it('caches the normalized startup route after applying authoritative collection state', async () => {
 		const queryClient = createTestQueryClient();
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/settings',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ currentPath: '/settings' }));
 		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
 			startupSuccess(config, { name: 'default', mods: [] })
 		);
@@ -287,13 +248,7 @@ describe('ConfigLoading', () => {
 
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
 			startupSuccess(config, { name: 'alpha', mods: [] }, [
 				{ name: 'alpha', mods: [] },
@@ -318,13 +273,7 @@ describe('ConfigLoading', () => {
 
 	it('applies collections returned by Startup Collection Resolution', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
 			startupSuccess(config, { name: 'alpha', mods: ['local:a'] }, [
 				{ name: 'alpha', mods: ['local:a'] },
@@ -351,13 +300,7 @@ describe('ConfigLoading', () => {
 
 	it('halts boot when persisting a repaired active collection fails', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'config-write-failed',
@@ -383,13 +326,7 @@ describe('ConfigLoading', () => {
 
 	it('halts boot when persisting the default collection fails', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'collection-write-failed',
@@ -415,13 +352,7 @@ describe('ConfigLoading', () => {
 
 	it('halts boot and surfaces a collection load error instead of creating a fallback collection', async () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		});
+		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'collection-read-failed',

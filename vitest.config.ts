@@ -31,6 +31,7 @@ export default defineConfig({
 		restoreMocks: true,
 		reporters,
 		outputFile: ciEnabled ? { junit: path.join(vitestReportDir, 'junit.xml') } : undefined,
+		maxWorkers: 4,
 		slowTestThreshold: 1000,
 		testTimeout: 15000,
 		exclude: ['release/**', 'node_modules/**'],
@@ -45,6 +46,7 @@ export default defineConfig({
 					setupFiles: ['./vitest.setup.ts'],
 					clearMocks: true,
 					restoreMocks: true,
+					maxWorkers: 4,
 					testTimeout: 15000,
 					include: ['src/__tests__/renderer/**/*.test.{ts,tsx}', 'src/__tests__/model/**/*.test.ts', 'src/__tests__/App.test.tsx'],
 					exclude: ['release/**', 'node_modules/**', ...rendererTestExclude]
@@ -60,6 +62,7 @@ export default defineConfig({
 					setupFiles: ['./vitest.setup.ts'],
 					clearMocks: true,
 					restoreMocks: true,
+					maxWorkers: 4,
 					testTimeout: 15000,
 					include: ['src/__tests__/main/**/*.test.ts', 'src/__tests__/shared/**/*.test.ts', 'src/__tests__/scripts/**/*.test.ts'],
 					exclude: ['release/**', 'node_modules/**']

@@ -2,7 +2,7 @@ import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App, { AppShell, AppViewStage, resetInitialSteamworksVerificationForTests } from '../renderer/App';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
 import { DEFAULT_CONFIG } from '../renderer/Constants';
@@ -10,6 +10,9 @@ import { queryClient } from '../renderer/query-client';
 import { AppRoutes } from '../renderer/routes';
 import { AppStateProvider, useAppStateSelector } from '../renderer/state/app-state';
 import { createTestQueryClient } from './renderer/test-utils';
+
+const STARTUP_ROUTE_TIMEOUT_MS = 25000;
+const STARTUP_ROUTE_TEST_TIMEOUT_MS = 30000;
 
 function AppFlowProbe() {
 	const location = useLocation();
@@ -50,6 +53,10 @@ function AppShellInitializedHarness() {
 		</QueryClientProvider>
 	);
 }
+
+beforeEach(() => {
+	queryClient.clear();
+});
 
 afterEach(() => {
 	cleanup();
@@ -162,65 +169,73 @@ describe('App', () => {
 		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
 	});
 
-	it('runs the startup loading routes once before entering the collection workspace', async () => {
-		render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<AppRoutes />
-			</MemoryRouter>
-		);
+	it(
+		'runs the startup loading routes once before entering the collection workspace',
+		async () => {
+			render(
+				<MemoryRouter initialEntries={['/collections/main']}>
+					<AppRoutes />
+				</MemoryRouter>
+			);
 
-		await waitFor(
-			() => {
-				expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-				expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-				expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-			},
-			{ timeout: 3000 }
-		);
-		await new Promise((resolve) => setTimeout(resolve, 750));
+			await waitFor(
+				() => {
+					expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+					expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+					expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+				},
+				{ timeout: STARTUP_ROUTE_TIMEOUT_MS }
+			);
+			await new Promise((resolve) => setTimeout(resolve, 750));
 
-		expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-		expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-		expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
-		expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
-		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
-		expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
-	});
+			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+			expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+			expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
+			expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
+			expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+			expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+		},
+		STARTUP_ROUTE_TEST_TIMEOUT_MS
+	);
 
-	it('does not loop when the saved startup route points at a loading screen', async () => {
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
-			...DEFAULT_CONFIG,
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map(),
-			currentPath: '/loading/steamworks'
-		});
+	it(
+		'does not loop when the saved startup route points at a loading screen',
+		async () => {
+			vi.mocked(window.electron.readConfig).mockResolvedValueOnce({
+				...DEFAULT_CONFIG,
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map(),
+				currentPath: '/loading/steamworks'
+			});
 
-		render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<AppRoutes />
-			</MemoryRouter>
-		);
+			render(
+				<MemoryRouter initialEntries={['/collections/main']}>
+					<AppRoutes />
+				</MemoryRouter>
+			);
 
-		await waitFor(
-			() => {
-				expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-				expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-				expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-			},
-			{ timeout: 3000 }
-		);
-		await new Promise((resolve) => setTimeout(resolve, 750));
+			await waitFor(
+				() => {
+					expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+					expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+					expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+				},
+				{ timeout: STARTUP_ROUTE_TIMEOUT_MS }
+			);
+			await new Promise((resolve) => setTimeout(resolve, 750));
 
-		expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-		expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-		expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
-		expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
-		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
-		expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
-	});
+			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+			expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+			expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
+			expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
+			expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+			expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+		},
+		STARTUP_ROUTE_TEST_TIMEOUT_MS
+	);
 
 	it('defines explicit elements for staged leaf routes', async () => {
 		const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

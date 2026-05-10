@@ -205,35 +205,49 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		}
 	}, []);
 
-	const handleAutoDetectWorkshopRoot = useCallback(async () => {
-		try {
-			const detectedRoot = await api.autoDetectBlockLookupWorkshopRoot(buildRequest(false));
-			if (!detectedRoot) {
+	const handleAutoDetectWorkshopRoot = useCallback(
+		async (options?: { notifyMissing?: boolean }) => {
+			try {
+				const detectedRoot = await api.autoDetectBlockLookupWorkshopRoot(buildRequest(false));
+				if (!detectedRoot) {
+					if (options?.notifyMissing !== false) {
+						openNotification(
+							{
+								message: 'Workshop root not found',
+								description: 'No TerraTech workshop content folder was detected from the loaded mods or Steam libraries.',
+								placement: 'topRight',
+								duration: 3
+							},
+							'warn'
+						);
+					}
+					return false;
+				}
+				dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: detectedRoot });
+				return true;
+			} catch (error) {
+				api.logger.error(error);
 				openNotification(
 					{
-						message: 'Workshop root not found',
-						description: 'No TerraTech workshop content folder was detected from the loaded mods or Steam libraries.',
+						message: 'Auto-detect failed',
+						description: formatErrorMessage(error),
 						placement: 'topRight',
 						duration: 3
 					},
-					'warn'
+					'error'
 				);
-				return;
+				return false;
 			}
-			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: detectedRoot });
-		} catch (error) {
-			api.logger.error(error);
-			openNotification(
-				{
-					message: 'Auto-detect failed',
-					description: formatErrorMessage(error),
-					placement: 'topRight',
-					duration: 3
-				},
-				'error'
-			);
+		},
+		[buildRequest, openNotification]
+	);
+
+	const handleFindWorkshopRoot = useCallback(async () => {
+		const detected = await handleAutoDetectWorkshopRoot({ notifyMissing: false });
+		if (!detected) {
+			await handleBrowseWorkshopRoot();
 		}
-	}, [buildRequest, openNotification]);
+	}, [handleAutoDetectWorkshopRoot, handleBrowseWorkshopRoot]);
 
 	const handleBuildIndex = useCallback(
 		async (forceRebuild = false) => {
@@ -351,8 +365,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	return {
 		availableModFilters,
 		buildingIndex,
-		handleAutoDetectWorkshopRoot,
 		handleBrowseWorkshopRoot,
+		handleFindWorkshopRoot,
 		handleBuildIndex,
 		indexRunStatus,
 		loadingResults,

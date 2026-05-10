@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	listCollections,
 	readCollectionFile,
@@ -10,29 +10,14 @@ import {
 } from '../../main/collection-store';
 import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createTempDir, createValidIpcEvent } from './test-utils';
+import { createIpcHandlerHarness, createTempDir } from './test-utils';
 
 function createCollectionHandlerHarness(userDataPath: string) {
-	const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
-	const ipcMain = {
-		handle: vi.fn((channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => {
-			handlers.set(channel, handler);
+	return createIpcHandlerHarness((ipcMain) =>
+		registerCollectionHandlers(ipcMain, {
+			getUserDataPath: () => userDataPath
 		})
-	};
-
-	registerCollectionHandlers(ipcMain as never, {
-		getUserDataPath: () => userDataPath
-	});
-
-	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
-		const handler = handlers.get(channel);
-		if (!handler) {
-			throw new Error(`Missing handler for ${channel}`);
-		}
-		return handler(createValidIpcEvent(), ...args) as Promise<T>;
-	};
-
-	return { invoke };
+	);
 }
 
 describe('collection handlers', () => {
@@ -40,10 +25,6 @@ describe('collection handlers', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-collection-test-');
-	});
-
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
 
 	it('returns null for a missing collection file', () => {

@@ -1,7 +1,5 @@
-import fs from 'fs';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AppConfig, ModCollection } from '../../model';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	createAndActivateCollection,
 	deleteActiveCollection,
@@ -10,29 +8,9 @@ import {
 	runCollectionLifecycle,
 	switchActiveCollection
 } from '../../main/collection-lifecycle-service';
-import { readCollectionFile, updateCollectionFile } from '../../main/collection-store';
+import { readCollectionFile } from '../../main/collection-store';
 import { readConfigFile } from '../../main/config-store';
-import { createTempDir } from './test-utils';
-
-function config(activeCollection = 'default'): AppConfig {
-	return {
-		closeOnLaunch: false,
-		language: 'english',
-		gameExec: '',
-		workshopID: BigInt(0),
-		logsDir: '',
-		activeCollection,
-		steamMaxConcurrency: 5,
-		currentPath: '/collections/main',
-		viewConfigs: {},
-		ignoredValidationErrors: new Map(),
-		userOverrides: new Map()
-	};
-}
-
-function writeCollection(userDataPath: string, collection: ModCollection) {
-	expect(updateCollectionFile(userDataPath, collection)).toBe(true);
-}
+import { createTempDir, createTestAppConfig, writeTestCollection } from './test-utils';
 
 describe('collection lifecycle service', () => {
 	let tempDir: string;
@@ -41,17 +19,13 @@ describe('collection lifecycle service', () => {
 		tempDir = createTempDir('ttsmm-collection-lifecycle-test-');
 	});
 
-	afterEach(() => {
-		fs.rmSync(tempDir, { recursive: true, force: true });
-	});
-
 	it('creates and activates a new collection while preserving dirty active edits', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
 		const result = runCollectionLifecycle(tempDir, {
 			type: 'create',
 			request: {
-				config: config(),
+				config: createTestAppConfig(),
 				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 				name: 'fresh',
 				mods: ['local:new']
@@ -70,17 +44,17 @@ describe('collection lifecycle service', () => {
 	});
 
 	it('rejects invalid and duplicate collection names before writing', () => {
-		writeCollection(tempDir, { name: 'default', mods: [] });
+		writeTestCollection(tempDir, { name: 'default', mods: [] });
 
-		expect(createAndActivateCollection(tempDir, { config: config(), name: '..\\escape' })).toMatchObject({
+		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: '..\\escape' })).toMatchObject({
 			ok: false,
 			code: 'invalid-name'
 		});
-		expect(createAndActivateCollection(tempDir, { config: config(), name: 'default' })).toMatchObject({
+		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'default' })).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
-		expect(createAndActivateCollection(tempDir, { config: config(), name: 'Default' })).toMatchObject({
+		expect(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'Default' })).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
@@ -88,10 +62,10 @@ describe('collection lifecycle service', () => {
 	});
 
 	it('duplicates and activates the active collection with the dirty mod selection', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 
 		const result = duplicateAndActivateCollection(tempDir, {
-			config: config(),
+			config: createTestAppConfig(),
 			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 			name: 'copy'
 		});
@@ -104,16 +78,16 @@ describe('collection lifecycle service', () => {
 	});
 
 	it('renames the active collection and rejects duplicate targets', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
-		writeCollection(tempDir, { name: 'existing', mods: [] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'existing', mods: [] });
 
-		expect(renameActiveCollection(tempDir, { config: config(), name: 'existing' })).toMatchObject({
+		expect(renameActiveCollection(tempDir, { config: createTestAppConfig(), name: 'existing' })).toMatchObject({
 			ok: false,
 			code: 'duplicate-name'
 		});
 
 		const result = renameActiveCollection(tempDir, {
-			config: config(),
+			config: createTestAppConfig(),
 			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 			name: 'renamed'
 		});
@@ -124,10 +98,10 @@ describe('collection lifecycle service', () => {
 	});
 
 	it('deletes the active collection and selects a replacement or fallback', () => {
-		writeCollection(tempDir, { name: 'default', mods: [] });
-		writeCollection(tempDir, { name: 'archived', mods: ['local:a'] });
+		writeTestCollection(tempDir, { name: 'default', mods: [] });
+		writeTestCollection(tempDir, { name: 'archived', mods: ['local:a'] });
 
-		const result = deleteActiveCollection(tempDir, { config: config('default') });
+		const result = deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }) });
 
 		expect(result.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'default')).toBeNull();
@@ -135,7 +109,7 @@ describe('collection lifecycle service', () => {
 			expect(result.activeCollection).toEqual({ name: 'archived', mods: ['local:a'] });
 		}
 
-		const fallbackResult = deleteActiveCollection(tempDir, { config: config('archived') });
+		const fallbackResult = deleteActiveCollection(tempDir, { config: createTestAppConfig({ activeCollection: 'archived' }) });
 
 		expect(fallbackResult.ok).toBe(true);
 		expect(readCollectionFile(tempDir, 'archived')).toBeNull();
@@ -146,11 +120,11 @@ describe('collection lifecycle service', () => {
 	});
 
 	it('switches active collections after saving dirty edits', () => {
-		writeCollection(tempDir, { name: 'default', mods: ['local:old'] });
-		writeCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
+		writeTestCollection(tempDir, { name: 'alt', mods: ['local:alt'] });
 
 		const result = switchActiveCollection(tempDir, {
-			config: config('default'),
+			config: createTestAppConfig({ activeCollection: 'default' }),
 			dirtyCollection: { name: 'default', mods: ['local:dirty'] },
 			name: 'alt'
 		});

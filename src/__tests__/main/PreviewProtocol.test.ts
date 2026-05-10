@@ -21,7 +21,6 @@ describe('preview protocol', () => {
 
 	afterEach(() => {
 		clearPreviewAllowlist();
-		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
 
 	it('allowlists preview images from the current scan only', () => {

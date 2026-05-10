@@ -11,19 +11,11 @@ function renderFooter(props: React.ComponentProps<typeof ModDetailsFooter>) {
 }
 
 describe('ModDetailsFooter', () => {
-	beforeEach(() => {
-		const ResizeObserverMock = vi.fn(function ResizeObserverMock() {
-			return {
-				observe: vi.fn(),
-				unobserve: vi.fn(),
-				disconnect: vi.fn()
-			};
-		});
-		vi.stubGlobal('ResizeObserver', ResizeObserverMock);
-	});
+	beforeEach(() => {});
 
 	afterEach(() => {
 		cleanup();
+		vi.unstubAllGlobals();
 	});
 
 	it('shows the workshop id as the primary identity while keeping the mod id visible in inspect details', () => {
