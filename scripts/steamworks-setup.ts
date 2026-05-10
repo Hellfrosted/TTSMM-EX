@@ -7,6 +7,7 @@ import { releaseAppNodeModulesPath, releaseAppPath, repoRoot, srcNodeModulesPath
 const sdkPathFile = path.join(repoRoot, '.steamworks-sdk-path');
 const greenworksPath = path.join(releaseAppNodeModulesPath, 'greenworks');
 const greenworksSdkPath = path.join(greenworksPath, 'deps', 'steamworks_sdk');
+const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
 const legacySmokeEntryPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke.ts');
 const legacySmokeWorkerPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke-worker.ts');
@@ -67,6 +68,20 @@ function validateSteamworksSdkPath(steamworksSdkPath: string) {
 		);
 	}
 
+	if (process.platform === 'linux' && process.arch === 'x64') {
+		requiredPathGroups.push(
+			[path.join('redistributable_bin', 'linux64', 'libsteam_api.so')],
+			[path.join('public', 'steam', 'lib', 'linux64', 'libsdkencryptedappticket.so')]
+		);
+	}
+
+	if (process.platform === 'linux' && process.arch === 'ia32') {
+		requiredPathGroups.push(
+			[path.join('redistributable_bin', 'linux32', 'libsteam_api.so')],
+			[path.join('public', 'steam', 'lib', 'linux32', 'libsdkencryptedappticket.so')]
+		);
+	}
+
 	const missingPaths = requiredPathGroups
 		.map((candidatePaths) => {
 			const foundPath = candidatePaths.find((candidatePath) => fs.existsSync(path.join(resolvedSdkPath, candidatePath)));
@@ -107,7 +122,7 @@ function removeIfExists(targetPath: string) {
 
 function ensureGreenworksPresent() {
 	if (!fs.existsSync(greenworksPath)) {
-		run('npm --prefix release/app install');
+		run('npm --prefix release/app install --ignore-scripts');
 	}
 }
 
@@ -133,17 +148,59 @@ function patchGreenworksWorkshopWorkerSource() {
 	}
 
 	const source = fs.readFileSync(greenworksWorkshopWorkersPath, 'utf8');
-	const patchedSource = source.replace(
-		'char *PreviewTypeToString(EItemPreviewType type) {',
-		'const char *PreviewTypeToString(EItemPreviewType type) {'
-	);
+	const patchedSource = source
+		.replace('const const char *PreviewTypeToString(EItemPreviewType type) {', 'const char *PreviewTypeToString(EItemPreviewType type) {')
+		.replace(
+			/(^|\n)char \*PreviewTypeToString\(EItemPreviewType type\) \{/,
+			'$1const char *PreviewTypeToString(EItemPreviewType type) {'
+		);
 
 	if (patchedSource !== source) {
 		fs.writeFileSync(greenworksWorkshopWorkersPath, patchedSource);
 	}
 }
 
+function patchGreenworksPythonCommand() {
+	if (process.platform === 'win32' || !fs.existsSync(greenworksBindingGypPath)) {
+		return;
+	}
+
+	const source = fs.readFileSync(greenworksBindingGypPath, 'utf8');
+	const patchedSource = source.replace("'python',", "'python3',");
+
+	if (patchedSource !== source) {
+		fs.writeFileSync(greenworksBindingGypPath, patchedSource);
+	}
+}
+
 function terminateSteamworksSmokeProcesses() {
+	if (process.platform !== 'win32') {
+		const smokePathFragments = [legacySmokeEntryPath, legacySmokeWorkerPath, smokeWorkerPath].map((targetPath) => targetPath.replace(/\\/g, '/'));
+		const processList = execSync('ps -ax -o pid= -o command=', {
+			cwd: repoRoot,
+			encoding: 'utf8'
+		});
+		const matchingPids = processList
+			.split(/\r?\n/)
+			.map((line) => line.match(/^\s*(\d+)\s+(.*)$/))
+			.filter((match): match is RegExpMatchArray => Boolean(match))
+			.filter(([, , commandLine]) => {
+				const normalizedCommandLine = commandLine.toLowerCase().replace(/\\/g, '/');
+				return normalizedCommandLine.includes('electron') && smokePathFragments.some((fragment) => normalizedCommandLine.includes(fragment.toLowerCase()));
+			})
+			.map(([, pid]) => Number.parseInt(pid, 10))
+			.filter((pid) => Number.isInteger(pid) && pid > 0);
+
+		matchingPids.forEach((pid) => {
+			try {
+				process.kill(pid, 'SIGKILL');
+			} catch {
+				// Ignore races where the smoke-test process exits after enumeration.
+			}
+		});
+		return;
+	}
+
 	const processFilter = [
 		"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'electron.exe'",
 		`-and ($_.CommandLine -like '*${legacySmokeEntryPath}*'`,
@@ -172,6 +229,7 @@ export function setupSteamworksNativeDeps(steamworksSdkPath: string) {
 	terminateSteamworksSmokeProcesses();
 	stageSteamworksSdk(steamworksSdkPath);
 	patchGreenworksWorkshopWorkerSource();
+	patchGreenworksPythonCommand();
 	run('npm run electron-rebuild', { STEAMWORKS_SDK_PATH: greenworksSdkPath }, releaseAppPath);
 	linkModules();
 }

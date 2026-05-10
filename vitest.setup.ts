@@ -56,31 +56,33 @@ Object.defineProperty(globalThis, 'TextDecoder', {
 	writable: true
 });
 
-Object.defineProperty(window, 'electron', {
-	value: createElectronMock(),
-	writable: true,
-	configurable: true
-});
-
-Object.defineProperty(window, 'matchMedia', {
-	value: vi.fn().mockImplementation((query: string) => ({
-		matches: false,
-		media: query,
-		onchange: null,
-		addListener: noop,
-		removeListener: noop,
-		addEventListener: noop,
-		removeEventListener: noop,
-		dispatchEvent: () => false
-	})),
-	writable: true,
-	configurable: true
-});
-
-beforeEach(() => {
+if (typeof window !== 'undefined') {
 	Object.defineProperty(window, 'electron', {
 		value: createElectronMock(),
 		writable: true,
 		configurable: true
 	});
-});
+
+	Object.defineProperty(window, 'matchMedia', {
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: noop,
+			removeListener: noop,
+			addEventListener: noop,
+			removeEventListener: noop,
+			dispatchEvent: () => false
+		})),
+		writable: true,
+		configurable: true
+	});
+
+	beforeEach(() => {
+		Object.defineProperty(window, 'electron', {
+			value: createElectronMock(),
+			writable: true,
+			configurable: true
+		});
+	});
+}

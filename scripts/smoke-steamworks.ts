@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { repoRoot } from './lib/paths';
 
-const electronBinary = path.join(repoRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
+const electronBinary = path.join(repoRoot, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
 const outputPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke-output.json');
 const workerDir = path.join(repoRoot, 'scripts', '.tmp');
 const workerPath = path.join(workerDir, 'ttsmm-steamworks-smoke-worker.ts');

@@ -6,6 +6,7 @@
   "main": "./dist/main/main.js",
   "author": {
     "name": "Hellfrosted",
+    "email": "68215103+Hellfrosted@users.noreply.github.com",
     "url": "https://github.com/Hellfrosted/terratech-steam-mod-loader"
   },
   "scripts": {

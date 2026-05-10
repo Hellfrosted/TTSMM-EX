@@ -14,6 +14,9 @@
 		"lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:fix": "npm run lint -- --fix",
 		"package": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never",
+		"package:linux": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb && electron-builder build --publish never --linux pacman",
+		"package:linux:deb": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux deb",
+		"package:linux:pacman": "node --import=tsx ./scripts/clean.ts && npm run build && electron-builder build --publish never --linux pacman",
 		"rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
 		"smoke:steamworks": "node --import=tsx ./scripts/smoke-steamworks.ts",
 		"test": "vitest run",
@@ -44,7 +47,7 @@
 		"appId": "com.hellfrosted.ttsmmex",
 		"afterPack": "./scripts/after-pack-set-win-icon.cjs",
 		"asar": true,
-		"asarUnpack": "**\\*.{node,dll}",
+		"asarUnpack": "**/*.{node,dll,so,dylib}",
 		"files": [
 			"dist",
 			"node_modules",
@@ -65,6 +68,7 @@
 			"installerHeaderIcon": "assets/icon.ico"
 		},
 		"linux": {
+			"icon": "assets/icon.png",
 			"target": [
 				"AppImage"
 			],
@@ -89,7 +93,8 @@
 		"url": "git+https://github.com/Hellfrosted/terratech-steam-mod-loader.git"
 	},
 	"author": {
-		"name": "Hellfrosted"
+		"name": "Hellfrosted",
+		"email": "68215103+Hellfrosted@users.noreply.github.com"
 	},
 	"license": "MIT",
 	"bugs": {

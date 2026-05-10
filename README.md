@@ -1,46 +1,119 @@
 # TerraTech Steam Mod Manager EX
 
-Electron + React desktop app for managing TerraTech Steam Workshop mod collections.
+Fork of TTSMM for managing TerraTech local mods and Steam Workshop collections.
 
-The EX build uses its own app identity and app-data directory, so it can be installed alongside the upstream `FLSoz` build on the same machine.
+The EX fork uses its own app identity and user-data directory, so it can be installed alongside the upstream `FLSoz` build.
 
-## Features
+## Setup
 
-- Manage TerraTech mod collections without packaging or installing the app during development
-- Load Steam Workshop dependency data from Steamworks and fall back to the Workshop page when needed
-- Validate collection conflicts, missing dependencies, subscription state, install state, and update state
-- Optionally treat `NuterraSteam` and `NuterraSteam (Beta)` as equivalent during validation
+Requirements:
 
-## Development
+- Node `>=20 <26`
+- npm `>=10 <12`
+- Steam desktop client
+- Steamworks SDK
 
-```powershell
+Set the Steamworks SDK path before installing dependencies. Use either:
+
+- `STEAMWORKS_SDK_PATH`
+- a repo-local `.steamworks-sdk-path` file that points at the extracted `sdk` directory
+
+Then:
+
+```bash
 npm install
+npm run setup:steamworks
 npm run dev
+```
+
+Other useful commands:
+
+```bash
 npm run start:desktop
 npm run validate
+npm run smoke:steamworks
+```
+
+This repo assumes Steamworks is available. Source builds without it are not a supported setup.
+
+## Data
+
+The EX fork stores its data under its own Electron `userData` directory, `TerraTech Steam Mod Manager EX`.
+
+Files of interest:
+
+- `config.json`
+- `collections/*.json`
+
+## Packaging
+
+Artifacts are written to `release/build`.
+
+### Windows
+
+Build on Windows with:
+
+```bash
 npm run package
 ```
 
-`npm run start:desktop` builds the app and launches the desktop build with `NODE_ENV=production`.
+This produces:
 
-## Dependency Validation Notes
+- `TerraTech Steam Mod Manager EX Setup <version>.exe`
+- `TerraTech Steam Mod Manager EX Setup <version>.exe.blockmap`
+- `win-unpacked/`
 
-- Workshop dependencies are resolved from Steamworks child items when available.
-- If Steamworks does not return dependency children for a Workshop item, the app can fall back to the public Workshop page's `Required items` section.
-- The `Treat Nuterra Variants as Equivalent` setting affects both explicit mod-ID dependencies and unresolved Workshop dependency names for Nuterra variants.
+The Windows target is `nsis`. Installer resources come from `assets/icon.ico`.
+
+### Linux
+
+Build on Linux, or in WSL with a Linux dependency install:
+
+```bash
+npm run package
+npm run package:linux:deb
+npm run package:linux:pacman
+npm run package:linux
+```
+
+Linux outputs:
+
+- `npm run package` on Linux uses the default configured Linux target, `AppImage`
+- `npm run package:linux:deb` produces `terratech-steam-mod-manager-ex_<version>_amd64.deb`
+- `npm run package:linux:pacman` produces `terratech-steam-mod-manager-ex-<version>.pacman`
+
+Notes:
+
+- rerun `npm run setup:steamworks` after reinstalling dependencies or switching operating systems
+- Linux rebuilds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough
+- the pacman target needs `bsdtar`
+
+## Notes
+
+- Workshop dependencies are resolved from Steamworks first
+- if Steamworks does not return dependency children for a Workshop item, the app falls back to the public Workshop page `Required items` section
+- `Treat NuterraSteam and NuterraSteam (Beta) as equivalent` affects both explicit mod-ID dependencies and unresolved Workshop dependency names
 
 ## Scripts
 
-- `npm run dev`: run the app in development
-- `npm run start:desktop`: build and launch the desktop app without packaging an installer
-- `npm run lint`: run ESLint
-- `npm run lint:fix`: run ESLint with autofix
-- `npm run typecheck`: run TypeScript without emitting files
-- `npm test`: run the Vitest unit and component test suite
-- `npm run build`: build the Vite-managed main, preload, and renderer outputs
-- `npm run validate`: run lint, typecheck, tests, and build
-- `npm run setup:steamworks`: install and rebuild native Steamworks dependencies
-- `npm run smoke:steamworks`: run an Electron-side Steamworks smoke test
+- `npm run dev`: development app
+- `npm run start`: alias for `npm run dev`
+- `npm run start:desktop`: build and launch the production desktop entrypoint
+- `npm run lint`: ESLint
+- `npm run lint:fix`: ESLint with autofix
+- `npm run typecheck`: TypeScript build check
+- `npm test`: Vitest
+- `npm run build`: build main, preload, and renderer
+- `npm run validate`: lint, typecheck, tests, and build
+- `npm run setup:steamworks`: stage the SDK and rebuild native dependencies
+- `npm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `npm run rebuild`: rebuild native Electron dependencies in `release/app`
-- `npm run package`: build the Windows installer
-- `npm run publish`: build release artifacts for tag or draft publishing
+- `npm run package`: package for the current platform default target
+- `npm run package:linux:deb`: build the Debian package
+- `npm run package:linux:pacman`: build the pacman package
+- `npm run package:linux`: build both Linux package formats
+- `npm run publish`: package for tag or draft publishing
+- `npm run only-publish`: run Electron Builder publish directly
+- `npm run patch`: patch version bump
+- `npm run minor`: minor version bump
+- `npm run major`: major version bump
