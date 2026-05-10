@@ -22,6 +22,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 	const scheduledPersistHandleRef = useRef<number | null>(null);
 	const pendingPathRef = useRef<string | null>(null);
 	const persistInFlightRef = useRef(false);
+	const mountedRef = useRef(true);
 	const selectedPath = getStoredViewPath(location.pathname);
 	const items = [
 		{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
@@ -66,9 +67,15 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 		const persistPath = async () => {
 			try {
 				await writeConfig(nextConfig);
+				if (!mountedRef.current) {
+					return;
+				}
 				persistedPathRef.current = nextPath;
 			} catch (error) {
 				api.logger.error(error);
+				if (!mountedRef.current) {
+					return;
+				}
 				if (configRef.current.currentPath !== nextPath) {
 					return;
 				}
@@ -84,7 +91,7 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 				});
 			} finally {
 				persistInFlightRef.current = false;
-				if (pendingPathRef.current !== null) {
+				if (mountedRef.current && pendingPathRef.current !== null) {
 					flushPendingPath();
 				}
 			}
@@ -115,6 +122,8 @@ export default function MenuBar({ config, disableNavigation, firstModLoad, updat
 
 	useEffect(() => {
 		return () => {
+			mountedRef.current = false;
+			pendingPathRef.current = null;
 			cancelScheduledPersist();
 		};
 	}, [cancelScheduledPersist]);

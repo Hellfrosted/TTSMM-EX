@@ -685,10 +685,6 @@ a:hover {
 	opacity: 0.62;
 }
 
-.BlockLookupTableOptionsModal {
-	width: min(760px, 100%);
-}
-
 .BlockLookupVirtualRow.is-selected > .BlockLookupVirtualCell {
 	background: color-mix(in srgb, var(--app-color-primary) 14%, transparent);
 }
@@ -1156,105 +1152,6 @@ a:hover {
 	height: 16px;
 	margin: 0;
 	accent-color: var(--app-color-primary);
-}
-
-.CollectionNativeModalOverlay {
-	position: fixed;
-	inset: 0;
-	z-index: 1000;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 24px;
-	background: color-mix(in srgb, var(--app-color-background) 72%, transparent);
-}
-
-.CollectionNativeModal {
-	max-width: calc(100vw - 32px);
-	max-height: calc(100vh - 48px);
-	display: flex;
-	flex-direction: column;
-	background: var(--app-color-surface-elevated);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	box-shadow: 0 16px 36px color-mix(in srgb, var(--app-color-background) 72%, transparent);
-	overflow: hidden;
-}
-
-.CollectionNativeModal__header,
-.CollectionNativeModal__footer {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 14px 16px;
-}
-
-.CollectionNativeModal__header {
-	justify-content: space-between;
-	border-bottom: 1px solid var(--app-color-border);
-}
-
-.CollectionNativeModal__footer {
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	border-top: 1px solid var(--app-color-border);
-}
-
-.CollectionNativeModal__title {
-	margin: 0;
-	color: var(--app-color-text);
-	font-size: 1.05rem;
-	font-weight: 700;
-	line-height: 1.3;
-}
-
-.CollectionNativeModal__close {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--app-color-text);
-	background: var(--app-color-surface);
-	border: 1px solid var(--app-color-border);
-	border-radius: 8px;
-	cursor: pointer;
-}
-
-.CollectionNativeModal__close {
-	width: 32px;
-	height: 32px;
-	color: var(--app-color-text-muted);
-	background: transparent;
-	border: 0;
-}
-
-.CollectionNativeModal__close:hover {
-	color: var(--app-color-text);
-	background: color-mix(in srgb, var(--app-color-text-base) 4%, transparent);
-}
-
-.CollectionNativeModal__body {
-	padding: 16px;
-	overflow: auto;
-}
-
-.CollectionValidationModal .CollectionNativeModal__body {
-	max-height: calc(100vh - 224px);
-}
-
-.CollectionSettingsModal .CollectionNativeModal__body {
-	padding-top: 10px;
-	padding-bottom: 12px;
-}
-
-.CollectionNativeModal__close:focus-visible {
-	outline: none;
-	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--app-color-background) 92%, black),
-		0 0 0 4px color-mix(in srgb, var(--app-color-text-base) 78%, var(--app-color-primary) 22%);
-}
-
-.CollectionSettingsModalWrap {
-	padding: 68px 12px 12px;
 }
 
 .CollectionSettingsForm {

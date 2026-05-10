@@ -1,16 +1,15 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
 	"entry": [
-		"electron.vite.config.ts",
 		"scripts/after-pack-set-win-icon.cjs",
 		"scripts/check-native-dep.ts",
 		"scripts/electron-rebuild.ts",
 		"scripts/link-modules.ts",
+		"scripts/vite-dev.ts",
 		"src/__tests__/**/*.{ts,tsx}",
 		"src/main/main.ts",
 		"src/main/preload.ts",
 		"src/renderer/App.tailwind.css",
-		"src/renderer/index.tsx",
 		"test-support/**/*.ts"
 	],
 	"project": ["scripts/**/*.{cjs,ts}", "src/**/*.css", "src/**/*.{ts,tsx}", "test-support/**/*.ts"],

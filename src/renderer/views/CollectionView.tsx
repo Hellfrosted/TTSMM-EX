@@ -14,18 +14,21 @@ import {
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CheckCircle, RefreshCw, XCircle } from 'lucide-react';
-import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection, ModData } from 'model';
+import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection } from 'model';
 import api from 'renderer/Api';
+import {
+	desktopButtonBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	desktopPrimaryButtonToneClassName
+} from 'renderer/components/desktop-control-classes';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { useGameRunning } from '../hooks/collections/useGameRunning';
-import { useGameLaunch } from '../hooks/collections/useGameLaunch';
-import { useCollections } from '../hooks/collections/useCollections';
-import { useCollectionValidation } from '../hooks/collections/useCollectionValidation';
-import { useModMetadata } from '../hooks/collections/useModMetadata';
-import { logProfilerRender, markPerfInteraction, measurePerf } from '../perf';
-import { getCollectionModDataList, getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
+import { logProfilerRender, measurePerf } from '../perf';
+import { getCollectionRows, getDisplayedCollectionRecord } from '../collection-mod-projection';
 import type { CollectionWorkspaceAppState } from '../state/app-state';
 import {
 	moveMainCollectionColumn,
@@ -33,6 +36,7 @@ import {
 	setMainCollectionColumnVisibility,
 	setMainCollectionColumnWidth
 } from '../view-config-persistence';
+import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
 const loadCollectionManagerModal = () => import('../components/collections/CollectionManagerModal');
@@ -124,22 +128,15 @@ function collectionSplitSizeStyle(size: number): CSSProperties {
 	} as CSSProperties;
 }
 
-const collectionFooterFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
 const collectionFooterButtonClassName = [
-	'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 font-[650] text-text',
-	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-	'disabled:cursor-not-allowed disabled:opacity-55',
-	collectionFooterFocusClassName
+	desktopButtonBaseClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	'px-4',
+	desktopControlFocusClassName
 ].join(' ');
-const collectionFooterPrimaryButtonClassName = [
-	collectionFooterButtonClassName,
-	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
-].join(' ');
-const collectionFooterDangerButtonClassName = [
-	collectionFooterButtonClassName,
-	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
-].join(' ');
+const collectionFooterPrimaryButtonClassName = [collectionFooterButtonClassName, desktopPrimaryButtonToneClassName].join(' ');
+const collectionFooterDangerButtonClassName = [collectionFooterButtonClassName, desktopDangerButtonToneClassName].join(' ');
 const collectionContentStageBaseClassName =
 	'absolute inset-0 flex min-h-0 min-w-0 overflow-hidden opacity-0 invisible pointer-events-none contain-[layout_paint_style] [content-visibility:hidden] transition-[opacity,visibility] duration-[140ms] motion-reduce:transition-none';
 const collectionContentStageActiveClassName = 'opacity-100 visible pointer-events-auto [content-visibility:visible]';
@@ -151,75 +148,44 @@ const MIN_SIDE_BY_SIDE_WIDTH = 1120;
 const MIN_COLLECTION_TABLE_WIDTH = 640;
 const MIN_COLLECTION_TABLE_HEIGHT = 320;
 
-interface ValidationCallbacks {
-	cancelValidation: () => void;
-	resetValidationState: () => void;
-	validateActiveCollection: (launchIfValid: boolean, options?: { config?: CollectionWorkspaceAppState['config'] }) => Promise<void>;
-}
-
 interface CollectionViewRouteProps {
 	appState: CollectionWorkspaceAppState;
 }
 
 function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 	const { openNotification } = useNotifications();
-	const [modalType, setModalType] = useState(CollectionManagerModalType.NONE);
-	const [currentRecord, setCurrentRecord] = useState<ModData>();
-	const [bigDetails, setBigDetails] = useState(true);
-	const [detailsActiveTabKey, setDetailsActiveTabKey] = useState('info');
 	const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useState<HalfDetailsLayout>();
-	const [prewarmAlternateDetails, setPrewarmAlternateDetails] = useState(false);
-	const validationCallbacksRef = useRef<ValidationCallbacks | undefined>(undefined);
-	const hasValidatedLoadedModsRef = useRef(false);
 	const guidedFixActive = false;
 	const { activeCollection, config, loadingMods, mods, updateState } = appState;
 
 	const {
+		bigDetails,
+		closeCurrentRecord,
+		closeModal,
 		gameRunning,
+		getModDetails: handleGetModDetails,
+		launchGame,
+		launchAnyway: handleLaunchAnyway,
 		overrideGameRunning,
-		setOverrideGameRunning,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset
-	} = useGameRunning();
-
-	const { launchGameWithErrors, setLaunchGameWithErrors, launchMods } = useGameLaunch({
-		appState,
-		openNotification,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset,
-		setOverrideGameRunning
-	});
-
-	const closeLaunchModal = useCallback(
-		async (mods: ModData[]) => {
-			await launchMods(mods);
-			setModalType(CollectionManagerModalType.NONE);
-		},
-		[launchMods]
-	);
-
-	const collections = useCollections({
-		appState,
-		openNotification,
-		cancelValidation: () => validationCallbacksRef.current?.cancelValidation(),
-		resetValidationState: () => validationCallbacksRef.current?.resetValidationState(),
-		validateActiveCollection: async (launchIfValid: boolean) => {
-			await validationCallbacksRef.current?.validateActiveCollection(launchIfValid);
-		},
-		setModalType
-	});
-
-	const validation = useCollectionValidation({
-		appState,
-		openNotification,
+		launchGameWithErrors,
+		modalType,
+		openMainViewSettings,
+		prewarmAlternateDetails,
+		setPrewarmAlternateDetails,
+		collections,
+		validation,
+		currentValidationStatus,
+		currentCollectionErrors,
+		currentRecord,
+		detailsActiveTabKey,
+		setBigDetails: handleExpandFooter,
+		setDetailsActiveTabKey,
 		setModalType,
-		persistCollection: collections.persistCollection,
-		launchMods: closeLaunchModal
+		validateCollection: handleValidateCollection
+	} = useCollectionWorkspace({
+		appState,
+		openNotification
 	});
 
 	const {
@@ -237,76 +203,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		deleteCollection,
 		setEnabledMods,
 		toggleMod,
-		setModSubset,
-		recalculateModData
+		setModSubset
 	} = collections;
-	const {
-		collectionErrors,
-		validatingMods,
-		lastValidationStatus,
-		setCollectionErrors,
-		validateActiveCollection,
-		isValidationCurrentForCollection
-	} = validation;
-
-	const currentValidationStatus = isValidationCurrentForCollection(appState.activeCollection) ? lastValidationStatus : undefined;
-	const currentCollectionErrors = isValidationCurrentForCollection(appState.activeCollection) ? collectionErrors : undefined;
-
-	useEffect(() => {
-		validationCallbacksRef.current = {
-			cancelValidation: validation.cancelValidation,
-			resetValidationState: validation.resetValidationState,
-			validateActiveCollection: validation.validateActiveCollection
-		};
-	}, [validation.cancelValidation, validation.resetValidationState, validation.validateActiveCollection]);
-
-	useEffect(() => {
-		if (loadingMods) {
-			hasValidatedLoadedModsRef.current = false;
-			return;
-		}
-
-		recalculateModData();
-		if (!hasValidatedLoadedModsRef.current) {
-			hasValidatedLoadedModsRef.current = true;
-			void validateActiveCollection(false);
-		}
-	}, [loadingMods, recalculateModData, validateActiveCollection]);
-
-	useModMetadata(appState, () => {
-		recalculateModData();
-		if (!loadingMods) {
-			void validateActiveCollection(false);
-		}
-	});
-
-	const launchGame = useCallback(async () => {
-		api.logger.info('validating and launching game');
-
-		if (loadingMods) {
-			return;
-		}
-
-		if (currentValidationStatus && !madeEdits && activeCollection) {
-			const modDataList = getCollectionModDataList(mods, activeCollection);
-			await closeLaunchModal(modDataList);
-			return;
-		}
-
-		updateState({ launchingGame: true });
-		setCollectionErrors(undefined);
-		await validateActiveCollection(true);
-	}, [
-		activeCollection,
-		closeLaunchModal,
-		currentValidationStatus,
-		loadingMods,
-		madeEdits,
-		mods,
-		setCollectionErrors,
-		updateState,
-		validateActiveCollection
-	]);
+	const { validatingMods } = validation;
 
 	const currentView = CollectionViewType.MAIN;
 
@@ -337,42 +236,20 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		},
 		[toggleMod]
 	);
-	const handleCloseCurrentRecord = useCallback(() => {
-		startTransition(() => {
-			setCurrentRecord(undefined);
-			setDetailsActiveTabKey('info');
-			setPrewarmAlternateDetails(false);
-		});
-	}, []);
-	const handleExpandFooter = useCallback((showBigDetails: boolean) => {
-		startTransition(() => {
-			setBigDetails(showBigDetails);
-		});
-	}, []);
 	const handleToggleHalfLayout = useCallback(() => {
 		startTransition(() => {
 			setPreferredHalfDetailsLayout(halfDetailsLayout === 'side' ? 'bottom' : 'side');
 		});
 	}, [halfDetailsLayout]);
-	const handleValidateCollection = useCallback(
-		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
-			setCollectionErrors(undefined);
-			void validateActiveCollection(false, options);
-		},
-		[setCollectionErrors, validateActiveCollection]
-	);
 	const handleReloadModList = useCallback(() => {
-		setCurrentRecord(undefined);
+		closeCurrentRecord();
 		updateState({ loadingMods: true, forceReloadMods: true });
-	}, [updateState]);
+	}, [closeCurrentRecord, updateState]);
 	const handleSaveCollection = useCallback(() => {
 		if (activeCollection) {
 			void saveCollection(activeCollection, true);
 		}
 	}, [activeCollection, saveCollection]);
-	const handleOpenViewSettings = useCallback(() => {
-		setModalType(CollectionManagerModalType.VIEW_SETTINGS);
-	}, []);
 	const handleSetMainColumnWidth = useCallback(
 		async (column: MainColumnTitles, width: number) => {
 			try {
@@ -436,37 +313,9 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 		},
 		[config, openNotification, updateState]
 	);
-	const handleLaunchAnyway = useCallback(() => {
-		setLaunchGameWithErrors(true);
-		const modList = getCollectionModDataList(mods, activeCollection);
-		void closeLaunchModal(modList);
-	}, [activeCollection, closeLaunchModal, mods, setLaunchGameWithErrors]);
-	const handleCloseModal = useCallback(() => {
-		setModalType(CollectionManagerModalType.NONE);
-	}, []);
 	const handleDeleteCollection = useCallback(() => {
 		void deleteCollection();
 	}, [deleteCollection]);
-	const handleGetModDetails = useCallback(
-		(uid: string, record: ModData, showBigDetails?: boolean) => {
-			const isClosingCurrentRecord = currentRecord?.uid === uid;
-			markPerfInteraction(isClosingCurrentRecord ? 'collection.details.close' : 'collection.details.open', {
-				uid,
-				showBigDetails: showBigDetails ?? bigDetails
-			});
-			startTransition(() => {
-				setCurrentRecord(isClosingCurrentRecord ? undefined : record);
-				if (!isClosingCurrentRecord) {
-					setDetailsActiveTabKey('info');
-					setPrewarmAlternateDetails(false);
-				}
-				if (!isClosingCurrentRecord && showBigDetails !== undefined) {
-					setBigDetails(showBigDetails);
-				}
-			});
-		},
-		[bigDetails, currentRecord?.uid]
-	);
 
 	useEffect(() => {
 		if (!displayedCurrentRecord || loadingMods || currentView !== CollectionViewType.MAIN) {
@@ -510,7 +359,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails]);
+	}, [currentView, displayedCurrentRecord, loadingMods, prewarmAlternateDetails, setPrewarmAlternateDetails]);
 
 	const collectionComponentProps: CollectionViewProps = useMemo(
 		() => ({
@@ -523,14 +372,16 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			collection: appState.activeCollection as ModCollection,
 			launchingGame: appState.launchingGame,
 			config: currentViewConfig,
-			setEnabledModsCallback: setEnabledMods,
-			setEnabledCallback: handleEnableMod,
-			setDisabledCallback: handleDisableMod,
-			setMainColumnWidthCallback: handleSetMainColumnWidth,
-			setMainColumnVisibilityCallback: handleSetMainColumnVisibility,
-			setMainColumnOrderCallback: handleSetMainColumnOrder,
-			openMainViewSettingsCallback: handleOpenViewSettings,
-			getModDetails: handleGetModDetails
+			tableCommands: {
+				getModDetails: handleGetModDetails,
+				openSettings: openMainViewSettings,
+				setColumnOrder: handleSetMainColumnOrder,
+				setColumnVisibility: handleSetMainColumnVisibility,
+				setColumnWidth: handleSetMainColumnWidth,
+				setDisabled: handleDisableMod,
+				setEnabled: handleEnableMod,
+				setEnabledMods
+			}
 		}),
 		[
 			appState.activeCollection,
@@ -542,7 +393,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			handleSetMainColumnOrder,
 			handleSetMainColumnWidth,
 			handleSetMainColumnVisibility,
-			handleOpenViewSettings,
+			openMainViewSettings,
 			currentValidationStatus,
 			madeEdits,
 			rows,
@@ -582,7 +433,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 				currentRecord: displayedCurrentRecord,
 				activeTabKey: detailsActiveTabKey,
 				setActiveTabKey: setDetailsActiveTabKey,
-				closeFooterCallback: handleCloseCurrentRecord,
+				closeFooterCallback: closeCurrentRecord,
 				enableModCallback: handleEnableMod,
 				disableModCallback: handleDisableMod,
 				expandFooterCallback: handleExpandFooter,
@@ -616,7 +467,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 			<ModLoadingViewLazy
 				appState={appState}
 				modLoadCompleteCallback={() => {
-					recalculateModData();
+					collections.recalculateModData();
 				}}
 			/>
 		</Suspense>
@@ -665,7 +516,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 					duplicateCollectionCallback={duplicateCollection}
 					renameCollectionCallback={renameCollection}
 					saveCollectionCallback={handleSaveCollection}
-					openViewSettingsCallback={handleOpenViewSettings}
+					openViewSettingsCallback={openMainViewSettings}
 					openNotification={openNotification}
 					openModal={setModalType}
 				/>
@@ -680,7 +531,7 @@ function CollectionViewComponent({ appState }: CollectionViewRouteProps) {
 						currentView={currentView}
 						collectionErrors={currentCollectionErrors}
 						openNotification={openNotification}
-						closeModal={handleCloseModal}
+						closeModal={closeModal}
 						currentRecord={displayedCurrentRecord}
 						deleteCollection={handleDeleteCollection}
 					/>

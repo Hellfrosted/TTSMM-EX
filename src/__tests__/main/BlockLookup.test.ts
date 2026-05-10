@@ -8,6 +8,10 @@ import {
 	extractNuterraBlocksFromText,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
+import { createBlockLookupIndexer } from '../../main/block-lookup-indexer';
+import { createBlockLookupIndexPlan } from '../../main/block-lookup-index-planner';
+import { searchBlockLookupRecords } from '../../main/block-lookup-search';
+import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { ValidChannel } from '../../shared/ipc';
 import { createTempDir, createValidIpcEvent } from './test-utils';
@@ -64,6 +68,38 @@ describe('block lookup index', () => {
 				internalName: 'HE_Flak'
 			}
 		]);
+	});
+
+	it('discovers JSON and bundle sources from loaded mod directories', () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-sources-');
+		const modDir = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920', '13579');
+		const blockJsonDir = path.join(modDir, 'BlockJSON');
+		const nestedJsonDir = path.join(blockJsonDir, 'Nested');
+		const bundlePath = path.join(modDir, 'TestPack_bundle');
+		const jsonPath = path.join(nestedJsonDir, 'NestedBlock.json');
+		fs.mkdirSync(nestedJsonDir, { recursive: true });
+		fs.writeFileSync(bundlePath, 'bundle data', 'utf8');
+		fs.writeFileSync(jsonPath, '{"Type":"NuterraBlock","Name":"Nested Block"}', 'utf8');
+		fs.writeFileSync(path.join(modDir, 'ignored.txt'), 'ignore me', 'utf8');
+
+		const result = collectBlockLookupSources({
+			modSources: [
+				{
+					uid: 'workshop:13579',
+					name: 'Source Test',
+					path: modDir,
+					workshopID: '13579'
+				}
+			]
+		});
+
+		expect(result.sources.map((source) => source.sourcePath)).toEqual([path.normalize(jsonPath), path.normalize(bundlePath)].sort());
+		expect(result.sources).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ modTitle: 'Source Test', sourceKind: 'json', workshopId: '13579' }),
+				expect.objectContaining({ modTitle: 'Source Test', sourceKind: 'bundle', workshopId: '13579' })
+			])
+		);
 	});
 
 	it('indexes JSON block sources and reuses unchanged records', async () => {
@@ -174,6 +210,110 @@ describe('block lookup index', () => {
 			sourceKind: 'bundle',
 			spawnCommand: 'SpawnBlock Bundle_Block(Bundle_Blocks)'
 		});
+	});
+});
+
+describe('block lookup indexer facade', () => {
+	it('delegates settings, stats, and search to one user data boundary', () => {
+		const userDataPath = createTempDir('ttsmm-block-lookup-indexer-');
+		const indexer = createBlockLookupIndexer(userDataPath);
+		const workshopRoot = path.normalize('C:/Steam/workshop/content/285920');
+
+		expect(indexer.readSettings()).toEqual({ workshopRoot: '' });
+		expect(indexer.saveSettings({ workshopRoot: '  C:/Steam/workshop/content/285920  ' })).toEqual({
+			workshopRoot
+		});
+		expect(indexer.readSettings()).toEqual({ workshopRoot });
+		expect(indexer.getStats()).toBeNull();
+		expect(indexer.search({ query: '', limit: 10 })).toEqual({
+			rows: [],
+			stats: null
+		});
+	});
+});
+
+describe('block lookup index planner', () => {
+	it('marks unchanged sources for reuse and counts removed sources', () => {
+		const existingSource = {
+			sourcePath: path.normalize('/mods/a/Block.json'),
+			sourceKind: 'json' as const,
+			workshopId: 'a',
+			modTitle: 'A',
+			size: 10,
+			mtimeMs: 20
+		};
+		const plan = createBlockLookupIndexPlan(
+			{
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [
+					existingSource,
+					{
+						sourcePath: path.normalize('/mods/removed/Block.json'),
+						sourceKind: 'json' as const,
+						workshopId: 'removed',
+						modTitle: 'Removed',
+						size: 1,
+						mtimeMs: 1
+					}
+				],
+				records: [
+					{
+						blockId: '1',
+						blockName: 'Cab',
+						fallbackAlias: 'Cab(A)',
+						fallbackSpawnCommand: 'SpawnBlock Cab(A)',
+						internalName: 'Cab',
+						modTitle: 'A',
+						preferredAlias: 'Cab(A)',
+						sourceKind: 'json',
+						sourcePath: existingSource.sourcePath,
+						spawnCommand: 'SpawnBlock Cab(A)',
+						workshopId: 'a'
+					}
+				]
+			},
+			[existingSource]
+		);
+
+		expect(plan.removed).toBe(1);
+		expect(plan.tasks).toEqual([
+			expect.objectContaining({
+				existingSource,
+				reusedRecords: [expect.objectContaining({ blockName: 'Cab' })],
+				source: existingSource
+			})
+		]);
+	});
+});
+
+describe('block lookup search adapter', () => {
+	it('ranks exact block names before exact internal names and deprecated matches', () => {
+		const createRecord = (blockName: string, internalName: string) => ({
+			blockId: '',
+			blockName,
+			fallbackAlias: `${blockName}(Core)`,
+			fallbackSpawnCommand: `SpawnBlock ${blockName}(Core)`,
+			internalName,
+			modTitle: 'Core',
+			preferredAlias: `${blockName}(Core)`,
+			sourceKind: 'json' as const,
+			sourcePath: path.normalize(`/mods/${internalName}.json`),
+			spawnCommand: `SpawnBlock ${blockName}(Core)`,
+			workshopId: 'core'
+		});
+
+		const result = searchBlockLookupRecords(
+			{
+				version: 1,
+				builtAt: '2026-04-26T00:00:00.000Z',
+				sources: [],
+				records: [createRecord('Other Match', 'Cab'), createRecord('Deprecated Cab', '_deprecated_cab'), createRecord('Cab', 'ExactCab')]
+			},
+			'Cab'
+		);
+
+		expect(result.rows.map((record) => record.blockName)).toEqual(['Cab', 'Other Match', 'Deprecated Cab']);
 	});
 });
 

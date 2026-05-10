@@ -1,23 +1,25 @@
 import log from 'electron-log';
-import fs from 'fs';
-import path from 'path';
-import { Mutex } from 'async-mutex';
 
-import { ModData, ModType, ProgressTypes, ValidChannel } from '../model';
+import { ModData, ModType } from '../model';
 import { isSuccessful } from '../util/Promise';
 
-import Steamworks, {
-	GetUserItemsProps,
-	SteamPageResults,
-	SteamUGCDetails,
-	UGCItemState,
-	UGCMatchingType,
-	UserUGCList,
-	UserUGCListSortOrder
-} from './steamworks';
-import { clearPreviewAllowlist, registerPreviewImage } from './preview-protocol';
-import { resolvePersonaName } from './steam-persona-cache';
+import Steamworks, { SteamUGCDetails, UGCItemState } from './steamworks';
+import { clearPreviewAllowlist } from './preview-protocol';
 import { isSteamworksBypassEnabled } from './steamworks-runtime';
+import { ModInventoryProgress } from './mod-inventory-progress';
+import { getModDetailsFromPath, scanLocalMods } from './mod-local-scan';
+import { collectMissingWorkshopDependencies } from './mod-workshop-dependencies';
+import {
+	chunkWorkshopIds,
+	createWorkshopPotentialMod,
+	getRawWorkshopDetailsForList,
+	getWorkshopDetailsMap,
+	hasWorkshopModTag,
+	populateWorkshopModMetadata
+} from './mod-workshop-metadata';
+import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
+
+export { getModDetailsFromPath } from './mod-local-scan';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;
@@ -25,10 +27,6 @@ interface ProgressSender {
 
 interface ModFetcherOptions {
 	skipWorkshopSteamworks?: boolean;
-}
-
-function chunk<Type>(arr: Type[], size: number): Type[][] {
-	return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 }
 
 function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[] {
@@ -49,261 +47,6 @@ function filterOutNullValues<T>(responses: PromiseSettledResult<T | null>[]): T[
 		});
 }
 
-const MAX_MODS_PER_PAGE = 50;
-const TERRATECH_APP_ID = 285920;
-
-function shouldSkipWorkshopFetch(platform: NodeJS.Platform, existsSync: typeof fs.existsSync = fs.existsSync): boolean {
-	if (platform !== 'linux') {
-		return false;
-	}
-
-	try {
-		const installDir = Steamworks.getAppInstallDir(TERRATECH_APP_ID);
-		if (Steamworks.isAppInstalled(TERRATECH_APP_ID) && installDir && existsSync(installDir)) {
-			return false;
-		}
-
-		log.warn(
-			`Skipping Linux workshop scan because TerraTech is not installed in the Linux Steam library. installDir=${installDir || '<missing>'}`
-		);
-		return true;
-	} catch (error) {
-		log.error('Failed to verify the Linux TerraTech installation before scanning workshop items.');
-		log.error(error);
-		return true;
-	}
-}
-
-async function getSteamSubscribedPage(pageNum: number): Promise<SteamPageResults> {
-	return new Promise((resolve, reject) => {
-		const options: GetUserItemsProps = {
-			options: {
-				app_id: 285920,
-				page_num: pageNum,
-				required_tag: 'Mods'
-			},
-			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
-			ugc_list: UserUGCList.Subscribed,
-			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
-			success_callback: (results: SteamPageResults) => {
-				resolve(results);
-			},
-			error_callback: (err: Error) => {
-				reject(err);
-			}
-		};
-		Steamworks.ugcGetUserItems(options);
-	});
-}
-
-async function getRawWorkshopDetailsForList(workshopIDs: bigint[]): Promise<SteamUGCDetails[]> {
-	return new Promise((resolve, reject) => {
-		Steamworks.getUGCDetails(
-			workshopIDs.map((workshopID) => workshopID.toString()),
-			(steamDetails: SteamUGCDetails[]) => {
-				log.silly(
-					`Raw workshop list results: ${JSON.stringify(steamDetails, (_, value) => (typeof value === 'bigint' ? value.toString() : value), 2)}`
-				);
-				resolve(steamDetails);
-			},
-			(err: Error) => {
-				log.error(`Failed to fetch mod details for workshop mods ${workshopIDs}`);
-				log.error(err);
-				reject(err);
-			}
-		);
-	});
-}
-
-function createWorkshopPotentialMod(workshopID: bigint): ModData {
-	return {
-		uid: `${ModType.WORKSHOP}:${workshopID}`,
-		id: null,
-		type: ModType.WORKSHOP,
-		workshopID,
-		hasCode: false,
-		path: '',
-		name: `Workshop item ${workshopID.toString()}`
-	};
-}
-
-function isWorkshopPlaceholderName(name: string | undefined): boolean {
-	return !!name && /^Workshop item \d+$/i.test(name.trim());
-}
-
-function hasWorkshopModTag(tags: string[] | undefined): boolean {
-	return !!tags?.some((tag) => tag.toLowerCase() === 'mods');
-}
-
-function toOptionalStringArray(value: unknown): string[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-
-	const filtered = value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
-	return filtered.length > 0 ? filtered : undefined;
-}
-
-function applyTtsmmMetadata(potentialMod: ModData, metadata: unknown) {
-	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-		return;
-	}
-
-	const parsedMetadata = metadata as Record<string, unknown>;
-	if (
-		typeof parsedMetadata.name === 'string' &&
-		parsedMetadata.name.trim().length > 0 &&
-		(!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name))
-	) {
-		potentialMod.name = parsedMetadata.name;
-	}
-	if (typeof parsedMetadata.description === 'string' && !potentialMod.description) {
-		potentialMod.description = parsedMetadata.description;
-	}
-
-	const authors = toOptionalStringArray(parsedMetadata.authors);
-	if (authors && (!potentialMod.authors || potentialMod.authors.length === 0)) {
-		potentialMod.authors = authors;
-	}
-
-	const tags = toOptionalStringArray(parsedMetadata.tags);
-	if (tags && (!potentialMod.tags || potentialMod.tags.length === 0)) {
-		potentialMod.tags = tags;
-	}
-
-	const explicitIDDependencies = toOptionalStringArray(parsedMetadata.explicitIDDependencies);
-	if (explicitIDDependencies) {
-		potentialMod.explicitIDDependencies = explicitIDDependencies;
-	}
-}
-
-async function populateWorkshopModMetadata(potentialMod: ModData, steamUGCDetails?: SteamUGCDetails): Promise<void> {
-	if (!steamUGCDetails) {
-		return;
-	}
-
-	potentialMod.steamDependencies = steamUGCDetails.children;
-	potentialMod.steamDependenciesFetchedAt = Date.now();
-	potentialMod.description = steamUGCDetails.description;
-	potentialMod.name = steamUGCDetails.title;
-	potentialMod.tags = steamUGCDetails.tagsDisplayNames;
-	potentialMod.size = steamUGCDetails.fileSize;
-	potentialMod.dateAdded = new Date(steamUGCDetails.timeAddedToUserList * 1000);
-	potentialMod.dateCreated = new Date(steamUGCDetails.timeCreated * 1000);
-	potentialMod.lastWorkshopUpdate = new Date(steamUGCDetails.timeUpdated * 1000);
-	potentialMod.preview = steamUGCDetails.previewURL;
-
-	try {
-		potentialMod.authors = [await resolvePersonaName(steamUGCDetails.steamIDOwner)];
-	} catch (err) {
-		log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
-		log.warn(err);
-		potentialMod.authors = [steamUGCDetails.steamIDOwner];
-	}
-}
-
-async function getWorkshopDetailsMap(workshopIDs: Iterable<bigint>): Promise<Map<bigint, SteamUGCDetails>> {
-	const workshopDetailMap = new Map<bigint, SteamUGCDetails>();
-
-	for (const workshopChunk of chunk([...workshopIDs], MAX_MODS_PER_PAGE)) {
-		if (workshopChunk.length === 0) {
-			continue;
-		}
-
-		try {
-			const workshopDetails = await getRawWorkshopDetailsForList(workshopChunk);
-			workshopDetails.forEach((detail) => {
-				workshopDetailMap.set(detail.publishedFileId, detail);
-			});
-		} catch (error) {
-			log.warn(
-				`Failed to enrich workshop metadata for chunk ${JSON.stringify(workshopChunk, (_, value) => (typeof value === 'bigint' ? value.toString() : value))}`
-			);
-			log.warn(error);
-		}
-	}
-
-	return workshopDetailMap;
-}
-
-export async function getModDetailsFromPath(potentialMod: ModData, modPath: string, type: ModType): Promise<ModData | null> {
-	log.debug(`Reading mod metadata for ${modPath}`);
-	return new Promise((resolve, reject) => {
-		fs.readdir(modPath, { withFileTypes: true }, async (err, files) => {
-			try {
-				if (err) {
-					log.error(`fs.readdir failed on path ${modPath}`);
-					log.error(err);
-					reject(err);
-				} else {
-					let validModData = false;
-					try {
-						const stats = fs.statSync(modPath);
-						potentialMod.lastUpdate = stats.mtime;
-						if (!potentialMod.dateAdded) {
-							potentialMod.dateAdded = stats.birthtime;
-						}
-					} catch (e) {
-						log.error(`Failed to get file details for path ${modPath}`);
-						log.error(e);
-					}
-					const fileSizes = files.map((file) => {
-						let size = 0;
-						if (file.isFile()) {
-							try {
-								const stats = fs.statSync(path.join(modPath, file.name));
-								const { size: fileSize, mtime } = stats;
-								size = fileSize;
-								if (!potentialMod.lastUpdate || mtime > potentialMod.lastUpdate) {
-									potentialMod.lastUpdate = mtime;
-								}
-							} catch {
-								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
-							}
-							if (file.name === 'preview.png' && !potentialMod.preview) {
-								potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
-							} else if (file.name.match(/^(.*)\.dll$/)) {
-								potentialMod.hasCode = true;
-							} else if (file.name === 'ttsmm.json') {
-								applyTtsmmMetadata(potentialMod, JSON.parse(fs.readFileSync(path.join(modPath, file.name), 'utf8')));
-							} else {
-								const matches = file.name.match(/^(.*)_bundle$/);
-								if (matches && matches.length > 1) {
-									const [, modId] = matches;
-									potentialMod.id = modId;
-									if (type !== ModType.WORKSHOP) {
-										potentialMod.uid = `${type}:${potentialMod.id}`;
-									}
-									if (!potentialMod.name || isWorkshopPlaceholderName(potentialMod.name)) {
-										potentialMod.name = modId;
-									}
-									potentialMod.path = modPath;
-									validModData = true;
-								}
-								log.silly(`Found file: ${file.name} under mod path ${modPath}`);
-							}
-						}
-						return size;
-					});
-
-					// We are done, increment counter and return
-					if (validModData) {
-						potentialMod.size = fileSizes.reduce((acc: number, curr: number) => acc + curr, 0);
-						resolve(potentialMod);
-					} else {
-						log.warn(`Marking potential mod at ${modPath} as invalid mod`);
-						resolve(null);
-					}
-				}
-			} catch (e) {
-				log.error(`Failed to get local mod details at ${modPath}:`);
-				log.error(e);
-				reject(e);
-			}
-		});
-	});
-}
-
 export default class ModFetcher {
 	localPath?: string;
 
@@ -315,13 +58,7 @@ export default class ModFetcher {
 
 	skipWorkshopSteamworks: boolean;
 
-	localMods: number;
-
-	workshopMods: number;
-
-	loadedMods: number;
-
-	modCountMutex: Mutex;
+	progress: ModInventoryProgress;
 
 	constructor(
 		progressSender: ProgressSender,
@@ -336,41 +73,17 @@ export default class ModFetcher {
 		this.platform = platform;
 		this.skipWorkshopSteamworks = options.skipWorkshopSteamworks ?? isSteamworksBypassEnabled();
 
-		this.localMods = 0;
-		this.workshopMods = 0;
-		this.loadedMods = 0;
-		this.modCountMutex = new Mutex();
+		this.progress = new ModInventoryProgress(progressSender);
 
 		knownWorkshopMods.forEach((workshopid) => this.knownWorkshopMods.add(workshopid));
 	}
 
 	updateModLoadingProgress(size: number) {
-		this.modCountMutex.runExclusive(() => {
-			const current = this.loadedMods;
-			this.loadedMods += size;
-			const total = (this.localMods || 0) + (this.workshopMods || 0);
-			log.silly(`Loaded ${size} new mods. Old total: ${current}, Local: ${this.localMods}, Workshop: ${this.workshopMods}`);
-			this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, (current + size) / total, 'Loading mod details');
-		});
+		this.progress.addLoaded(size);
 	}
 
-	async fetchLocalMods(localModDirs: string[]): Promise<ModData[]> {
-		const modResponses = await Promise.allSettled<ModData | null>(
-			localModDirs.map((subDir: string) => {
-				const modPath = path.join(this.localPath!, subDir);
-				const potentialMod: ModData = {
-					uid: `${ModType.LOCAL}:${subDir}`,
-					id: null,
-					type: ModType.LOCAL,
-					hasCode: false,
-					path: modPath
-				};
-				return getModDetailsFromPath(potentialMod, modPath, ModType.LOCAL).finally(() => {
-					this.updateModLoadingProgress(1);
-				});
-			})
-		);
-		return filterOutNullValues(modResponses);
+	async fetchLocalMods(): Promise<ModData[]> {
+		return scanLocalMods(this.localPath, this.progress);
 	}
 
 	async getDetailsForWorkshopModList(workshopIDs: bigint[]): Promise<ModData[]> {
@@ -444,7 +157,7 @@ export default class ModFetcher {
 		knownInvalidMods: Set<bigint>,
 		modList: Set<bigint>
 	): Promise<Set<bigint>> {
-		const modChunks: bigint[][] = chunk([...modList], MAX_MODS_PER_PAGE);
+		const modChunks = chunkWorkshopIds([...modList]);
 		log.silly(JSON.stringify(modChunks, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
 
 		const modDependencies: Set<bigint> = new Set();
@@ -463,14 +176,9 @@ export default class ModFetcher {
 					workshopMap.set(modid!, mod);
 				});
 
-				// After this round has been added to the mod map, check if any items are missing
-				modDetails.forEach((mod: ModData) => {
-					if (mod.steamDependencies) {
-						mod.steamDependencies
-							.filter((dependency) => !workshopMap.has(dependency) && !knownInvalidMods.has(dependency))
-							.forEach((missingDependency) => modDependencies.add(missingDependency));
-					}
-				});
+				collectMissingWorkshopDependencies(modDetails, workshopMap, knownInvalidMods).forEach((missingDependency) =>
+					modDependencies.add(missingDependency)
+				);
 			} catch (e) {
 				log.error(e instanceof Error ? e : 'Error processing chunk');
 				this.updateModLoadingProgress(modChunks[i].length);
@@ -517,7 +225,7 @@ export default class ModFetcher {
 
 		while (lastProcessed > 0) {
 			const { items, totalItems, numReturned } = await getSteamSubscribedPage(pageNum);
-			this.workshopMods = totalItems;
+			this.progress.workshopMods = totalItems;
 			numProcessedWorkshop += numReturned;
 			lastProcessed = numReturned;
 			log.debug(`Total items: ${totalItems}, Returned by Steam: ${numReturned}, Processed this chunk: ${items.length}`);
@@ -530,14 +238,9 @@ export default class ModFetcher {
 			});
 			pageNum += 1;
 		}
-		// After this round has been added to the mod map, check if any items are missing
-		[...workshopMap.values()].forEach((modData: ModData) => {
-			if (modData.steamDependencies) {
-				modData.steamDependencies
-					.filter((dependency) => !workshopMap.has(dependency))
-					.forEach((missingDependency) => this.knownWorkshopMods.add(missingDependency));
-			}
-		});
+		collectMissingWorkshopDependencies(workshopMap.values(), workshopMap).forEach((missingDependency) =>
+			this.knownWorkshopMods.add(missingDependency)
+		);
 
 		if (workshopMap.size !== numProcessedWorkshop) {
 			log.debug(
@@ -554,7 +257,7 @@ export default class ModFetcher {
 
 		// continue to query steam until all dependencies are met via BFS search
 		while (this.knownWorkshopMods.size > 0) {
-			this.workshopMods += missingKnownWorkshopMods.size;
+			this.progress.workshopMods += missingKnownWorkshopMods.size;
 
 			missingKnownWorkshopMods = await this.processWorkshopModList(workshopMap, knownInvalidMods, missingKnownWorkshopMods);
 			this.knownWorkshopMods.forEach((workshopID) => {
@@ -574,7 +277,7 @@ export default class ModFetcher {
 		const workshopIDs = new Set<bigint>([...allSubscribedItems, ...knownWorkshopMods]);
 
 		log.debug(`All subscribed items: [${allSubscribedItems}]`);
-		this.workshopMods = workshopIDs.size;
+		this.progress.workshopMods = workshopIDs.size;
 		const workshopDetailsMap = await getWorkshopDetailsMap(workshopIDs);
 
 		const modResponses = await Promise.allSettled<ModData | null>(
@@ -588,25 +291,11 @@ export default class ModFetcher {
 	async fetchMods(): Promise<ModData[]> {
 		clearPreviewAllowlist();
 
-		// get local fist
-		let localModDirs: string[] = [];
-		if (this.localPath) {
-			try {
-				localModDirs = fs
-					.readdirSync(this.localPath, { withFileTypes: true })
-					.filter((dirent) => dirent.isDirectory())
-					.map((dirent) => dirent.name);
-				this.localMods = localModDirs.length;
-			} catch {
-				log.error(`Failed to read local mods in ${localModDirs}`);
-			}
-		}
-
-		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(localModDirs), this.fetchWorkshopMods()]);
+		const modResponses = await Promise.allSettled<ModData[]>([this.fetchLocalMods(), this.fetchWorkshopMods()]);
 		const allMods: ModData[] = filterOutNullValues(modResponses).flat();
 
 		// We are done
-		this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, 1.0, 'Finished loading mods'); // Return a value > 1.0 to signal we are done
+		this.progress.finish(); // Return a value > 1.0 to signal we are done
 		return allMods;
 	}
 }

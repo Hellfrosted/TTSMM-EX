@@ -211,4 +211,41 @@ describe('MenuBar', () => {
 			expect(appState.config.currentPath).toBe('/collections/main');
 		});
 	}, 10000);
+
+	it('does not roll back navigation state after unmounting during a failed path write', async () => {
+		let rejectWrite!: (error: Error) => void;
+		const failedWrite = new Promise<boolean>((_resolve, reject) => {
+			rejectWrite = reject;
+		});
+		vi.mocked(window.electron.updateConfig).mockImplementationOnce(() => failedWrite);
+
+		const appState = createAppState({
+			config: {
+				...createAppState().config,
+				currentPath: '/collections/main'
+			}
+		});
+
+		const view = render(
+			<MemoryRouter initialEntries={['/collections/main']}>
+				<Routes>
+					<Route path="*" element={<MenuBarHarness appState={appState} />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		fireEvent.click(getSettingsMenuItem(view.container));
+		await waitFor(() => {
+			expect(window.electron.updateConfig).toHaveBeenCalledTimes(1);
+		});
+
+		view.unmount();
+		rejectWrite(new Error('write failed'));
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(appState.config.currentPath).toBe('/settings');
+		expect(appState.updateState).toHaveBeenCalledTimes(1);
+	}, 10000);
 });

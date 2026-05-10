@@ -5,9 +5,8 @@ import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Clock3, Code2, HardDrive, LoaderCircle, TriangleAlert } from 'lucide-react';
 import api from 'renderer/Api';
-import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-projection';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
-import { useMainCollectionTableStore, type MainSortState } from 'renderer/state/main-collection-table-store';
+import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES, APP_THEME_COLORS } from 'renderer/theme';
 import {
 	MainCollectionVirtualHeaderRow,
@@ -22,7 +21,6 @@ import {
 	type MainCollectionRowColumn
 } from './main-collection-row';
 import {
-	ALL_MAIN_COLUMN_TITLES,
 	AUTO_MEASURE_MAIN_COLUMN_TITLES,
 	COLUMN_AUTO_MEASURE_MAX_ROWS,
 	COLUMN_MEASUREMENT_SAMPLE_SIZE,
@@ -30,25 +28,31 @@ import {
 	areColumnWidthMapsEqual,
 	cacheColumnMeasurements,
 	formatSizeLabel,
-	getActiveMainColumnTitles,
 	getAllTags,
 	getCachedColumnMeasurements,
 	getColumnMeasurementCacheKey,
 	getColumnPixelWidth,
 	getColumnWidthVariableName,
-	getColumnWidths,
 	getDefaultMainColumnWidth,
 	getMainCollectionTableScrollWidth,
 	getMeasurementRowSignature,
 	getRenderedColumnBodyCells,
-	getResponsiveMainColumnTitles,
 	measureBodyCellWidth,
 	setColumnWidthVariable
 } from './main-collection-table-layout';
 import {
+	createMainCollectionTableModel,
+	getMainCollectionDefaultSortState,
+	getMainCollectionSelectionModel,
+	getMainCollectionSorterCompare,
+	sortMainCollectionRows,
+	type MainCollectionSorter
+} from './main-collection-table-model';
+import {
 	CollectionViewProps,
 	DisplayModData,
 	MainCollectionConfig,
+	MainCollectionTableCommands,
 	MainColumnTitles,
 	ModErrors,
 	ModType,
@@ -355,18 +359,15 @@ interface ColumnSchema {
 	renderSetup?: (props: MainCollectionSchemaProps) => MainCollectionCellRenderer;
 }
 
-type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'getModDetails' | 'lastValidationStatus' | 'rows'>;
+type MainCollectionSchemaProps = Pick<CollectionViewProps, 'collection' | 'config' | 'lastValidationStatus' | 'rows'> & {
+	getModDetails: MainCollectionTableCommands['getModDetails'];
+};
 
 interface MainCollectionFilter {
 	text: string;
 	value: Key;
 }
 
-type MainCollectionSortOrder = 'ascend' | 'descend' | null | undefined;
-type MainCollectionSorter =
-	| ((a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number)
-	| { compare?: (a: DisplayModData, b: DisplayModData, sortOrder?: MainCollectionSortOrder) => number }
-	| undefined;
 interface StateTagConfig {
 	tone?: keyof typeof APP_TAG_STYLES;
 	rank: number;
@@ -720,19 +721,14 @@ const MAIN_COLUMN_SCHEMA: ColumnSchema[] = [
 
 const mainColumnSchemaByTitle = new Map(MAIN_COLUMN_SCHEMA.map((column) => [column.title, column]));
 
-function getResponsiveActiveColumnSchemas(config: MainCollectionConfig | undefined, availableTableWidth = 0): ColumnSchema[] {
-	return getResponsiveMainColumnTitles(config, availableTableWidth)
-		.map((columnTitle) => mainColumnSchemaByTitle.get(columnTitle))
-		.filter((column): column is ColumnSchema => !!column);
-}
-
 function getColumnSchema(
 	props: MainCollectionSchemaProps,
-	columnWidthConfig?: Record<string, number>,
-	availableTableWidth = 0
+	activeColumnTitles: MainColumnTitles[],
+	columnWidthConfig?: Record<string, number>
 ): MainCollectionTableColumn[] {
-	const { config } = props;
-	const activeColumns = getResponsiveActiveColumnSchemas(config as MainCollectionConfig | undefined, availableTableWidth);
+	const activeColumns = activeColumnTitles
+		.map((columnTitle) => mainColumnSchemaByTitle.get(columnTitle))
+		.filter((column): column is ColumnSchema => !!column);
 	const defaultSortColumnTitle = activeColumns.some((column) => column.title === MainColumnTitles.NAME)
 		? MainColumnTitles.NAME
 		: MainColumnTitles.ID;
@@ -777,41 +773,17 @@ interface MainCollectionTableColumn extends MainCollectionRowColumn, MainCollect
 	onHeaderCell?: (column: MainCollectionTableColumn) => ResizableHeaderCellProps;
 }
 
-function getSorterCompare(sorter: MainCollectionSorter) {
-	if (typeof sorter === 'function') {
-		return sorter;
-	}
-
-	if (sorter && typeof sorter === 'object' && 'compare' in sorter && typeof sorter.compare === 'function') {
-		return sorter.compare;
-	}
-
-	return undefined;
-}
-
-function sortRows(rows: DisplayModData[], columns: MainCollectionTableColumn[], sortState: MainSortState) {
-	return measurePerf(
-		'collection.table.sortRows',
-		() => {
-			const column = columns.find((candidate) => candidate.title === sortState.columnTitle);
-			const compare = getSorterCompare(column?.sorter);
-			if (!compare) {
-				return rows;
-			}
-
-			const direction = sortState.order === 'ascend' ? 1 : -1;
-			return [...rows].sort((left, right) => direction * compare(left, right, sortState.order));
-		},
-		{
-			rows: rows.length,
-			column: sortState.columnTitle,
-			order: sortState.order
-		}
-	);
-}
-
 function getHeaderCellProps(column: MainCollectionTableColumn) {
 	return column.onHeaderCell?.(column);
+}
+
+function createNoopTableCommands(): MainCollectionTableCommands {
+	return {
+		getModDetails: () => undefined,
+		setDisabled: () => undefined,
+		setEnabled: () => undefined,
+		setEnabledMods: () => undefined
+	};
 }
 
 function MainCollectionViewComponent(props: CollectionViewProps) {
@@ -825,6 +797,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		lastValidationStatus,
 		openMainViewSettingsCallback,
 		rows,
+		tableCommands,
 		setDisabledCallback,
 		setEnabledCallback,
 		setEnabledModsCallback,
@@ -833,6 +806,31 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		setMainColumnOrderCallback,
 		width
 	} = props;
+	const commands = useMemo<MainCollectionTableCommands>(
+		() =>
+			tableCommands ?? {
+				...createNoopTableCommands(),
+				getModDetails: getModDetails ?? (() => undefined),
+				openSettings: openMainViewSettingsCallback,
+				setColumnOrder: setMainColumnOrderCallback,
+				setColumnVisibility: setMainColumnVisibilityCallback,
+				setColumnWidth: setMainColumnWidthCallback,
+				setDisabled: setDisabledCallback ?? (() => undefined),
+				setEnabled: setEnabledCallback ?? (() => undefined),
+				setEnabledMods: setEnabledModsCallback ?? (() => undefined)
+			},
+		[
+			getModDetails,
+			openMainViewSettingsCallback,
+			setDisabledCallback,
+			setEnabledCallback,
+			setEnabledModsCallback,
+			setMainColumnOrderCallback,
+			setMainColumnVisibilityCallback,
+			setMainColumnWidthCallback,
+			tableCommands
+		]
+	);
 	const mainConfig = config as MainCollectionConfig | undefined;
 	const small = mainConfig?.smallRows;
 	const columnActiveConfig = mainConfig?.columnActiveConfig;
@@ -842,18 +840,11 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
 	const [availableTableWidth, setAvailableTableWidth] = useState(0);
 	const [draggingColumnTitle, setDraggingColumnTitle] = useState<MainColumnTitles>();
-	const manuallyActiveColumnTitles = useMemo(
-		() => getActiveMainColumnTitles(columnActiveConfig ? { columnActiveConfig } : undefined),
-		[columnActiveConfig]
+	const tableModel = useMemo(
+		() => createMainCollectionTableModel({ config: mainConfig, autoColumnWidths, availableTableWidth }),
+		[autoColumnWidths, availableTableWidth, mainConfig]
 	);
-	const activeColumnTitles = useMemo(
-		() => getResponsiveMainColumnTitles(columnActiveConfig ? { columnActiveConfig } : undefined, availableTableWidth),
-		[availableTableWidth, columnActiveConfig]
-	);
-	const hiddenColumnTitles = useMemo(
-		() => ALL_MAIN_COLUMN_TITLES.filter((columnTitle) => !manuallyActiveColumnTitles.includes(columnTitle)),
-		[manuallyActiveColumnTitles]
-	);
+	const { activeColumnTitles, hiddenColumnTitles, resolvedColumnWidths } = tableModel;
 	const sampledRows = useMemo(() => deferredRows.slice(0, COLUMN_MEASUREMENT_SAMPLE_SIZE), [deferredRows]);
 	const measurementInputKey = useMemo(
 		() => `${small ? 'compact' : 'comfortable'}::${getMeasurementRowSignature(deferredRows)}`,
@@ -874,10 +865,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 	const measurementCacheKey = useMemo(
 		() => getColumnMeasurementCacheKey(measurementStateKey, measuredColumnTitles),
 		[measuredColumnTitles, measurementStateKey]
-	);
-	const resolvedColumnWidths = useMemo(
-		() => getColumnWidths(config as MainCollectionConfig | undefined, autoColumnWidths, availableTableWidth),
-		[autoColumnWidths, availableTableWidth, config]
 	);
 	const tableRootRef = useRef<HTMLDivElement | null>(null);
 	const syncedColumnTitlesRef = useRef<string[]>([]);
@@ -1017,16 +1004,16 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		() => ({
 			collection,
 			config,
-			getModDetails,
+			getModDetails: commands.getModDetails,
 			lastValidationStatus,
 			rows
 		}),
-		[collection, config, getModDetails, lastValidationStatus, rows]
+		[collection, commands.getModDetails, config, lastValidationStatus, rows]
 	);
 	const sortState = useMainCollectionTableStore((state) => state.sortState);
 	const setSortState = useMainCollectionTableStore((state) => state.setSortState);
 	const columns = useMemo<MainCollectionTableColumn[]>(() => {
-		return getColumnSchema(columnSchemaProps, resolvedColumnWidths, availableTableWidth).map((column) => {
+		return getColumnSchema(columnSchemaProps, activeColumnTitles, resolvedColumnWidths).map((column) => {
 			const columnTitle = typeof column.title === 'string' ? column.title : undefined;
 			const currentWidth = columnTitle ? resolvedColumnWidths[columnTitle] : undefined;
 			if (!columnTitle || !currentWidth) {
@@ -1041,41 +1028,24 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					currentWidth,
 					draggingColumnTitle,
 					hiddenColumnTitles,
-					openMainViewSettingsCallback,
+					openMainViewSettingsCallback: commands.openSettings,
 					resolvedColumnWidths,
 					setDraggingColumnTitle,
-					setMainColumnOrderCallback,
-					setMainColumnVisibilityCallback,
-					setMainColumnWidthCallback,
+					setMainColumnOrderCallback: commands.setColumnOrder,
+					setMainColumnVisibilityCallback: commands.setColumnVisibility,
+					setMainColumnWidthCallback: commands.setColumnWidth,
 					tableRootRef
 				})
 			};
 		}) as MainCollectionTableColumn[];
-	}, [
-		columnActiveConfig,
-		columnSchemaProps,
-		draggingColumnTitle,
-		hiddenColumnTitles,
-		openMainViewSettingsCallback,
-		availableTableWidth,
-		resolvedColumnWidths,
-		setMainColumnOrderCallback,
-		setMainColumnVisibilityCallback,
-		setMainColumnWidthCallback
-	]);
+	}, [columnActiveConfig, activeColumnTitles, commands, columnSchemaProps, draggingColumnTitle, hiddenColumnTitles, resolvedColumnWidths]);
 	useEffect(() => {
-		if (columns.some((column) => column.title === sortState.columnTitle && getSorterCompare(column.sorter))) {
-			return;
+		const nextSortState = getMainCollectionDefaultSortState(columns, sortState);
+		if (nextSortState !== sortState) {
+			setSortState(nextSortState);
 		}
-
-		const defaultColumn =
-			columns.find((column) => column.title === MainColumnTitles.NAME && getSorterCompare(column.sorter)) ??
-			columns.find((column) => getSorterCompare(column.sorter));
-		if (defaultColumn) {
-			setSortState({ columnTitle: defaultColumn.title, order: 'ascend' });
-		}
-	}, [columns, setSortState, sortState.columnTitle]);
-	const sortedRows = useMemo(() => sortRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
+	}, [columns, setSortState, sortState]);
+	const sortedRows = useMemo(() => sortMainCollectionRows(deferredRows, columns, sortState), [columns, deferredRows, sortState]);
 	const tableColumnDefs = useMemo<ColumnDef<DisplayModData>[]>(
 		() => [
 			{
@@ -1090,7 +1060,6 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 		],
 		[columns]
 	);
-	// eslint-disable-next-line react-hooks/incompatible-library
 	const table = useReactTable({
 		data: sortedRows,
 		columns: tableColumnDefs,
@@ -1123,16 +1092,16 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					start: index * estimatedRowHeight
 				}));
 	const virtualBodyHeight = Math.max(rowVirtualizer.getTotalSize(), tableRows.length * estimatedRowHeight);
-	const selectionState = useMemo(() => getCollectionSelectionState(collection.mods, sortedRows), [collection.mods, sortedRows]);
+	const selectionState = useMemo(() => getMainCollectionSelectionModel(collection.mods, sortedRows), [collection.mods, sortedRows]);
 	const setAllVisibleSelected = useCallback(
 		(selected: boolean) => {
 			markPerfInteraction('collection.rowSelect.allVisible', {
 				selected,
 				rows: sortedRows.length
 			});
-			setEnabledModsCallback(setVisibleCollectionRowsSelected(collection.mods, sortedRows, selected));
+			commands.setEnabledMods(selectionState.getNextCollectionMods(selected));
 		},
-		[collection.mods, setEnabledModsCallback, sortedRows]
+		[commands, selectionState, sortedRows.length]
 	);
 	const setRowSelected = useCallback(
 		(record: DisplayModData, selected: boolean) => {
@@ -1141,12 +1110,12 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 				uid: record.uid
 			});
 			if (selected) {
-				setEnabledCallback(record.uid);
+				commands.setEnabled(record.uid);
 			} else {
-				setDisabledCallback(record.uid);
+				commands.setDisabled(record.uid);
 			}
 		},
-		[setDisabledCallback, setEnabledCallback]
+		[commands]
 	);
 	const openRowContextMenu = useCallback((record: DisplayModData) => {
 		api.openModContextMenu(record);
@@ -1175,7 +1144,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 								sortState={sortState}
 								sortedRowsCount={sortedRows.length}
 								getHeaderCellProps={getHeaderCellProps}
-								isColumnSortable={(column) => !!getSorterCompare(column.sorter)}
+								isColumnSortable={(column) => !!getMainCollectionSorterCompare(column.sorter)}
 								onSortStateChange={setSortState}
 							/>
 						</thead>

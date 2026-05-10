@@ -17,6 +17,18 @@ import {
 	getMainColumnMinWidth
 } from 'model';
 import api from 'renderer/Api';
+import {
+	desktopButtonBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDefaultButtonToneClassName,
+	desktopDisabledClassName,
+	desktopDisabledOpacityClassName,
+	desktopInputClassName,
+	desktopPrimaryButtonToneClassName,
+	desktopSwitchClassName,
+	joinClassNames
+} from 'renderer/components/desktop-control-classes';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { writeConfig } from 'renderer/util/config-write';
@@ -46,12 +58,12 @@ interface CollectionManagerModalProps {
 	deleteCollection: () => void;
 }
 
-interface CollectionNativeModalProps {
+interface CollectionDialogProps {
 	children: ReactNode;
-	className?: string;
 	footer?: ReactNode;
 	onCancel: () => void;
 	title: string;
+	variant?: 'default' | 'settings' | 'validation';
 	width?: number;
 	wrapClassName?: string;
 }
@@ -81,19 +93,13 @@ interface CollectionNumberInputProps {
 	value?: number;
 }
 
-const collectionControlFocusClassName =
-	'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
-const collectionInputClassName = [
-	'box-border min-h-control w-full rounded-md border border-border bg-surface px-3 text-text',
-	'disabled:cursor-not-allowed disabled:opacity-55',
-	collectionControlFocusClassName
-].join(' ');
+const collectionInputClassName = joinClassNames(desktopInputClassName, desktopDisabledClassName, desktopControlFocusClassName);
 
 function CollectionTextInput(props: InputHTMLAttributes<HTMLInputElement>) {
 	return <input {...props} className={[collectionInputClassName, props.className].filter(Boolean).join(' ')} />;
 }
 
-function CollectionNativeModal({ children, className, footer, onCancel, title, width = 520, wrapClassName }: CollectionNativeModalProps) {
+function CollectionDialog({ children, footer, onCancel, title, variant = 'default', width = 520, wrapClassName }: CollectionDialogProps) {
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
@@ -107,8 +113,6 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 		};
 	}, [onCancel]);
 
-	const isValidationModal = className?.includes('CollectionValidationModal');
-	const isSettingsModal = className?.includes('CollectionSettingsModal');
 	const overlayClassName = [
 		'fixed inset-0 z-[1000] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-color-background)_72%,transparent)] p-6',
 		wrapClassName
@@ -116,15 +120,14 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 		.filter(Boolean)
 		.join(' ');
 	const modalClassName = [
-		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]',
-		className
+		'flex max-h-[calc(100vh-48px)] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-border bg-surface-elevated shadow-[0_16px_36px_color-mix(in_srgb,var(--app-color-background)_72%,transparent)]'
 	]
 		.filter(Boolean)
 		.join(' ');
 	const bodyClassName = [
 		'overflow-auto p-4',
-		isValidationModal ? 'max-h-[calc(100vh-224px)]' : undefined,
-		isSettingsModal ? 'pb-3 pt-2.5' : undefined
+		variant === 'validation' ? 'max-h-[calc(100vh-224px)]' : undefined,
+		variant === 'settings' ? 'pb-3 pt-2.5' : undefined
 	]
 		.filter(Boolean)
 		.join(' ');
@@ -140,21 +143,21 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 			}}
 		>
 			<section
-				aria-labelledby="collection-native-modal-title"
+				aria-labelledby="collection-dialog-title"
 				aria-modal="true"
 				className={modalClassName}
 				role="dialog"
 				style={{ width: `min(${width}px, 100%)` }}
 			>
 				<header className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3.5">
-					<h2 id="collection-native-modal-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
+					<h2 id="collection-dialog-title" className="m-0 text-[1.05rem] font-bold leading-[1.3] text-text">
 						{title}
 					</h2>
 					<button
 						className={[
 							'inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted',
 							'hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] hover:text-text',
-							collectionControlFocusClassName
+							desktopControlFocusClassName
 						].join(' ')}
 						type="button"
 						aria-label="Close modal"
@@ -174,12 +177,12 @@ function CollectionNativeModal({ children, className, footer, onCancel, title, w
 
 function CollectionModalButton({ children, danger, disabled, loading, onClick, variant = 'default' }: CollectionModalButtonProps) {
 	const buttonClassName = [
-		'inline-flex min-h-control cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-3.5 font-[650] text-text',
-		'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]',
-		'disabled:cursor-not-allowed disabled:opacity-55',
-		variant === 'primary' ? 'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover' : undefined,
-		danger ? 'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]' : undefined,
-		collectionControlFocusClassName
+		desktopButtonBaseClassName,
+		desktopDefaultButtonToneClassName,
+		desktopDisabledOpacityClassName,
+		variant === 'primary' ? desktopPrimaryButtonToneClassName : undefined,
+		danger ? desktopDangerButtonToneClassName : undefined,
+		desktopControlFocusClassName
 	]
 		.filter(Boolean)
 		.join(' ');
@@ -201,13 +204,7 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 	return (
 		<input
 			{...props}
-			className={[
-				'relative m-0 h-6 w-11 cursor-pointer appearance-none rounded-full border border-border bg-surface transition-colors duration-150 ease-in-out',
-				"after:absolute after:left-[3px] after:top-[3px] after:h-4 after:w-4 after:rounded-full after:bg-text-muted after:transition-[transform,background-color] after:duration-150 after:ease-in-out after:content-['']",
-				'checked:border-[color-mix(in_srgb,var(--app-color-primary)_62%,var(--app-color-border))] checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))] checked:after:translate-x-5 checked:after:bg-primary',
-				'disabled:cursor-not-allowed disabled:opacity-55',
-				collectionControlFocusClassName
-			].join(' ')}
+			className={joinClassNames(desktopSwitchClassName, 'm-0')}
 			checked={checked}
 			disabled={disabled}
 			onChange={(event) => {
@@ -376,7 +373,7 @@ function CollectionManagerModal({
 	switch (modalType) {
 		case CollectionManagerModalType.WARN_DELETE:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="warning-modal"
 					title={`Delete "${activeCollectionName}"?`}
 					onCancel={closeModal}
@@ -403,13 +400,13 @@ function CollectionManagerModal({
 					<p>Delete the saved collection from TTSMM-EX.</p>
 					<p>Your installed mods and Steam subscriptions will stay unchanged.</p>
 					<p>This cannot be undone.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
 			const managerUID = getModManagerUID();
 			const managerData: ModData = getByUID(appState.mods, managerUID)!;
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="manager-warning-modal"
 					title="Mod manager must stay enabled"
 					onCancel={closeModal}
@@ -422,14 +419,14 @@ function CollectionManagerModal({
 					<p>TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.</p>
 					<p>Your current manager is {`${managerData.name} (${appState.config.workshopID})`}.</p>
 					<p>To switch managers, update the workshop item ID in Settings instead of disabling the current one here.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		case CollectionManagerModalType.ERRORS_FOUND:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="error-modal"
-					className="CollectionValidationModal"
+					variant="validation"
 					title="Collection has blocking issues"
 					width={760}
 					onCancel={() => {
@@ -465,13 +462,13 @@ function CollectionManagerModal({
 					<p>Mods that share the same Mod ID are incompatible. TerraTech only loads the first one it finds and ignores the rest.</p>
 					{renderValidationIssueList()}
 					<p>Review the list above before deciding whether to launch anyway.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="warning-modal"
-					className="CollectionValidationModal"
+					variant="validation"
 					title="Collection has warnings"
 					width={760}
 					onCancel={() => {
@@ -506,7 +503,7 @@ function CollectionManagerModal({
 					<p>This usually means the item is not subscribed, not installed yet, or still downloading from Steam.</p>
 					{renderValidationIssueList()}
 					<p>You can launch now, but review the affected mods first if the collection should be stable.</p>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		case CollectionManagerModalType.VIEW_SETTINGS: {
 			if (currentView !== CollectionViewType.MAIN) {
@@ -519,9 +516,9 @@ function CollectionManagerModal({
 			});
 
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="settings-modal"
-					className="CollectionSettingsModal"
+					variant="settings"
 					wrapClassName="px-3 pb-3 pt-[68px]"
 					title="Collection table settings"
 					width={760}
@@ -616,7 +613,7 @@ function CollectionManagerModal({
 							})}
 						</div>
 					</form>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		case CollectionManagerModalType.EDIT_OVERRIDES: {
@@ -646,9 +643,8 @@ function CollectionManagerModal({
 			});
 
 			return (
-				<CollectionNativeModal
+				<CollectionDialog
 					key="manager-override-modal"
-					className="CollectionOverrideModal"
 					title={`Edit Overrides For ${nextRecord.name}`}
 					width={620}
 					onCancel={closeModal}
@@ -683,7 +679,7 @@ function CollectionManagerModal({
 							</div>
 						</div>
 					</form>
-				</CollectionNativeModal>
+				</CollectionDialog>
 			);
 		}
 		default:

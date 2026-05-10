@@ -7,7 +7,6 @@ import {
 	getColumnWidthVariableName,
 	getColumnWidths,
 	getMainCollectionTableScrollWidth,
-	getResponsiveMainColumnTitles,
 	isMainColumnTitle,
 	setColumnWidthVariable
 } from '../../renderer/components/collections/main-collection-table-layout';
@@ -100,22 +99,6 @@ describe('main-collection-table-layout', () => {
 		expect(widths[MainColumnTitles.LAST_WORKSHOP_UPDATE]).toBeUndefined();
 		expect(widths[MainColumnTitles.DATE_ADDED]).toBeUndefined();
 		expect(widths[MainColumnTitles.TAGS]).toBeUndefined();
-	});
-
-	it('keeps configured column order and filters hidden columns before responsive width rules', () => {
-		const titles = getResponsiveMainColumnTitles(
-			{
-				columnOrder: [MainColumnTitles.ID, MainColumnTitles.NAME],
-				columnActiveConfig: {
-					[MainColumnTitles.AUTHORS]: false
-				}
-			},
-			900
-		);
-
-		expect(titles.slice(0, 2)).toEqual([MainColumnTitles.ID, MainColumnTitles.NAME]);
-		expect(titles).not.toContain(MainColumnTitles.AUTHORS);
-		expect(titles).not.toContain(MainColumnTitles.SIZE);
 	});
 
 	it('normalizes css variable names for persisted column widths', () => {

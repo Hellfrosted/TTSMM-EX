@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import { AppConfig, CollectionManagerModalType, ModCollection, ModData, ModType } from 'model';
 import type { NotificationProps } from 'model';
+import api from 'renderer/Api';
 import { useDeleteCollectionMutation, useRenameCollectionMutation, useUpdateCollectionMutation } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { getVisibleCollectionRows } from 'renderer/collection-mod-projection';
@@ -16,6 +17,16 @@ interface UseCollectionsOptions {
 	resetValidationState: () => void;
 	validateActiveCollection: (launchIfValid: boolean) => Promise<void>;
 	setModalType: (modalType: CollectionManagerModalType) => void;
+}
+
+async function runCollectionFileMutation(operation: () => Promise<unknown>) {
+	try {
+		await operation();
+		return true;
+	} catch (error) {
+		api.logger.error(error);
+		return false;
+	}
 }
 
 export function useCollections({
@@ -68,39 +79,26 @@ export function useCollections({
 	const persistCollectionFile = useCallback(
 		async (collection: ModCollection) => {
 			const targetCollection = cloneCollection(collection);
-			try {
-				await updateCollectionFileMutation(targetCollection);
-				return true;
-			} catch {
-				return false;
-			}
+			return runCollectionFileMutation(() => updateCollectionFileMutation(targetCollection));
 		},
 		[updateCollectionFileMutation]
 	);
 
 	const deleteCollectionFile = useCallback(
 		async (collectionName: string) => {
-			try {
-				await deleteCollectionFileMutation(collectionName);
-				return true;
-			} catch {
-				return false;
-			}
+			return runCollectionFileMutation(() => deleteCollectionFileMutation(collectionName));
 		},
 		[deleteCollectionFileMutation]
 	);
 
 	const renameCollectionFile = useCallback(
 		async (collection: ModCollection, newName: string) => {
-			try {
-				await renameCollectionFileMutation({
+			return runCollectionFileMutation(() =>
+				renameCollectionFileMutation({
 					collection: cloneCollection(collection),
 					newName
-				});
-				return true;
-			} catch {
-				return false;
-			}
+				})
+			);
 		},
 		[renameCollectionFileMutation]
 	);

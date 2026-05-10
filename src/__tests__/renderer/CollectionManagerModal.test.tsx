@@ -59,7 +59,7 @@ describe('CollectionManagerModal', () => {
 		expect(within(issueRegion).getAllByRole('list')).toHaveLength(2);
 	}, 10000);
 
-	it('saves main table settings from the native settings form', async () => {
+	it('saves main table settings from the settings dialog form', async () => {
 		const appState = createAppState();
 		const closeModal = vi.fn();
 

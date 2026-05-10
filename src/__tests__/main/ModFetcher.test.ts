@@ -3,6 +3,12 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Steamworks, { type SteamUGCDetails, UGCItemState, UGCItemVisibility } from '../../main/steamworks';
 import ModFetcher from '../../main/mod-fetcher';
+import { createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
+import { scanModInventory } from '../../main/mod-inventory-scan';
+import { ModInventoryProgress } from '../../main/mod-inventory-progress';
+import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
+import { chunkWorkshopIds, createWorkshopPotentialMod, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
+import { shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
 import { createTempDir } from './test-utils';
 
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails> & Pick<SteamUGCDetails, 'publishedFileId' | 'title'>): SteamUGCDetails {
@@ -94,6 +100,117 @@ describe('ModFetcher', () => {
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	it('scans local mods through the local adapter', async () => {
+		const tempDir = createTempDir('ttsmm-local-adapter-');
+		const modDir = path.join(tempDir, 'AdapterPack');
+		try {
+			fs.mkdirSync(modDir, { recursive: true });
+			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle'), 'bundle');
+			const progress = new ModInventoryProgress({ send: vi.fn() });
+
+			await expect(scanLocalMods(tempDir, progress)).resolves.toEqual([
+				expect.objectContaining({
+					uid: 'local:AdapterBundle',
+					id: 'AdapterBundle',
+					name: 'AdapterBundle',
+					path: modDir
+				})
+			]);
+			expect(createLocalPotentialMod(tempDir, 'AdapterPack')).toEqual(
+				expect.objectContaining({
+					uid: 'local:AdapterPack',
+					path: modDir
+				})
+			);
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('scans inventory through the facade entrypoint', async () => {
+		const fetchMods = vi.spyOn(ModFetcher.prototype, 'fetchMods').mockResolvedValueOnce([
+			{
+				uid: 'local:FacadePack',
+				id: 'FacadePack',
+				type: 'local',
+				hasCode: false,
+				path: 'C:\\mods\\FacadePack'
+			}
+		]);
+		const progressSender = { send: vi.fn() };
+
+		await expect(
+			scanModInventory({
+				knownWorkshopMods: [BigInt(42)],
+				localPath: 'C:\\mods',
+				platform: 'win32',
+				progressSender,
+				skipWorkshopSteamworks: true
+			})
+		).resolves.toEqual([expect.objectContaining({ uid: 'local:FacadePack' })]);
+
+		expect(fetchMods).toHaveBeenCalledTimes(1);
+	});
+
+	it('reports inventory progress through a shared progress tracker', async () => {
+		const sender = { send: vi.fn() };
+		const progress = new ModInventoryProgress(sender);
+		progress.localMods = 1;
+		progress.workshopMods = 1;
+
+		await progress.addLoaded(1);
+		progress.finish();
+
+		expect(sender.send).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), 0.5, 'Loading mod details');
+		expect(sender.send).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), 1, 'Finished loading mods');
+	});
+
+	it('keeps workshop metadata helpers behind the metadata adapter', () => {
+		expect(chunkWorkshopIds([BigInt(1), BigInt(2)])).toEqual([[BigInt(1), BigInt(2)]]);
+		expect(createWorkshopPotentialMod(BigInt(42))).toEqual(
+			expect.objectContaining({
+				name: 'Workshop item 42',
+				type: 'workshop',
+				uid: 'workshop:42',
+				workshopID: BigInt(42)
+			})
+		);
+		expect(hasWorkshopModTag(['Blocks', 'Mods'])).toBe(true);
+		expect(hasWorkshopModTag(['Screenshots'])).toBe(false);
+	});
+
+	it('keeps the workshop platform guard behind the paging adapter', () => {
+		expect(shouldSkipWorkshopFetch('win32')).toBe(false);
+		vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
+		vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+
+		expect(shouldSkipWorkshopFetch('linux')).toBe(true);
+	});
+
+	it('collects missing workshop dependencies without re-adding loaded or invalid mods', () => {
+		const loadedDependency = BigInt(2);
+		const invalidDependency = BigInt(3);
+		const missingDependency = BigInt(4);
+		const workshopMap = new Map<bigint, { uid: string }>([[loadedDependency, { uid: 'workshop:2' }]]);
+		const knownInvalidMods = new Set([invalidDependency]);
+
+		expect(
+			collectMissingWorkshopDependencies(
+				[
+					{
+						uid: 'workshop:1',
+						id: null,
+						type: 'workshop',
+						hasCode: false,
+						steamDependencies: [loadedDependency, invalidDependency, missingDependency]
+					}
+				],
+				workshopMap as never,
+				knownInvalidMods
+			)
+		).toEqual(new Set([missingDependency]));
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {

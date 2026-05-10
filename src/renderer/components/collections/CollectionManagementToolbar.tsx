@@ -1,30 +1,30 @@
 import { Suspense, lazy, memo, useState } from 'react';
 import { CollectionManagerModalType, NotificationProps } from 'model';
 import { Copy, Edit3, FileJson, Plus, RefreshCw, Save, Search, Settings2, Trash2, X } from 'lucide-react';
+import {
+	desktopControlBaseClassName,
+	desktopControlFocusClassName,
+	desktopDangerButtonToneClassName,
+	desktopDisabledClassName,
+	desktopPrimaryButtonToneClassName
+} from 'renderer/components/desktop-control-classes';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionNamingModalType } from './CollectionNamingModal';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
-const collectionToolbarFocusClassName =
-	'focus-visible:relative focus-visible:z-[1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
 const collectionToolbarControlClassName = [
-	'box-border min-h-control rounded-md border border-border bg-surface text-text',
-	'disabled:cursor-not-allowed disabled:opacity-55',
-	collectionToolbarFocusClassName
+	desktopControlBaseClassName,
+	desktopDisabledClassName,
+	'focus-visible:relative focus-visible:z-[1]',
+	desktopControlFocusClassName
 ].join(' ');
 const collectionToolbarButtonBaseClassName = [
 	collectionToolbarControlClassName,
 	'inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[1100px]:w-control max-[1100px]:min-w-control max-[1100px]:px-0',
 	'enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)]'
 ].join(' ');
-const collectionToolbarPrimaryButtonClassName = [
-	collectionToolbarButtonBaseClassName,
-	'border-primary bg-primary enabled:hover:border-primary-hover enabled:hover:bg-primary-hover'
-].join(' ');
-const collectionToolbarDangerButtonClassName = [
-	collectionToolbarButtonBaseClassName,
-	'border-error enabled:hover:bg-[color-mix(in_srgb,var(--app-color-error)_18%,var(--app-color-surface-alt))]'
-].join(' ');
+const collectionToolbarPrimaryButtonClassName = [collectionToolbarButtonBaseClassName, desktopPrimaryButtonToneClassName].join(' ');
+const collectionToolbarDangerButtonClassName = [collectionToolbarButtonBaseClassName, desktopDangerButtonToneClassName].join(' ');
 const collectionToolbarLabelClassName = 'inline-flex min-w-0 items-center overflow-hidden text-ellipsis max-[1100px]:hidden';
 
 interface CollectionManagementToolbarProps {
@@ -157,7 +157,7 @@ function CollectionManagementToolbarComponent({
 					<div className="flex w-full flex-wrap items-center gap-x-4 gap-y-3 max-[1100px]:gap-x-2.5 max-[720px]:gap-2">
 						<div className="min-w-[220px] max-w-[360px] flex-[0_1_280px] max-[1100px]:max-w-none max-[1100px]:basis-full max-[720px]:min-w-0">
 							<select
-								className={[collectionToolbarControlClassName, 'w-full px-3'].join(' ')}
+								className={[collectionToolbarControlClassName, 'w-full px-[11px]'].join(' ')}
 								value={activeCollection?.name || ''}
 								aria-label="Select the active collection"
 								onChange={(event) => {
@@ -310,7 +310,7 @@ function CollectionManagementToolbarComponent({
 							<div className="flex min-h-control w-full items-center">
 								<div className="flex w-full min-w-0">
 									<input
-										className={[collectionToolbarControlClassName, 'min-w-0 flex-auto rounded-r-none px-3'].join(' ')}
+										className={[collectionToolbarControlClassName, 'min-w-0 flex-auto rounded-r-none px-[11px]'].join(' ')}
 										aria-label="Search mods by name, ID, author, or tag"
 										placeholder="Search mods by name, ID, author, or tag"
 										onChange={(event) => {

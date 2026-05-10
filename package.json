@@ -6,9 +6,9 @@
 	"version": "2.1.0",
 	"scripts": {
 		"help": "node --import=tsx ./scripts/help.ts",
-		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts electron-vite dev",
+		"dev": "node --import=tsx ./scripts/check-port-in-use.ts && node --import=tsx ./scripts/run-with-clean-electron-env.ts node --import=tsx ./scripts/vite-dev.ts",
 		"start:desktop": "npm run build && cross-env NODE_ENV=production node --import=tsx ./scripts/run-with-clean-electron-env.ts electron .",
-		"build": "electron-vite build",
+		"build": "node --import=tsx ./scripts/vite-build.ts",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
 		"lint": "npm run lint:biome && npm run lint:eslint",
@@ -145,7 +145,6 @@
 		"electron": "^41.3.0",
 		"electron-builder": "^26.8.1",
 		"electron-devtools-installer": "^4.0.0",
-		"electron-vite": "^4.0.1",
 		"eslint": "^9.39.4",
 		"eslint-plugin-jsx-a11y": "^6.10.2",
 		"eslint-plugin-promise": "^7.2.1",
@@ -158,7 +157,7 @@
 		"rimraf": "^6.1.3",
 		"tsx": "^4.21.0",
 		"typescript": "^6.0.3",
-		"vite": "^7.3.2",
+		"vite": "^8.0.10",
 		"vitest": "^4.1.5"
 	},
 	"dependencies": {

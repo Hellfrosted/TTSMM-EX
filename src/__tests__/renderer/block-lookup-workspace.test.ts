@@ -3,7 +3,9 @@ import { ModType, SessionMods, setupDescriptors } from '../../model';
 import {
 	collectBlockLookupModSources,
 	createBlockLookupBuildRequest,
+	createBlockLookupSearchState,
 	formatBlockLookupIndexStatus,
+	getBlockLookupRecordKey,
 	retainSelectedBlockLookupRow
 } from '../../renderer/block-lookup-workspace';
 
@@ -45,5 +47,44 @@ describe('block-lookup-workspace', () => {
 		expect(retainSelectedBlockLookupRow(rows, 'b', getKey)).toBe('b');
 		expect(retainSelectedBlockLookupRow(rows, 'missing', getKey)).toBe('a');
 		expect(retainSelectedBlockLookupRow([], 'missing', getKey)).toBeUndefined();
+	});
+
+	it('creates search state with a stable selected record key', () => {
+		const rows = [
+			{
+				blockId: '1',
+				blockName: 'Cab',
+				fallbackAlias: 'cab',
+				fallbackSpawnCommand: 'cab',
+				internalName: 'ControlCab',
+				modTitle: 'Core',
+				preferredAlias: 'cab',
+				sourceKind: 'vanilla' as const,
+				sourcePath: '/vanilla',
+				spawnCommand: 'spawn cab',
+				workshopId: ''
+			},
+			{
+				blockId: '2',
+				blockName: 'Wheel',
+				fallbackAlias: 'wheel',
+				fallbackSpawnCommand: 'wheel',
+				internalName: 'Wheel',
+				modTitle: 'Core',
+				preferredAlias: 'wheel',
+				sourceKind: 'vanilla' as const,
+				sourcePath: '/vanilla',
+				spawnCommand: 'spawn wheel',
+				workshopId: ''
+			}
+		];
+		const retainedKey = getBlockLookupRecordKey(rows[1]);
+
+		expect(createBlockLookupSearchState({ rows, stats: null }, retainedKey)).toEqual({
+			rows,
+			stats: null,
+			selectedRowKey: retainedKey
+		});
+		expect(createBlockLookupSearchState({ rows, stats: null }, 'missing').selectedRowKey).toBe(getBlockLookupRecordKey(rows[0]));
 	});
 });

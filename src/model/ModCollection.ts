@@ -11,6 +11,17 @@ export enum CollectionViewType {
 	MAIN = 'main'
 }
 
+export interface MainCollectionTableCommands {
+	getModDetails: (mod: string, modData: ModData, bigData?: boolean) => void;
+	openSettings?: () => void;
+	setColumnOrder?: (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => boolean | void | Promise<boolean | void>;
+	setColumnVisibility?: (column: MainColumnTitles, visible: boolean) => boolean | void | Promise<boolean | void>;
+	setColumnWidth?: (column: MainColumnTitles, width: number) => boolean | void | Promise<boolean | void>;
+	setDisabled: (mod: string) => void;
+	setEnabled: (mod: string) => void;
+	setEnabledMods: (mods: Set<string>) => void;
+}
+
 export interface CollectionViewProps {
 	rows: ModData[];
 	filteredRows: ModData[];
@@ -21,14 +32,15 @@ export interface CollectionViewProps {
 	lastValidationStatus?: boolean;
 	launchingGame?: boolean;
 	config?: MainCollectionConfig;
-	setEnabledModsCallback: (mods: Set<string>) => void;
-	setEnabledCallback: (mod: string) => void;
-	setDisabledCallback: (mod: string) => void;
+	tableCommands?: MainCollectionTableCommands;
+	setEnabledModsCallback?: (mods: Set<string>) => void;
+	setEnabledCallback?: (mod: string) => void;
+	setDisabledCallback?: (mod: string) => void;
 	setMainColumnWidthCallback?: (column: MainColumnTitles, width: number) => boolean | void | Promise<boolean | void>;
 	setMainColumnVisibilityCallback?: (column: MainColumnTitles, visible: boolean) => boolean | void | Promise<boolean | void>;
 	setMainColumnOrderCallback?: (fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => boolean | void | Promise<boolean | void>;
 	openMainViewSettingsCallback?: () => void;
-	getModDetails: (mod: string, modData: ModData, bigData?: boolean) => void;
+	getModDetails?: (mod: string, modData: ModData, bigData?: boolean) => void;
 }
 
 export enum CollectionManagerModalType {

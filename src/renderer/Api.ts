@@ -11,7 +11,8 @@ import type {
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from 'shared/block-lookup';
-import type { ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
+import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
+import type { ElectronApi, ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
 
 const EXTRA_PARAM_PATTERN = /"([^"]*)"|'([^']*)'|[^\s]+/g;
@@ -20,6 +21,13 @@ export function parseExtraLaunchParams(extraParams: string): string[] {
 	const matches = extraParams.matchAll(EXTRA_PARAM_PATTERN);
 	return [...matches].map((match) => match[1] ?? match[2] ?? match[0]).filter((arg) => arg.length > 0);
 }
+
+type ElectronMethod<TMethod extends keyof ElectronApi> = ElectronApi[TMethod] extends (...args: infer TArgs) => infer TResult
+	? { args: TArgs; result: TResult }
+	: never;
+type ElectronInvokeMethod = keyof typeof ipcInvokeChannels;
+type ElectronSendMethod = keyof typeof ipcSendChannels;
+type ElectronSubscriptionMethod = keyof typeof ipcSubscriptionChannels;
 
 class API {
 	platform: ElectronPlatform;
@@ -54,7 +62,7 @@ class API {
 
 	async getUserDataPath() {
 		if (this.userDataPath === undefined) {
-			return window.electron.getUserDataPath().then((resolvedPath: string) => {
+			return this.invokeElectron('getUserDataPath').then((resolvedPath: string) => {
 				this.userDataPath = resolvedPath;
 				return resolvedPath;
 			});
@@ -62,8 +70,29 @@ class API {
 		return this.userDataPath;
 	}
 
+	private invokeElectron<TMethod extends ElectronInvokeMethod>(
+		method: TMethod,
+		...args: ElectronMethod<TMethod>['args']
+	): ElectronMethod<TMethod>['result'] {
+		const electronMethod = window.electron[method] as (...methodArgs: ElectronMethod<TMethod>['args']) => ElectronMethod<TMethod>['result'];
+		return electronMethod(...args);
+	}
+
+	private sendElectron<TMethod extends ElectronSendMethod>(method: TMethod, ...args: ElectronMethod<TMethod>['args']) {
+		const electronMethod = window.electron[method] as (...methodArgs: ElectronMethod<TMethod>['args']) => ElectronMethod<TMethod>['result'];
+		electronMethod(...args);
+	}
+
+	private subscribeElectron<TMethod extends ElectronSubscriptionMethod>(
+		method: TMethod,
+		...args: ElectronMethod<TMethod>['args']
+	): ElectronMethod<TMethod>['result'] {
+		const electronMethod = window.electron[method] as (...methodArgs: ElectronMethod<TMethod>['args']) => ElectronMethod<TMethod>['result'];
+		return electronMethod(...args);
+	}
+
 	updateLogLevel(level: LogLevel) {
-		window.electron.updateLogLevel(level);
+		this.sendElectron('updateLogLevel', level);
 	}
 
 	launchGame(
@@ -105,127 +134,127 @@ class API {
 		if (extraParams) {
 			args = args.concat(parseExtraLaunchParams(extraParams));
 		}
-		return window.electron.launchGame(gameExec, passedWorkshopID, closeOnLaunch, args);
+		return this.invokeElectron('launchGame', gameExec, passedWorkshopID, closeOnLaunch, args);
 	}
 
 	gameRunning(): Promise<boolean> {
-		return window.electron.isGameRunning();
+		return this.invokeElectron('isGameRunning');
 	}
 
 	onProgressChange(callback: ProgressChangeCallback): Unsubscribe {
-		return window.electron.onProgressChange(callback);
+		return this.subscribeElectron('onProgressChange', callback);
 	}
 
 	onModMetadataUpdate(callback: (uid: string, update: Partial<ModData>) => void): Unsubscribe {
-		return window.electron.onModMetadataUpdate(callback);
+		return this.subscribeElectron('onModMetadataUpdate', callback);
 	}
 
 	onModRefreshRequested(callback: () => void): Unsubscribe {
-		return window.electron.onModRefreshRequested(callback);
+		return this.subscribeElectron('onModRefreshRequested', callback);
 	}
 
 	onReloadSteamworks(callback: () => void): Unsubscribe {
-		return window.electron.onReloadSteamworks(callback);
+		return this.subscribeElectron('onReloadSteamworks', callback);
 	}
 
 	pathExists(targetPath: string, type?: PathType): Promise<boolean> {
-		return window.electron.pathExists(targetPath, type);
+		return this.invokeElectron('pathExists', targetPath, type);
 	}
 
 	discoverGameExecutable(): Promise<string | null> {
-		return window.electron.discoverGameExecutable();
+		return this.invokeElectron('discoverGameExecutable');
 	}
 
 	readConfig(): Promise<AppConfig | null> {
-		return window.electron.readConfig();
+		return this.invokeElectron('readConfig');
 	}
 
 	updateConfig(config: AppConfig): Promise<boolean> {
-		return window.electron.updateConfig(config);
+		return this.invokeElectron('updateConfig', config);
 	}
 
 	readCollection(collection: string): Promise<ModCollection | null> {
-		return window.electron.readCollection(collection);
+		return this.invokeElectron('readCollection', collection);
 	}
 
 	readCollectionsList(): Promise<string[]> {
-		return window.electron.readCollectionsList();
+		return this.invokeElectron('readCollectionsList');
 	}
 
 	updateCollection(collection: ModCollection): Promise<boolean> {
-		return window.electron.updateCollection(collection);
+		return this.invokeElectron('updateCollection', collection);
 	}
 
 	deleteCollection(collection: string): Promise<boolean> {
-		return window.electron.deleteCollection(collection);
+		return this.invokeElectron('deleteCollection', collection);
 	}
 
 	renameCollection(collection: ModCollection, newName: string): Promise<boolean> {
-		return window.electron.renameCollection(collection, newName);
+		return this.invokeElectron('renameCollection', collection, newName);
 	}
 
 	selectPath(directory: boolean, title: string): Promise<string | null> {
-		return window.electron.selectPath(directory, title);
+		return this.invokeElectron('selectPath', directory, title);
 	}
 
 	readBlockLookupSettings(): Promise<BlockLookupSettings> {
-		return window.electron.readBlockLookupSettings();
+		return this.invokeElectron('readBlockLookupSettings');
 	}
 
 	saveBlockLookupSettings(settings: BlockLookupSettings): Promise<BlockLookupSettings> {
-		return window.electron.saveBlockLookupSettings(settings);
+		return this.invokeElectron('saveBlockLookupSettings', settings);
 	}
 
 	buildBlockLookupIndex(request: BlockLookupBuildRequest): Promise<BlockLookupBuildResult> {
-		return window.electron.buildBlockLookupIndex(request);
+		return this.invokeElectron('buildBlockLookupIndex', request);
 	}
 
 	searchBlockLookup(request: BlockLookupSearchRequest): Promise<BlockLookupSearchResult> {
-		return window.electron.searchBlockLookup(request);
+		return this.invokeElectron('searchBlockLookup', request);
 	}
 
 	getBlockLookupStats(): Promise<BlockLookupIndexStats | null> {
-		return window.electron.getBlockLookupStats();
+		return this.invokeElectron('getBlockLookupStats');
 	}
 
 	autoDetectBlockLookupWorkshopRoot(request: BlockLookupBuildRequest): Promise<string | null> {
-		return window.electron.autoDetectBlockLookupWorkshopRoot(request);
+		return this.invokeElectron('autoDetectBlockLookupWorkshopRoot', request);
 	}
 
 	readModMetadata(localDir: string | undefined, allKnownMods: Set<string>): Promise<SessionMods> {
-		return window.electron.readModMetadata(localDir, [...allKnownMods]);
+		return this.invokeElectron('readModMetadata', localDir, [...allKnownMods]);
 	}
 
 	fetchWorkshopDependencies(workshopID: bigint): Promise<boolean> {
-		return window.electron.fetchWorkshopDependencies(workshopID);
+		return this.invokeElectron('fetchWorkshopDependencies', workshopID);
 	}
 
 	steamworksInited(): Promise<SteamworksStatus> {
-		return window.electron.steamworksInited();
+		return this.invokeElectron('steamworksInited');
 	}
 
 	openModBrowser(workshopID: bigint) {
-		window.electron.openModBrowser(workshopID);
+		this.sendElectron('openModBrowser', workshopID);
 	}
 
 	openModSteam(workshopID: bigint) {
-		window.electron.openModSteam(workshopID);
+		this.sendElectron('openModSteam', workshopID);
 	}
 
 	openModContextMenu(record: ModData) {
-		window.electron.openModContextMenu(record);
+		this.sendElectron('openModContextMenu', record);
 	}
 
 	downloadMod(workshopID: bigint): Promise<boolean> {
-		return window.electron.downloadMod(workshopID);
+		return this.invokeElectron('downloadMod', workshopID);
 	}
 
 	subscribeMod(workshopID: bigint): Promise<boolean> {
-		return window.electron.subscribeMod(workshopID);
+		return this.invokeElectron('subscribeMod', workshopID);
 	}
 
 	unsubscribeMod(workshopID: bigint): Promise<boolean> {
-		return window.electron.unsubscribeMod(workshopID);
+		return this.invokeElectron('unsubscribeMod', workshopID);
 	}
 }
 

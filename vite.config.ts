@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
-import type { PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { type InlineConfig, defineConfig, type PluginOption } from 'vite';
 import { applyRendererContentSecurityPolicy } from './src/shared/renderer-csp';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,16 +44,30 @@ function getRendererManualChunk(id: string) {
 	return undefined;
 }
 
-const releaseAppDependencies = new Set(readDependencies('release/app/package.json'));
-const bundledRootDependencies = readDependencies('package.json').filter((dependency) => !releaseAppDependencies.has(dependency));
+const releaseAppDependencies = readDependencies('release/app/package.json');
+const releaseAppDependencySet = new Set(releaseAppDependencies);
+const bundledRootDependencies = readDependencies('package.json').filter((dependency) => !releaseAppDependencySet.has(dependency));
 const rendererPort = Number.parseInt(process.env.PORT || '1212', 10);
+const nodeBuiltinExternals = new Set([...builtinModules, ...builtinModules.map((moduleName) => `node:${moduleName}`)]);
+const electronMainExternals = new Set(['electron', ...releaseAppDependencies]);
 
-const alias = {
-	model: resolvePath('src/model'),
-	renderer: resolvePath('src/renderer'),
-	shared: resolvePath('src/shared'),
-	util: resolvePath('src/util')
-};
+const alias = [
+	{ find: /^model$/, replacement: resolvePath('src/model/index.ts') },
+	{ find: /^model\//, replacement: `${resolvePath('src/model')}/` },
+	{ find: /^renderer\//, replacement: `${resolvePath('src/renderer')}/` },
+	{ find: /^shared\//, replacement: `${resolvePath('src/shared')}/` },
+	{ find: /^util\//, replacement: `${resolvePath('src/util')}/` }
+];
+
+function isElectronMainExternal(id: string) {
+	if (nodeBuiltinExternals.has(id)) {
+		return true;
+	}
+
+	const [packageNameOrScope, scopedPackageName] = id.split('/');
+	const packageName = packageNameOrScope?.startsWith('@') ? `${packageNameOrScope}/${scopedPackageName}` : packageNameOrScope;
+	return Boolean(packageName && electronMainExternals.has(packageName));
+}
 
 function rendererContentSecurityPolicyPlugin(isDevelopment: boolean): PluginOption {
 	return {
@@ -64,49 +78,69 @@ function rendererContentSecurityPolicyPlugin(isDevelopment: boolean): PluginOpti
 	};
 }
 
-export default defineConfig(({ command }) => ({
-	main: {
-		plugins: [externalizeDepsPlugin({ exclude: bundledRootDependencies })],
-		resolve: {
-			alias
-		},
+const mainPreloadBaseConfig = {
+	configFile: false,
+	publicDir: false,
+	resolve: {
+		alias
+	},
+	ssr: {
+		noExternal: bundledRootDependencies
+	}
+} satisfies InlineConfig;
+
+export function createMainConfig(): InlineConfig {
+	return {
+		...mainPreloadBaseConfig,
 		build: {
+			ssr: true,
+			target: 'node20',
 			outDir: 'release/app/dist/main',
 			emptyOutDir: true,
 			rollupOptions: {
+				external: isElectronMainExternal,
 				input: {
 					main: resolvePath('src/main/main.ts')
 				},
 				output: {
+					format: 'cjs',
 					entryFileNames: '[name].js'
 				}
 			}
 		}
-	},
-	preload: {
-		plugins: [externalizeDepsPlugin({ exclude: bundledRootDependencies })],
-		resolve: {
-			alias
-		},
+	};
+}
+
+export function createPreloadConfig(): InlineConfig {
+	return {
+		...mainPreloadBaseConfig,
 		build: {
+			ssr: true,
+			target: 'node20',
 			outDir: 'release/app/dist/preload',
 			emptyOutDir: true,
 			rollupOptions: {
+				external: isElectronMainExternal,
 				input: {
 					preload: resolvePath('src/main/preload.ts')
 				},
 				output: {
+					format: 'cjs',
 					entryFileNames: '[name].js'
 				}
 			}
 		}
-	},
-	renderer: {
+	};
+}
+
+export function createRendererConfig(isDevelopment: boolean): InlineConfig {
+	return {
+		configFile: false,
 		root: resolvePath('src/renderer'),
 		resolve: {
 			alias
 		},
-		plugins: [rendererContentSecurityPolicyPlugin(command === 'serve'), react(), tailwindcss()],
+		plugins: [rendererContentSecurityPolicyPlugin(isDevelopment), react(), tailwindcss()],
 		server: {
 			port: Number.isNaN(rendererPort) ? 1212 : rendererPort,
 			strictPort: true
@@ -114,6 +148,8 @@ export default defineConfig(({ command }) => ({
 		build: {
 			outDir: resolvePath('release/app/dist/renderer'),
 			emptyOutDir: true,
+			// Electron loads the generated HTML directly from disk in production; keep asset loading explicit.
+			modulePreload: false,
 			rollupOptions: {
 				input: resolvePath('src/renderer/index.html'),
 				output: {
@@ -121,5 +157,7 @@ export default defineConfig(({ command }) => ({
 				}
 			}
 		}
-	}
-}));
+	};
+}
+
+export default defineConfig(({ command }) => createRendererConfig(command === 'serve'));

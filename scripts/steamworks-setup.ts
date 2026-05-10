@@ -1,7 +1,6 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { releaseAppNodeModulesPath, releaseAppPath, repoRoot, srcNodeModulesPath } from './lib/paths';
 
 const sdkPathFile = path.join(repoRoot, '.steamworks-sdk-path');
@@ -9,8 +8,6 @@ const greenworksPath = path.join(releaseAppNodeModulesPath, 'greenworks');
 const greenworksSdkPath = path.join(greenworksPath, 'deps', 'steamworks_sdk');
 const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
-const legacySmokeEntryPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke.ts');
-const legacySmokeWorkerPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke-worker.ts');
 const smokeWorkerPath = path.join(repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts');
 
 export const resolveSteamworksSdkPath = () => {
@@ -174,9 +171,7 @@ function patchGreenworksPythonCommand() {
 
 function terminateSteamworksSmokeProcesses() {
 	if (process.platform !== 'win32') {
-		const smokePathFragments = [legacySmokeEntryPath, legacySmokeWorkerPath, smokeWorkerPath].map((targetPath) =>
-			targetPath.replace(/\\/g, '/')
-		);
+		const smokePathFragment = smokeWorkerPath.replace(/\\/g, '/').toLowerCase();
 		const processList = execSync('ps -ax -o pid= -o command=', {
 			cwd: repoRoot,
 			encoding: 'utf8'
@@ -187,10 +182,7 @@ function terminateSteamworksSmokeProcesses() {
 			.filter((match): match is RegExpMatchArray => Boolean(match))
 			.filter(([, , commandLine]) => {
 				const normalizedCommandLine = commandLine.toLowerCase().replace(/\\/g, '/');
-				return (
-					normalizedCommandLine.includes('electron') &&
-					smokePathFragments.some((fragment) => normalizedCommandLine.includes(fragment.toLowerCase()))
-				);
+				return normalizedCommandLine.includes('electron') && normalizedCommandLine.includes(smokePathFragment);
 			})
 			.map(([, pid]) => Number.parseInt(pid, 10))
 			.filter((pid) => Number.isInteger(pid) && pid > 0);
@@ -207,9 +199,7 @@ function terminateSteamworksSmokeProcesses() {
 
 	const processFilter = [
 		"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'electron.exe'",
-		`-and ($_.CommandLine -like '*${legacySmokeEntryPath}*'`,
-		`-or $_.CommandLine -like '*${legacySmokeWorkerPath}*'`,
-		`-or $_.CommandLine -like '*${smokeWorkerPath}*') }`
+		`-and $_.CommandLine -like '*${smokeWorkerPath}*' }`
 	].join(' ');
 	const stopProcesses = 'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }';
 	run(`powershell -NoProfile -Command "${processFilter} | ${stopProcesses}"`);

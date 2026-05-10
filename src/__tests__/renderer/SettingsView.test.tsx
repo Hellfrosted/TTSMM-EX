@@ -29,6 +29,16 @@ afterEach(() => {
 });
 
 describe('SettingsView', () => {
+	it('keeps settings switches on the shared desktop switch classes', () => {
+		renderSettingsView();
+
+		expect(screen.getByRole('checkbox', { name: 'Close the app after launching TerraTech' })).toHaveClass(
+			'SettingsSwitch',
+			'rounded-full',
+			'checked:bg-[color-mix(in_srgb,var(--app-color-primary)_28%,var(--app-color-surface-elevated))]'
+		);
+	});
+
 	it('saves path and log-level edits through the settings form', async () => {
 		const { appState } = renderSettingsView();
 

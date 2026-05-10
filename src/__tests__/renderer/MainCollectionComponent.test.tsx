@@ -122,6 +122,35 @@ describe('MainCollectionView', () => {
 		expect(await screen.findByRole('checkbox', { name: 'Include HumanReadableModId in collection' })).toBeChecked();
 	});
 
+	it('routes row actions through the table command object', async () => {
+		stubResizeObserver();
+		const setDisabled = vi.fn();
+		const getModDetails = vi.fn();
+
+		render(
+			<MainCollectionView
+				{...createProps({
+					getModDetails: undefined,
+					setDisabledCallback: undefined,
+					setEnabledCallback: undefined,
+					setEnabledModsCallback: undefined,
+					tableCommands: {
+						getModDetails,
+						setDisabled,
+						setEnabled: vi.fn(),
+						setEnabledMods: vi.fn()
+					}
+				})}
+			/>
+		);
+
+		fireEvent.click(await screen.findByRole('button', { name: 'Open details for HumanReadableModId' }));
+		fireEvent.click(screen.getByRole('checkbox', { name: 'Include HumanReadableModId in collection' }));
+
+		expect(getModDetails).toHaveBeenCalledWith('workshop:3264187221', expect.objectContaining({ uid: 'workshop:3264187221' }));
+		expect(setDisabled).toHaveBeenCalledWith('workshop:3264187221');
+	});
+
 	it('defaults to name sorting and supports size and date added sorting without an unsorted state', async () => {
 		stubResizeObserver();
 
