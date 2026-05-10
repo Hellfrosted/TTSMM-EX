@@ -14,7 +14,6 @@ use io_unity::unity_asset_view::UnityAssetViewer;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-const MAX_EMBEDDED_FALLBACK_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_PREVIEW_ASSETS_PER_FILE: usize = 4096;
 const MAX_PREVIEW_DIMENSION: u32 = 512;
 const MESH_PREVIEW_SIZE: u32 = 96;
@@ -128,13 +127,13 @@ where
         },
         Ok(Err(error)) => ExtractedBundleFile {
             source_path: source_path.to_owned(),
-            text_assets: extract_embedded_text_fallback(&path),
+            text_assets: Vec::new(),
             preview_assets: Vec::new(),
             errors: vec![format_error_chain(&error)],
         },
         Err(payload) => ExtractedBundleFile {
             source_path: source_path.to_owned(),
-            text_assets: extract_embedded_text_fallback(&path),
+            text_assets: Vec::new(),
             preview_assets: Vec::new(),
             errors: vec![format!(
                 "panic while parsing Unity bundle: {}",
@@ -800,46 +799,6 @@ fn is_flat_preview_image(image: &image::DynamicImage) -> bool {
             .all(|(min_channel, max_channel)| max_channel.saturating_sub(*min_channel) <= 2)
 }
 
-fn extract_embedded_text_fallback(path: &Path) -> Vec<ExtractedTextAsset> {
-    if fs::metadata(path)
-        .map(|metadata| metadata.len() > MAX_EMBEDDED_FALLBACK_BYTES)
-        .unwrap_or(true)
-    {
-        return Vec::new();
-    }
-
-    let Ok(bytes) = fs::read(path) else {
-        return Vec::new();
-    };
-    let asset_name = path
-        .file_stem()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let mut text_assets = Vec::new();
-
-    if let Ok(text) = String::from_utf8(bytes.clone()) {
-        if text.contains("NuterraBlock") {
-            text_assets.push(ExtractedTextAsset {
-                asset_name: asset_name.clone(),
-                text,
-            });
-        }
-    }
-
-    let utf16_units = bytes
-        .chunks_exact(2)
-        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-        .collect::<Vec<_>>();
-    if let Ok(text) = String::from_utf16(&utf16_units) {
-        if text.contains("NuterraBlock") {
-            text_assets.push(ExtractedTextAsset { asset_name, text });
-        }
-    }
-
-    text_assets
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -847,7 +806,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn falls_back_to_embedded_text_when_parser_panics() {
+    fn reports_parser_panic_without_raw_text_fallback() {
         let previous_hook = panic::take_hook();
         panic::set_hook(Box::new(|_| {}));
 
@@ -883,9 +842,8 @@ mod tests {
                 .to_str()
                 .expect("temp path should be valid UTF-8")
         );
-        assert_eq!(result.text_assets.len(), 1);
+        assert_eq!(result.text_assets.len(), 0);
         assert_eq!(result.preview_assets.len(), 0);
-        assert!(result.text_assets[0].text.contains("Synthetic Block"));
         assert_eq!(result.errors.len(), 1);
         assert!(result.errors[0].contains("synthetic parser panic"));
     }

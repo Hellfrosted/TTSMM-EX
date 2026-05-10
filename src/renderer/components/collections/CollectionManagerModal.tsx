@@ -347,6 +347,51 @@ function MainTableSettingsForm({
 	);
 }
 
+function DeleteCollectionDialog({
+	activeCollectionName,
+	closeModal,
+	deleteCollection,
+	launchGameWithErrors
+}: {
+	activeCollectionName: string;
+	closeModal: () => void;
+	deleteCollection: () => void;
+	launchGameWithErrors: boolean;
+}) {
+	return (
+		<CollectionDialog
+			key="warning-modal"
+			title={`Delete "${activeCollectionName}"?`}
+			onCancel={closeModal}
+			footer={
+				<>
+					<CollectionModalButton variant="primary" disabled={launchGameWithErrors} onClick={closeModal}>
+						Keep Collection
+					</CollectionModalButton>
+					<CollectionModalButton
+						danger
+						variant="primary"
+						disabled={launchGameWithErrors}
+						loading={launchGameWithErrors}
+						onClick={() => {
+							deleteCollection();
+							closeModal();
+						}}
+					>
+						Delete Collection
+					</CollectionModalButton>
+				</>
+			}
+		>
+			<div className={MODAL_COPY_STACK_CLASS_NAME}>
+				<p className={MODAL_COPY_CLASS_NAME}>Delete the saved collection from TTSMM-EX.</p>
+				<p className={MODAL_COPY_CLASS_NAME}>Installed mods and Steam subscriptions stay unchanged.</p>
+				<p className="m-0 text-ui font-[650] leading-[var(--app-leading-ui)] text-error">This cannot be undone.</p>
+			</div>
+		</CollectionDialog>
+	);
+}
+
 function CollectionManagerModal({
 	appState,
 	modalType,
@@ -424,36 +469,12 @@ function CollectionManagerModal({
 	switch (modalType) {
 		case CollectionManagerModalType.WARN_DELETE:
 			return (
-				<CollectionDialog
-					key="warning-modal"
-					title={`Delete "${activeCollectionName}"?`}
-					onCancel={closeModal}
-					footer={
-						<>
-							<CollectionModalButton variant="primary" disabled={launchGameWithErrors} onClick={closeModal}>
-								Keep Collection
-							</CollectionModalButton>
-							<CollectionModalButton
-								danger
-								variant="primary"
-								disabled={launchGameWithErrors}
-								loading={launchGameWithErrors}
-								onClick={() => {
-									deleteCollection();
-									closeModal();
-								}}
-							>
-								Delete Collection
-							</CollectionModalButton>
-						</>
-					}
-				>
-					<div className={MODAL_COPY_STACK_CLASS_NAME}>
-						<p className={MODAL_COPY_CLASS_NAME}>Delete the saved collection from TTSMM-EX.</p>
-						<p className={MODAL_COPY_CLASS_NAME}>Installed mods and Steam subscriptions stay unchanged.</p>
-						<p className="m-0 text-ui font-[650] leading-[var(--app-leading-ui)] text-error">This cannot be undone.</p>
-					</div>
-				</CollectionDialog>
+				<DeleteCollectionDialog
+					activeCollectionName={activeCollectionName}
+					closeModal={closeModal}
+					deleteCollection={deleteCollection}
+					launchGameWithErrors={launchGameWithErrors}
+				/>
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
 			const managerUID = getModManagerUID();

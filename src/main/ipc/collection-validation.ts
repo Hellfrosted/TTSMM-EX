@@ -44,10 +44,6 @@ export function parseCollectionNamePayload(channel: ValidChannel, payload: unkno
 	return parseIpcPayload(channel, collectionNameSchema, payload);
 }
 
-export function parseModCollectionPayload(channel: ValidChannel, payload: unknown): ModCollection {
-	return parseIpcPayload(channel, modCollectionSchema, payload) as ModCollection;
-}
-
 export function parseStoredModCollectionPayload(channel: ValidChannel, payload: unknown): Pick<ModCollection, 'mods'> {
 	return parseIpcPayload(channel, storedModCollectionSchema, payload);
 }

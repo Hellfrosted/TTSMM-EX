@@ -271,7 +271,7 @@ describe('session mod descriptors', () => {
 			label: 'never-checked',
 			mod: {}
 		}
-	])('preserves $label workshop dependency snapshots as unknown metadata', async ({ mod }) => {
+	])('does not report $label workshop dependency metadata when no dependencies are known', async ({ mod }) => {
 		const dependent = {
 			uid: `${ModType.WORKSHOP}:10`,
 			type: ModType.WORKSHOP,
@@ -292,7 +292,7 @@ describe('session mod descriptors', () => {
 		});
 
 		expect(getDependencies(session, dependent)).toEqual([]);
-		expect(errors[dependent.uid]).toEqual({ unknownWorkshopDependencies: true });
+		expect(errors[dependent.uid]).toBeUndefined();
 	});
 
 	it('uses workshop dependency names for unresolved workshop dependencies', () => {

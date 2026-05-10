@@ -323,7 +323,10 @@ describe('ModDetailsFooter', () => {
 			expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
 		});
 
-		rerender(<ModDetailsFooter {...footerProps} currentRecord={{ ...currentRecord, steamDependenciesFetchedAt: Date.now() }} />);
+		const freshDependencyTimestamp = Date.now();
+		rerender(
+			<ModDetailsFooter {...footerProps} currentRecord={{ ...currentRecord, steamDependenciesFetchedAt: freshDependencyTimestamp }} />
+		);
 		await new Promise((resolve) => {
 			setTimeout(resolve, 0);
 		});

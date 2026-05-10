@@ -9,7 +9,7 @@ const DEVELOPMENT_RENDERER_CSP_DIRECTIVES = [
 	['img-src', "'self'", 'data:', 'blob:', 'image:', 'http://localhost:*', 'https:'],
 	['connect-src', "'self'", 'ws://localhost:*', 'http://localhost:*', 'https:'],
 	['style-src', "'self'", "'unsafe-inline'"],
-	['script-src', "'self'", "'unsafe-inline'", "'unsafe-eval'"]
+	['script-src', "'self'", "'unsafe-inline'", "'unsafe-eval'", 'http://localhost:*']
 ] as const;
 
 const PRODUCTION_RENDERER_CSP_DIRECTIVES = [

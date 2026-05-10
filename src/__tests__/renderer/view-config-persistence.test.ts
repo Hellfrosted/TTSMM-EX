@@ -205,6 +205,7 @@ describe('view-config-persistence', () => {
 	});
 
 	it('derives default block lookup columns from canonical keys', () => {
+		expect(BLOCK_LOOKUP_COLUMN_KEYS).toEqual(['preview', 'blockName', 'spawnCommand', 'internalName', 'modTitle']);
 		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.key)).toEqual(BLOCK_LOOKUP_COLUMN_KEYS);
 		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.title)).toEqual(
 			BLOCK_LOOKUP_COLUMN_KEYS.map((key) => BLOCK_LOOKUP_COLUMN_TITLES[key])

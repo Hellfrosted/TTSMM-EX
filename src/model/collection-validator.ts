@@ -7,7 +7,7 @@ import { getWorkshopDependencySnapshotState } from '../shared/workshop-dependenc
 
 type ElectronLogger = typeof Logger;
 
-function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronLogger): ModErrors {
+function validateMod(session: SessionMods, modData: ModData, logger?: ElectronLogger): ModErrors {
 	logger?.debug(`validating ${modData.name}`);
 	const thisModErrors: ModErrors = {};
 
@@ -26,7 +26,7 @@ function validateMod(_session: SessionMods, modData: ModData, logger?: ElectronL
 		if (!modData.installed) {
 			thisModErrors.notInstalled = true;
 		}
-		if (!getWorkshopDependencySnapshotState(modData).hasKnownSnapshot) {
+		if (!getWorkshopDependencySnapshotState(modData).hasKnownSnapshot && getDependencies(session, modData).length > 0) {
 			thisModErrors.unknownWorkshopDependencies = true;
 		}
 	}

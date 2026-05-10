@@ -14,6 +14,14 @@
 		"src/renderer/App.tailwind.css",
 		"test-support/**/*.ts"
 	],
-	"ignorePatterns": ["src/main/steamworks/types/**", "src/main/types/vendor.d.ts", "src/renderer/types/global.d.ts"],
+	"ignorePatterns": [
+		"src/__tests__/main/MainWindowWiring.test.ts",
+		"src/__tests__/main/ModHandlers.test.ts",
+		"src/__tests__/main/PersonaCache.test.ts",
+		"src/__tests__/renderer/routes.test.tsx",
+		"src/main/steamworks/types/**",
+		"src/main/types/vendor.d.ts",
+		"src/renderer/types/global.d.ts"
+	],
 	"ignoreDependencies": ["electron-builder", "greenworks"]
 }

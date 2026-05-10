@@ -27,7 +27,7 @@ interface ModContextMenuRecordStore {
 	replace: (mods: Iterable<ModData>) => void;
 }
 
-export function createModContextMenuRecordStore(): ModContextMenuRecordStore {
+function createModContextMenuRecordStore(): ModContextMenuRecordStore {
 	let recordsByUid = new Map<string, ModData>();
 
 	return {

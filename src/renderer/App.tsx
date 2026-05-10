@@ -1,4 +1,16 @@
-import { Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+	Suspense,
+	lazy,
+	memo,
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useLayoutEffect,
+	useMemo,
+	useReducer,
+	useRef,
+	useState
+} from 'react';
 import type { PropsWithChildren } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -55,7 +67,7 @@ interface AppViewStageProps extends PropsWithChildren {
 
 export function AppViewStage({ active, children, name, overflow = 'hidden' }: AppViewStageProps) {
 	const stageRef = useRef<HTMLDivElement>(null);
-	const [containsFocus, setContainsFocus] = useState(false);
+	const [containsFocus, setContainsFocus] = useReducer((_current: boolean, next: boolean) => next, false);
 	const hideFromAssistiveTech = !active && !containsFocus;
 
 	useLayoutEffect(() => {
@@ -182,7 +194,7 @@ function MenuBarStageView({
 
 export function AppShell() {
 	const location = useLocation();
-	const [previewPathname, setPreviewPathname] = useState<string | null>(null);
+	const [previewPathname, setPreviewPathname] = useReducer((_current: string | null, next: string | null) => next, null);
 	const committedPathnameRef = useRef(location.pathname);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
 	const updateAppState = useAppStateSelector((state) => state.updateState);
@@ -296,7 +308,15 @@ export function AppShell() {
 	return (
 		<div className="AppLayout">
 			<aside className={`AppSidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Workspace navigation">
-				<div className="logo" />
+				<div className="AppBrand" aria-label="TTSMM-EX">
+					<span className="AppBrandMark" aria-hidden="true">
+						TX
+					</span>
+					<span className="AppBrandCopy">
+						<span className="AppBrandName">TTSMM-EX</span>
+						<span className="AppBrandMeta">Mod manager</span>
+					</span>
+				</div>
 				<Suspense fallback={null}>
 					<MenuBarStageView disableNavigation={appShell.disableNavigation} onWorkspacePreview={previewWorkspaceNavigation} />
 				</Suspense>

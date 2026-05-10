@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type {
 	Dispatch,
 	DragEvent as ReactDragEvent,
 	Key,
 	KeyboardEvent as ReactKeyboardEvent,
 	MouseEvent as ReactMouseEvent,
+	MutableRefObject,
 	ReactNode,
 	RefObject,
 	SetStateAction,
@@ -57,6 +58,67 @@ export interface ResizableHeaderCellProps extends ThHTMLAttributes<HTMLTableCell
 	onResizeEnd?: (nextWidth: number) => void;
 }
 
+interface HeaderMenuPortalProps {
+	headerMenu: HeaderMenu;
+	menuPosition: { x: number; y: number };
+	menuRef: RefObject<HTMLDivElement | null>;
+	resizeLabel: string;
+	setMenuPosition: (nextPosition: { x: number; y: number } | null) => void;
+	menuOpenerRef: MutableRefObject<HTMLElement | null>;
+}
+
+function HeaderMenuPortal({ headerMenu, menuPosition, menuRef, menuOpenerRef, resizeLabel, setMenuPosition }: HeaderMenuPortalProps) {
+	return createPortal(
+		<div
+			ref={menuRef}
+			className="MainCollectionHeaderMenu"
+			role="menu"
+			aria-label={`${resizeLabel} column options`}
+			tabIndex={-1}
+			style={{ left: menuPosition.x, top: menuPosition.y }}
+		>
+			{headerMenu.items.map((item, index) => {
+				if (item.type === 'divider') {
+					const nextItemKey = headerMenu.items.slice(index + 1).find((nextItem) => nextItem.key !== undefined)?.key;
+					const previousItemKey = headerMenu.items
+						.slice(0, index)
+						.reverse()
+						.find((previousItem) => previousItem.key !== undefined)?.key;
+					return (
+						<hr
+							key={`divider-${String(previousItemKey ?? 'start')}-${String(nextItemKey ?? 'end')}`}
+							className="MainCollectionHeaderMenuDivider"
+						/>
+					);
+				}
+
+				if (item.key === undefined) {
+					return null;
+				}
+
+				return (
+					<button
+						key={item.key.toString()}
+						type="button"
+						className="MainCollectionHeaderMenuItem"
+						role="menuitem"
+						disabled={item.disabled}
+						onClick={() => {
+							headerMenu.onClick({ key: item.key as Key });
+							setMenuPosition(null);
+							menuOpenerRef.current?.focus();
+							menuOpenerRef.current = null;
+						}}
+					>
+						{item.label}
+					</button>
+				);
+			})}
+		</div>,
+		document.body
+	);
+}
+
 export function ResizableHeaderCell({
 	headerMenu,
 	label,
@@ -76,7 +138,10 @@ export function ResizableHeaderCell({
 	const menuInstanceIdRef = useRef(`main-header-menu-${Math.random().toString(36).slice(2)}`);
 	const resizeHandleRef = useRef<HTMLButtonElement | null>(null);
 	const widthRef = useRef(currentResizeWidth);
-	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+	const [menuPosition, setMenuPosition] = useReducer(
+		(_current: { x: number; y: number } | null, next: { x: number; y: number } | null) => next,
+		null
+	);
 	const resizeLabel = label ?? (typeof rest['data-column-title'] === 'string' ? rest['data-column-title'] : 'column');
 	const syncResizeHandleValue = useCallback(
 		(nextWidth: number) => {
@@ -318,59 +383,6 @@ export function ResizableHeaderCell({
 		/>
 	) : null;
 
-	const headerMenuElement =
-		headerMenu && menuPosition
-			? createPortal(
-					<div
-						ref={menuRef}
-						className="MainCollectionHeaderMenu"
-						role="menu"
-						aria-label={`${resizeLabel} column options`}
-						tabIndex={-1}
-						style={{ left: menuPosition.x, top: menuPosition.y }}
-					>
-						{headerMenu.items.map((item, index) => {
-							if (item.type === 'divider') {
-								const nextItemKey = headerMenu.items.slice(index + 1).find((nextItem) => nextItem.key !== undefined)?.key;
-								const previousItemKey = headerMenu.items
-									.slice(0, index)
-									.reverse()
-									.find((previousItem) => previousItem.key !== undefined)?.key;
-								return (
-									<hr
-										key={`divider-${String(previousItemKey ?? 'start')}-${String(nextItemKey ?? 'end')}`}
-										className="MainCollectionHeaderMenuDivider"
-									/>
-								);
-							}
-
-							if (item.key === undefined) {
-								return null;
-							}
-
-							return (
-								<button
-									key={item.key.toString()}
-									type="button"
-									className="MainCollectionHeaderMenuItem"
-									role="menuitem"
-									disabled={item.disabled}
-									onClick={() => {
-										headerMenu.onClick({ key: item.key as Key });
-										setMenuPosition(null);
-										menuOpenerRef.current?.focus();
-										menuOpenerRef.current = null;
-									}}
-								>
-									{item.label}
-								</button>
-							);
-						})}
-					</div>,
-					document.body
-				)
-			: null;
-
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
 			<div className="CollectionTableHeaderInner">
@@ -389,7 +401,16 @@ export function ResizableHeaderCell({
 				)}
 				{resizeHandle}
 			</div>
-			{headerMenuElement}
+			{headerMenu && menuPosition ? (
+				<HeaderMenuPortal
+					headerMenu={headerMenu}
+					menuPosition={menuPosition}
+					menuRef={menuRef}
+					menuOpenerRef={menuOpenerRef}
+					resizeLabel={resizeLabel}
+					setMenuPosition={setMenuPosition}
+				/>
+			) : null}
 		</th>
 	);
 }

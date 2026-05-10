@@ -137,7 +137,7 @@ function SettingsField({ id, label, required, error, extra, tooltip, children }:
 	const enhancedChildren = enhanceSettingsFieldChildren(children, id, describedBy, !!error, !!required);
 
 	return (
-		<div className="mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
+		<div className="SettingsField mb-4 grid w-full grid-cols-[minmax(10rem,0.42fr)_minmax(0,0.58fr)] items-start gap-x-4 gap-y-2 last:mb-0 max-[1199px]:grid-cols-1">
 			<label
 				className="min-h-control whitespace-normal pt-2 text-body leading-[var(--app-leading-ui)] text-text"
 				htmlFor={id}

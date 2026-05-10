@@ -33,7 +33,9 @@ describe('renderer CSP', () => {
 	it('keeps development permissions for Vite and local assets', () => {
 		const policy = createRendererContentSecurityPolicy({ isDevelopment: true });
 
-		expect(getDirectiveSources(policy, 'script-src')).toEqual(expect.arrayContaining(["'self'", "'unsafe-inline'", "'unsafe-eval'"]));
+		expect(getDirectiveSources(policy, 'script-src')).toEqual(
+			expect.arrayContaining(["'self'", "'unsafe-inline'", "'unsafe-eval'", 'http://localhost:*'])
+		);
 		expect(getDirectiveSources(policy, 'connect-src')).toEqual(
 			expect.arrayContaining(["'self'", 'ws://localhost:*', 'http://localhost:*', 'https:'])
 		);

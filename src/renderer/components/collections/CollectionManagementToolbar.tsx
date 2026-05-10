@@ -1,12 +1,12 @@
-import { Suspense, lazy, memo, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CollectionManagerModalType, NotificationProps } from 'model';
 import {
 	CheckCircle,
-	ChevronDown,
 	Copy,
 	Edit3,
 	FileJson,
+	Link2,
 	Play,
 	Plus,
 	RefreshCw,
@@ -18,22 +18,19 @@ import {
 	XCircle
 } from 'lucide-react';
 import type { CollectionNamingModalType } from 'renderer/collection-form-validation';
-import { DesktopButton, DesktopIconButton, DesktopInput, DesktopSelect, DesktopToolbarButton } from 'renderer/components/DesktopControls';
+import { DesktopButton, DesktopIconButton, DesktopInput, DesktopSelect } from 'renderer/components/DesktopControls';
 import { desktopControlFocusClassName, joinClassNames } from 'renderer/components/desktop-control-classes';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
 
-const toolbarRowClassName = 'flex min-w-0 items-center gap-2.5 max-[760px]:flex-wrap';
+const toolbarRowClassName = 'flex min-w-0 items-center gap-2.5 max-[1100px]:flex-wrap';
 const toolbarLeadingControlClassName =
-	'min-w-70 max-w-140 flex-[0_1_35rem] max-[760px]:min-w-0 max-[760px]:max-w-none max-[760px]:basis-full';
-const toolbarActionGroupClassName = 'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:w-full max-[760px]:[&>button]:flex-1';
-const toolbarPrimaryActionGroupClassName = 'ml-auto inline-flex shrink-0 flex-wrap items-center gap-3 max-[760px]:ml-0 max-[760px]:w-full';
-const toolbarDraftActionGroupClassName =
-	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:flex-1 max-[760px]:[&>button]:flex-1';
-const toolbarLaunchActionClassName = 'min-w-34 max-[1100px]:min-w-control max-[1100px]:w-control max-[1100px]:px-0 max-[760px]:flex-1';
+	'min-w-70 max-w-140 flex-[0_1_35rem] max-[1100px]:min-w-0 max-[1100px]:max-w-none max-[1100px]:basis-full';
+const toolbarActionGridClassName = 'ml-auto grid w-[31rem] shrink-0 grid-cols-3 items-center gap-2 max-[1100px]:ml-0 max-[1100px]:w-full';
+const toolbarLaunchActionClassName = 'CollectionToolbarGridButton';
 const toolbarMenuButtonClassName =
-	'ToolbarMenuButton inline-flex cursor-pointer items-center justify-center gap-2 px-3 font-[650] max-[760px]:flex-1';
+	'ToolbarMenuButton CollectionToolbarGridButton CollectionToolbarIconButton--neutral inline-flex cursor-pointer items-center justify-center gap-2 font-[650]';
 const toolbarMenuClassName =
 	'ToolbarMenuSurface absolute right-0 top-[calc(100%+6px)] z-30 flex min-w-56 flex-col rounded-sm border border-border bg-surface-elevated p-1.5 shadow-[0_8px_18px_color-mix(in_srgb,var(--app-color-background)_76%,transparent)]';
 const toolbarMenuItemClassName = joinClassNames(
@@ -187,7 +184,9 @@ type ToolbarMenuAction = {
 };
 
 function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[]; disabled: boolean; label: string }) {
-	const [open, setOpen] = useState(false);
+	const [open, dispatchOpen] = useReducer((_current: boolean, next: boolean | ((current: boolean) => boolean)) => {
+		return typeof next === 'function' ? next(_current) : next;
+	}, false);
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const menuRef = useRef<HTMLDivElement | null>(null);
 	const menuId = `${label.toLowerCase().replace(/\s+/g, '-')}-toolbar-menu`;
@@ -229,12 +228,12 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 			if (!(target instanceof Node) || rootRef.current?.contains(target)) {
 				return;
 			}
-			setOpen(false);
+			dispatchOpen(false);
 		};
 		const handleMenuKeyboard = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				event.preventDefault();
-				setOpen(false);
+				dispatchOpen(false);
 				focusMenuButton();
 				return;
 			}
@@ -256,7 +255,7 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 				event.preventDefault();
 				focusMenuItem('last');
 			} else if (event.key === 'Tab') {
-				setOpen(false);
+				dispatchOpen(false);
 			}
 		};
 
@@ -275,11 +274,12 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 				aria-expanded={open}
 				aria-controls={open ? menuId : undefined}
 				aria-haspopup="menu"
+				aria-label={`${label} actions`}
 				className={toolbarMenuButtonClassName}
 				disabled={disabled}
-				icon={<ChevronDown size={16} aria-hidden="true" />}
+				icon={<Link2 size={16} aria-hidden="true" />}
 				onClick={() => {
-					setOpen((current) => !current);
+					dispatchOpen((current) => !current);
 				}}
 			>
 				{label}
@@ -295,7 +295,7 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 							role="menuitem"
 							onClick={() => {
 								action.onClick();
-								setOpen(false);
+								dispatchOpen(false);
 							}}
 						>
 							<span className="inline-flex shrink-0">{action.icon}</span>
@@ -316,9 +316,7 @@ function PrimaryCollectionControls({
 	launchGameDisabled,
 	launchGameDisabledReason,
 	launchingGame,
-	madeEdits,
-	saveCollectionCallback,
-	savingCollection,
+	onReloadModListCallback,
 	validateCollectionCallback,
 	validatingCollection
 }: Pick<
@@ -329,9 +327,7 @@ function PrimaryCollectionControls({
 	| 'launchGameDisabledReason'
 	| 'launchReady'
 	| 'launchingGame'
-	| 'madeEdits'
-	| 'saveCollectionCallback'
-	| 'savingCollection'
+	| 'onReloadModListCallback'
 	| 'validateCollectionCallback'
 	| 'validatingCollection'
 > & {
@@ -345,7 +341,7 @@ function PrimaryCollectionControls({
 		) : (
 			<RefreshCw className={validatingCollection ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
 		);
-	const [launchReadyPulse, setLaunchReadyPulse] = useState(false);
+	const [launchReadyPulse, dispatchLaunchReadyPulse] = useReducer((_current: boolean, next: boolean) => next, false);
 	const validationRequestedRef = useRef(false);
 	const wasValidatingCollectionRef = useRef(!!validatingCollection);
 	const validateLabel = launchReady ? 'Collection Ready' : 'Validate Collection';
@@ -361,13 +357,13 @@ function PrimaryCollectionControls({
 		const shouldPulse = validationRequestedRef.current && !!launchReady;
 		validationRequestedRef.current = false;
 		if (!shouldPulse) {
-			setLaunchReadyPulse(false);
+			dispatchLaunchReadyPulse(false);
 			return undefined;
 		}
 
-		setLaunchReadyPulse(true);
+		dispatchLaunchReadyPulse(true);
 		const timeoutId = window.setTimeout(() => {
-			setLaunchReadyPulse(false);
+			dispatchLaunchReadyPulse(false);
 		}, 620);
 
 		return () => {
@@ -376,34 +372,32 @@ function PrimaryCollectionControls({
 	}, [launchReady, validatingCollection]);
 
 	return (
-		<div className={toolbarPrimaryActionGroupClassName} role="group" aria-label="Primary collection actions">
-			<div className={toolbarDraftActionGroupClassName} role="group" aria-label="Draft and validation actions">
-				<DesktopToolbarButton
-					aria-label="Save Collection"
-					title="Save collection"
-					icon={<Save size={16} aria-hidden="true" />}
-					loading={savingCollection}
-					variant={madeEdits ? 'primary' : 'default'}
-					onClick={saveCollectionCallback}
-					disabled={disabledFeatures || !madeEdits}
-				>
-					Save Collection
-				</DesktopToolbarButton>
-				<DesktopToolbarButton
-					aria-label={validateLabel}
-					title={readyTitle}
-					icon={validateIcon}
-					danger={currentValidationStatus === false}
-					onClick={() => {
-						validationRequestedRef.current = true;
-						validateCollectionCallback?.();
-					}}
-					disabled={disabledFeatures || validatingCollection || launchingGame || !validateCollectionCallback}
-				>
-					{launchReady ? 'Ready' : 'Validate Collection'}
-				</DesktopToolbarButton>
-			</div>
-			<DesktopToolbarButton
+		<div className={toolbarActionGridClassName} role="group" aria-label="Primary collection actions">
+			<DesktopButton
+				aria-label={validateLabel}
+				title={readyTitle}
+				className="CollectionToolbarGridButton CollectionValidateButton"
+				icon={validateIcon}
+				danger={currentValidationStatus === false}
+				onClick={() => {
+					validationRequestedRef.current = true;
+					validateCollectionCallback?.();
+				}}
+				disabled={disabledFeatures || validatingCollection || launchingGame || !validateCollectionCallback}
+			>
+				{launchReady ? 'Ready' : 'Validate'}
+			</DesktopButton>
+			<DesktopButton
+				aria-label="Reload Mods"
+				title="Reload mods"
+				className="CollectionToolbarGridButton CollectionToolbarIconButton--neutral"
+				icon={<RefreshCw size={16} aria-hidden="true" />}
+				disabled={disabledFeatures}
+				onClick={onReloadModListCallback}
+			>
+				Reload Mods
+			</DesktopButton>
+			<DesktopButton
 				aria-label="Launch Game"
 				title={launchGameDisabledReason || 'Launch game'}
 				className={toolbarLaunchActionClassName}
@@ -417,7 +411,7 @@ function PrimaryCollectionControls({
 				disabled={disabledFeatures || !!launchGameDisabled || !launchGameCallback}
 			>
 				Launch Game
-			</DesktopToolbarButton>
+			</DesktopButton>
 		</div>
 	);
 }
@@ -458,17 +452,21 @@ function CollectionSelector({
 function ToolbarSecondaryMenus({
 	disabledFeatures,
 	handleCopyCollection,
-	onReloadModListCallback,
+	madeEdits,
+	openViewSettingsCallback,
 	openCollectionModal,
 	openModal,
-	openViewSettingsCallback
+	saveCollectionCallback,
+	savingCollection
 }: {
 	disabledFeatures: boolean;
 	handleCopyCollection: () => Promise<void>;
-	onReloadModListCallback: () => void;
+	madeEdits: boolean;
+	openViewSettingsCallback: () => void;
 	openCollectionModal: (nextModalType: CollectionNamingModalType) => void;
 	openModal: (modalType: CollectionManagerModalType) => void;
-	openViewSettingsCallback: () => void;
+	saveCollectionCallback: () => void;
+	savingCollection?: boolean;
 }) {
 	const collectionActions: ToolbarMenuAction[] = [
 		{
@@ -509,26 +507,29 @@ function ToolbarSecondaryMenus({
 		}
 	];
 	return (
-		<div className={`ml-auto ${toolbarActionGroupClassName} max-[760px]:ml-0`} role="group" aria-label="More collection and table actions">
-			<ToolbarMenu actions={collectionActions} disabled={disabledFeatures} label="Collection" />
-			<DesktopToolbarButton
-				aria-label="Reload mods"
-				title="Reload mods"
-				icon={<RefreshCw size={16} aria-hidden="true" />}
-				disabled={disabledFeatures}
-				onClick={onReloadModListCallback}
+		<div className={`CollectionToolbarActionShelf ${toolbarActionGridClassName}`} role="group" aria-label="Collection file actions">
+			<DesktopButton
+				aria-label="Save Collection"
+				title="Save collection"
+				className="CollectionToolbarGridButton CollectionToolbarIconButton--success"
+				loading={savingCollection}
+				disabled={disabledFeatures || !madeEdits}
+				icon={<Save size={16} aria-hidden="true" />}
+				onClick={saveCollectionCallback}
 			>
-				Reload Mods
-			</DesktopToolbarButton>
-			<DesktopToolbarButton
+				Save
+			</DesktopButton>
+			<ToolbarMenu actions={collectionActions} disabled={disabledFeatures} label="Collection" />
+			<DesktopButton
 				aria-label="Table Settings"
 				title="Table settings"
+				className="CollectionToolbarGridButton CollectionToolbarSettingsButton"
 				icon={<Settings2 size={16} aria-hidden="true" />}
 				disabled={disabledFeatures}
 				onClick={openViewSettingsCallback}
 			>
 				Table Settings
-			</DesktopToolbarButton>
+			</DesktopButton>
 		</div>
 	);
 }
@@ -568,7 +569,7 @@ function CollectionManagementToolbarComponent({
 	const sortedCollectionNames = Array.from(appState.allCollectionNames).sort();
 	const resultSummaryId = useId();
 	const shownSummary = numResults === undefined ? undefined : `${formatModCount(numResults)} shown`;
-	const selectedSummary = numSelectedResults === undefined ? undefined : `${formatModCount(numSelectedResults)} enabled in this view`;
+	const selectedSummary = numSelectedResults === undefined ? undefined : `${formatModCount(numSelectedResults)} enabled`;
 	const filterSummary =
 		activeFilterCount && activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} active` : undefined;
 	const resultSummary = [shownSummary, selectedSummary, filterSummary].filter(Boolean).join(', ');
@@ -667,9 +668,7 @@ function CollectionManagementToolbarComponent({
 					launchGameDisabledReason={launchGameDisabledReason}
 					launchReady={launchReady}
 					launchingGame={launchingGame}
-					madeEdits={madeEdits}
-					saveCollectionCallback={saveCollectionCallback}
-					savingCollection={savingCollection}
+					onReloadModListCallback={onReloadModListCallback}
 					validateCollectionCallback={validateCollectionCallback}
 					validatingCollection={validatingCollection}
 				/>
@@ -684,7 +683,7 @@ function CollectionManagementToolbarComponent({
 				{resultSummary ? (
 					<div
 						id={resultSummaryId}
-						className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[760px]:w-full"
+						className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[1100px]:w-full"
 						aria-live="polite"
 					>
 						<span>{resultSummary}</span>
@@ -693,10 +692,12 @@ function CollectionManagementToolbarComponent({
 				<ToolbarSecondaryMenus
 					disabledFeatures={disabledFeatures}
 					handleCopyCollection={handleCopyCollection}
-					onReloadModListCallback={onReloadModListCallback}
+					madeEdits={madeEdits}
+					openViewSettingsCallback={openViewSettingsCallback}
 					openCollectionModal={openCollectionModal}
 					openModal={openModal}
-					openViewSettingsCallback={openViewSettingsCallback}
+					saveCollectionCallback={saveCollectionCallback}
+					savingCollection={savingCollection}
 				/>
 			</div>
 		</div>

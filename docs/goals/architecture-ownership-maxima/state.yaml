@@ -5,7 +5,7 @@ goal:
   slug: "architecture-ownership-maxima"
   kind: audit
   tranche: "Continue looping over duplicate-ownership and architecture deepening audits until a Judge or PM audit finds no more safe local issues."
-  status: done
+  status: in_progress
 
 rules:
   pm_owns_state: true
@@ -740,14 +740,164 @@ tasks:
       next_task: null
       blocked_tasks:
         - "Do not start Rendered Block Previews matching/cache pruning as a local Worker task without owner/design/Judge scope."
+  - id: T020
+    type: scout
+    assignee: PM
+    status: done
+    objective: "Record the May 8 duplicate-ownership audit findings and split them into actionable tasks."
+    inputs:
+      - "Current source audit."
+      - docs/adr/0004-block-lookup-uses-rust-sidecar-for-unity-bundles.md
+      - docs/adr/0007-rendered-block-previews-use-sidecar-cached-thumbnails.md
+      - src/main/block-lookup-rendered-preview-assignment.ts
+      - src/main/block-lookup-index-build.ts
+      - src/main/block-lookup.ts
+      - src/main/block-lookup-blockpedia-previews.ts
+      - native/block-lookup-extractor/src/main.rs
+    constraints:
+      - "Read-only finding capture."
+      - "Use find-duplicate-ownership taxonomy buckets."
+      - "Preserve existing completed receipts; append a new tranche."
+    expected_output:
+      - "Findings ordered by severity."
+      - "Winning owner and hard-cut cleanup for each finding."
+      - "Next active task."
+    receipt:
+      result: done
+      summary: "Captured four residual findings: rendered preview matching has competing TypeScript/Rust owners; rendered preview progress semantics remain split; rendered preview cache pruning has no owner; Rust embedded text fallback is a second extraction implementation."
+      findings:
+        - severity: high
+          classification: "architecture / SSOT bug"
+          rule: "Rendered preview asset-to-record matching is multiply owned."
+          competing_owners:
+            - src/main/block-lookup-rendered-preview-assignment.ts
+            - src/main/block-lookup-index-build.ts
+            - native/block-lookup-extractor/src/main.rs
+          recommended_owner: "TypeScript Block Lookup rendered-preview assignment Module."
+          hard_cut: "Delete Rust TextAsset-derived preview match policy; keep Rust extraction/render/cache Adapter and require explicit preview match names."
+        - severity: medium-high
+          classification: "architecture / SSOT bug"
+          rule: "Rendered preview progress phase semantics are split and partly mirror source indexing instead of actual preview work."
+          competing_owners:
+            - src/main/block-lookup-index-build.ts
+            - src/renderer/block-lookup-workspace.ts
+          recommended_owner: "createBlockLookupIndexBuild owns the progress Interface; renderer formats supplied progress only."
+          hard_cut: "Report actual preview work or rename/delete mirrored preview progress that only tracks source indexing."
+        - severity: medium
+          classification: "architecture / SSOT bug"
+          rule: "Rendered preview cache pruning has no owner after successful index writes."
+          competing_candidate_owners:
+            - native/block-lookup-extractor/src/main.rs
+            - src/main/block-lookup-blockpedia-previews.ts
+            - src/main/preview-protocol.ts
+            - src/main/block-lookup.ts
+          recommended_owner: "Main Block Lookup boundary after successful index write."
+          hard_cut: "Add one post-success pruner there; keep sidecar and Blockpedia as writers only; keep preview protocol read-only."
+        - severity: medium
+          classification: "local dedupe cleanup"
+          rule: "Rust embedded text fallback is a second text extraction implementation."
+          competing_owners:
+            - "native/block-lookup-extractor/src/main.rs Unity parser path"
+            - "native/block-lookup-extractor/src/main.rs:extract_embedded_text_fallback"
+          recommended_owner: "Rust Unity parser path."
+          hard_cut: "Delete extract_embedded_text_fallback and return explicit extraction errors."
+      next_allowed_task: T024
+  - id: T021
+    type: judge
+    assignee: Judge
+    status: pending
+    objective: "Design the safe hard-cut scope for TypeScript-owned rendered preview matching and Rust sidecar request-name filtering."
+    inputs:
+      - "T020 rendered preview matching finding."
+      - docs/adr/0007-rendered-block-previews-use-sidecar-cached-thumbnails.md
+      - src/main/block-lookup-rendered-preview-assignment.ts
+      - src/main/block-lookup-index-build.ts
+      - src/main/block-lookup-extraction.ts
+      - src/main/block-lookup-bundle-text-assets.ts
+      - native/block-lookup-extractor/src/main.rs
+    constraints:
+      - "Read-only."
+      - "Do not authorize broad native contract changes without focused verification."
+      - "Preserve the Rust sidecar as Unity extraction/rendering Adapter."
+      - "Prefer hard-cut deletion over fallback or dual matching paths."
+    expected_output:
+      - "safe Worker task or deferred owner decision."
+      - "Allowed files and verification if safe."
+      - "Stop conditions for sidecar contract or preview availability ambiguity."
+  - id: T022
+    type: worker
+    assignee: Worker
+    status: pending
+    objective: "Fix rendered preview progress semantics so progress phases report real work owned by the main progress Interface."
+    allowed_files:
+      - src/shared/block-lookup.ts
+      - src/main/block-lookup-index-build.ts
+      - src/renderer/block-lookup-workspace.ts
+      - src/__tests__/main/BlockLookup.test.ts
+      - src/__tests__/renderer/block-lookup-workspace.test.ts
+      - src/__tests__/renderer/BlockLookupView.test.tsx
+    verify:
+      - "rtk git diff --check"
+      - "cd ~/dev/TTSMM-EX && rtk pnpm vitest run src/__tests__/main/BlockLookup.test.ts src/__tests__/renderer/block-lookup-workspace.test.ts src/__tests__/renderer/BlockLookupView.test.tsx"
+      - "cd ~/dev/TTSMM-EX && rtk pnpm run typecheck"
+      - "cd ~/dev/TTSMM-EX && rtk pnpm run lint"
+    stop_if:
+      - "Need to change preview matching, sidecar contract, cache paths, index versioning, or rendered-preview availability."
+      - "Existing dirty renderer changes would need to be reverted or rewritten."
+      - "Verification fails twice."
+  - id: T023
+    type: judge
+    assignee: Judge
+    status: pending
+    objective: "Design the rendered preview cache pruning owner and deletion policy before implementation."
+    inputs:
+      - "T020 cache pruning finding."
+      - docs/adr/0007-rendered-block-previews-use-sidecar-cached-thumbnails.md
+      - src/main/block-lookup.ts
+      - src/main/block-lookup-blockpedia-previews.ts
+      - src/main/preview-protocol.ts
+      - native/block-lookup-extractor/src/main.rs
+    constraints:
+      - "Read-only."
+      - "Define exactly which cache files are prunable and when."
+      - "Do not authorize deletion outside the dedicated rendered-preview cache namespace."
+      - "Preserve Blockpedia manifest metadata unless a design explicitly changes that contract."
+    expected_output:
+      - "safe Worker task or deferred owner decision."
+      - "Allowed files and verification if safe."
+      - "Cache safety invariants."
+  - id: T024
+    type: worker
+    assignee: Worker
+    status: done
+    objective: "Delete the Rust embedded text fallback so the Rust Unity parser path is the only text extraction implementation."
+    allowed_files:
+      - native/block-lookup-extractor/src/main.rs
+    verify:
+      - "rtk git diff --check"
+      - "cd native/block-lookup-extractor && rtk cargo test"
+    stop_if:
+      - "Native tests reveal that fallback behavior is intentionally required by an accepted contract."
+      - "Need files outside allowed_files."
+      - "Verification fails twice."
+    receipt:
+      result: done
+      changed_files:
+        - native/block-lookup-extractor/src/main.rs
+      commands:
+        - cmd: "cargo test reports_parser_panic_without_raw_text_fallback"
+          status: "red before implementation, pass after implementation"
+        - cmd: "rtk git diff --check"
+          status: pass
+        - cmd: "cd native/block-lookup-extractor && rtk cargo test"
+          status: pass
+      summary: "Deleted the raw embedded text fallback from parser error and panic paths. Native extractor failures now return explicit errors with no fallback TextAssets, leaving the Unity parser path as the only text extraction implementation."
 
 checks:
   dirty_fingerprint: "main ahead 18; no dirty files before goal board creation"
   last_verification:
     result: pass
-    task: T018
+    task: T024
     commands:
-      - "git diff --check"
-      - "cd ~/dev/TTSMM-EX && rtk pnpm vitest run src/__tests__/renderer/view-config-persistence.test.ts src/__tests__/renderer/collection-manager-form-validation.test.ts src/__tests__/renderer/main-collection-table-layout.test.ts"
-      - "cd ~/dev/TTSMM-EX && rtk pnpm run typecheck"
-      - "cd ~/dev/TTSMM-EX && rtk pnpm run lint"
+      - "rtk git diff --check"
+      - "cd native/block-lookup-extractor && rtk cargo test"
