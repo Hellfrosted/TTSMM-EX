@@ -1,5 +1,9 @@
 import type { BlockLookupRecord } from 'shared/block-lookup';
-import { extractRecordsFromSources, type BlockLookupSourceExtractionAdapters } from './block-lookup-extraction';
+import {
+	extractRecordsFromSources,
+	type BlockLookupSourceExtractionAdapters,
+	type BlockLookupSourceExtractionOptions
+} from './block-lookup-extraction';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 
 interface BlockLookupSourceIndexingAdapters {
@@ -13,10 +17,11 @@ interface BlockLookupSourceIndexResult {
 
 export async function indexBlockLookupSources(
 	sources: readonly BlockLookupSourceRecord[],
-	adapters: BlockLookupSourceIndexingAdapters = {}
+	adapters: BlockLookupSourceIndexingAdapters = {},
+	options?: BlockLookupSourceExtractionOptions
 ): Promise<BlockLookupSourceIndexResult> {
 	const extractRecordsFromSourcesImpl = adapters.extractRecordsFromSources ?? extractRecordsFromSources;
-	const recordsBySourcePath = await extractRecordsFromSourcesImpl(sources, adapters.sourceExtractionAdapters);
+	const recordsBySourcePath = await extractRecordsFromSourcesImpl(sources, adapters.sourceExtractionAdapters, options);
 	return {
 		recordsBySourcePath
 	};

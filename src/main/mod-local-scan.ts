@@ -147,10 +147,7 @@ export async function getModDetailsFromPath(potentialMod: ModData, modPath: stri
 								log.error(`Failed to get file details for ${file.name} under ${modPath}`);
 							}
 							const normalizedFileName = file.name.toLowerCase();
-							if (
-								(normalizedFileName === 'preview.png' || normalizedFileName.endsWith(' preview.png')) &&
-								!potentialMod.preview
-							) {
+							if ((normalizedFileName === 'preview.png' || normalizedFileName.endsWith(' preview.png')) && !potentialMod.preview) {
 								potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
 							} else if (file.name.match(/^(.*)\.dll$/)) {
 								potentialMod.hasCode = true;

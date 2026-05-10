@@ -37,6 +37,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		filteredRows,
 		loadingResults,
 		query,
+		renderedPreviewsEnabled,
 		selectedFilterMods,
 		selectedRecord,
 		selectedRowKey,
@@ -56,8 +57,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const modSources = useMemo(() => collectBlockLookupModSources({ mods }), [mods]);
 
 	const buildRequest = useCallback(
-		(forceRebuild = false) => createBlockLookupBuildRequest({ gameExec }, workshopRoot, modSources, forceRebuild),
-		[gameExec, modSources, workshopRoot]
+		(forceRebuild = false) => createBlockLookupBuildRequest({ gameExec }, workshopRoot, modSources, forceRebuild, renderedPreviewsEnabled),
+		[gameExec, modSources, renderedPreviewsEnabled, workshopRoot]
 	);
 	const buildIndexMutation = useBuildBlockLookupIndexMutation();
 
@@ -130,6 +131,12 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	}, [query, refreshResults]);
 
 	useEffect(() => {
+		return api.onBlockLookupIndexProgress((progress) => {
+			dispatchSessionEvent({ type: 'build-index-progressed', progress });
+		});
+	}, []);
+
+	useEffect(() => {
 		if (!indexRunStatus || indexRunStatus.phase === 'running') {
 			return;
 		}
@@ -147,7 +154,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 
 	const handleSaveSettings = useCallback(async () => {
 		try {
-			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot });
+			const nextSettings = await api.saveBlockLookupSettings({ workshopRoot, renderedPreviewsEnabled });
 			const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
 			dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
 			setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
@@ -172,7 +179,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				'error'
 			);
 		}
-	}, [openNotification, queryClient, sessionState, workshopRoot]);
+	}, [openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]);
 
 	const handleBrowseWorkshopRoot = useCallback(async () => {
 		const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
@@ -228,7 +235,9 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				openNotification(
 					{
 						message: forceRebuild ? 'Block index rebuilt' : 'Block index updated',
-						description: `${result.stats.blocks} blocks indexed from ${result.stats.sources} sources.`,
+						description: result.stats.renderedPreviewsEnabled
+							? `${result.stats.blocks} blocks indexed from ${result.stats.sources} sources. ${result.stats.renderedPreviews} previews rendered, ${result.stats.unavailablePreviews} unavailable.`
+							: `${result.stats.blocks} blocks indexed from ${result.stats.sources} sources.`,
 						placement: 'topRight',
 						duration: 2
 					},
@@ -277,6 +286,47 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: nextWorkshopRoot });
 	}, []);
 
+	const setRenderedPreviewsEnabled = useCallback(
+		(nextRenderedPreviewsEnabled: boolean) => {
+			const previousRenderedPreviewsEnabled = renderedPreviewsEnabled;
+			dispatchSessionEvent({ type: 'rendered-previews-enabled-changed', renderedPreviewsEnabled: nextRenderedPreviewsEnabled });
+			void (async () => {
+				try {
+					const nextSettings = await api.saveBlockLookupSettings({
+						workshopRoot,
+						renderedPreviewsEnabled: nextRenderedPreviewsEnabled
+					});
+					const optimisticState = {
+						...sessionState,
+						renderedPreviewsEnabled: nextRenderedPreviewsEnabled
+					};
+					const settingsState = reduceBlockLookupWorkspaceSession(optimisticState, {
+						type: 'settings-saved',
+						settings: nextSettings
+					});
+					dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
+					setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
+				} catch (error) {
+					api.logger.error(error);
+					dispatchSessionEvent({
+						type: 'rendered-previews-enabled-changed',
+						renderedPreviewsEnabled: previousRenderedPreviewsEnabled
+					});
+					openNotification(
+						{
+							message: 'Could not save rendered preview setting',
+							description: formatErrorMessage(error),
+							placement: 'topRight',
+							duration: 3
+						},
+						'error'
+					);
+				}
+			})();
+		},
+		[openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]
+	);
+
 	const syncSelectionCopyOrder = useCallback((orderedRowKeys: string[]) => {
 		dispatchSessionEvent({ type: 'selection-copy-order-changed', orderedRowKeys });
 	}, []);
@@ -293,6 +343,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		modSources,
 		openNotification,
 		query,
+		renderedPreviewsEnabled,
 		refreshResults,
 		rows: filteredRows,
 		selectAllVisibleRows,
@@ -304,6 +355,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		selectedRowKeys,
 		selectedRowKeysInCopyOrder,
 		setQuery,
+		setRenderedPreviewsEnabled,
 		setSelectedFilterMods,
 		setWorkshopRoot,
 		syncSelectionCopyOrder,

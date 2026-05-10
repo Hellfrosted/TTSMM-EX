@@ -11,7 +11,14 @@ export interface EditingConfig extends AppConfig {
 	editingLogConfig: LogConfig[];
 }
 
-export const APP_LOG_LEVEL_OPTIONS = [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.SILLY] as const;
+export const APP_LOG_LEVEL_OPTIONS = [
+	LogLevel.ERROR,
+	LogLevel.WARN,
+	LogLevel.INFO,
+	LogLevel.VERBOSE,
+	LogLevel.DEBUG,
+	LogLevel.SILLY
+] as const;
 export const NLOG_LEVEL_OPTIONS = [
 	NLogLevel.OFF,
 	NLogLevel.FATAL,

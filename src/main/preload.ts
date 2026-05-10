@@ -47,6 +47,7 @@ const electronApi: ElectronApi = {
 		send(ipcSendChannels.openModContextMenu, record);
 	},
 	onProgressChange: (callback) => subscribe(ipcSubscriptionChannels.onProgressChange, callback),
+	onBlockLookupIndexProgress: (callback) => subscribe(ipcSubscriptionChannels.onBlockLookupIndexProgress, callback),
 	onModMetadataUpdate: (callback) => subscribe(ipcSubscriptionChannels.onModMetadataUpdate, callback),
 	onModRefreshRequested: (callback) => subscribe(ipcSubscriptionChannels.onModRefreshRequested, callback),
 	onReloadSteamworks: (callback) => subscribe(ipcSubscriptionChannels.onReloadSteamworks, callback)

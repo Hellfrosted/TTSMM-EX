@@ -71,10 +71,8 @@ export async function buildWorkshopMod(
 }
 
 export async function processSteamModResults(context: ModInventoryContext, steamDetails: SteamUGCDetails[]): Promise<ModData[]> {
-	return buildWorkshopMods(
-		steamDetails,
-		(workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
-			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem)
+	return buildWorkshopMods(steamDetails, (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
+		buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem)
 	);
 }
 

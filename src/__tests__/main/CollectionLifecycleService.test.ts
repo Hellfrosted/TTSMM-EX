@@ -158,5 +158,4 @@ describe('collection lifecycle service', () => {
 			expect(result.config.activeCollection).toBe('alt');
 		}
 	});
-
 });

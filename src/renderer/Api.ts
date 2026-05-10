@@ -15,6 +15,7 @@ import type { StartupCollectionResolutionRequest, StartupCollectionResolutionRes
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
+	BlockLookupIndexProgressCallback,
 	BlockLookupIndexStats,
 	BlockLookupSearchRequest,
 	BlockLookupSearchResult,
@@ -122,6 +123,10 @@ class API {
 
 	onProgressChange(callback: ProgressChangeCallback): Unsubscribe {
 		return this.subscribeElectron('onProgressChange', callback);
+	}
+
+	onBlockLookupIndexProgress(callback: BlockLookupIndexProgressCallback): Unsubscribe {
+		return this.subscribeElectron('onBlockLookupIndexProgress', callback);
 	}
 
 	onModMetadataUpdate(callback: (uid: string, update: Partial<ModData>) => void): Unsubscribe {

@@ -1,6 +1,7 @@
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
+	BlockLookupIndexProgressCallback,
 	BlockLookupIndexStats,
 	BlockLookupSearchRequest,
 	BlockLookupSearchResult,
@@ -23,7 +24,7 @@ interface BlockLookupIndexerAdapters {
 
 export interface BlockLookupIndexModule {
 	autoDetectWorkshopRoot(request: BlockLookupBuildRequest): string | null;
-	buildIndex(request: BlockLookupBuildRequest): Promise<BlockLookupBuildResult>;
+	buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback): Promise<BlockLookupBuildResult>;
 	getStats(): BlockLookupIndexStats | null;
 	readSettings(): BlockLookupSettings;
 	saveSettings(settings: BlockLookupSettings): BlockLookupSettings;
@@ -46,8 +47,8 @@ export function createBlockLookupIndexModule(userDataPath: string, adapters: Blo
 		autoDetectWorkshopRoot(request: BlockLookupBuildRequest) {
 			return autoDetectBlockLookupWorkshopRoot(request);
 		},
-		async buildIndex(request: BlockLookupBuildRequest) {
-			const result = await buildIndexImpl(userDataPath, request);
+		async buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback) {
+			const result = await buildIndexImpl(userDataPath, request, onProgress);
 			warmSearchIndex = undefined;
 			return result;
 		},

@@ -19,6 +19,21 @@ import {
 	sortBlockLookupRecords
 } from '../../renderer/block-lookup-workspace';
 
+const TEST_STATS = {
+	sources: 1,
+	scanned: 2,
+	skipped: 0,
+	removed: 0,
+	blocks: 3,
+	updatedBlocks: 1,
+	renderedPreviewsEnabled: false,
+	renderedPreviews: 0,
+	unavailablePreviews: 0,
+	builtAt: 'now'
+};
+const TEST_SETTINGS = { workshopRoot: '/workshop', renderedPreviewsEnabled: false };
+const SAVED_SETTINGS = { workshopRoot: '/saved', renderedPreviewsEnabled: false };
+
 function blockRecord(index: number, overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
 	return {
 		blockId: index.toString(),
@@ -39,7 +54,7 @@ function blockRecord(index: number, overrides: Partial<BlockLookupRecord> = {}):
 describe('block-lookup-workspace', () => {
 	it('formats index status with search counts', () => {
 		expect(formatBlockLookupIndexStatus(null, 0, '')).toBe('Index not built');
-		expect(formatBlockLookupIndexStatus({ blocks: 2, sources: 1, updatedAt: 123 }, 1, 'cab')).toBe(
+		expect(formatBlockLookupIndexStatus({ ...TEST_STATS, blocks: 2, sources: 1 }, 1, 'cab')).toBe(
 			'2 indexed blocks from 1 source | 1 match'
 		);
 	});
@@ -63,7 +78,15 @@ describe('block-lookup-workspace', () => {
 			workshopRoot: '/workshop',
 			gameExec: '/game.exe',
 			modSources: [],
-			forceRebuild: true
+			forceRebuild: true,
+			renderedPreviewsEnabled: false
+		});
+		expect(createBlockLookupBuildRequest({ gameExec: '/game.exe' }, '/workshop', [], true, true)).toEqual({
+			workshopRoot: '/workshop',
+			gameExec: '/game.exe',
+			modSources: [],
+			forceRebuild: true,
+			renderedPreviewsEnabled: true
 		});
 	});
 
@@ -85,20 +108,23 @@ describe('block-lookup-workspace', () => {
 	});
 
 	it('creates block lookup settings transitions from bootstrap, save, and build results', () => {
-		const stats = { sources: 1, scanned: 2, skipped: 0, removed: 0, blocks: 3, updatedBlocks: 1, builtAt: 'now' };
-		const settings = { workshopRoot: '/workshop' };
+		const stats = TEST_STATS;
+		const settings = TEST_SETTINGS;
 
 		expect(createBlockLookupBootstrapState(settings, stats)).toEqual({
+			renderedPreviewsEnabled: false,
 			settings,
 			stats,
 			workshopRoot: '/workshop'
 		});
-		expect(createBlockLookupSettingsSaveState({ workshopRoot: '/saved' }, stats)).toEqual({
-			settings: { workshopRoot: '/saved' },
+		expect(createBlockLookupSettingsSaveState(SAVED_SETTINGS, stats)).toEqual({
+			renderedPreviewsEnabled: false,
+			settings: SAVED_SETTINGS,
 			stats,
 			workshopRoot: '/saved'
 		});
 		expect(createBlockLookupBuildIndexState({ stats }, settings)).toEqual({
+			renderedPreviewsEnabled: false,
 			settings,
 			stats,
 			workshopRoot: '/workshop'
@@ -106,13 +132,13 @@ describe('block-lookup-workspace', () => {
 	});
 
 	it('reduces block lookup workspace session events', () => {
-		const stats = { sources: 1, scanned: 2, skipped: 0, removed: 0, blocks: 3, updatedBlocks: 1, builtAt: 'now' };
+		const stats = TEST_STATS;
 		const rows = [blockRecord(1)];
 		const initialState = createBlockLookupWorkspaceSessionState();
 
 		const bootstrappedState = reduceBlockLookupWorkspaceSession(initialState, {
 			type: 'bootstrap-loaded',
-			settings: { workshopRoot: '/workshop' },
+			settings: TEST_SETTINGS,
 			stats
 		});
 		const searchingState = reduceBlockLookupWorkspaceSession(bootstrappedState, { type: 'search-started', requestId: 1 });
@@ -123,7 +149,7 @@ describe('block-lookup-workspace', () => {
 		});
 		const savedState = reduceBlockLookupWorkspaceSession(completedState, {
 			type: 'settings-saved',
-			settings: { workshopRoot: '/saved' }
+			settings: SAVED_SETTINGS
 		});
 		const buildState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
@@ -155,7 +181,7 @@ describe('block-lookup-workspace', () => {
 		expect(savedState.stats).toEqual({ ...stats, blocks: 1 });
 		expect(buildState).toEqual(
 			expect.objectContaining({
-				settings: { workshopRoot: '/saved' },
+				settings: SAVED_SETTINGS,
 				stats: { ...stats, blocks: 4 },
 				indexRunStatus: {
 					actionLabel: 'Index update',
@@ -175,17 +201,75 @@ describe('block-lookup-workspace', () => {
 		expect(reduceBlockLookupWorkspaceSession(failedBuildState, { type: 'build-index-status-cleared' }).indexRunStatus).toBeUndefined();
 	});
 
+	it('tracks determinate build progress while indexing is running', () => {
+		const initialState = createBlockLookupWorkspaceSessionState();
+		const runningState = reduceBlockLookupWorkspaceSession(initialState, { type: 'build-index-started', forceRebuild: true });
+		const progress = {
+			phase: 'indexing-sources' as const,
+			phaseLabel: 'Extracting block records',
+			completed: 3,
+			total: 6,
+			percent: 50
+		};
+		const progressedState = reduceBlockLookupWorkspaceSession(runningState, { type: 'build-index-progressed', progress });
+
+		expect(progressedState.indexRunStatus).toEqual({
+			actionLabel: 'Full rebuild',
+			detail: 'Extracting block records',
+			phase: 'running',
+			progress,
+			title: 'Full rebuild running'
+		});
+	});
+
+	it('ignores build progress events after indexing has stopped', () => {
+		const initialState = createBlockLookupWorkspaceSessionState();
+		const progress = {
+			phase: 'indexing-sources' as const,
+			phaseLabel: 'Extracting block records',
+			completed: 1,
+			total: 2,
+			percent: 50
+		};
+
+		expect(reduceBlockLookupWorkspaceSession(initialState, { type: 'build-index-progressed', progress })).toBe(initialState);
+	});
+
+	it('does not let late completion progress overwrite build success', () => {
+		const stats = TEST_STATS;
+		const runningState = reduceBlockLookupWorkspaceSession(createBlockLookupWorkspaceSessionState(), {
+			type: 'build-index-started',
+			forceRebuild: true
+		});
+		const completedState = reduceBlockLookupWorkspaceSession(runningState, {
+			type: 'build-index-completed',
+			forceRebuild: true,
+			result: { stats: { ...stats, blocks: 4 } }
+		});
+		const lateProgress = {
+			phase: 'complete' as const,
+			phaseLabel: 'Index build complete',
+			completed: 1,
+			total: 1,
+			percent: 100
+		};
+
+		expect(reduceBlockLookupWorkspaceSession(completedState, { type: 'build-index-progressed', progress: lateProgress })).toBe(
+			completedState
+		);
+	});
+
 	it('projects bootstrap cache data from workspace session state', () => {
-		const stats = { sources: 1, scanned: 2, skipped: 0, removed: 0, blocks: 3, updatedBlocks: 1, builtAt: 'now' };
+		const stats = TEST_STATS;
 		const initialState = createBlockLookupWorkspaceSessionState();
 		const bootstrappedState = reduceBlockLookupWorkspaceSession(initialState, {
 			type: 'bootstrap-loaded',
-			settings: { workshopRoot: '/workshop' },
+			settings: TEST_SETTINGS,
 			stats
 		});
 		const savedState = reduceBlockLookupWorkspaceSession(bootstrappedState, {
 			type: 'settings-saved',
-			settings: { workshopRoot: '/saved' }
+			settings: SAVED_SETTINGS
 		});
 		const builtState = reduceBlockLookupWorkspaceSession(savedState, {
 			type: 'build-index-completed',
@@ -193,13 +277,13 @@ describe('block-lookup-workspace', () => {
 			result: { stats: { ...stats, blocks: 4 } }
 		});
 
-		expect(createBlockLookupBootstrapCacheProjection(bootstrappedState)).toEqual([{ workshopRoot: '/workshop' }, stats]);
-		expect(createBlockLookupBootstrapCacheProjection(savedState)).toEqual([{ workshopRoot: '/saved' }, stats]);
-		expect(createBlockLookupBootstrapCacheProjection(builtState)).toEqual([{ workshopRoot: '/saved' }, { ...stats, blocks: 4 }]);
+		expect(createBlockLookupBootstrapCacheProjection(bootstrappedState)).toEqual([TEST_SETTINGS, stats]);
+		expect(createBlockLookupBootstrapCacheProjection(savedState)).toEqual([SAVED_SETTINGS, stats]);
+		expect(createBlockLookupBootstrapCacheProjection(builtState)).toEqual([SAVED_SETTINGS, { ...stats, blocks: 4 }]);
 	});
 
 	it('retains the selected block lookup row across refreshed search results', () => {
-		const stats = { sources: 1, scanned: 2, skipped: 0, removed: 0, blocks: 3, updatedBlocks: 1, builtAt: 'now' };
+		const stats = TEST_STATS;
 		const firstRows = [blockRecord(1), blockRecord(2)];
 		const secondRows = [blockRecord(3), blockRecord(2)];
 		const rowKeys = firstRows.map((record) => getBlockLookupRecordKey(record));
@@ -229,7 +313,7 @@ describe('block-lookup-workspace', () => {
 	});
 
 	it('discards stale search results in the workspace session', () => {
-		const stats = { sources: 1, scanned: 2, skipped: 0, removed: 0, blocks: 3, updatedBlocks: 1, builtAt: 'now' };
+		const stats = TEST_STATS;
 		const existingRows = [blockRecord(1)];
 		const staleRows = [blockRecord(99)];
 		const nextRows = [blockRecord(2)];

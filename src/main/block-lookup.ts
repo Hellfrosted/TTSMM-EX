@@ -4,8 +4,10 @@ import log from 'electron-log';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	BlockLookupBuildRequest,
+	BlockLookupIndexProgressCallback,
 	BlockLookupIndexStats,
 	BlockLookupPreviewBounds,
+	BlockLookupRecord,
 	BlockLookupSearchResult,
 	BlockLookupSettings,
 	PersistedBlockLookupIndex
@@ -14,7 +16,8 @@ import { writeUtf8FileAtomic } from './storage';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 import { searchBlockLookupRecords } from './block-lookup-search';
 import { normalizeWorkshopRoot } from './block-lookup-source-discovery';
-import { createBlockLookupIndexBuild } from './block-lookup-index-build';
+import { createBlockLookupIndexBuild, createBlockLookupIndexProgress } from './block-lookup-index-build';
+import { getBlockLookupPreviewCachePath } from './preview-protocol';
 
 export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-nuterra-text';
 
@@ -50,13 +53,15 @@ function writeJsonFile(filepath: string, value: unknown) {
 export function readBlockLookupSettings(userDataPath: string): BlockLookupSettings {
 	const settings = readJsonFile<Partial<BlockLookupSettings>>(getBlockLookupSettingsPath(userDataPath));
 	return {
-		workshopRoot: typeof settings?.workshopRoot === 'string' ? settings.workshopRoot : ''
+		workshopRoot: typeof settings?.workshopRoot === 'string' ? settings.workshopRoot : '',
+		renderedPreviewsEnabled: settings?.renderedPreviewsEnabled === true
 	};
 }
 
 export function writeBlockLookupSettings(userDataPath: string, settings: BlockLookupSettings): BlockLookupSettings {
 	const normalizedSettings: BlockLookupSettings = {
-		workshopRoot: normalizeWorkshopRoot(settings.workshopRoot) || settings.workshopRoot.trim()
+		workshopRoot: normalizeWorkshopRoot(settings.workshopRoot) || settings.workshopRoot.trim(),
+		renderedPreviewsEnabled: settings.renderedPreviewsEnabled === true
 	};
 	writeJsonFile(getBlockLookupSettingsPath(userDataPath), normalizedSettings);
 	return normalizedSettings;
@@ -66,6 +71,7 @@ function createEmptyIndex(): PersistedBlockLookupIndex {
 	return {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
 		builtAt: '',
+		renderedPreviewsEnabled: false,
 		sources: [],
 		records: []
 	};
@@ -127,6 +133,27 @@ function normalizeBlockLookupSource(source: unknown): PersistedBlockLookupIndex[
 	};
 }
 
+function normalizeBlockLookupRenderedPreview(value: unknown): BlockLookupRecord['renderedPreview'] {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const previewRecord = value as Record<string, unknown>;
+	const imageUrl = readString(previewRecord.imageUrl);
+	if (!imageUrl) {
+		return undefined;
+	}
+
+	const width =
+		typeof previewRecord.width === 'number' && Number.isFinite(previewRecord.width) ? Math.round(previewRecord.width) : undefined;
+	const height =
+		typeof previewRecord.height === 'number' && Number.isFinite(previewRecord.height) ? Math.round(previewRecord.height) : undefined;
+	return {
+		imageUrl,
+		...(width !== undefined ? { width } : {}),
+		...(height !== undefined ? { height } : {})
+	};
+}
+
 function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex['records'][number] | undefined {
 	if (!record || typeof record !== 'object') {
 		return undefined;
@@ -144,6 +171,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 	const spawnCommand = readString(indexRecord.spawnCommand);
 	const fallbackSpawnCommand = readString(indexRecord.fallbackSpawnCommand);
 	const previewBounds = normalizeBlockLookupPreviewBounds(indexRecord.previewBounds);
+	const renderedPreview = normalizeBlockLookupRenderedPreview(indexRecord.renderedPreview);
 
 	if (
 		blockName === undefined ||
@@ -170,6 +198,7 @@ function normalizeBlockLookupRecord(record: unknown): PersistedBlockLookupIndex[
 		sourceKind,
 		sourcePath,
 		previewBounds,
+		...(renderedPreview ? { renderedPreview } : {}),
 		preferredAlias,
 		fallbackAlias,
 		spawnCommand,
@@ -199,6 +228,7 @@ function normalizeBlockLookupIndex(index: unknown): PersistedBlockLookupIndex {
 	return {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
 		builtAt: typeof indexRecord.builtAt === 'string' ? indexRecord.builtAt : '',
+		renderedPreviewsEnabled: indexRecord.renderedPreviewsEnabled === true,
 		sources: indexRecord.sources
 			.map((source) => normalizeBlockLookupSource(source))
 			.filter((source): source is PersistedBlockLookupIndex['sources'][number] => !!source),
@@ -217,11 +247,26 @@ function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookup
 
 export async function buildBlockLookupIndex(
 	userDataPath: string,
-	request: BlockLookupBuildRequest
+	request: BlockLookupBuildRequest,
+	onProgress?: BlockLookupIndexProgressCallback
 ): Promise<{ stats: BlockLookupIndexStats }> {
 	const existingIndex = readBlockLookupIndex(userDataPath);
-	const build = await createBlockLookupIndexBuild(existingIndex, request);
+	const settings = readBlockLookupSettings(userDataPath);
+	const build = await createBlockLookupIndexBuild(
+		existingIndex,
+		{
+			...request,
+			renderedPreviewsEnabled: request.renderedPreviewsEnabled ?? settings.renderedPreviewsEnabled
+		},
+		undefined,
+		onProgress,
+		{
+			previewCacheDir: getBlockLookupPreviewCachePath(userDataPath)
+		}
+	);
+	onProgress?.(createBlockLookupIndexProgress('writing-index', 0, 1, 98));
 	writeBlockLookupIndex(userDataPath, build.index);
+	onProgress?.(createBlockLookupIndexProgress('complete', 1, 1, 100));
 	return {
 		stats: build.stats
 	};

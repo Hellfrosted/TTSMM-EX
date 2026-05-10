@@ -1,11 +1,9 @@
 import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AppConfig } from 'model/AppConfig';
-import { createModManagerUid, type ModDataOverride } from 'model/Mod';
-import type { ModCollection } from 'model/ModCollection';
 import type { SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
-import { modMetadataQueryOptions } from 'renderer/async-cache';
+import { createModMetadataScanRequest, modMetadataQueryOptions } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { ProgressTypes } from 'shared/ipc';
@@ -39,22 +37,6 @@ interface ModLoadingState {
 }
 
 type ModLoadingAction = { type: 'progress'; progress: number; message: string } | { type: 'failed'; message: string } | { type: 'retry' };
-
-function getKnownModIds(allCollections: Map<string, ModCollection>, workshopID: AppConfig['workshopID'], forceReloadMods: boolean) {
-	const knownMods = forceReloadMods
-		? new Set<string>()
-		: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
-	knownMods.add(createModManagerUid(workshopID));
-	return [...knownMods].sort();
-}
-
-function getUserOverridesKey(userOverrides: Map<string, ModDataOverride>) {
-	return JSON.stringify(
-		[...userOverrides.entries()]
-			.sort(([leftUid], [rightUid]) => leftUid.localeCompare(rightUid))
-			.map(([uid, override]) => [uid, override.id ?? null, override.tags ? [...override.tags].sort() : []])
-	);
-}
 
 function reduceModLoadingState(state: ModLoadingState, action: ModLoadingAction): ModLoadingState {
 	switch (action.type) {
@@ -93,7 +75,15 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	const loadRequestIdRef = useRef(0);
 	const userOverridesRef = useRef(config.userOverrides);
 	userOverridesRef.current = config.userOverrides;
-	const metadataScanKey = `${getKnownModIds(allCollections, config.workshopID, !!forceReloadMods).join('\n')}\u0000${getUserOverridesKey(config.userOverrides)}`;
+	const metadataScanRequest = createModMetadataScanRequest({
+		allCollections,
+		workshopID: config.workshopID,
+		forceReload: !!forceReloadMods,
+		userOverrides: config.userOverrides
+	});
+	const { metadataScanKey } = metadataScanRequest;
+	const metadataScanRequestRef = useRef(metadataScanRequest);
+	metadataScanRequestRef.current = metadataScanRequest;
 	const commitModLoad = useEffectEvent((mods: SessionMods) => {
 		updateAppState({
 			mods,
@@ -109,6 +99,11 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			return;
 		}
 
+		const scanRequest = metadataScanRequestRef.current;
+		if (scanRequest.metadataScanKey !== metadataScanKey) {
+			return;
+		}
+
 		const requestId = loadRequestIdRef.current + 1;
 		loadRequestIdRef.current = requestId;
 		const unsubscribeProgress = api.onProgressChange((type: ProgressTypes, nextProgress: number, nextProgressMessage: string) => {
@@ -121,14 +116,11 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			}
 		});
 
-		const knownModIdsKey = metadataScanKey.split('\u0000', 1)[0];
-		const allKnownMods = new Set(knownModIdsKey ? knownModIdsKey.split('\n') : []);
-
 		void queryClient
 			.fetchQuery(
 				modMetadataQueryOptions({
 					localDir: config.localDir,
-					knownMods: allKnownMods,
+					scanRequest,
 					forceReload: !!forceReloadMods,
 					attempt: retryCount,
 					userOverrides: userOverridesRef.current,

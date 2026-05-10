@@ -114,7 +114,7 @@ app
 		await installProductionSourceMaps();
 		await enableDevelopmentDebugging();
 		if (!previewProtocolRegistered) {
-			registerPreviewProtocol(protocol);
+			registerPreviewProtocol(protocol, { getUserDataPath: () => app.getPath('userData') });
 			previewProtocolRegistered = true;
 		}
 		await createWindow();

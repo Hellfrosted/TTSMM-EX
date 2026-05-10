@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Key, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode, ThHTMLAttributes } from 'react';
+import type {
+	Key,
+	KeyboardEvent as ReactKeyboardEvent,
+	MouseEvent as ReactMouseEvent,
+	ReactNode,
+	RefObject,
+	ThHTMLAttributes
+} from 'react';
 import { createPortal } from 'react-dom';
 import { markPerfInteraction } from 'renderer/perf';
 import type { BlockLookupColumnKey, BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
@@ -104,6 +111,14 @@ interface HeaderMenu {
 	onClick: (info: { key: Key }) => void;
 }
 
+interface HeaderMenuPortalProps {
+	items: HeaderMenuItem[];
+	menuRef: RefObject<HTMLDivElement | null>;
+	position: { x: number; y: number };
+	resizeLabel: string;
+	onClick: (key: Key) => void;
+}
+
 function getHeaderMenuPosition(x: number, y: number) {
 	if (typeof window === 'undefined') {
 		return { x, y };
@@ -119,6 +134,53 @@ function getHeaderMenuPosition(x: number, y: number) {
 			Math.max(BLOCK_LOOKUP_HEADER_MENU_VIEWPORT_PADDING, window.innerHeight - BLOCK_LOOKUP_HEADER_MENU_ESTIMATED_HEIGHT)
 		)
 	};
+}
+
+function BlockLookupHeaderMenuPortal({ items, menuRef, position, resizeLabel, onClick }: HeaderMenuPortalProps) {
+	return createPortal(
+		<div
+			ref={menuRef}
+			className="MainCollectionHeaderMenu"
+			role="menu"
+			aria-label={`${resizeLabel} column options`}
+			tabIndex={-1}
+			style={{ left: position.x, top: position.y }}
+		>
+			{items.map((item, index) => {
+				if (item.type === 'divider') {
+					const nextItemKey = items.slice(index + 1).find((nextItem) => nextItem.key !== undefined)?.key;
+					const previousItemKey = items
+						.slice(0, index)
+						.reverse()
+						.find((previousItem) => previousItem.key !== undefined)?.key;
+					return (
+						<hr
+							key={`divider-${String(previousItemKey ?? 'start')}-${String(nextItemKey ?? 'end')}`}
+							className="MainCollectionHeaderMenuDivider"
+						/>
+					);
+				}
+
+				if (item.key === undefined) {
+					return null;
+				}
+
+				return (
+					<button
+						key={item.key.toString()}
+						type="button"
+						className="MainCollectionHeaderMenuItem"
+						role="menuitem"
+						disabled={item.disabled}
+						onClick={() => onClick(item.key as Key)}
+					>
+						{item.label}
+					</button>
+				);
+			})}
+		</div>,
+		document.body
+	);
 }
 
 export function BlockLookupHeaderCell({
@@ -253,8 +315,7 @@ export function BlockLookupHeaderCell({
 		(startX: number) => {
 			const startWidth = Math.max(minWidth, widthRef.current || minWidth);
 			let nextWidth = startWidth;
-			const previousBodyCursor = document.body.style.cursor;
-			const previousBodyUserSelect = document.body.style.userSelect;
+			const previousBodyCssText = document.body.style.cssText;
 			markPerfInteraction('blockLookup.columnResize.start', {
 				column: resizeLabel,
 				width: startWidth
@@ -269,8 +330,7 @@ export function BlockLookupHeaderCell({
 			const stopResize = () => {
 				window.removeEventListener('mousemove', handleMouseMove);
 				window.removeEventListener('mouseup', handleMouseUp);
-				document.body.style.cursor = previousBodyCursor;
-				document.body.style.userSelect = previousBodyUserSelect;
+				document.body.style.cssText = previousBodyCssText;
 				cleanupRef.current = null;
 				markPerfInteraction('blockLookup.columnResize.end', {
 					column: resizeLabel,
@@ -287,8 +347,7 @@ export function BlockLookupHeaderCell({
 				stopResize();
 			};
 
-			document.body.style.cursor = 'col-resize';
-			document.body.style.userSelect = 'none';
+			document.body.style.cssText = `${previousBodyCssText};cursor: col-resize; user-select: none;`;
 			window.addEventListener('mousemove', handleMouseMove);
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
@@ -357,58 +416,15 @@ export function BlockLookupHeaderCell({
 		[headerMenu]
 	);
 
-	const headerMenuElement =
-		headerMenu && menuPosition
-			? createPortal(
-					<div
-						ref={menuRef}
-						className="MainCollectionHeaderMenu"
-						role="menu"
-						aria-label={`${resizeLabel} column options`}
-						tabIndex={-1}
-						style={{ left: menuPosition.x, top: menuPosition.y }}
-					>
-						{headerMenu.items.map((item, index) => {
-							if (item.type === 'divider') {
-								const nextItemKey = headerMenu.items.slice(index + 1).find((nextItem) => nextItem.key !== undefined)?.key;
-								const previousItemKey = headerMenu.items
-									.slice(0, index)
-									.reverse()
-									.find((previousItem) => previousItem.key !== undefined)?.key;
-								return (
-									<hr
-										key={`divider-${String(previousItemKey ?? 'start')}-${String(nextItemKey ?? 'end')}`}
-										className="MainCollectionHeaderMenuDivider"
-									/>
-								);
-							}
-
-							if (item.key === undefined) {
-								return null;
-							}
-
-							return (
-								<button
-									key={item.key.toString()}
-									type="button"
-									className="MainCollectionHeaderMenuItem"
-									role="menuitem"
-									disabled={item.disabled}
-									onClick={() => {
-										headerMenu.onClick({ key: item.key as Key });
-										setMenuPosition(null);
-										menuOpenerRef.current?.focus();
-										menuOpenerRef.current = null;
-									}}
-								>
-									{item.label}
-								</button>
-							);
-						})}
-					</div>,
-					document.body
-				)
-			: null;
+	const handleHeaderMenuClick = useCallback(
+		(key: Key) => {
+			headerMenu?.onClick({ key });
+			setMenuPosition(null);
+			menuOpenerRef.current?.focus();
+			menuOpenerRef.current = null;
+		},
+		[headerMenu]
+	);
 
 	return (
 		<th {...rest} style={{ ...(style || {}), width, position: 'relative' }}>
@@ -447,7 +463,15 @@ export function BlockLookupHeaderCell({
 					/>
 				) : null}
 			</div>
-			{headerMenuElement}
+			{headerMenu && menuPosition ? (
+				<BlockLookupHeaderMenuPortal
+					items={headerMenu.items}
+					menuRef={menuRef}
+					position={menuPosition}
+					resizeLabel={resizeLabel}
+					onClick={handleHeaderMenuClick}
+				/>
+			) : null}
 		</th>
 	);
 }

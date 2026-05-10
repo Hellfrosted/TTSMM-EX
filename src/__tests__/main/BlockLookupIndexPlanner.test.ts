@@ -17,6 +17,7 @@ describe('block lookup index planner', () => {
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: false,
 				sources: [
 					existingSource,
 					{

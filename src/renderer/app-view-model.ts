@@ -1,5 +1,7 @@
 import type { AppState } from 'model/AppState';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+export { getAppRouteKind } from 'shared/app-route-policy';
+import { getAppRouteKind } from 'shared/app-route-policy';
 
 interface AppShellInputs {
 	activeCollection?: AppState['activeCollection'];
@@ -9,24 +11,6 @@ interface AppShellInputs {
 	madeConfigEdits: boolean;
 	pathname: string;
 	savingConfig: boolean;
-}
-
-type AppRouteKind = 'block-lookup' | 'collections' | 'loading' | 'settings';
-
-export function getAppRouteKind(pathname: string): AppRouteKind {
-	if (pathname === '/loading' || pathname.startsWith('/loading/')) {
-		return 'loading';
-	}
-
-	if (pathname === '/settings' || pathname.startsWith('/settings/')) {
-		return 'settings';
-	}
-
-	if (pathname === '/block-lookup' || pathname.startsWith('/block-lookup/')) {
-		return 'block-lookup';
-	}
-
-	return 'collections';
 }
 
 export function createCollectionStageAppState(

@@ -11,6 +11,7 @@ import {
 	collectionQueryOptions,
 	collectionsListQueryOptions,
 	configQueryOptions,
+	createModMetadataScanRequest,
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
 	queryKeys,
@@ -40,6 +41,48 @@ function expectNoCollectionRefetch(spies: ReturnType<typeof spyOnCollectionRefet
 }
 
 describe('renderer async cache', () => {
+	it('builds stable mod metadata scan requests from collections and overrides', () => {
+		const allCollections = new Map([
+			['default', { name: 'default', mods: ['local:zeta', 'workshop:one'] }],
+			['secondary', { name: 'secondary', mods: ['local:alpha', 'local:zeta'] }]
+		]);
+		const userOverrides = new Map([
+			['local:zeta', { id: 'ZetaOverride', tags: ['utility', 'alpha'] }],
+			['local:alpha', { tags: ['beta'] }]
+		]);
+		const equivalentOverrides = new Map([
+			['local:alpha', { tags: ['beta'] }],
+			['local:zeta', { tags: ['alpha', 'utility'], id: 'ZetaOverride' }]
+		]);
+
+		const request = createModMetadataScanRequest({
+			allCollections,
+			workshopID: DEFAULT_CONFIG.workshopID,
+			forceReload: false,
+			userOverrides
+		});
+		const equivalentRequest = createModMetadataScanRequest({
+			allCollections: new Map([...allCollections].reverse()),
+			workshopID: DEFAULT_CONFIG.workshopID,
+			forceReload: false,
+			userOverrides: equivalentOverrides
+		});
+		const forceReloadRequest = createModMetadataScanRequest({
+			allCollections,
+			workshopID: DEFAULT_CONFIG.workshopID,
+			forceReload: true,
+			userOverrides
+		});
+
+		expect(request.knownModIds).toEqual(['local:alpha', 'local:zeta', `workshop:${DEFAULT_CONFIG.workshopID}`, 'workshop:one']);
+		expect(request.userOverridesKey).toEqual([
+			['local:alpha', null, ['beta']],
+			['local:zeta', 'ZetaOverride', ['alpha', 'utility']]
+		]);
+		expect(equivalentRequest.metadataScanKey).toBe(request.metadataScanKey);
+		expect(forceReloadRequest.knownModIds).toEqual([`workshop:${DEFAULT_CONFIG.workshopID}`]);
+	});
+
 	it('loads config through query options and updates the config cache after writes', async () => {
 		const queryClient = createTestQueryClient();
 		const storedConfig: AppConfig = {
@@ -207,8 +250,19 @@ describe('renderer async cache', () => {
 
 	it('loads Block Lookup bootstrap and search through named cache helpers', async () => {
 		const queryClient = createTestQueryClient();
-		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' };
-		const stats = { sources: 1, scanned: 1, skipped: 0, removed: 0, blocks: 2, updatedBlocks: 1, builtAt: new Date(0).toISOString() };
+		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920', renderedPreviewsEnabled: false };
+		const stats = {
+			sources: 1,
+			scanned: 1,
+			skipped: 0,
+			removed: 0,
+			blocks: 2,
+			updatedBlocks: 1,
+			renderedPreviewsEnabled: false,
+			renderedPreviews: 0,
+			unavailablePreviews: 0,
+			builtAt: new Date(0).toISOString()
+		};
 		const searchResult = { rows: [], stats };
 		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValueOnce(settings);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValueOnce(stats);
@@ -225,8 +279,19 @@ describe('renderer async cache', () => {
 	it('runs Block Lookup index builds without owning session cache transitions', async () => {
 		const queryClient = createTestQueryClient();
 		const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
-		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' };
-		const stats = { sources: 1, scanned: 1, skipped: 0, removed: 0, blocks: 2, updatedBlocks: 1, builtAt: new Date(0).toISOString() };
+		const settings = { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920', renderedPreviewsEnabled: false };
+		const stats = {
+			sources: 1,
+			scanned: 1,
+			skipped: 0,
+			removed: 0,
+			blocks: 2,
+			updatedBlocks: 1,
+			renderedPreviewsEnabled: false,
+			renderedPreviews: 0,
+			unavailablePreviews: 0,
+			builtAt: new Date(0).toISOString()
+		};
 		const resultPayload = { settings, stats };
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValueOnce(resultPayload);
 

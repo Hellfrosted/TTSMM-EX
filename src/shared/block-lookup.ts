@@ -1,4 +1,4 @@
-export const BLOCK_LOOKUP_INDEX_VERSION = 2;
+export const BLOCK_LOOKUP_INDEX_VERSION = 4;
 export const BLOCK_LOOKUP_SEARCH_RESULT_LIMIT = 1000;
 export { TERRATECH_STEAM_APP_ID } from './terratech';
 
@@ -8,6 +8,12 @@ export interface BlockLookupPreviewBounds {
 	x: number;
 	y: number;
 	z: number;
+}
+
+export interface BlockLookupRenderedPreview {
+	imageUrl: string;
+	width?: number;
+	height?: number;
 }
 
 export interface BlockLookupModSource {
@@ -27,6 +33,7 @@ export interface BlockLookupRecord {
 	sourceKind: BlockLookupSourceKind;
 	sourcePath: string;
 	previewBounds?: BlockLookupPreviewBounds;
+	renderedPreview?: BlockLookupRenderedPreview;
 	preferredAlias: string;
 	fallbackAlias: string;
 	spawnCommand: string;
@@ -49,11 +56,15 @@ export interface BlockLookupIndexStats {
 	removed: number;
 	blocks: number;
 	updatedBlocks: number;
+	renderedPreviewsEnabled: boolean;
+	renderedPreviews: number;
+	unavailablePreviews: number;
 	builtAt?: string;
 }
 
 export interface BlockLookupSettings {
 	workshopRoot: string;
+	renderedPreviewsEnabled: boolean;
 }
 
 export interface BlockLookupBuildRequest {
@@ -61,7 +72,26 @@ export interface BlockLookupBuildRequest {
 	gameExec?: string;
 	modSources?: BlockLookupModSource[];
 	forceRebuild?: boolean;
+	renderedPreviewsEnabled?: boolean;
 }
+
+export type BlockLookupIndexProgressPhase =
+	| 'planning'
+	| 'scanning-sources'
+	| 'indexing-sources'
+	| 'finalizing'
+	| 'writing-index'
+	| 'complete';
+
+export interface BlockLookupIndexProgress {
+	phase: BlockLookupIndexProgressPhase;
+	phaseLabel: string;
+	completed: number;
+	total: number;
+	percent: number;
+}
+
+export type BlockLookupIndexProgressCallback = (progress: BlockLookupIndexProgress) => void;
 
 export interface BlockLookupSearchRequest {
 	query: string;
@@ -80,6 +110,7 @@ export interface BlockLookupBuildResult {
 export interface PersistedBlockLookupIndex {
 	version: typeof BLOCK_LOOKUP_INDEX_VERSION;
 	builtAt: string;
+	renderedPreviewsEnabled: boolean;
 	sources: BlockLookupIndexSource[];
 	records: BlockLookupRecord[];
 	sourceRecords?: BlockLookupRecord[];

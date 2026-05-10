@@ -649,8 +649,7 @@ function DetailsOverlayResizeHandle({
 		(startX: number, startY: number) => {
 			const startSize = clampDetailsOverlaySize(sizeRef.current || size, minSize, maxSize);
 			let nextSize = startSize;
-			const previousBodyCursor = document.body.style.cursor;
-			const previousBodyUserSelect = document.body.style.userSelect;
+			const previousBodyCssText = document.body.style.cssText;
 			markPerfInteraction('collection.detailsOverlayResize.start', {
 				layout,
 				size: startSize
@@ -666,8 +665,7 @@ function DetailsOverlayResizeHandle({
 			const stopResize = () => {
 				window.removeEventListener('mousemove', handleMouseMove);
 				window.removeEventListener('mouseup', handleMouseUp);
-				document.body.style.cursor = previousBodyCursor;
-				document.body.style.userSelect = previousBodyUserSelect;
+				document.body.style.cssText = previousBodyCssText;
 				cleanupRef.current = null;
 				markPerfInteraction('collection.detailsOverlayResize.end', {
 					layout,
@@ -684,8 +682,7 @@ function DetailsOverlayResizeHandle({
 				stopResize();
 			};
 
-			document.body.style.cursor = cursor;
-			document.body.style.userSelect = 'none';
+			document.body.style.cssText = `${previousBodyCssText};cursor: ${cursor}; user-select: none;`;
 			window.addEventListener('mousemove', handleMouseMove);
 			window.addEventListener('mouseup', handleMouseUp);
 			cleanupRef.current = stopResize;
@@ -840,13 +837,14 @@ function CollectionContentStage({
 							if (showSideBySideDetails) {
 								detailsPane = (
 									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: Escape closes this transient details region after child controls can handle it.
-									// biome-ignore lint/a11y/noStaticElementInteractions: The details pane is a focus-containing region, not a standalone button.
 									<div
+										aria-label="Collection details"
 										className={[
 											collectionOverlayPaneBaseClassName,
 											collectionOverlayPaneActiveClassName,
 											collectionOverlayPaneSideClassName
 										].join(' ')}
+										role="region"
 										style={collectionOverlaySizeStyle(overlaySize)}
 										onKeyDown={(event) => {
 											if (event.key === 'Escape' && !event.defaultPrevented) {
@@ -871,13 +869,14 @@ function CollectionContentStage({
 							} else {
 								detailsPane = (
 									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: Escape closes this transient details region after child controls can handle it.
-									// biome-ignore lint/a11y/noStaticElementInteractions: The details pane is a focus-containing region, not a standalone button.
 									<div
+										aria-label="Collection details"
 										className={[
 											collectionOverlayPaneBaseClassName,
 											collectionOverlayPaneActiveClassName,
 											collectionOverlayPaneBottomClassName
 										].join(' ')}
+										role="region"
 										style={collectionOverlaySizeStyle(overlaySize)}
 										onKeyDown={(event) => {
 											if (event.key === 'Escape' && !event.defaultPrevented) {

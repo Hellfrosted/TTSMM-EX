@@ -1175,17 +1175,22 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 
 		scrollParent.focus({ preventScroll: true });
 	}, []);
+	const focusScrollPaneAfterRowScrollRef = useRef(focusScrollPaneAfterRowScroll);
+	focusScrollPaneAfterRowScrollRef.current = focusScrollPaneAfterRowScroll;
 	useEffect(() => {
 		const scrollParent = scrollParentRef.current;
 		if (!scrollParent) {
 			return;
 		}
 
-		scrollParent.addEventListener('scroll', focusScrollPaneAfterRowScroll, { passive: true });
-		return () => {
-			scrollParent.removeEventListener('scroll', focusScrollPaneAfterRowScroll);
+		const handleScroll = () => {
+			focusScrollPaneAfterRowScrollRef.current();
 		};
-	}, [focusScrollPaneAfterRowScroll]);
+		scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+		return () => {
+			scrollParent.removeEventListener('scroll', handleScroll);
+		};
+	}, []);
 	useEffect(() => {
 		const scrollParent = scrollParentRef.current;
 		if (!scrollParent) {

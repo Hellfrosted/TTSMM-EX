@@ -34,8 +34,12 @@ describe('renderer CSP', () => {
 		const policy = createRendererContentSecurityPolicy({ isDevelopment: true });
 
 		expect(getDirectiveSources(policy, 'script-src')).toEqual(expect.arrayContaining(["'self'", "'unsafe-inline'", "'unsafe-eval'"]));
-		expect(getDirectiveSources(policy, 'connect-src')).toEqual(expect.arrayContaining(["'self'", 'ws://localhost:*', 'http://localhost:*', 'https:']));
-		expect(getDirectiveSources(policy, 'img-src')).toEqual(expect.arrayContaining(["'self'", 'data:', 'blob:', 'image:', 'http://localhost:*', 'https:']));
+		expect(getDirectiveSources(policy, 'connect-src')).toEqual(
+			expect.arrayContaining(["'self'", 'ws://localhost:*', 'http://localhost:*', 'https:'])
+		);
+		expect(getDirectiveSources(policy, 'img-src')).toEqual(
+			expect.arrayContaining(["'self'", 'data:', 'blob:', 'image:', 'http://localhost:*', 'https:'])
+		);
 	});
 
 	it('injects the production policy into renderer HTML', () => {

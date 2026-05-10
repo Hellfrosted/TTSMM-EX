@@ -1,5 +1,5 @@
 import type { IpcMain } from 'electron';
-import type { BlockLookupBuildRequest, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
+import type { BlockLookupBuildRequest, BlockLookupIndexProgress, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { ValidChannel } from '../../model';
 import { createBlockLookupIndexModule, type BlockLookupIndexModule } from '../block-lookup-indexer';
 import {
@@ -11,6 +11,12 @@ import { registerValidatedIpcHandler } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
+}
+
+function sendBlockLookupIndexProgress(event: { sender?: { send?: (channel: ValidChannel, progress: BlockLookupIndexProgress) => void } }) {
+	return (progress: BlockLookupIndexProgress) => {
+		event.sender?.send?.(ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS, progress);
+	};
 }
 
 export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvider: UserDataPathProvider) {
@@ -33,8 +39,11 @@ export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvid
 		return getIndexModule().saveSettings(parseBlockLookupSettingsPayload(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings));
 	});
 
-	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (_event, request: BlockLookupBuildRequest) => {
-		return getIndexModule().buildIndex(parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request));
+	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (event, request: BlockLookupBuildRequest) => {
+		return getIndexModule().buildIndex(
+			parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
+			sendBlockLookupIndexProgress(event)
+		);
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_SEARCH, async (_event, request: BlockLookupSearchRequest) => {

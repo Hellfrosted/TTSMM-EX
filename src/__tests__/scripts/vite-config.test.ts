@@ -153,13 +153,15 @@ describe('vite config', () => {
 		expect(manualChunks('/repo/src/renderer/App.tsx', manualChunkMeta)).toBeUndefined();
 	});
 
-	it('keeps path aliases aligned across TypeScript, Vite, Vitest, and Knip', () => {
+	it('keeps path aliases aligned across TypeScript, Vite, Vitest, and Fallow', () => {
 		const tsconfig = readJsonFile<{ compilerOptions?: { paths?: Record<string, string[]> } }>('tsconfig.base.json');
-		const knip = readJsonFile<{ paths?: Record<string, string[]> }>('knip.jsonc');
+		const fallow = readJsonFile<{ entry?: string[]; paths?: unknown }>('.fallowrc.json');
 		const importedVitestConfig = vitestConfig as { resolve?: { alias?: unknown } };
 
 		expect(Object.keys(tsconfig.compilerOptions?.paths ?? {}).sort()).toEqual(expectedAliasKeys);
-		expect(Object.keys(knip.paths ?? {}).sort()).toEqual(expectedAliasKeys);
+		expect(fallow.paths).toBeUndefined();
+		expect(fallow.entry).toContain('src/main/main.ts');
+		expect(fallow.entry).toContain('src/main/preload.ts');
 		expect(getVitestAliasKeys(importedVitestConfig.resolve?.alias)).toEqual(expectedVitestAliasKeys);
 		expect(getViteAliasKeys(createRendererConfig(false).resolve?.alias)).toEqual(expectedAliasKeys);
 		expect(createRendererConfig(false).resolve?.alias).toEqual(createMainConfig().resolve?.alias);

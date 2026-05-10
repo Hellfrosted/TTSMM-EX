@@ -8,7 +8,12 @@ type IpcInvokeMethod = Exclude<
 	never
 >;
 type IpcSendMethod = 'openModBrowser' | 'openModContextMenu' | 'openModSteam' | 'updateLogLevel';
-type IpcSubscriptionMethod = 'onModMetadataUpdate' | 'onModRefreshRequested' | 'onProgressChange' | 'onReloadSteamworks';
+type IpcSubscriptionMethod =
+	| 'onBlockLookupIndexProgress'
+	| 'onModMetadataUpdate'
+	| 'onModRefreshRequested'
+	| 'onProgressChange'
+	| 'onReloadSteamworks';
 
 export const ipcInvokeChannels = {
 	autoDetectBlockLookupWorkshopRoot: ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT,
@@ -50,6 +55,7 @@ export const ipcSendChannels = {
 } satisfies Record<IpcSendMethod, ValidChannel>;
 
 export const ipcSubscriptionChannels = {
+	onBlockLookupIndexProgress: ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS,
 	onModMetadataUpdate: ValidChannel.MOD_METADATA_UPDATE,
 	onModRefreshRequested: ValidChannel.MOD_REFRESH_REQUESTED,
 	onProgressChange: ValidChannel.PROGRESS_CHANGE,

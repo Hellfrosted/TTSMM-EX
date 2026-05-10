@@ -69,9 +69,12 @@ describe('NuterraSteam Beta Matching policy', () => {
 			name: 'NuterraSteam'
 		};
 
-		expect(createModDependencyTargetSatisfactionPolicy().isDependencyTargetSatisfiedByMod({ workshopID: NUTERRASTEAM_BETA_WORKSHOP_ID }, stableMod)).toBe(
-			true
-		);
+		expect(
+			createModDependencyTargetSatisfactionPolicy().isDependencyTargetSatisfiedByMod(
+				{ workshopID: NUTERRASTEAM_BETA_WORKSHOP_ID },
+				stableMod
+			)
+		).toBe(true);
 		expect(
 			createModDependencyTargetSatisfactionPolicy({ treatNuterraSteamBetaAsEquivalent: false }).isDependencyTargetSatisfiedByMod(
 				{ workshopID: NUTERRASTEAM_BETA_WORKSHOP_ID },

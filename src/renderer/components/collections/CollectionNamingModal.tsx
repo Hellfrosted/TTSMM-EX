@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
-import { createCollectionNameFormSchema, type CollectionNameFormValues, type CollectionNamingModalType } from 'renderer/collection-form-validation';
+import {
+	createCollectionNameFormSchema,
+	type CollectionNameFormValues,
+	type CollectionNamingModalType
+} from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopDialog, DesktopInput } from 'renderer/components/DesktopControls';
 
 interface CollectionNamingModalProps {

@@ -6,9 +6,11 @@ import type { BlockLookupRecord } from 'shared/block-lookup';
 import {
 	extractBundleTextAssetOutcomes,
 	extractBundleTextAssets,
+	type BlockLookupBundlePreviewAsset,
 	type BlockLookupBundleTextAssetExtractionOutcome
 } from './block-lookup-bundle-text-assets';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
+import { createBlockLookupPreviewImageUrl } from './preview-protocol';
 import {
 	createBlockLookupRecord,
 	createBlockLookupRecordsFromTextAssets,
@@ -19,7 +21,10 @@ import {
 } from './block-lookup-nuterra-text';
 
 interface BlockLookupSourceExtractionAdapter {
-	extractRecords(sources: readonly BlockLookupSourceRecord[]): Promise<Map<string, BlockLookupRecord[]>>;
+	extractRecords(
+		sources: readonly BlockLookupSourceRecord[],
+		options?: BlockLookupSourceExtractionOptions
+	): Promise<Map<string, BlockLookupRecord[]>>;
 }
 
 export type BlockLookupSourceExtractionAdapters = Partial<
@@ -29,6 +34,11 @@ export type BlockLookupSourceExtractionAdapters = Partial<
 interface BlockLookupBundleSourceExtractionAdapterDependencies {
 	extractBundleTextAssetOutcomes?: typeof extractBundleTextAssetOutcomes;
 	extractBundleTextAssets?: typeof extractBundleTextAssets;
+}
+
+export interface BlockLookupSourceExtractionOptions {
+	previewCacheDir?: string;
+	renderedPreviewsEnabled?: boolean;
 }
 
 function buildVanillaExportMap(assemblyPath: string): Map<string, string> {
@@ -92,6 +102,60 @@ function createSingleSourceExtractionAdapter(
 	};
 }
 
+function normalizePreviewAssetMatchKey(value: string): string {
+	return normalizedBlockLookupKey(value).replace(/(renderedpreview|thumbnail|preview|thumb|icon|texture|sprite)$/g, '');
+}
+
+function getRecordPreviewMatchKeys(record: BlockLookupRecord): string[] {
+	return [record.internalName, record.blockName, record.preferredAlias.replace(/\(.*$/, '')]
+		.map(normalizePreviewAssetMatchKey)
+		.filter((key) => key.length > 0);
+}
+
+function findPreviewAssetForRecord(
+	record: BlockLookupRecord,
+	previewAssets: readonly BlockLookupBundlePreviewAsset[]
+): BlockLookupBundlePreviewAsset | undefined {
+	if (previewAssets.length === 1) {
+		return previewAssets[0];
+	}
+
+	const recordKeys = getRecordPreviewMatchKeys(record);
+	return previewAssets.find((asset) => {
+		const assetKey = normalizePreviewAssetMatchKey(asset.assetName);
+		return recordKeys.some((recordKey) => assetKey.includes(recordKey) || recordKey.includes(assetKey));
+	});
+}
+
+function createRenderedPreviewFromAsset(previewAsset: BlockLookupBundlePreviewAsset): BlockLookupRecord['renderedPreview'] {
+	const imageUrl = createBlockLookupPreviewImageUrl(previewAsset.cacheRelativePath);
+	if (!imageUrl) {
+		return undefined;
+	}
+
+	return {
+		imageUrl,
+		...(previewAsset.width ? { width: Math.round(previewAsset.width) } : {}),
+		...(previewAsset.height ? { height: Math.round(previewAsset.height) } : {})
+	};
+}
+
+function attachRenderedPreviewsToRecords(
+	records: readonly BlockLookupRecord[],
+	previewAssets: readonly BlockLookupBundlePreviewAsset[],
+	options: BlockLookupSourceExtractionOptions | undefined
+): BlockLookupRecord[] {
+	if (!options?.renderedPreviewsEnabled || previewAssets.length === 0 || records.length === 0) {
+		return [...records];
+	}
+
+	return records.map((record) => {
+		const previewAsset = findPreviewAssetForRecord(record, previewAssets);
+		const renderedPreview = previewAsset ? createRenderedPreviewFromAsset(previewAsset) : undefined;
+		return renderedPreview ? { ...record, renderedPreview } : record;
+	});
+}
+
 async function extractVanillaSourceRecords(source: BlockLookupSourceRecord): Promise<BlockLookupRecord[]> {
 	try {
 		const exportMap = buildVanillaExportMap(source.sourcePath);
@@ -128,29 +192,36 @@ function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupR
 export function createBlockLookupBundleSourceExtractionAdapter(
 	dependencies: BlockLookupBundleSourceExtractionAdapterDependencies = {}
 ): BlockLookupSourceExtractionAdapter {
-	const extractBundleTextAssetOutcomesImpl =
-		dependencies.extractBundleTextAssetOutcomes ??
-		(async (sourcePaths: readonly string[]): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> => {
-			const textAssetsBySourcePath = await (dependencies.extractBundleTextAssets ?? extractBundleTextAssets)(sourcePaths);
-			return new Map(
-				[...textAssetsBySourcePath].map(([sourcePath, textAssets]) => [
+	const createTextAssetOnlyOutcomes = async (
+		sourcePaths: readonly string[]
+	): Promise<Map<string, BlockLookupBundleTextAssetExtractionOutcome>> => {
+		const textAssetsBySourcePath = await dependencies.extractBundleTextAssets!(sourcePaths);
+		return new Map(
+			[...textAssetsBySourcePath].map(([sourcePath, textAssets]) => [
+				sourcePath,
+				{
+					issues: [],
+					previewAssets: [],
 					sourcePath,
-					{
-						issues: [],
-						sourcePath,
-						status: 'success',
-						textAssets
-					}
-				])
-			);
-		});
+					status: 'success',
+					textAssets
+				}
+			])
+		);
+	};
 	return {
-		async extractRecords(sources) {
-			const textAssetOutcomesBySourcePath = await extractBundleTextAssetOutcomesImpl(sources.map((source) => source.sourcePath));
+		async extractRecords(sources, options) {
+			const sourcePaths = sources.map((source) => source.sourcePath);
+			const textAssetOutcomesBySourcePath = dependencies.extractBundleTextAssetOutcomes
+				? await dependencies.extractBundleTextAssetOutcomes(sourcePaths)
+				: dependencies.extractBundleTextAssets
+					? await createTextAssetOnlyOutcomes(sourcePaths)
+					: await extractBundleTextAssetOutcomes(sourcePaths, { previewCacheDir: options?.previewCacheDir });
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
 				const outcome = textAssetOutcomesBySourcePath.get(source.sourcePath);
-				recordsBySourcePath.set(source.sourcePath, createBlockLookupRecordsFromTextAssets(source, outcome?.textAssets ?? []));
+				const records = createBlockLookupRecordsFromTextAssets(source, outcome?.textAssets ?? []);
+				recordsBySourcePath.set(source.sourcePath, attachRenderedPreviewsToRecords(records, outcome?.previewAssets ?? [], options));
 			}
 			return recordsBySourcePath;
 		}
@@ -172,7 +243,10 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 	};
 
 	return {
-		async extractRecords(sources: readonly BlockLookupSourceRecord[]): Promise<Map<string, BlockLookupRecord[]>> {
+		async extractRecords(
+			sources: readonly BlockLookupSourceRecord[],
+			options?: BlockLookupSourceExtractionOptions
+		): Promise<Map<string, BlockLookupRecord[]>> {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			const sourcesByKind = new Map<BlockLookupSourceRecord['sourceKind'], BlockLookupSourceRecord[]>();
 			for (const source of sources) {
@@ -183,7 +257,7 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 
 			for (const [sourceKind, kindSources] of sourcesByKind) {
 				const adapter = sourceAdapters[sourceKind];
-				const extractedRecords = await adapter.extractRecords(kindSources);
+				const extractedRecords = options ? await adapter.extractRecords(kindSources, options) : await adapter.extractRecords(kindSources);
 				for (const source of kindSources) {
 					recordsBySourcePath.set(source.sourcePath, extractedRecords.get(source.sourcePath) ?? []);
 				}
@@ -196,7 +270,8 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 
 export async function extractRecordsFromSources(
 	sources: readonly BlockLookupSourceRecord[],
-	adapters: BlockLookupSourceExtractionAdapters = {}
+	adapters: BlockLookupSourceExtractionAdapters = {},
+	options?: BlockLookupSourceExtractionOptions
 ): Promise<Map<string, BlockLookupRecord[]>> {
-	return createBlockLookupSourceExtractionRouter(adapters).extractRecords(sources);
+	return createBlockLookupSourceExtractionRouter(adapters).extractRecords(sources, options);
 }

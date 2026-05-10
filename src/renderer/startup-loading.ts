@@ -1,27 +1,10 @@
 import type { AppConfig } from 'model/AppConfig';
+import { getStartupRestorablePath } from 'shared/app-route-policy';
 import { DEFAULT_CONFIG } from './Constants';
 
 interface StartupBootErrorDescription {
 	title: string;
 	detail: string;
-}
-
-export function normalizeStartupPath(currentPath: string | undefined): string {
-	if (!currentPath) {
-		return '/collections/main';
-	}
-
-	const normalizedPath = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
-	if (
-		normalizedPath === '/collections' ||
-		normalizedPath.startsWith('/block-lookup') ||
-		normalizedPath.startsWith('/settings') ||
-		normalizedPath.startsWith('/loading')
-	) {
-		return '/collections/main';
-	}
-
-	return normalizedPath;
 }
 
 export function shouldAutoDiscoverGameExec(config: AppConfig, hasStoredConfig: boolean, platform: string): boolean {
@@ -94,7 +77,7 @@ export function resolveStartupNavigation(config: AppConfig, configErrors: { [fie
 		};
 	}
 
-	const currentPath = normalizeStartupPath(config.currentPath);
+	const currentPath = getStartupRestorablePath(config.currentPath);
 	return {
 		config: {
 			...config,

@@ -98,10 +98,7 @@ describe('block lookup index', () => {
 	it('does not fallback-index non-block assets that only mention NuterraBlock', () => {
 		expect(extractNuterraBlocksFromText('{"Notes":"This text mentions NuterraBlock without defining one."}', 'Readme')).toEqual([]);
 		expect(
-			extractNuterraBlocksFromText(
-				'{"Notes":"NuterraBlock example with BlockExtents","BlockExtents":{"x":1,"y":1,"z":1}}',
-				'Readme'
-			)
+			extractNuterraBlocksFromText('{"Notes":"NuterraBlock example with BlockExtents","BlockExtents":{"x":1,"y":1,"z":1}}', 'Readme')
 		).toEqual([]);
 		expect(extractNuterraBlocksFromText('{"Notes":"NuterraBlock example","GamePrefabReference":"Foo"}', 'Readme')).toEqual([]);
 	});
@@ -503,6 +500,7 @@ describe('block lookup index', () => {
 					emptyBundlePath,
 					{
 						issues: [],
+						previewAssets: [],
 						sourcePath: emptyBundlePath,
 						status: 'success' as const,
 						textAssets: []
@@ -512,6 +510,7 @@ describe('block lookup index', () => {
 					failedBundlePath,
 					{
 						issues: ['Unable to read bundle TextAssets'],
+						previewAssets: [],
 						sourcePath: failedBundlePath,
 						status: 'issue' as const,
 						textAssets: []
@@ -521,6 +520,7 @@ describe('block lookup index', () => {
 					goodBundlePath,
 					{
 						issues: [],
+						previewAssets: [],
 						sourcePath: goodBundlePath,
 						status: 'success' as const,
 						textAssets: [
@@ -576,6 +576,73 @@ describe('block lookup index', () => {
 		expect(result.recordsBySourcePath.get(goodBundlePath)).toEqual([
 			expect.objectContaining({ blockName: 'Good Bundle Block', sourceKind: 'bundle' })
 		]);
+	});
+
+	it('writes extracted bundle preview assets to the rendered preview cache', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-source-bundle-previews-');
+		const previewCacheDir = path.join(tempDir, 'user-data', 'block-lookup-rendered-previews');
+		const cacheRelativePath = 'bundle/synthetic-preview.png';
+		const bundlePath = path.join(tempDir, 'GoodBundle_bundle');
+		fs.writeFileSync(bundlePath, 'good bundle', 'utf8');
+		fs.mkdirSync(path.join(previewCacheDir, 'bundle'), { recursive: true });
+		fs.writeFileSync(path.join(previewCacheDir, cacheRelativePath), 'synthetic png bytes');
+		const stats = fs.statSync(bundlePath);
+		const extractBundleTextAssetOutcomesAdapter = vi.fn(async () => {
+			return new Map([
+				[
+					bundlePath,
+					{
+						issues: [],
+						previewAssets: [
+							{
+								assetName: 'Good_Bundle_Internal_icon',
+								cacheRelativePath,
+								height: 2,
+								width: 3
+							}
+						],
+						sourcePath: bundlePath,
+						status: 'success' as const,
+						textAssets: [
+							{
+								assetName: 'GoodBundle',
+								text: '{"m_Name":"Good_Bundle_Internal","Type":"NuterraBlock","Name":"Good Bundle Block","ID":13}'
+							}
+						]
+					}
+				]
+			]);
+		});
+
+		const result = await indexBlockLookupSources(
+			[
+				{
+					modTitle: 'Good Bundle',
+					mtimeMs: stats.mtimeMs,
+					size: stats.size,
+					sourceKind: 'bundle',
+					sourcePath: bundlePath,
+					workshopId: 'good'
+				}
+			],
+			{
+				sourceExtractionAdapters: {
+					bundle: createBlockLookupBundleSourceExtractionAdapter({
+						extractBundleTextAssetOutcomes: extractBundleTextAssetOutcomesAdapter
+					})
+				}
+			},
+			{ previewCacheDir, renderedPreviewsEnabled: true }
+		);
+
+		const [record] = result.recordsBySourcePath.get(bundlePath) ?? [];
+		expect(record.renderedPreview).toMatchObject({
+			height: 2,
+			imageUrl: expect.stringMatching(/^image:\/\/block-preview\/bundle\//),
+			width: 3
+		});
+		const renderedCacheRelativePath = decodeURIComponent(new URL(record.renderedPreview!.imageUrl).pathname.replace(/^\/+/, ''));
+		expect(fs.existsSync(path.join(previewCacheDir, renderedCacheRelativePath))).toBe(true);
 	});
 
 	it('discovers JSON and bundle sources from loaded mod directories', () => {
@@ -790,6 +857,7 @@ describe('block lookup index', () => {
 		const emptyIndex = {
 			version: BLOCK_LOOKUP_INDEX_VERSION,
 			builtAt: '',
+			renderedPreviewsEnabled: false,
 			sources: [],
 			records: []
 		} as const;
@@ -854,6 +922,7 @@ describe('block lookup index', () => {
 		const emptyIndex = {
 			version: BLOCK_LOOKUP_INDEX_VERSION,
 			builtAt: '',
+			renderedPreviewsEnabled: false,
 			sources: [],
 			records: []
 		} as const;
@@ -941,6 +1010,21 @@ describe('block lookup index', () => {
 		});
 	});
 
+	it('persists rendered preview support on indexes built with the opt-in flag', async () => {
+		const build = await createBlockLookupIndexBuild(
+			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
+			{
+				modSources: [],
+				renderedPreviewsEnabled: true
+			}
+		);
+
+		expect(build.index.renderedPreviewsEnabled).toBe(true);
+		expect(build.stats.renderedPreviewsEnabled).toBe(true);
+		expect(build.stats.renderedPreviews).toBe(0);
+		expect(build.stats.unavailablePreviews).toBe(0);
+	});
+
 	it('keeps ID-bearing block lookup records over ID-less source duplicates', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-dedupe-id-');
 		const workshopRoot = path.join(tempDir, 'SteamLibrary', 'steamapps', 'workshop', 'content', '285920');
@@ -956,6 +1040,7 @@ describe('block lookup index', () => {
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '',
+				renderedPreviewsEnabled: false,
 				sources: [],
 				records: []
 			},
@@ -1020,7 +1105,10 @@ describe('block lookup index', () => {
 			]
 		};
 
-		const firstBuild = await createBlockLookupIndexBuild({ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', sources: [], records: [] }, request);
+		const firstBuild = await createBlockLookupIndexBuild(
+			{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
+			request
+		);
 		const reuseIndexer = vi.fn(async () => ({
 			records: [],
 			recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
@@ -1134,6 +1222,7 @@ describe('block lookup index', () => {
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: false,
 				sources: [
 					{
 						sourcePath: path.normalize(unchangedPath),
@@ -1208,10 +1297,11 @@ describe('block lookup index', () => {
 		process.env.TTSMM_BLOCK_LOOKUP_EXTRACTOR_PATH = extractorPath;
 		fs.writeFileSync(bundlePath, 'UnityFS\0{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
 		const stdout = JSON.stringify({
-			version: 1,
+			version: 2,
 			files: [
 				{
 					sourcePath: bundlePath,
+					previewAssets: [],
 					textAssets: [
 						{
 							assetName: 'BundleBlocks_bundle',
@@ -1256,10 +1346,11 @@ describe('block lookup index', () => {
 		fs.writeFileSync(bundlePath, 'UnityFS\0{"m_Name":"Bundle_Block_Internal","Type":"NuterraBlock","Name":"Bundle Block","ID":77}', 'utf8');
 		const stats = fs.statSync(bundlePath);
 		const stdout = JSON.stringify({
-			version: 1,
+			version: 2,
 			files: [
 				{
 					sourcePath: bundlePath,
+					previewAssets: [],
 					textAssets: [
 						{
 							assetName: 'BundleBlocks_bundle',
@@ -1311,10 +1402,11 @@ describe('block lookup index', () => {
 		const firstBundlePath = path.join(tempDir, 'FirstBundle_bundle');
 		const secondBundlePath = path.join(tempDir, 'SecondBundle_bundle');
 		const stdout = JSON.stringify({
-			version: 1,
+			version: 2,
 			files: [
 				{
 					sourcePath: firstBundlePath,
+					previewAssets: [],
 					textAssets: [
 						{
 							assetName: 'FirstBundle',
@@ -1325,6 +1417,7 @@ describe('block lookup index', () => {
 				},
 				{
 					sourcePath: secondBundlePath,
+					previewAssets: [],
 					textAssets: [],
 					errors: ['No TextAssets contained NuterraBlock data']
 				}
@@ -1364,11 +1457,13 @@ describe('block lookup index', () => {
 		const assetBundlePath = path.join(tempDir, 'AssetBundle_bundle');
 		const emptyBundlePath = path.join(tempDir, 'EmptyBundle_bundle');
 		const failedBundlePath = path.join(tempDir, 'FailedBundle_bundle');
+		const previewCacheDir = path.join(tempDir, 'preview-cache');
 		const stdout = JSON.stringify({
-			version: 1,
+			version: 2,
 			files: [
 				{
 					sourcePath: assetBundlePath,
+					previewAssets: [],
 					textAssets: [
 						{
 							assetName: 'AssetBundle',
@@ -1379,17 +1474,19 @@ describe('block lookup index', () => {
 				},
 				{
 					sourcePath: emptyBundlePath,
+					previewAssets: [],
 					textAssets: [],
 					errors: []
 				},
 				{
 					sourcePath: failedBundlePath,
+					previewAssets: [],
 					textAssets: [],
 					errors: ['Unable to read bundle TextAssets']
 				}
 			]
 		});
-		vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
+		const execFileSpy = vi.spyOn(childProcess, 'execFile').mockImplementation(((_file, _args, _options, callback) => {
 			if (typeof callback === 'function') {
 				callback(null, stdout, '');
 			}
@@ -1397,11 +1494,23 @@ describe('block lookup index', () => {
 		}) as typeof childProcess.execFile);
 
 		const outcomes = await extractBundleTextAssetOutcomes([assetBundlePath, emptyBundlePath, failedBundlePath], {
-			extractorPath: '/fake/block-lookup-extractor'
+			extractorPath: '/fake/block-lookup-extractor',
+			previewCacheDir
 		});
 
+		expect(execFileSpy).toHaveBeenCalledWith(
+			'/fake/block-lookup-extractor',
+			[assetBundlePath, emptyBundlePath, failedBundlePath],
+			expect.objectContaining({
+				env: expect.objectContaining({
+					TTSMM_BLOCK_LOOKUP_PREVIEW_CACHE_DIR: previewCacheDir
+				})
+			}),
+			expect.any(Function)
+		);
 		expect(outcomes.get(assetBundlePath)).toEqual({
 			issues: [],
+			previewAssets: [],
 			sourcePath: assetBundlePath,
 			status: 'success',
 			textAssets: [
@@ -1413,12 +1522,14 @@ describe('block lookup index', () => {
 		});
 		expect(outcomes.get(emptyBundlePath)).toEqual({
 			issues: [],
+			previewAssets: [],
 			sourcePath: emptyBundlePath,
 			status: 'success',
 			textAssets: []
 		});
 		expect(outcomes.get(failedBundlePath)).toEqual({
 			issues: ['Unable to read bundle TextAssets'],
+			previewAssets: [],
 			sourcePath: failedBundlePath,
 			status: 'issue',
 			textAssets: []

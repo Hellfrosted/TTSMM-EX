@@ -1,6 +1,9 @@
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	type BlockLookupBuildRequest,
+	type BlockLookupIndexProgress,
+	type BlockLookupIndexProgressCallback,
+	type BlockLookupIndexProgressPhase,
 	type BlockLookupIndexSource,
 	type BlockLookupIndexStats,
 	type BlockLookupRecord,
@@ -14,6 +17,10 @@ interface BlockLookupIndexBuildAdapters {
 	indexBlockLookupSources?: typeof indexBlockLookupSources;
 }
 
+interface BlockLookupIndexBuildOptions {
+	previewCacheDir?: string;
+}
+
 interface BlockLookupIndexBuild {
 	index: PersistedBlockLookupIndex;
 	stats: BlockLookupIndexStats;
@@ -25,6 +32,40 @@ const SOURCE_KIND_PRIORITY: Record<BlockLookupRecord['sourceKind'], number> = {
 	bundle: 1,
 	vanilla: 2
 };
+
+const BLOCK_LOOKUP_INDEX_PROGRESS_LABELS: Record<BlockLookupIndexProgressPhase, string> = {
+	planning: 'Planning index build',
+	'scanning-sources': 'Scanning source changes',
+	'indexing-sources': 'Extracting block records',
+	finalizing: 'Finalizing indexed records',
+	'writing-index': 'Writing index cache',
+	complete: 'Index build complete'
+};
+
+export function createBlockLookupIndexProgress(
+	phase: BlockLookupIndexProgressPhase,
+	completed: number,
+	total: number,
+	percent: number
+): BlockLookupIndexProgress {
+	return {
+		phase,
+		phaseLabel: BLOCK_LOOKUP_INDEX_PROGRESS_LABELS[phase],
+		completed: Math.max(0, completed),
+		total: Math.max(0, total),
+		percent: Math.max(0, Math.min(100, Math.round(percent)))
+	};
+}
+
+function reportBlockLookupIndexProgress(
+	onProgress: BlockLookupIndexProgressCallback | undefined,
+	phase: BlockLookupIndexProgressPhase,
+	completed: number,
+	total: number,
+	percent: number
+) {
+	onProgress?.(createBlockLookupIndexProgress(phase, completed, total, percent));
+}
 
 function normalizeBlockLookupRecordIdentityPart(value: string): string {
 	return value.trim().toLowerCase();
@@ -56,11 +97,18 @@ function shouldReplaceBlockLookupRecord(existing: BlockLookupRecord, candidate: 
 	if (candidatePriority !== existingPriority) {
 		return candidatePriority < existingPriority;
 	}
+	if (!existing.renderedPreview && candidate.renderedPreview) {
+		return true;
+	}
 	return !existing.previewBounds && !!candidate.previewBounds;
 }
 
-function mergeBlockLookupRecordPreviewBounds(record: BlockLookupRecord, fallbackRecord: BlockLookupRecord): BlockLookupRecord {
-	return !record.previewBounds && fallbackRecord.previewBounds ? { ...record, previewBounds: fallbackRecord.previewBounds } : record;
+function mergeBlockLookupRecordPreview(record: BlockLookupRecord, fallbackRecord: BlockLookupRecord): BlockLookupRecord {
+	return {
+		...record,
+		...(!record.previewBounds && fallbackRecord.previewBounds ? { previewBounds: fallbackRecord.previewBounds } : {}),
+		...(!record.renderedPreview && fallbackRecord.renderedPreview ? { renderedPreview: fallbackRecord.renderedPreview } : {})
+	};
 }
 
 function dedupeBlockLookupRecords(records: readonly BlockLookupRecord[]): BlockLookupRecord[] {
@@ -79,9 +127,9 @@ function dedupeBlockLookupRecords(records: readonly BlockLookupRecord[]): BlockL
 		if (!existingEntry) {
 			entries.push(entry);
 		} else if (shouldReplaceBlockLookupRecord(entry.record, record)) {
-			entry.record = mergeBlockLookupRecordPreviewBounds(record, entry.record);
+			entry.record = mergeBlockLookupRecordPreview(record, entry.record);
 		} else {
-			entry.record = mergeBlockLookupRecordPreviewBounds(entry.record, record);
+			entry.record = mergeBlockLookupRecordPreview(entry.record, record);
 		}
 
 		const entryIdIdentity = createBlockLookupRecordIdIdentity(entry.record);
@@ -96,29 +144,49 @@ function dedupeBlockLookupRecords(records: readonly BlockLookupRecord[]): BlockL
 export async function createBlockLookupIndexBuild(
 	existingIndex: PersistedBlockLookupIndex,
 	request: BlockLookupBuildRequest,
-	adapters: BlockLookupIndexBuildAdapters = {}
+	adapters: BlockLookupIndexBuildAdapters = {},
+	onProgress?: BlockLookupIndexProgressCallback,
+	options: BlockLookupIndexBuildOptions = {}
 ): Promise<BlockLookupIndexBuild> {
 	const indexBlockLookupSourcesImpl = adapters.indexBlockLookupSources ?? indexBlockLookupSources;
+	reportBlockLookupIndexProgress(onProgress, 'planning', 0, 1, 0);
 	const { sources, workshopRoot } = collectBlockLookupSources(request);
-	const indexPlan = createBlockLookupIndexPlan(existingIndex, sources, request.forceRebuild);
+	const renderedPreviewsEnabled = request.renderedPreviewsEnabled === true;
+	const indexPlan = createBlockLookupIndexPlan(
+		existingIndex,
+		sources,
+		request.forceRebuild || existingIndex.renderedPreviewsEnabled !== renderedPreviewsEnabled
+	);
 	const nextRecords: BlockLookupRecord[] = [];
 	const nextSources: BlockLookupIndexSource[] = [];
 	const changedRecords: BlockLookupRecord[] = [];
 	let scanned = 0;
 	let skipped = 0;
 	const changedSources = indexPlan.tasks.filter((task) => !task.reusedRecords).map((task) => task.source);
+	reportBlockLookupIndexProgress(onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10);
+	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', 0, changedSources.length, 10);
 	const indexedSources =
 		changedSources.length > 0
-			? await indexBlockLookupSourcesImpl(changedSources)
+			? renderedPreviewsEnabled
+				? await indexBlockLookupSourcesImpl(changedSources, {}, { renderedPreviewsEnabled, previewCacheDir: options.previewCacheDir })
+				: await indexBlockLookupSourcesImpl(changedSources)
 			: {
 					recordsBySourcePath: new Map<string, BlockLookupRecord[]>()
 				};
+	reportBlockLookupIndexProgress(onProgress, 'indexing-sources', changedSources.length, changedSources.length, 75);
 
-	for (const task of indexPlan.tasks) {
+	for (const [taskIndex, task] of indexPlan.tasks.entries()) {
 		if (task.reusedRecords) {
 			skipped += 1;
 			nextSources.push(task.existingSource!);
 			nextRecords.push(...task.reusedRecords);
+			reportBlockLookupIndexProgress(
+				onProgress,
+				'finalizing',
+				taskIndex + 1,
+				Math.max(1, indexPlan.tasks.length),
+				75 + ((taskIndex + 1) / Math.max(1, indexPlan.tasks.length)) * 20
+			);
 			continue;
 		}
 
@@ -128,6 +196,13 @@ export async function createBlockLookupIndexBuild(
 		nextSources.push(createBlockLookupSourceIndexRecord(source));
 		changedRecords.push(...records);
 		nextRecords.push(...records);
+		reportBlockLookupIndexProgress(
+			onProgress,
+			'finalizing',
+			taskIndex + 1,
+			Math.max(1, indexPlan.tasks.length),
+			75 + ((taskIndex + 1) / Math.max(1, indexPlan.tasks.length)) * 20
+		);
 	}
 
 	const dedupedRecords = dedupeBlockLookupRecords(nextRecords);
@@ -135,6 +210,7 @@ export async function createBlockLookupIndexBuild(
 	const index: PersistedBlockLookupIndex = {
 		version: BLOCK_LOOKUP_INDEX_VERSION,
 		builtAt: new Date().toISOString(),
+		renderedPreviewsEnabled,
 		sources: nextSources,
 		records: dedupedRecords,
 		sourceRecords: nextRecords

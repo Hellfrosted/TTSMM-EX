@@ -15,6 +15,7 @@ import type { StartupCollectionResolutionRequest, StartupCollectionResolutionRes
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
+	BlockLookupIndexProgressCallback,
 	BlockLookupIndexStats,
 	BlockLookupSearchRequest,
 	BlockLookupSearchResult,
@@ -95,6 +96,7 @@ export interface ElectronApi {
 	openModSteam: (workshopID: bigint) => void;
 	openModContextMenu: (request: ModContextMenuRequest) => void;
 	onProgressChange: (callback: ProgressChangeCallback) => Unsubscribe;
+	onBlockLookupIndexProgress: (callback: BlockLookupIndexProgressCallback) => Unsubscribe;
 	onModMetadataUpdate: (callback: (uid: string, update: Partial<ModData>) => void) => Unsubscribe;
 	onModRefreshRequested: (callback: () => void) => Unsubscribe;
 	onReloadSteamworks: (callback: () => void) => Unsubscribe;

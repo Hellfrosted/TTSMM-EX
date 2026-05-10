@@ -89,6 +89,7 @@ describe('ipc contract', () => {
 			updateLogLevel: ValidChannel.UPDATE_LOG_LEVEL
 		});
 		expect(ipcSubscriptionChannels).toEqual({
+			onBlockLookupIndexProgress: ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS,
 			onModMetadataUpdate: ValidChannel.MOD_METADATA_UPDATE,
 			onModRefreshRequested: ValidChannel.MOD_REFRESH_REQUESTED,
 			onProgressChange: ValidChannel.PROGRESS_CHANGE,

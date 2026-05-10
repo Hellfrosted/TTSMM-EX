@@ -19,6 +19,8 @@ export function createBlockLookupIndexStats(
 	removed = 0,
 	updatedBlocks = 0
 ): BlockLookupIndexStats {
+	const renderedPreviews = index.records.filter((record) => !!record.renderedPreview).length;
+
 	return {
 		sources: index.sources.length,
 		scanned,
@@ -26,6 +28,9 @@ export function createBlockLookupIndexStats(
 		removed,
 		blocks: index.records.length,
 		updatedBlocks,
+		renderedPreviewsEnabled: index.renderedPreviewsEnabled,
+		renderedPreviews,
+		unavailablePreviews: index.renderedPreviewsEnabled ? Math.max(0, index.records.length - renderedPreviews) : 0,
 		builtAt: index.builtAt || undefined
 	};
 }

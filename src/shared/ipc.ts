@@ -29,6 +29,7 @@ export enum ValidChannel {
 	BLOCK_LOOKUP_READ_SETTINGS = 'block-lookup-read-settings',
 	BLOCK_LOOKUP_SAVE_SETTINGS = 'block-lookup-save-settings',
 	BLOCK_LOOKUP_BUILD_INDEX = 'block-lookup-build-index',
+	BLOCK_LOOKUP_INDEX_PROGRESS = 'block-lookup-index-progress',
 	BLOCK_LOOKUP_SEARCH = 'block-lookup-search',
 	BLOCK_LOOKUP_STATS = 'block-lookup-stats',
 	BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT = 'block-lookup-autodetect-workshop-root',

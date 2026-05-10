@@ -56,9 +56,12 @@ describe('block lookup indexer facade', () => {
 			removed: 0,
 			blocks: 1,
 			updatedBlocks: 1,
+			renderedPreviewsEnabled: false,
+			renderedPreviews: 0,
+			unavailablePreviews: 0,
 			builtAt: expect.any(String)
 		});
-		expect(indexModule.readSettings()).toEqual({ workshopRoot: '' });
+		expect(indexModule.readSettings()).toEqual({ workshopRoot: '', renderedPreviewsEnabled: false });
 		expect(indexModule.getStats()).toEqual({
 			sources: 1,
 			scanned: 0,
@@ -66,6 +69,9 @@ describe('block lookup indexer facade', () => {
 			removed: 0,
 			blocks: 1,
 			updatedBlocks: 0,
+			renderedPreviewsEnabled: false,
+			renderedPreviews: 0,
+			unavailablePreviews: 0,
 			builtAt: buildResult.stats.builtAt
 		});
 		expect(indexModule.search({ query: 'alpha cannon', limit: 5 })).toMatchObject({
@@ -89,6 +95,7 @@ describe('block lookup indexer facade', () => {
 		expect(persistedIndex).toEqual({
 			version: BLOCK_LOOKUP_INDEX_VERSION,
 			builtAt: buildResult.stats.builtAt,
+			renderedPreviewsEnabled: false,
 			sources: [
 				{
 					sourcePath: path.normalize(blockJsonPath),
@@ -307,11 +314,12 @@ describe('block lookup indexer facade', () => {
 		const indexer = createBlockLookupIndexModule(userDataPath);
 		const workshopRoot = path.normalize('C:/Steam/workshop/content/285920');
 
-		expect(indexer.readSettings()).toEqual({ workshopRoot: '' });
-		expect(indexer.saveSettings({ workshopRoot: '  C:/Steam/workshop/content/285920  ' })).toEqual({
-			workshopRoot
+		expect(indexer.readSettings()).toEqual({ workshopRoot: '', renderedPreviewsEnabled: false });
+		expect(indexer.saveSettings({ workshopRoot: '  C:/Steam/workshop/content/285920  ', renderedPreviewsEnabled: true })).toEqual({
+			workshopRoot,
+			renderedPreviewsEnabled: true
 		});
-		expect(indexer.readSettings()).toEqual({ workshopRoot });
+		expect(indexer.readSettings()).toEqual({ workshopRoot, renderedPreviewsEnabled: true });
 		expect(indexer.getStats()).toBeNull();
 		expect(indexer.search({ query: '', limit: 10 })).toEqual({
 			rows: [],
@@ -329,6 +337,7 @@ describe('block lookup indexer facade', () => {
 				{
 					version: BLOCK_LOOKUP_INDEX_VERSION,
 					builtAt: '2026-04-26T00:00:00.000Z',
+					renderedPreviewsEnabled: false,
 					sources: [],
 					records: [
 						{
@@ -360,11 +369,21 @@ describe('block lookup indexer facade', () => {
 			buildBlockLookupIndex: async () => {
 				fs.writeFileSync(
 					indexPath,
-					JSON.stringify({ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '2026-04-26T01:00:00.000Z', sources: [], records: [] }, null, 2),
+					JSON.stringify(
+						{
+							version: BLOCK_LOOKUP_INDEX_VERSION,
+							builtAt: '2026-04-26T01:00:00.000Z',
+							renderedPreviewsEnabled: false,
+							sources: [],
+							records: []
+						},
+						null,
+						2
+					),
 					'utf8'
 				);
 				return {
-					settings: { workshopRoot: '' },
+					settings: { workshopRoot: '', renderedPreviewsEnabled: false },
 					stats: {
 						sources: 0,
 						scanned: 0,
@@ -372,6 +391,9 @@ describe('block lookup indexer facade', () => {
 						removed: 0,
 						blocks: 0,
 						updatedBlocks: 0,
+						renderedPreviewsEnabled: false,
+						renderedPreviews: 0,
+						unavailablePreviews: 0,
 						builtAt: '2026-04-26T01:00:00.000Z'
 					}
 				};

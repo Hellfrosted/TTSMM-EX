@@ -86,11 +86,16 @@ The pacman target needs `bsdtar`.
 - `pnpm run lint`: Biome formatting and lint check
 - `pnpm run lint:fix`: Biome formatting and lint autofix
 - `pnpm run nano-staged`: run staged-file checks for the pre-commit hook
-- `pnpm run deadcode`: Knip unused files, exports, and dependencies check
+- `pnpm run fallow`: Fallow suite check for dead code, duplication, complexity, cycles, and architecture issues
+- `pnpm run fallow:dead-code`: Fallow unused files, exports, dependencies, cycles, and boundaries check
+- `pnpm run fallow:dupes`: Fallow duplication check
+- `pnpm run fallow:health`: Fallow complexity and maintainability check
+- `pnpm run fallow:audit`: Fallow changed-file audit for PR-sized review
+- `pnpm run deadcode`: legacy alias for `pnpm run fallow`
 - `pnpm run typecheck`: TypeScript build check
 - `pnpm test`: Vitest
 - `pnpm run build`: build main, preload, and renderer
-- `pnpm run validate`: lint, Knip dead-code check, typecheck, tests, and build
+- `pnpm run validate`: lint, Fallow suite check, typecheck, tests, and build
 - `pnpm run verify:push`: pre-push gate for `main`; currently aliases `pnpm run validate`
 - `pnpm audit --audit-level=moderate`: dependency security audit
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
@@ -111,7 +116,7 @@ The pacman target needs `bsdtar`.
 
 ## Local Push Gate
 
-Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run verify:push` with `CI=true`. This catches the same lint, Knip, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
+Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run verify:push` with `CI=true`. This catches the same lint, Fallow, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
 
 For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run verify:push` before relying on the pushed commit.
 
@@ -149,5 +154,5 @@ Tooling and validation:
 - [Vitest documentation](https://vitest.dev/)
 - [Testing Library documentation](https://testing-library.com/docs/)
 - [Biome documentation](https://biomejs.dev/)
-- [Knip documentation](https://knip.dev/)
+- [Fallow documentation](https://docs.fallow.tools/)
 - [electron-builder documentation](https://www.electron.build/)

@@ -1,6 +1,7 @@
 import type { AppConfig } from 'model/AppConfig';
 import { ModErrorType } from 'model/CollectionValidation';
 import type { ModDataOverride } from 'model/Mod';
+import { DEFAULT_COLLECTIONS_PATH } from 'shared/app-route-policy';
 
 export const DEFAULT_WORKSHOP_ID = BigInt(2790161231);
 
@@ -67,7 +68,7 @@ export function createDefaultAppConfig(platform: string): AppConfig {
 		activeCollection: undefined,
 		steamMaxConcurrency: 5,
 
-		currentPath: '/collections/main',
+		currentPath: DEFAULT_COLLECTIONS_PATH,
 
 		viewConfigs: {},
 

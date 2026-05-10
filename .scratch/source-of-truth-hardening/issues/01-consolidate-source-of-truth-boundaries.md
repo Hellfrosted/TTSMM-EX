@@ -1,13 +1,24 @@
 # Consolidate Source Of Truth Boundaries
 
-Status: ready-for-agent
+Status: needs-triage
 Owner: implementation
-PRD: ../PRD.md
-Last updated: 2026-05-06
+PRD: missing
+Last updated: 2026-05-07
 
 ## Summary
 
 Consolidate the duplicate-ownership risks identified in the Source Of Truth Hardening PRD while preserving current user-facing behavior.
+
+## Backlog Cleanup Note
+
+This issue is no longer cleanly ready for implementation because `.scratch/source-of-truth-hardening/PRD.md` is not present and some overlapping source-of-truth cleanup has already landed in the current working tree:
+
+- Mod metadata scan request ownership moved to `renderer/async-cache.ts`.
+- Route/current-path policy moved to `shared/app-route-policy.ts`.
+- Rendered Block Preview record/count contract moved into the shared Block Lookup index contract.
+- Block Lookup column persistence moved to stable `BlockLookupColumnKey` values.
+
+The acceptance criteria below remain for triage against the missing PRD and any remaining source-of-truth hardening work.
 
 ## Acceptance Criteria
 

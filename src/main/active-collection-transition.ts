@@ -254,9 +254,7 @@ export function resolveStartupActiveCollectionTransition(
 	}
 
 	if (request.config.activeCollection) {
-		const activeCollection = collections.find((collection) =>
-			collectionNamesEqual(collection.name, request.config.activeCollection ?? '')
-		);
+		const activeCollection = collections.find((collection) => collectionNamesEqual(collection.name, request.config.activeCollection ?? ''));
 		if (activeCollection) {
 			return createStartupTransitionSuccess(request.config, activeCollection, collections);
 		}

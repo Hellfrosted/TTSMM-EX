@@ -16,6 +16,22 @@ The prototype validated a single production direction: a table-first **Populatio
 
 The current production slice is the **Population Pool Scanner**: route, sidebar placement, staged workspace mounting, Variant A table layout, source filters, inspector, real scan results for active RawTech files, disabled RawTech files, saved snapshots, subscribed Steam Workshop Techs, and stored Workshop requests. Stable file operations remain a later slice and must stay disabled until real write IPC exists.
 
+## Current Backlog State
+
+Done:
+
+- ADR 0006 is accepted and defines TACtical_AI's `Raw Techs/Enemies/eLocal` folder as the source of truth for stable membership.
+- Prototype learnings are captured and Variant A is the chosen production topology.
+- Product vocabulary and implementation slices are defined in this PRD.
+
+Outstanding:
+
+- Population Pool production code has not started in the current tree.
+- Slice 1, **Population Pool Scanner**, is the next implementation slice.
+- Slices 2 through 7 remain backlog work after the scanner slice.
+- Stable file operations remain out of scope until real write IPC and running-game confirmation are implemented.
+- The **Open Questions** section remains active and should be resolved during or before the affected implementation slices.
+
 ## Problem
 
 TACtical_AI can spawn local population entries only from its RawTech folder. TerraTech saved snapshots and Steam Workshop contents live elsewhere, and neither source is automatically a TAC-compatible RawTech file.

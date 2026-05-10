@@ -6,6 +6,7 @@ import type { AppState, AppStateUpdate } from 'model/AppState';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
+import { DEFAULT_COLLECTIONS_PATH } from 'shared/app-route-policy';
 
 type AppStateData = Omit<AppState, 'navigate' | 'updateState'>;
 
@@ -59,7 +60,7 @@ function createInitialAppState(): AppStateData {
 			config: {
 				...DEFAULT_CONFIG,
 				activeCollection: activeCollection.name,
-				currentPath: '/collections/main'
+				currentPath: DEFAULT_COLLECTIONS_PATH
 			},
 			userDataPath: '',
 			mods: new SessionMods('', []),

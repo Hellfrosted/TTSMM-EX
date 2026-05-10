@@ -18,16 +18,20 @@ function createBlockLookupHandlerHarness() {
 		getUserDataPath: () => userDataPath
 	});
 
-	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
+	const invokeWithEvent = <T>(channel: ValidChannel, event: unknown, ...args: unknown[]) => {
 		const handler = handlers.get(channel);
 		if (!handler) {
 			throw new Error(`Missing handler for ${channel}`);
 		}
-		return handler(createValidIpcEvent(), ...args) as Promise<T>;
+		return handler(event, ...args) as Promise<T>;
+	};
+	const invoke = <T>(channel: ValidChannel, ...args: unknown[]) => {
+		return invokeWithEvent<T>(channel, createValidIpcEvent(), ...args);
 	};
 
 	return {
 		invoke,
+		invokeWithEvent,
 		userDataPath
 	};
 }
@@ -70,5 +74,29 @@ describe('block lookup ipc handlers', () => {
 			rows: [],
 			stats: null
 		});
+	});
+
+	it('emits determinate progress while building the index', async () => {
+		const { invokeWithEvent } = createBlockLookupHandlerHarness();
+		const send = vi.fn();
+
+		await expect(
+			invokeWithEvent(
+				ValidChannel.BLOCK_LOOKUP_BUILD_INDEX,
+				{
+					...createValidIpcEvent(),
+					sender: { send }
+				},
+				{ forceRebuild: true, modSources: [] }
+			)
+		).resolves.toEqual({
+			stats: expect.objectContaining({ blocks: 0, sources: 0 })
+		});
+
+		expect(send).toHaveBeenCalledWith(ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS, expect.objectContaining({ phase: 'planning', percent: 0 }));
+		expect(send).toHaveBeenCalledWith(
+			ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS,
+			expect.objectContaining({ phase: 'complete', percent: 100 })
+		);
 	});
 });

@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { hydrateSessionMods, type AppConfig } from 'model';
-import type { ModDataOverride } from 'model/Mod';
+import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import api from 'renderer/Api';
 import type { AuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
@@ -102,11 +102,32 @@ export function collectionQueryOptions(collectionName: string) {
 
 interface ModMetadataQueryOptionsInput {
 	localDir: string | undefined;
-	knownMods: Iterable<string>;
+	scanRequest: ModMetadataScanRequest;
 	forceReload: boolean;
 	attempt: number;
 	userOverrides: Map<string, ModDataOverride>;
 	treatNuterraSteamBetaAsEquivalent: boolean;
+}
+
+interface ModMetadataScanRequestInput {
+	allCollections: Map<string, ModCollection>;
+	workshopID: AppConfig['workshopID'];
+	forceReload: boolean;
+	userOverrides: Map<string, ModDataOverride>;
+}
+
+export interface ModMetadataScanRequest {
+	knownModIds: readonly string[];
+	userOverridesKey: readonly unknown[];
+	metadataScanKey: string;
+}
+
+function getKnownModIds(allCollections: Map<string, ModCollection>, workshopID: AppConfig['workshopID'], forceReload: boolean) {
+	const knownMods = forceReload
+		? new Set<string>()
+		: new Set([...allCollections.values()].map((value: ModCollection) => value.mods).flat());
+	knownMods.add(createModManagerUid(workshopID));
+	return [...knownMods].sort();
 }
 
 function getUserOverridesQueryKey(userOverrides: Map<string, ModDataOverride>) {
@@ -115,25 +136,46 @@ function getUserOverridesQueryKey(userOverrides: Map<string, ModDataOverride>) {
 		.map(([uid, override]) => [uid, override.id ?? null, override.tags ? [...override.tags].sort() : []]);
 }
 
+export function createModMetadataScanRequest({
+	allCollections,
+	workshopID,
+	forceReload,
+	userOverrides
+}: ModMetadataScanRequestInput): ModMetadataScanRequest {
+	const knownModIds = getKnownModIds(allCollections, workshopID, forceReload);
+	const userOverridesKey = getUserOverridesQueryKey(userOverrides);
+
+	return {
+		knownModIds,
+		userOverridesKey,
+		metadataScanKey: `${knownModIds.join('\n')}\u0000${JSON.stringify(userOverridesKey)}`
+	};
+}
+
 export function modMetadataQueryOptions({
 	localDir,
-	knownMods,
+	scanRequest,
 	forceReload,
 	attempt,
 	userOverrides,
 	treatNuterraSteamBetaAsEquivalent
 }: ModMetadataQueryOptionsInput) {
-	const knownModIds = [...knownMods].sort();
-	const userOverridesKey = getUserOverridesQueryKey(userOverrides);
 	const dependencyGraphOptions = {
 		treatNuterraSteamBetaAsEquivalent
 	};
 
 	return queryOptions({
-		queryKey: queryKeys.mods.metadataScan(localDir, knownModIds, forceReload, attempt, treatNuterraSteamBetaAsEquivalent, userOverridesKey),
+		queryKey: queryKeys.mods.metadataScan(
+			localDir,
+			scanRequest.knownModIds,
+			forceReload,
+			attempt,
+			treatNuterraSteamBetaAsEquivalent,
+			scanRequest.userOverridesKey
+		),
 		queryFn: () =>
 			api
-				.readModMetadata(localDir, new Set(knownModIds), dependencyGraphOptions)
+				.readModMetadata(localDir, new Set(scanRequest.knownModIds), dependencyGraphOptions)
 				.then((mods) => hydrateSessionMods(mods, userOverrides, dependencyGraphOptions)),
 		staleTime: forceReload ? 0 : MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS
 	});

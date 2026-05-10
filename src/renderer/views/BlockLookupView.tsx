@@ -6,7 +6,6 @@ import {
 	useReducer,
 	useRef,
 	useState,
-	type CSSProperties,
 	type Key,
 	type KeyboardEvent,
 	type MouseEvent,
@@ -27,7 +26,7 @@ import {
 	Settings2,
 	X
 } from 'lucide-react';
-import { CorpType, getCorpType, type AppState } from 'model';
+import type { AppState } from 'model';
 import type { BlockLookupIndexStats, BlockLookupRecord } from 'shared/block-lookup';
 import {
 	formatBlockLookupIndexStatus,
@@ -83,24 +82,12 @@ const blockLookupPathControlClassName = 'min-w-80 flex-[1_1_34rem] max-[760px]:m
 const blockLookupActionGroupClassName =
 	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[760px]:w-full max-[760px]:[&>button]:flex-1';
 const blockLookupIndexActionGroupClassName =
-	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[960px]:col-span-2 max-[960px]:w-full max-[960px]:[&>button]:flex-1 max-[760px]:col-span-1';
+	'inline-flex shrink-0 flex-wrap items-center gap-2 max-[1120px]:col-span-2 max-[1120px]:w-full max-[1120px]:[&>button]:flex-1 max-[760px]:col-span-1';
 const blockLookupColumnMoveButtonClassName = 'h-(--app-compact-icon-button-size) w-(--app-compact-icon-button-size) shrink-0';
 const blockLookupIndexSourceClassName =
-	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto] items-center gap-x-2.5 gap-y-2 max-[960px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
+	'BlockLookupIndexSource grid min-w-0 grid-cols-[auto_minmax(16rem,1fr)_auto_auto] items-center gap-x-2.5 gap-y-2 max-[1120px]:grid-cols-[auto_minmax(0,1fr)] max-[760px]:grid-cols-1';
 const BLOCK_LOOKUP_VIRTUAL_OVERSCAN = 24;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
-
-const BLOCK_LOOKUP_CORP_TONE_BY_TYPE: Record<CorpType, number> = {
-	[CorpType.BF]: 188,
-	[CorpType.GC]: 86,
-	[CorpType.GSO]: 42,
-	[CorpType.HE]: 252,
-	[CorpType.RR]: 318,
-	[CorpType.SPE]: 136,
-	[CorpType.VEN]: 28
-};
-
-type BlockLookupPreviewKind = 'anchor' | 'cab' | 'flight' | 'power' | 'resource' | 'shield' | 'structure' | 'utility' | 'weapon' | 'wheel';
 
 function clampTableNavigationIndex(value: number, rowCount: number) {
 	return Math.min(Math.max(value, 0), rowCount - 1);
@@ -123,197 +110,6 @@ function getBlockLookupKeyboardNavigationIndex(key: string, currentIndex: number
 		return rowCount - 1;
 	}
 	return undefined;
-}
-
-function hashBlockLookupPreviewHue(record: BlockLookupRecord) {
-	const input = `${record.blockId}:${record.internalName}:${record.blockName}:${record.modTitle}`;
-	let hash = 0;
-	for (let index = 0; index < input.length; index += 1) {
-		hash = (hash * 31 + input.charCodeAt(index)) % 360;
-	}
-	return hash;
-}
-
-function getBlockLookupCorp(record: BlockLookupRecord) {
-	const text = `${record.blockName} ${record.internalName} ${record.modTitle} ${record.preferredAlias}`;
-	const phraseMatches: Array<[RegExp, CorpType]> = [
-		[/\bbetter[\s_-]*future\b|\bbf\b/i, CorpType.BF],
-		[/\bgeo[\s_-]*corp\b|\bgc\b/i, CorpType.GC],
-		[/\bgso\b/i, CorpType.GSO],
-		[/\bhawkeye\b|\bhe\b/i, CorpType.HE],
-		[/\breticule[\s_-]*research\b|\brr\b/i, CorpType.RR],
-		[/\bspecial\b|\bspe\b/i, CorpType.SPE],
-		[/\bventure\b|\bven\b/i, CorpType.VEN]
-	];
-	const matchedPhrase = phraseMatches.find(([pattern]) => pattern.test(text));
-	if (matchedPhrase) {
-		return matchedPhrase[1];
-	}
-
-	const tokens = text.split(/[\s_()[\]{}:;,.+-]+/).filter(Boolean);
-	for (const token of tokens) {
-		const corp = getCorpType(token);
-		if (corp) {
-			return corp;
-		}
-	}
-	return null;
-}
-
-function getBlockLookupPreviewKind(record: BlockLookupRecord): BlockLookupPreviewKind {
-	const text = `${record.blockName} ${record.internalName} ${record.preferredAlias}`.toLowerCase();
-	if (/\b(cab|cockpit|pilot|ai|control)\b/.test(text)) {
-		return 'cab';
-	}
-	if (/\b(gun|cannon|laser|missile|mortar|turret|flak|blade|drill|railgun|weapon|launcher|ray|melee)\b/.test(text)) {
-		return 'weapon';
-	}
-	if (/\b(wheel|tread|track|skid|hover|suspension)\b/.test(text)) {
-		return 'wheel';
-	}
-	if (/\b(battery|reactor|rtg|generator|solar|charger|capacitor|power|fuel|tank)\b/.test(text)) {
-		return 'power';
-	}
-	if (/\b(anchor|terminal|shop|fabricator|scrapper|delivery|payload|scu|silo|collector|receiver|reciever)\b/.test(text)) {
-		return 'anchor';
-	}
-	if (
-		/\b(resource|chunk|cube|ore|wood|plumbia|titania|carbius|olastic|ignian|rubber|luxian|fibron|erudian|euderite|rhodius)\b/.test(text)
-	) {
-		return 'resource';
-	}
-	if (/\b(shield|repair|regen|bubble|projector)\b/.test(text)) {
-		return 'shield';
-	}
-	if (/\b(wing|fin|rudder|propeller|thruster|booster|jet|intake|gyro|flight|hover)\b/.test(text)) {
-		return 'flight';
-	}
-	if (/\b(block|brick|armor|armour|plate|corner|slope|prism|adaptor|structure|panel|beam)\b/.test(text)) {
-		return 'structure';
-	}
-	return 'utility';
-}
-
-function clampBlockLookupPreviewDimension(value: number | undefined, fallback: number) {
-	if (value === undefined || !Number.isFinite(value)) {
-		return fallback;
-	}
-	return Math.min(Math.max(value, 1), 6);
-}
-
-function getInferredBlockLookupPreviewBounds(record: BlockLookupRecord, kind: BlockLookupPreviewKind) {
-	if (record.previewBounds) {
-		return {
-			x: clampBlockLookupPreviewDimension(record.previewBounds.x, 1),
-			y: clampBlockLookupPreviewDimension(record.previewBounds.y, 1),
-			z: clampBlockLookupPreviewDimension(record.previewBounds.z, 1)
-		};
-	}
-
-	switch (kind) {
-		case 'anchor':
-			return { x: 3, y: 3, z: 3 };
-		case 'cab':
-			return { x: 2, y: 2, z: 2 };
-		case 'flight':
-			return { x: 4, y: 1, z: 2 };
-		case 'power':
-			return { x: 2, y: 2, z: 2 };
-		case 'resource':
-			return { x: 1, y: 1, z: 1 };
-		case 'shield':
-			return { x: 2, y: 2, z: 1 };
-		case 'weapon':
-			return { x: 3, y: 1, z: 1 };
-		case 'wheel':
-			return { x: 2, y: 2, z: 1 };
-		default:
-			return { x: 1, y: 1, z: 1 };
-	}
-}
-
-function getBlockLookupPreviewStyle(record: BlockLookupRecord, corp: CorpType | null, kind: BlockLookupPreviewKind): CSSProperties {
-	const hue = corp ? BLOCK_LOOKUP_CORP_TONE_BY_TYPE[corp] : hashBlockLookupPreviewHue(record);
-	const bounds = getInferredBlockLookupPreviewBounds(record, kind);
-	const footprint = Math.max(bounds.x, bounds.z);
-	const bodyWidth = Math.min(72, 36 + footprint * 6);
-	const bodyHeight = Math.min(72, 32 + bounds.y * 7);
-	return {
-		'--block-preview-accent': `oklch(0.64 0.09 ${hue})`,
-		'--block-preview-accent-muted': `oklch(0.38 0.055 ${hue})`,
-		'--block-preview-accent-dark': `oklch(0.26 0.04 ${hue})`,
-		'--block-preview-body-width': `${bodyWidth}%`,
-		'--block-preview-body-height': `${bodyHeight}%`
-	} as CSSProperties;
-}
-
-function getBlockLookupPreviewSvgDetail(kind: BlockLookupPreviewKind, hue: number, seed: number) {
-	const accent = `hsl(${hue} 68% 58%)`;
-	const accentBright = `hsl(${hue} 84% 78%)`;
-	const accentDark = `hsl(${hue} 42% 24%)`;
-	const offset = seed % 6;
-
-	switch (kind) {
-		case 'anchor':
-			return `<rect x="36" y="${28 + offset / 2}" width="24" height="15" rx="2" fill="${accentBright}" opacity=".72"/><rect x="43" y="43" width="10" height="18" rx="2" fill="${accentDark}" opacity=".85"/><rect x="31" y="60" width="34" height="8" rx="2" fill="${accentDark}" opacity=".8"/>`;
-		case 'cab':
-			return `<path d="M34 ${31 + offset / 3}h28l7 16H27z" fill="${accentBright}" opacity=".74"/><path d="M40 34h16l4 9H36z" fill="hsl(${hue} 80% 88%)" opacity=".78"/>`;
-		case 'flight':
-			return `<path d="M17 54 48 31 79 54 57 58 48 71 39 58z" fill="${accentBright}" opacity=".62"/><path d="M44 34h8v38h-8z" fill="${accentDark}" opacity=".76"/>`;
-		case 'power':
-			return `<path d="M48 24 34 52h12l-7 24 23-34H49l8-18z" fill="${accentBright}" opacity=".9"/><path d="M31 63h34" stroke="${accentDark}" stroke-width="4" stroke-linecap="round" opacity=".7"/>`;
-		case 'resource':
-			return `<rect x="${31 + offset}" y="32" width="14" height="14" rx="2" fill="${accentBright}" opacity=".82"/><rect x="49" y="${39 - offset / 2}" width="13" height="13" rx="2" fill="${accent}" opacity=".76"/><rect x="38" y="54" width="16" height="16" rx="2" fill="${accentDark}" opacity=".74"/>`;
-		case 'shield':
-			return `<circle cx="48" cy="48" r="${27 + offset / 2}" fill="${accentBright}" opacity=".18" stroke="${accentBright}" stroke-width="4"/><path d="M48 26c10 7 18 8 18 8-1 19-8 29-18 36-10-7-17-17-18-36 0 0 8-1 18-8Z" fill="${accent}" opacity=".34"/>`;
-		case 'structure':
-			return `<path d="M30 36h36M30 49h36M30 62h36M38 29v40M52 29v40" stroke="${accentDark}" stroke-width="3" opacity=".5"/><path d="M33 33h30v32H33z" fill="none" stroke="${accentBright}" stroke-width="3" opacity=".56"/>`;
-		case 'weapon':
-			return `<rect x="53" y="${42 + offset / 3}" width="31" height="8" rx="4" fill="${accentDark}" opacity=".95"/><circle cx="48" cy="46" r="11" fill="${accentBright}" opacity=".76"/><rect x="31" y="51" width="26" height="10" rx="3" fill="${accent}" opacity=".78"/>`;
-		case 'wheel':
-			return `<circle cx="35" cy="62" r="12" fill="${accentDark}" opacity=".92"/><circle cx="61" cy="62" r="12" fill="${accentDark}" opacity=".92"/><circle cx="35" cy="62" r="5" fill="${accentBright}" opacity=".88"/><circle cx="61" cy="62" r="5" fill="${accentBright}" opacity=".88"/>`;
-		default:
-			return `<rect x="33" y="${33 + offset / 2}" width="30" height="26" rx="4" fill="${accentBright}" opacity=".48"/><circle cx="43" cy="43" r="4" fill="${accent}" opacity=".9"/><path d="M52 40v16M60 40v16" stroke="${accentDark}" stroke-width="3" stroke-linecap="round" opacity=".6"/>`;
-	}
-}
-
-function createBlockLookupPreviewImage(record: BlockLookupRecord, corp: CorpType | null, kind: BlockLookupPreviewKind) {
-	const hue = corp ? BLOCK_LOOKUP_CORP_TONE_BY_TYPE[corp] : hashBlockLookupPreviewHue(record);
-	const seed = hashBlockLookupPreviewHue({
-		...record,
-		blockName: `${record.blockName}:${record.sourcePath}`
-	});
-	const bounds = getInferredBlockLookupPreviewBounds(record, kind);
-	const width = Math.min(58, 28 + bounds.x * 6);
-	const height = Math.min(48, 20 + bounds.y * 6);
-	const depth = Math.min(16, 6 + bounds.z * 2);
-	const x = (96 - width - depth) / 2;
-	const y = (88 - height - depth) / 2;
-	const accent = `hsl(${hue} 58% 54%)`;
-	const muted = `hsl(${hue} 34% 35%)`;
-	const dark = `hsl(${hue} 30% 19%)`;
-	const light = `hsl(${hue} 76% 70%)`;
-	const detail = getBlockLookupPreviewSvgDetail(kind, hue, seed);
-	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="14" fill="transparent"/><ellipse cx="50" cy="78" rx="31" ry="8" fill="rgba(0,0,0,.28)"/><path d="M${x} ${y + depth} ${x + depth} ${y} ${x + width + depth} ${y} ${x + width} ${y + depth}Z" fill="${light}"/><path d="M${x + width} ${y + depth} ${x + width + depth} ${y} ${x + width + depth} ${y + height} ${x + width} ${y + depth + height}Z" fill="${dark}"/><path d="M${x} ${y + depth}h${width}v${height}H${x}Z" fill="${accent}"/><path d="M${x} ${y + depth} ${x + depth} ${y}h${width}l-${depth} ${depth}h-${width}Z" fill="rgba(255,255,255,.22)"/><path d="M${x} ${y + depth}h${width}v${height}H${x}Z" fill="none" stroke="${muted}" stroke-width="2"/><g>${detail}</g></svg>`;
-	return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-function BlockLookupBlockPreview({ record, size = 'table' }: { record: BlockLookupRecord; size?: 'table' | 'detail' }) {
-	const corp = getBlockLookupCorp(record);
-	const kind = getBlockLookupPreviewKind(record);
-	const previewImage = createBlockLookupPreviewImage(record, corp, kind);
-
-	return (
-		<span
-			className={`BlockLookupBlockPreview BlockLookupBlockPreview--${size} BlockLookupBlockPreview--${kind}`}
-			style={getBlockLookupPreviewStyle(record, corp, kind)}
-			role="img"
-			aria-label={`Block preview for ${record.blockName}`}
-			title={record.blockName}
-		>
-			<img className="BlockLookupBlockPreviewImage" src={previewImage} alt="" draggable={false} />
-		</span>
-	);
 }
 
 interface BlockLookupViewLocalState {
@@ -531,10 +327,36 @@ function BlockLookupTableOptionsModal({ children, footer, onCancel }: BlockLooku
 	);
 }
 
-function renderBlockLookupCell(columnKey: BlockLookupColumnKey, record: BlockLookupRecord) {
+interface BlockLookupVirtualCellContentProps {
+	columnKey: BlockLookupColumnKey;
+	record: BlockLookupRecord;
+}
+
+function BlockLookupRenderedPreviewImage({ record, size }: { record: BlockLookupRecord; size: 'cell' | 'detail' }) {
+	if (!record.renderedPreview) {
+		return null;
+	}
+
+	return (
+		<img
+			src={record.renderedPreview.imageUrl}
+			width={record.renderedPreview.width}
+			height={record.renderedPreview.height}
+			alt={`${record.blockName} Block preview`}
+			className={
+				size === 'cell'
+					? 'mx-auto h-12 w-16 rounded border border-border-subtle object-contain'
+					: 'h-28 w-36 rounded border border-border-subtle object-contain'
+			}
+			loading="lazy"
+		/>
+	);
+}
+
+function BlockLookupVirtualCellContent({ columnKey, record }: BlockLookupVirtualCellContentProps) {
 	switch (columnKey) {
 		case 'preview':
-			return <BlockLookupBlockPreview record={record} />;
+			return <BlockLookupRenderedPreviewImage record={record} size="cell" />;
 		case 'spawnCommand':
 			return <span className="BlockLookupCommand">{record.spawnCommand}</span>;
 		case 'blockName':
@@ -609,6 +431,21 @@ function BlockLookupIndexRunStatusMessage({ status }: { status: BlockLookupIndex
 				<strong>{status.title}</strong>
 				<span>{status.detail}</span>
 			</div>
+			{status.progress ? (
+				<div className="BlockLookupIndexProgress">
+					<div
+						className="BlockLookupIndexProgressTrack"
+						role="progressbar"
+						aria-label="Block Lookup index progress"
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={status.progress.percent}
+					>
+						<div className="BlockLookupIndexProgressFill" style={{ width: `${status.progress.percent}%` }} />
+					</div>
+					<span className="BlockLookupIndexProgressValue">{status.progress.percent}%</span>
+				</div>
+			) : null}
 		</div>
 	);
 }
@@ -702,6 +539,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		modSources,
 		openNotification,
 		query,
+		renderedPreviewsEnabled,
 		refreshResults,
 		rows,
 		selectAllVisibleRows: selectAllVisibleRowKeys,
@@ -713,6 +551,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		selectedRowKeys,
 		selectedRowKeysInCopyOrder,
 		setQuery,
+		setRenderedPreviewsEnabled,
 		setSelectedFilterMods,
 		setWorkshopRoot,
 		syncSelectionCopyOrder,
@@ -728,11 +567,19 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	} = useViewConfigCommands({ config: appConfig, openNotification, updateState });
 	const blockLookupConfig = appConfig.viewConfigs.blockLookup;
 	const columnConfig = useMemo(() => getConfiguredBlockLookupColumns(blockLookupConfig), [blockLookupConfig]);
+	const renderedPreviewSurfacesEnabled = renderedPreviewsEnabled && stats?.renderedPreviewsEnabled === true;
+	const renderedPreviewRebuildRequired = renderedPreviewsEnabled && stats?.renderedPreviewsEnabled !== true;
+	const renderedPreviewUnavailable =
+		renderedPreviewSurfacesEnabled && (stats?.renderedPreviews ?? 0) === 0 && (stats?.unavailablePreviews ?? 0) > 0;
+	const tableColumnConfig = useMemo(
+		() => (renderedPreviewSurfacesEnabled ? columnConfig : columnConfig.filter((column) => column.key !== 'preview')),
+		[columnConfig, renderedPreviewSurfacesEnabled]
+	);
 	const columnConfigRef = useRef(columnConfig);
 	const coarsePointer = useCoarsePointer();
 	const [localState, dispatchLocalState] = useReducer(reduceBlockLookupViewLocalState, {
 		availableTableWidth: 0,
-		draftColumnConfig: getConfiguredBlockLookupColumns(blockLookupConfig),
+		draftColumnConfig: columnConfig,
 		draftSmallRows: !!blockLookupConfig?.smallRows,
 		draggingDraftColumnKey: undefined,
 		draggingHeaderColumnKey: undefined,
@@ -976,11 +823,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	);
 
 	const visibleColumns = useMemo(
-		() => getResponsiveBlockLookupColumns(columnConfig, availableTableWidth),
-		[availableTableWidth, columnConfig]
+		() => getResponsiveBlockLookupColumns(tableColumnConfig, availableTableWidth),
+		[availableTableWidth, tableColumnConfig]
 	);
-	const persistedVisibleColumnCount = useMemo(() => columnConfig.filter((column) => column.visible).length, [columnConfig]);
-	const hiddenColumns = useMemo(() => columnConfig.filter((column) => !column.visible), [columnConfig]);
+	const persistedVisibleColumnCount = useMemo(() => tableColumnConfig.filter((column) => column.visible).length, [tableColumnConfig]);
+	const hiddenColumns = useMemo(() => tableColumnConfig.filter((column) => !column.visible), [tableColumnConfig]);
 	const emptyState = getBlockLookupEmptyState(stats, query, selectedFilterMods);
 	const lookupBusyState = getBlockLookupBusyState(buildingIndex);
 	const indexStatusText = formatBlockLookupIndexStatus(stats, rows.length, query);
@@ -1195,6 +1042,15 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							}}
 							placeholder="TerraTech workshop content folder"
 						/>
+						<div className="inline-flex min-h-11 shrink-0 items-center gap-2 text-body text-text">
+							<BlockLookupSwitch
+								aria-label="Enable rendered block previews"
+								checked={renderedPreviewsEnabled}
+								disabled={buildingIndex}
+								onChange={setRenderedPreviewsEnabled}
+							/>
+							<span>Rendered previews</span>
+						</div>
 						<div className={blockLookupIndexActionGroupClassName}>
 							<BlockLookupButton
 								aria-label="Browse for workshop root"
@@ -1205,7 +1061,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							</BlockLookupButton>
 							<BlockLookupButton onClick={handleAutoDetectWorkshopRoot}>Auto Detect</BlockLookupButton>
 							<BlockLookupButton disabled={settings.workshopRoot === workshopRoot} onClick={handleSaveSettings}>
-								Save Path
+								Save Settings
 							</BlockLookupButton>
 							<BlockLookupButton
 								icon={<Database size={16} aria-hidden="true" />}
@@ -1227,6 +1083,24 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 							</BlockLookupButton>
 						</div>
 						{indexRunStatus ? <BlockLookupIndexRunStatusMessage status={indexRunStatus} /> : null}
+						{renderedPreviewRebuildRequired ? (
+							<div className="BlockLookupIndexRunStatus BlockLookupIndexRunStatus--attention" role="status" aria-live="polite">
+								<AlertTriangle className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
+								<div className="BlockLookupIndexRunStatusText">
+									<strong>Rebuild to generate previews</strong>
+									<span>Run a Block Lookup rebuild before preview surfaces appear.</span>
+								</div>
+							</div>
+						) : null}
+						{renderedPreviewUnavailable ? (
+							<div className="BlockLookupIndexRunStatus BlockLookupIndexRunStatus--attention" role="status" aria-live="polite">
+								<AlertTriangle className="BlockLookupIndexRunStatusIcon" size={16} aria-hidden="true" />
+								<div className="BlockLookupIndexRunStatusText">
+									<strong>No rendered previews available</strong>
+									<span>The current index supports previews, but no block thumbnail files were produced.</span>
+								</div>
+							</div>
+						) : null}
 					</section>
 				</header>
 				<main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -1466,7 +1340,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 																	textAlign: alignment
 																}}
 															>
-																{renderBlockLookupCell(column.key, record)}
+																<BlockLookupVirtualCellContent columnKey={column.key} record={record} />
 															</td>
 														);
 													})}
@@ -1507,13 +1381,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 						</div>
 						{selectedRecord ? (
 							<div className="BlockLookupDetailsGrid">
-								<div className="BlockLookupSelectedPreview">
-									<BlockLookupBlockPreview record={selectedRecord} size="detail" />
-									<div className="min-w-0">
-										<span className="BlockLookupMutedText">Selected block</span>
-										<strong title={selectedRecord.blockName}>{selectedRecord.blockName}</strong>
+								{renderedPreviewSurfacesEnabled && selectedRecord.renderedPreview ? (
+									<div className="col-span-full">
+										<BlockLookupRenderedPreviewImage record={selectedRecord} size="detail" />
 									</div>
-								</div>
+								) : null}
 								<BlockLookupDetailField
 									label="Command"
 									value={selectedRecord.spawnCommand}

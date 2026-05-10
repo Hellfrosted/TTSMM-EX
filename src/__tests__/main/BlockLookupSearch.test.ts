@@ -26,6 +26,7 @@ describe('block lookup search adapter', () => {
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: false,
 				sources: [],
 				records: [createRecord('Other Match', 'Cab'), createRecord('Deprecated Cab', '_deprecated_cab'), createRecord('Cab', 'ExactCab')]
 			},
@@ -50,7 +51,13 @@ describe('block lookup search adapter', () => {
 			workshopId: 'core'
 		});
 
-		expect(searchBlockLookupRecords({ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', sources: [], records: [] }, '', 10)).toEqual({
+		expect(
+			searchBlockLookupRecords(
+				{ version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] },
+				'',
+				10
+			)
+		).toEqual({
 			rows: [],
 			stats: null
 		});
@@ -59,6 +66,7 @@ describe('block lookup search adapter', () => {
 			{
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: false,
 				sources: [],
 				records: [createRecord('Alpha'), createRecord('Beta'), createRecord('Gamma')]
 			},
@@ -82,6 +90,7 @@ describe('block lookup search adapter', () => {
 			JSON.stringify({
 				version: BLOCK_LOOKUP_INDEX_VERSION,
 				builtAt: '2026-04-26T00:00:00.000Z',
+				renderedPreviewsEnabled: false,
 				sources: [
 					{
 						sourcePath: path.normalize('/mods/valid.json'),
@@ -156,6 +165,7 @@ describe('block lookup search adapter', () => {
 		expect(readBlockLookupIndex(userDataPath)).toEqual({
 			version: BLOCK_LOOKUP_INDEX_VERSION,
 			builtAt: '',
+			renderedPreviewsEnabled: false,
 			sources: [],
 			records: []
 		});
@@ -178,6 +188,7 @@ describe('block lookup search adapter', () => {
 		expect(readBlockLookupIndex(userDataPath)).toEqual({
 			version: BLOCK_LOOKUP_INDEX_VERSION,
 			builtAt: '',
+			renderedPreviewsEnabled: false,
 			sources: [],
 			records: []
 		});

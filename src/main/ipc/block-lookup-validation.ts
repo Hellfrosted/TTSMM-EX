@@ -20,14 +20,16 @@ const blockLookupModSourceSchema = z.object({
 });
 
 const blockLookupSettingsSchema = z.object({
-	workshopRoot: z.string()
+	workshopRoot: z.string(),
+	renderedPreviewsEnabled: z.boolean()
 });
 
 const blockLookupBuildRequestSchema = z.object({
 	workshopRoot: z.string().optional(),
 	gameExec: z.string().optional(),
 	modSources: z.array(blockLookupModSourceSchema).max(MAX_BLOCK_LOOKUP_MOD_SOURCES).optional(),
-	forceRebuild: z.boolean().optional()
+	forceRebuild: z.boolean().optional(),
+	renderedPreviewsEnabled: z.boolean().optional()
 });
 
 const blockLookupSearchRequestSchema = z.object({

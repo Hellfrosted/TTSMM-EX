@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AppConfig } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import {
-	describeStartupBootError,
-	normalizeStartupPath,
-	resolveStartupNavigation,
-	shouldAutoDiscoverGameExec
-} from '../../renderer/startup-loading';
+import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from '../../renderer/startup-loading';
+import { getStartupRestorablePath } from '../../shared/app-route-policy';
 
 function config(overrides: Partial<AppConfig> = {}): AppConfig {
 	return {
@@ -21,14 +17,14 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
 
 describe('startup-loading', () => {
 	it('normalizes unsupported startup routes to the collection workspace', () => {
-		expect(normalizeStartupPath(undefined)).toBe('/collections/main');
-		expect(normalizeStartupPath('collections/main')).toBe('/collections/main');
-		expect(normalizeStartupPath('/collections')).toBe('/collections/main');
-		expect(normalizeStartupPath('/settings')).toBe('/collections/main');
-		expect(normalizeStartupPath('/block-lookup')).toBe('/collections/main');
-		expect(normalizeStartupPath('/loading/config')).toBe('/collections/main');
-		expect(normalizeStartupPath('/loading/steamworks')).toBe('/collections/main');
-		expect(normalizeStartupPath('/collections/main')).toBe('/collections/main');
+		expect(getStartupRestorablePath(undefined)).toBe('/collections/main');
+		expect(getStartupRestorablePath('collections/main')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/collections')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/settings')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/block-lookup')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/loading/config')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/loading/steamworks')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/collections/main')).toBe('/collections/main');
 	});
 
 	it('detects when startup should auto-discover the game executable', () => {

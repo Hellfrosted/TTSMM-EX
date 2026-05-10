@@ -121,7 +121,7 @@ function createElectronMock() {
 		pathExists: vi.fn(async () => true),
 		discoverGameExecutable: vi.fn(async () => null),
 		selectPath: vi.fn(async () => null),
-		readBlockLookupSettings: vi.fn(async () => ({ workshopRoot: '' })),
+		readBlockLookupSettings: vi.fn(async () => ({ workshopRoot: '', renderedPreviewsEnabled: false })),
 		saveBlockLookupSettings: vi.fn(async (settings) => settings),
 		buildBlockLookupIndex: vi.fn(async () => ({
 			stats: {
@@ -131,6 +131,7 @@ function createElectronMock() {
 				removed: 0,
 				blocks: 0,
 				updatedBlocks: 0,
+				renderedPreviewsEnabled: false,
 				builtAt: new Date(0).toISOString()
 			}
 		})),
@@ -149,6 +150,7 @@ function createElectronMock() {
 		openModSteam: noop,
 		openModContextMenu: noop,
 		onProgressChange: vi.fn(() => noop),
+		onBlockLookupIndexProgress: vi.fn(() => noop),
 		onModMetadataUpdate: vi.fn(() => noop),
 		onModRefreshRequested: vi.fn(() => noop),
 		onReloadSteamworks: vi.fn(() => noop)

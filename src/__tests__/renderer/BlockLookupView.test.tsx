@@ -1,7 +1,7 @@
 /// <reference path="../types/global.d.ts" />
 /// <reference lib="es2022" />
 import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
 import { AppQueryProvider, queryClient } from '../../renderer/query-client';
@@ -17,7 +17,15 @@ const TEST_STATS = {
 	removed: 0,
 	blocks: 1,
 	updatedBlocks: 1,
+	renderedPreviewsEnabled: false,
+	renderedPreviews: 0,
+	unavailablePreviews: 0,
 	builtAt: new Date(0).toISOString()
+};
+
+const TEST_BLOCK_LOOKUP_SETTINGS = {
+	workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920',
+	renderedPreviewsEnabled: false
 };
 
 const TEST_RECORD: BlockLookupRecord = {
@@ -111,16 +119,16 @@ describe('BlockLookupView', () => {
 	it('keeps Block Lookup columns within constrained desktop widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[
-				{ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, visible: true, width: 92, defaultWidth: 92, minWidth: 76 },
-				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
 				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, defaultWidth: 220, minWidth: 120 },
+				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
 				{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, width: 220, defaultWidth: 220, minWidth: 136 },
-				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 }
+				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 },
+				{ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, visible: true, width: 92, defaultWidth: 92, minWidth: 76 }
 			],
 			560
 		);
 
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['preview', 'spawnCommand', 'blockName', 'modTitle']);
+		expect(responsiveColumns.map((column) => column.key)).toEqual(['blockName', 'spawnCommand', 'internalName']);
 		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(
 			560
 		);
@@ -128,9 +136,7 @@ describe('BlockLookupView', () => {
 
 	it('searches indexed block aliases and copies the selected command', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -142,15 +148,80 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 
 		expect((await screen.findAllByText('SpawnBlock Alpha_Cannon(Test_Blocks)')).length).toBeGreaterThan(0);
-		const preview = screen.getAllByRole('img', { name: 'Block preview for Alpha Cannon' })[0];
-		expect(preview).toHaveClass('BlockLookupBlockPreview--weapon');
-		const previewImage = preview.querySelector('.BlockLookupBlockPreviewImage');
-		expect(previewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+		expect(screen.queryByText('Preview')).not.toBeInTheDocument();
+		expect(screen.queryByRole('img', { name: /Block preview/ })).not.toBeInTheDocument();
 		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)');
 		});
+	});
+
+	it('asks for a rebuild when rendered previews are enabled against an index without preview support', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			...TEST_BLOCK_LOOKUP_SETTINGS,
+			renderedPreviewsEnabled: true
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+
+		renderBlockLookupView();
+
+		expect(await screen.findByText('Rebuild to generate previews')).toBeInTheDocument();
+		expect(screen.queryByText('Preview')).not.toBeInTheDocument();
+		expect(screen.queryByRole('img', { name: /Block preview/ })).not.toBeInTheDocument();
+	});
+
+	it('saves the rendered preview toggle immediately', async () => {
+		stubResizeObserver();
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
+		vi.mocked(window.electron.saveBlockLookupSettings).mockResolvedValue({
+			...TEST_BLOCK_LOOKUP_SETTINGS,
+			renderedPreviewsEnabled: true
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+
+		renderBlockLookupView();
+
+		const switchControl = await screen.findByRole('switch', { name: 'Enable rendered block previews' });
+		fireEvent.click(switchControl);
+
+		await waitFor(() => {
+			expect(window.electron.saveBlockLookupSettings).toHaveBeenCalledWith({
+				workshopRoot: TEST_BLOCK_LOOKUP_SETTINGS.workshopRoot,
+				renderedPreviewsEnabled: true
+			});
+		});
+		expect(screen.getByRole('button', { name: 'Save Settings' })).toBeDisabled();
+	});
+
+	it('shows only cached rendered preview references after the current index was built with rendered previews', async () => {
+		stubResizeObserver();
+		const previewRecord = {
+			...TEST_RECORD,
+			renderedPreview: {
+				imageUrl: 'image://block-preview/alpha-cannon.png',
+				width: 96,
+				height: 64
+			}
+		};
+		const previewStats = { ...TEST_STATS, renderedPreviewsEnabled: true, renderedPreviews: 1, unavailablePreviews: 0 };
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
+			...TEST_BLOCK_LOOKUP_SETTINGS,
+			renderedPreviewsEnabled: true
+		});
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(previewStats);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [previewRecord], stats: previewStats });
+
+		renderBlockLookupView();
+
+		expect(await screen.findByText('Preview')).toBeInTheDocument();
+		expect(screen.queryByText('Rebuild to generate previews')).not.toBeInTheDocument();
+		const previewImages = await screen.findAllByRole('img', { name: 'Alpha Cannon Block preview' });
+		expect(previewImages).toHaveLength(2);
+		expect(previewImages[0]).toHaveAttribute('src', 'image://block-preview/alpha-cannon.png');
 	});
 
 	it('selects block lookup rows with the keyboard and updates copy/detail state', async () => {
@@ -159,9 +230,7 @@ describe('BlockLookupView', () => {
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -173,16 +242,7 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
-		const alphaPreviewImage = screen
-			.getAllByRole('img', { name: 'Block preview for Alpha Cannon' })[0]
-			.querySelector('.BlockLookupBlockPreviewImage');
-		const betaPreviewImage = screen
-			.getAllByRole('img', { name: 'Block preview for Beta Shield' })[0]
-			.querySelector('.BlockLookupBlockPreviewImage');
-		expect(alphaPreviewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
-		expect(betaPreviewImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
-		expect(alphaPreviewImage).not.toHaveAttribute('src', expect.stringContaining('image://'));
-		expect(betaPreviewImage).not.toHaveAttribute('src', alphaPreviewImage?.getAttribute('src') ?? '');
+		expect(screen.queryByRole('img', { name: /Block preview/ })).not.toBeInTheDocument();
 		const betaCell = screen.getAllByText('Beta Shield')[0];
 		const betaRow = betaCell.closest('tr');
 		expect(betaRow).not.toBeNull();
@@ -206,9 +266,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -253,9 +311,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 
@@ -289,9 +345,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -328,9 +382,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -365,9 +417,7 @@ describe('BlockLookupView', () => {
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -400,9 +450,7 @@ describe('BlockLookupView', () => {
 				spawnCommand: 'SpawnBlock Beta_Shield(Beta_Pack)'
 			})
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -434,9 +482,7 @@ describe('BlockLookupView', () => {
 
 	it('resizes block lookup columns from the header edge', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -453,21 +499,21 @@ describe('BlockLookupView', () => {
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
 							columnWidthConfig: expect.objectContaining({
-								[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+								blockName: expect.any(Number)
 							})
 						})
 					})
 				})
 			);
 			const nextConfig = vi.mocked(window.electron.updateConfig).mock.calls.at(-1)?.[0];
-			expect(nextConfig?.viewConfigs.blockLookup?.columnWidthConfig?.[BlockLookupColumnTitles.BLOCK]).toBeGreaterThan(initialWidth);
+			expect(nextConfig?.viewConfigs.blockLookup?.columnWidthConfig?.blockName).toBeGreaterThan(initialWidth);
 			expect(appState.updateState).toHaveBeenCalledWith(
 				expect.objectContaining({
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
 								columnWidthConfig: expect.objectContaining({
-									[BlockLookupColumnTitles.BLOCK]: expect.any(Number)
+									blockName: expect.any(Number)
 								})
 							})
 						})
@@ -479,13 +525,11 @@ describe('BlockLookupView', () => {
 
 	it('builds the index from the configured workshop root and loaded mods', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
-			settings: { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' },
+			settings: TEST_BLOCK_LOOKUP_SETTINGS,
 			stats: TEST_STATS
 		});
 
@@ -500,6 +544,7 @@ describe('BlockLookupView', () => {
 					workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920',
 					gameExec: expect.any(String),
 					forceRebuild: false,
+					renderedPreviewsEnabled: false,
 					modSources: [
 						expect.objectContaining({
 							uid: 'workshop:12345',
@@ -513,15 +558,56 @@ describe('BlockLookupView', () => {
 		});
 	});
 
+	it('shows determinate build progress while the index is running', async () => {
+		stubResizeObserver();
+		let progressCallback: Parameters<typeof window.electron.onBlockLookupIndexProgress>[0] | undefined;
+		let resolveBuild: (value: Awaited<ReturnType<typeof window.electron.buildBlockLookupIndex>>) => void = () => undefined;
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
+		vi.mocked(window.electron.onBlockLookupIndexProgress).mockImplementation((callback) => {
+			progressCallback = callback;
+			return vi.fn();
+		});
+		vi.mocked(window.electron.buildBlockLookupIndex).mockReturnValue(
+			new Promise((resolve) => {
+				resolveBuild = resolve;
+			})
+		);
+
+		renderBlockLookupView();
+
+		await screen.findByRole('button', { name: /Update Index/ });
+		fireEvent.click(screen.getByRole('button', { name: /Update Index/ }));
+		await screen.findByText('Index update running');
+		act(() => {
+			progressCallback?.({
+				phase: 'indexing-sources',
+				phaseLabel: 'Extracting block records',
+				completed: 3,
+				total: 6,
+				percent: 50
+			});
+		});
+
+		expect(screen.getByText('Extracting block records')).toBeInTheDocument();
+		const progressBar = screen.getByRole('progressbar', { name: 'Block Lookup index progress' });
+		expect(progressBar).toHaveAttribute('aria-valuenow', '50');
+		expect(screen.getByText('50%')).toBeInTheDocument();
+
+		act(() => {
+			resolveBuild({ stats: TEST_STATS });
+		});
+		expect(await screen.findByText('Index update complete')).toBeInTheDocument();
+	});
+
 	it('keeps the full rebuild result visible after the blocking state closes', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
-			settings: { workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920' },
+			settings: TEST_BLOCK_LOOKUP_SETTINGS,
 			stats: { ...TEST_STATS, blocks: 12, sources: 3 }
 		});
 
@@ -537,9 +623,7 @@ describe('BlockLookupView', () => {
 
 	it('keeps the full rebuild failure visible after the blocking state closes', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockRejectedValue(new Error('Workshop root is unavailable'));
@@ -557,9 +641,7 @@ describe('BlockLookupView', () => {
 	it('shows block lookup results without paginating the virtual table', async () => {
 		stubResizeObserver();
 		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 		const writeText = vi.fn().mockResolvedValue(undefined);
@@ -583,9 +665,7 @@ describe('BlockLookupView', () => {
 	it('loads all indexed rows for the blank lookup instead of applying the search result cap', async () => {
 		stubResizeObserver();
 		const records = Array.from({ length: 1005 }, (_value, index) => createBlockLookupRecord(index + 1));
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockImplementation(async (request) => {
 			const matchingRows = request.query.trim()
@@ -615,9 +695,7 @@ describe('BlockLookupView', () => {
 
 	it('uses fixed row geometry for virtualized block rows', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -638,9 +716,7 @@ describe('BlockLookupView', () => {
 			'matchMedia',
 			vi.fn(() => mediaQuery)
 		);
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -666,9 +742,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', internalName: '' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
 
@@ -714,7 +788,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -725,7 +799,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -737,9 +811,7 @@ describe('BlockLookupView', () => {
 
 	it('reorders table settings rows by drag and drop', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -764,7 +836,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -775,7 +847,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['spawnCommand', 'blockName', 'internalName', 'modTitle', 'preview'],
 								columnWidthConfig: undefined
 							})
 						})
@@ -787,9 +859,7 @@ describe('BlockLookupView', () => {
 
 	it('reorders table settings rows from keyboard-accessible move controls', async () => {
 		stubResizeObserver();
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			workshopRoot: 'C:\\Steam\\steamapps\\workshop\\content\\285920'
-		});
+		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
@@ -806,7 +876,7 @@ describe('BlockLookupView', () => {
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({
 						blockLookup: expect.objectContaining({
-							columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+							columnOrder: ['blockName', 'internalName', 'spawnCommand', 'modTitle', 'preview'],
 							columnWidthConfig: undefined
 						})
 					})
@@ -817,7 +887,7 @@ describe('BlockLookupView', () => {
 					config: expect.objectContaining({
 						viewConfigs: expect.objectContaining({
 							blockLookup: expect.objectContaining({
-								columnOrder: ['Preview', 'Block', 'SpawnBlock Command', 'Internal block name', 'Mod'],
+								columnOrder: ['blockName', 'internalName', 'spawnCommand', 'modTitle', 'preview'],
 								columnWidthConfig: undefined
 							})
 						})

@@ -1,7 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearPreviewAllowlist, registerPreviewImage, registerPreviewProtocol, resolvePreviewImageRequest } from '../../main/preview-protocol';
+import {
+	clearPreviewAllowlist,
+	createBlockLookupPreviewImageUrl,
+	registerPreviewImage,
+	registerPreviewProtocol,
+	resolveBlockLookupPreviewImageRequest,
+	resolvePreviewImageRequest
+} from '../../main/preview-protocol';
 import { createTempDir } from './test-utils';
 
 describe('preview protocol', () => {
@@ -82,5 +89,42 @@ describe('preview protocol', () => {
 		handler({ url: 'image://preview/not-registered' }, callback);
 
 		expect(callback).toHaveBeenCalledWith({ error: -6 });
+	});
+
+	it('resolves Block Lookup preview images from the dedicated cache namespace', () => {
+		const previewPath = path.join(tempDir, 'block-lookup-rendered-previews', 'vanilla', 'cab.png');
+		fs.mkdirSync(path.dirname(previewPath), { recursive: true });
+		fs.writeFileSync(previewPath, 'preview');
+
+		const previewUrl = createBlockLookupPreviewImageUrl('vanilla/cab.png');
+
+		expect(previewUrl).toBe('image://block-preview/vanilla/cab.png');
+		expect(resolveBlockLookupPreviewImageRequest(previewUrl!, tempDir)).toBe(path.resolve(previewPath));
+		expect(resolvePreviewImageRequest(previewUrl!)).toBeNull();
+	});
+
+	it('rejects Block Lookup preview paths outside the dedicated cache namespace', () => {
+		const escapedPath = path.join(tempDir, 'outside.png');
+		fs.writeFileSync(escapedPath, 'preview');
+
+		expect(createBlockLookupPreviewImageUrl('../outside.png')).toBeUndefined();
+		expect(resolveBlockLookupPreviewImageRequest('image://block-preview/../outside.png', tempDir)).toBeNull();
+		expect(resolveBlockLookupPreviewImageRequest('image://block-preview/missing.png', tempDir)).toBeNull();
+	});
+
+	it('routes Block Lookup preview protocol requests through the dedicated resolver', () => {
+		const previewPath = path.join(tempDir, 'block-lookup-rendered-previews', 'json', 'wheel.webp');
+		fs.mkdirSync(path.dirname(previewPath), { recursive: true });
+		fs.writeFileSync(previewPath, 'preview');
+		const protocol = {
+			registerFileProtocol: vi.fn()
+		};
+		registerPreviewProtocol(protocol as unknown as Parameters<typeof registerPreviewProtocol>[0], { getUserDataPath: () => tempDir });
+		const handler = protocol.registerFileProtocol.mock.calls[0]?.[1];
+		const callback = vi.fn();
+
+		handler({ url: createBlockLookupPreviewImageUrl('json/wheel.webp')! }, callback);
+
+		expect(callback).toHaveBeenCalledWith(path.resolve(previewPath));
 	});
 });

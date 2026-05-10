@@ -1,18 +1,20 @@
-import { getRows, type AppState } from 'model';
+import { getRows, type AppState, type BlockLookupColumnKey } from 'model';
 import type {
 	BlockLookupBuildResult,
 	BlockLookupBuildRequest,
+	BlockLookupIndexProgress,
 	BlockLookupIndexStats,
 	BlockLookupModSource,
 	BlockLookupRecord,
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from 'shared/block-lookup';
-import type { BlockLookupColumnKey, BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
+import type { BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 
 type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
 
 interface BlockLookupSettingsState {
+	renderedPreviewsEnabled: boolean;
 	settings: BlockLookupSettings;
 	stats: BlockLookupIndexStats | null;
 	workshopRoot: string;
@@ -24,6 +26,7 @@ export interface BlockLookupIndexRunStatus {
 	actionLabel: string;
 	detail: string;
 	phase: BlockLookupIndexRunPhase;
+	progress?: BlockLookupIndexProgress;
 	title: string;
 }
 
@@ -50,6 +53,7 @@ type BlockLookupWorkspaceSessionEvent =
 	| { type: 'build-index-completed'; forceRebuild: boolean; result: BlockLookupBuildResult }
 	| { type: 'build-index-failed'; forceRebuild: boolean; message: string }
 	| { type: 'build-index-finished' }
+	| { type: 'build-index-progressed'; progress: BlockLookupIndexProgress }
 	| { type: 'build-index-status-cleared' }
 	| { type: 'build-index-started'; forceRebuild: boolean }
 	| { type: 'query-changed'; query: string }
@@ -62,6 +66,7 @@ type BlockLookupWorkspaceSessionEvent =
 	| { type: 'selection-copy-order-changed'; orderedRowKeys: string[] }
 	| { type: 'selection-row-requested'; rowKey: string; orderedRowKeys: string[]; range: boolean; toggle: boolean }
 	| { type: 'selection-single-requested'; rowKey?: string }
+	| { type: 'rendered-previews-enabled-changed'; renderedPreviewsEnabled: boolean }
 	| { type: 'workshop-root-changed'; workshopRoot: string };
 
 export function createBlockLookupWorkspaceSessionState(): BlockLookupWorkspaceSessionState {
@@ -73,6 +78,7 @@ export function createBlockLookupWorkspaceSessionState(): BlockLookupWorkspaceSe
 		filteredRows: [],
 		loadingResults: false,
 		query: '',
+		renderedPreviewsEnabled: false,
 		rows: [],
 		selectedFilterMods: [],
 		selectedRecord: undefined,
@@ -81,7 +87,7 @@ export function createBlockLookupWorkspaceSessionState(): BlockLookupWorkspaceSe
 		selectedRowKeysInCopyOrder: [],
 		selectionAnchorRowKey: undefined,
 		indexRunStatus: undefined,
-		settings: { workshopRoot: '' },
+		settings: { workshopRoot: '', renderedPreviewsEnabled: false },
 		stats: null,
 		workshopRoot: ''
 	};
@@ -112,6 +118,14 @@ export function reduceBlockLookupWorkspaceSession(
 			return {
 				...state,
 				buildingIndex: false
+			};
+		case 'build-index-progressed':
+			if (!state.buildingIndex || state.indexRunStatus?.phase !== 'running') {
+				return state;
+			}
+			return {
+				...state,
+				indexRunStatus: createBlockLookupIndexRunProgressStatus(state.indexRunStatus?.actionLabel === 'Full rebuild', event.progress)
 			};
 		case 'build-index-status-cleared':
 			return {
@@ -207,6 +221,11 @@ export function reduceBlockLookupWorkspaceSession(
 				...state,
 				...createBlockLookupSettingsSaveState(event.settings, state.stats)
 			};
+		case 'rendered-previews-enabled-changed':
+			return {
+				...state,
+				renderedPreviewsEnabled: event.renderedPreviewsEnabled
+			};
 		case 'workshop-root-changed':
 			return {
 				...state,
@@ -252,13 +271,15 @@ export function createBlockLookupBuildRequest(
 	config: { gameExec: string },
 	workshopRoot: string,
 	modSources: BlockLookupModSource[],
-	forceRebuild = false
+	forceRebuild = false,
+	renderedPreviewsEnabled = false
 ): BlockLookupBuildRequest {
 	return {
 		workshopRoot,
 		gameExec: config.gameExec,
 		modSources,
-		forceRebuild
+		forceRebuild,
+		renderedPreviewsEnabled
 	};
 }
 
@@ -297,23 +318,42 @@ function getBlockLookupBuildActionLabel(forceRebuild: boolean) {
 	return forceRebuild ? 'Full rebuild' : 'Index update';
 }
 
-function createBlockLookupIndexRunProgressStatus(forceRebuild: boolean): BlockLookupIndexRunStatus {
+function createInitialBlockLookupIndexProgress(): BlockLookupIndexProgress {
+	return {
+		phase: 'planning',
+		phaseLabel: 'Planning index build',
+		completed: 0,
+		total: 1,
+		percent: 0
+	};
+}
+
+function createBlockLookupIndexRunProgressStatus(
+	forceRebuild: boolean,
+	progress = createInitialBlockLookupIndexProgress()
+): BlockLookupIndexRunStatus {
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
 	return {
 		actionLabel,
-		detail: 'Scanning workshop and loaded mod sources for SpawnBlock commands.',
+		detail: progress.phaseLabel,
 		phase: 'running',
+		progress,
 		title: `${actionLabel} running`
 	};
 }
 
 function createBlockLookupIndexRunSuccessStatus(result: BlockLookupBuildResult, forceRebuild: boolean): BlockLookupIndexRunStatus {
 	const actionLabel = getBlockLookupBuildActionLabel(forceRebuild);
+	const previewDetail = result.stats.renderedPreviewsEnabled
+		? ` ${result.stats.renderedPreviews} preview${result.stats.renderedPreviews === 1 ? '' : 's'} rendered, ${
+				result.stats.unavailablePreviews
+			} unavailable.`
+		: '';
 	return {
 		actionLabel,
 		detail: `${result.stats.blocks} block${result.stats.blocks === 1 ? '' : 's'} indexed from ${result.stats.sources} source${
 			result.stats.sources === 1 ? '' : 's'
-		}.`,
+		}.${previewDetail}`,
 		phase: 'success',
 		title: `${actionLabel} complete`
 	};
@@ -334,6 +374,7 @@ export function createBlockLookupBootstrapState(
 	stats: BlockLookupIndexStats | null
 ): BlockLookupSettingsState {
 	return {
+		renderedPreviewsEnabled: settings.renderedPreviewsEnabled,
 		settings,
 		stats,
 		workshopRoot: settings.workshopRoot
@@ -349,9 +390,10 @@ export function createBlockLookupSettingsSaveState(
 
 export function createBlockLookupBuildIndexState(
 	result: BlockLookupBuildResult,
-	settings: BlockLookupSettings = { workshopRoot: '' }
+	settings: BlockLookupSettings = { workshopRoot: '', renderedPreviewsEnabled: false }
 ): BlockLookupSettingsState {
 	return {
+		renderedPreviewsEnabled: settings.renderedPreviewsEnabled,
 		settings,
 		stats: result.stats,
 		workshopRoot: settings.workshopRoot

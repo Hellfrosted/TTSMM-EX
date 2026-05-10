@@ -5,6 +5,8 @@ import { Protocol, ProtocolRequest, ProtocolResponse } from 'electron';
 import log from 'electron-log';
 
 const PREVIEW_HOST = 'preview';
+const BLOCK_LOOKUP_PREVIEW_HOST = 'block-preview';
+const BLOCK_LOOKUP_PREVIEW_CACHE_DIR = 'block-lookup-rendered-previews';
 const NOT_FOUND_ERROR = -6;
 
 const activePreviewTokens = new Map<string, string>();
@@ -13,6 +15,10 @@ const previousPreviewTokens = new Map<string, string>();
 function isAllowedPreviewFileName(fileName: string): boolean {
 	const normalizedName = fileName.toLowerCase();
 	return normalizedName === 'preview.png' || normalizedName.endsWith(' preview.png');
+}
+
+function isAllowedBlockLookupPreviewFileName(fileName: string): boolean {
+	return ['.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(fileName).toLowerCase());
 }
 
 function normalizePreviewPath(previewPath: string): string {
@@ -95,9 +101,53 @@ export function resolvePreviewImageRequest(requestUrl: string): string | null {
 	}
 }
 
-function createPreviewProtocolHandler() {
+export function createBlockLookupPreviewImageUrl(cacheRelativePath: string): string | undefined {
+	const normalizedPath = cacheRelativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+	if (!normalizedPath || normalizedPath.split('/').some((part) => part === '..') || !isAllowedBlockLookupPreviewFileName(normalizedPath)) {
+		return undefined;
+	}
+	return `image://${BLOCK_LOOKUP_PREVIEW_HOST}/${encodeURI(normalizedPath)}`;
+}
+
+export function getBlockLookupPreviewCachePath(userDataPath: string): string {
+	return path.join(userDataPath, BLOCK_LOOKUP_PREVIEW_CACHE_DIR);
+}
+
+export function resolveBlockLookupPreviewImageRequest(requestUrl: string, userDataPath: string): string | null {
+	try {
+		const parsed = new URL(requestUrl);
+		if (parsed.hostname !== BLOCK_LOOKUP_PREVIEW_HOST) {
+			return null;
+		}
+		const cacheRelativePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+		const cacheRoot = normalizePreviewPath(getBlockLookupPreviewCachePath(userDataPath));
+		const resolvedPath = normalizePreviewPath(path.join(cacheRoot, cacheRelativePath));
+		const relativePath = path.relative(cacheRoot, resolvedPath);
+		if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+			return null;
+		}
+		if (!isAllowedBlockLookupPreviewFileName(resolvedPath) || !fs.existsSync(resolvedPath)) {
+			return null;
+		}
+		return resolvedPath;
+	} catch (error) {
+		log.error(`Failed to resolve block lookup preview image request for ${requestUrl}`);
+		log.error(error);
+		return null;
+	}
+}
+
+interface PreviewProtocolOptions {
+	getUserDataPath?: () => string;
+}
+
+function createPreviewProtocolHandler(options: PreviewProtocolOptions = {}) {
 	return (request: ProtocolRequest, callback: (response: string | ProtocolResponse) => void) => {
-		const resolvedPath = resolvePreviewImageRequest(request.url);
+		const parsedUrl = new URL(request.url);
+		const resolvedPath =
+			parsedUrl.hostname === BLOCK_LOOKUP_PREVIEW_HOST && options.getUserDataPath
+				? resolveBlockLookupPreviewImageRequest(request.url, options.getUserDataPath())
+				: resolvePreviewImageRequest(request.url);
 		if (!resolvedPath) {
 			callback({ error: NOT_FOUND_ERROR });
 			return;
@@ -106,6 +156,6 @@ function createPreviewProtocolHandler() {
 	};
 }
 
-export function registerPreviewProtocol(protocol: Protocol) {
-	protocol.registerFileProtocol('image', createPreviewProtocolHandler());
+export function registerPreviewProtocol(protocol: Protocol, options: PreviewProtocolOptions = {}) {
+	protocol.registerFileProtocol('image', createPreviewProtocolHandler(options));
 }
