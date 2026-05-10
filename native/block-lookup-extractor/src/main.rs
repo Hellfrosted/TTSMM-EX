@@ -217,6 +217,13 @@ fn extract_text_assets(
         }
     }
 
+    let Some(preview_cache_dir) = preview_cache_dir else {
+        return Ok(ExtractedBundleContents {
+            text_assets,
+            preview_assets,
+        });
+    };
+
     let preview_match_keys = create_preview_match_keys(&text_assets);
     for serialized_file in viewer.serialized_file_map.values() {
         for (path_id, object_metadata) in serialized_file.get_object_map() {
@@ -236,9 +243,6 @@ fn extract_text_assets(
                 if !should_extract_preview_asset(&asset_name, &preview_match_keys) {
                     continue;
                 }
-                let Some(preview_cache_dir) = preview_cache_dir else {
-                    continue;
-                };
                 if let Ok(preview_asset) =
                     extract_preview_asset(&viewer, &object_ref, path, asset_name, preview_cache_dir)
                 {
@@ -268,9 +272,6 @@ fn extract_text_assets(
             if !should_extract_preview_asset(&asset_name, &preview_match_keys) {
                 continue;
             }
-            let Some(preview_cache_dir) = preview_cache_dir else {
-                continue;
-            };
             if let Ok(preview_asset) =
                 extract_mesh_preview_asset(&object_ref, path, asset_name, preview_cache_dir)
             {
