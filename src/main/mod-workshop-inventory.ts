@@ -1,13 +1,13 @@
-import log from 'electron-log';
 import { Effect } from 'effect';
+import log from 'electron-log';
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
-import { chunkWorkshopIds, getWorkshopDetailsMap } from './mod-workshop-metadata';
 import type { ModInventoryProgress } from './mod-inventory-progress';
-import Steamworks, { type SteamUGCDetails } from './steamworks';
+import { chunkWorkshopIds, getWorkshopDetailsMap } from './mod-workshop-metadata';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
-import { WorkshopInventoryResolver } from './workshop-inventory-resolution';
-import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
 import type { SteamPersonaCache } from './steam-persona-cache';
+import Steamworks, { type SteamUGCDetails } from './steamworks';
+import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
+import { WorkshopInventoryResolver } from './workshop-inventory-resolution';
 
 interface WorkshopDependencyExpansionAdapters {
 	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Effect.Effect<ModData[], unknown, SteamPersonaCache>;

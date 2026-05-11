@@ -1,6 +1,6 @@
+import { Effect } from 'effect';
 import log from 'electron-log';
 import fs from 'fs';
-import { Effect } from 'effect';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 import Steamworks, {
 	type GetUserItemsProps,

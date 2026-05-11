@@ -1,13 +1,13 @@
-import { ModData, ModDescriptor, ModDataOverride } from './Mod';
+import { ModData, ModDataOverride, ModDescriptor } from './Mod';
 import {
 	cloneModOverride,
 	createEmptyModDependencyGraph,
-	getModDependencyDescriptors,
 	getModDependencyDescriptor,
+	getModDependencyDescriptors,
 	getModDependentDescriptors,
-	setupModDependencyGraph,
 	type ModDependencyGraph,
-	type ModDependencyGraphOptions
+	type ModDependencyGraphOptions,
+	setupModDependencyGraph
 } from './mod-dependency-graph';
 
 export class SessionMods {

@@ -1,12 +1,12 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MainColumnTitles } from '../../model';
 import {
-	MainCollectionVirtualHeaderRow,
-	ResizableHeaderCell,
 	canSetMainColumnVisibility,
-	getNextMainCollectionSortState
+	getNextMainCollectionSortState,
+	MainCollectionVirtualHeaderRow,
+	ResizableHeaderCell
 } from '../../renderer/components/collections/main-collection-header';
 
 afterEach(() => {

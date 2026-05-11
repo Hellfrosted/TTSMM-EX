@@ -1,33 +1,63 @@
-import { useOutletContext } from 'react-router-dom';
-import { memo, useCallback, useDeferredValue, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
-import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, Clock3, Code2, Filter, LoaderCircle, PanelRightOpen, TriangleAlert, X } from 'lucide-react';
+import {
+	type CollectionStatusTag,
+	CollectionViewProps,
+	CorpType,
+	compareModDataDisplayId,
+	compareModDataDisplayName,
+	DisplayModData,
+	getCollectionStatusTags,
+	getCorpType,
+	getModDataDisplayId,
+	getModDataDisplayName,
+	MainCollectionConfig,
+	MainCollectionTableCommands,
+	MainColumnTitles,
+	ModErrors,
+	ModType
+} from 'model';
+import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useOutletContext } from 'react-router-dom';
 import api from 'renderer/Api';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES } from 'renderer/theme';
-import { MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT, VIRTUAL_TABLE_OVERSCAN, getVirtualTableRowHeight } from 'renderer/virtual-table-geometry';
+import { getVirtualTableRowHeight, MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT, VIRTUAL_TABLE_OVERSCAN } from 'renderer/virtual-table-geometry';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
+import { formatDateStr } from 'util/Date';
+import Corp_Icon_BF from '../../../../assets/Corp_Icon_BF.png';
+import Corp_Icon_RR from '../../../../assets/Corp_Icon_EXP.png';
+import Corp_Icon_GC from '../../../../assets/Corp_Icon_GC.png';
+import Corp_Icon_GSO from '../../../../assets/Corp_Icon_GSO.png';
+
+import Corp_Icon_HE from '../../../../assets/Corp_Icon_HE.png';
+import Corp_Icon_SPE from '../../../../assets/Corp_Icon_SPE.png';
+import Corp_Icon_VEN from '../../../../assets/Corp_Icon_VEN.png';
+import Icon_Corps from '../../../../assets/faction-flag.svg';
+import Icon_Skins from '../../../../assets/paintbrush.svg';
+import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
 import {
-	MainCollectionVirtualHeaderRow,
 	getMainCollectionHeaderColumnBehavior,
 	type MainCollectionHeaderColumn,
+	MainCollectionVirtualHeaderRow,
 	type ResizableHeaderCellProps
 } from './main-collection-header';
 import {
-	MainCollectionVirtualRow,
-	SelectionCheckbox,
 	type MainCollectionCellRenderer,
-	type MainCollectionRowColumn
+	type MainCollectionRowColumn,
+	MainCollectionVirtualRow,
+	SelectionCheckbox
 } from './main-collection-row';
 import {
 	AUTO_MEASURE_MAIN_COLUMN_TITLES,
+	areColumnWidthMapsEqual,
 	COLUMN_AUTO_MEASURE_MAX_ROWS,
 	COLUMN_MEASUREMENT_SAMPLE_SIZE,
-	DEFAULT_SELECTION_COLUMN_WIDTH,
-	areColumnWidthMapsEqual,
 	cacheColumnMeasurements,
+	DEFAULT_SELECTION_COLUMN_WIDTH,
 	formatSizeLabel,
 	getAllTags,
 	getCachedColumnMeasurements,
@@ -46,39 +76,9 @@ import {
 	getMainCollectionDefaultSortState,
 	getMainCollectionSelectionModel,
 	getMainCollectionSorterCompare,
-	sortMainCollectionRows,
-	type MainCollectionSorter
+	type MainCollectionSorter,
+	sortMainCollectionRows
 } from './main-collection-table-model';
-import {
-	CollectionViewProps,
-	DisplayModData,
-	MainCollectionConfig,
-	MainCollectionTableCommands,
-	MainColumnTitles,
-	ModErrors,
-	ModType,
-	getModDataDisplayName,
-	compareModDataDisplayName,
-	getModDataDisplayId,
-	compareModDataDisplayId,
-	CorpType,
-	getCorpType,
-	getCollectionStatusTags,
-	type CollectionStatusTag
-} from 'model';
-import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
-import { formatDateStr } from 'util/Date';
-
-import Corp_Icon_HE from '../../../../assets/Corp_Icon_HE.png';
-import Corp_Icon_BF from '../../../../assets/Corp_Icon_BF.png';
-import Corp_Icon_GC from '../../../../assets/Corp_Icon_GC.png';
-import Corp_Icon_GSO from '../../../../assets/Corp_Icon_GSO.png';
-import Corp_Icon_VEN from '../../../../assets/Corp_Icon_VEN.png';
-import Corp_Icon_RR from '../../../../assets/Corp_Icon_EXP.png';
-import Corp_Icon_SPE from '../../../../assets/Corp_Icon_SPE.png';
-import Icon_Skins from '../../../../assets/paintbrush.svg';
-import Icon_Blocks from '../../../../assets/StandardBlocks.svg';
-import Icon_Corps from '../../../../assets/faction-flag.svg';
 import { getModTypeLabel, ModTypeIcon } from './mod-type-presentation';
 
 const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;

@@ -1,7 +1,6 @@
 import type { AppConfig } from './AppConfig';
-import { ModErrorType, type CollectionErrors, type DisplayModData, type ModErrors } from './CollectionValidation';
-import { ModType } from './Mod';
-import { getModDescriptorDisplayName, getModDescriptorKey } from './Mod';
+import { type CollectionErrors, type DisplayModData, type ModErrors, ModErrorType } from './CollectionValidation';
+import { getModDescriptorDisplayName, getModDescriptorKey, ModType } from './Mod';
 import type { ModCollection } from './ModCollection';
 import { getByUID, type SessionMods } from './SessionMods';
 

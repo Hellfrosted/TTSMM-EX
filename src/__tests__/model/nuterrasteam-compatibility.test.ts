@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ModType } from '../../model/Mod';
+import { createModDependencyTargetSatisfactionPolicy } from '../../model/mod-dependency-target';
 import {
 	createNuterraSteamBetaMatchingPolicy,
 	NUTERRASTEAM_BETA_WORKSHOP_ID,
 	NUTERRASTEAM_CANONICAL_MOD_ID
 } from '../../model/nuterrasteam-compatibility';
-import { createModDependencyTargetSatisfactionPolicy } from '../../model/mod-dependency-target';
 
 describe('NuterraSteam Beta Matching policy', () => {
 	it('defaults compatibility on and normalizes Nuterra variant dependency IDs', () => {

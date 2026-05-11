@@ -1,10 +1,10 @@
-import log from 'electron-log';
 import { Effect } from 'effect';
+import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
 import { ModData, ModType } from '../model';
-import { registerPreviewImage } from './preview-protocol';
 import type { ModInventoryProgress } from './mod-inventory-progress';
+import { registerPreviewImage } from './preview-protocol';
 
 export const MAX_TTSMM_METADATA_BYTES = 1024 * 1024;
 

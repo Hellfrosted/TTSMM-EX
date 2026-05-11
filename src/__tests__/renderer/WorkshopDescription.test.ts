@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { convertWorkshopDescriptionToHtml } from 'renderer/util/workshop-description';
+import { describe, expect, it } from 'vitest';
 
 describe('convertWorkshopDescriptionToHtml', () => {
 	it('renders Steam heading tags instead of showing raw BBCode', () => {

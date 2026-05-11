@@ -2,16 +2,6 @@ import type { AppConfig, NLogLevel } from 'model/AppConfig';
 import type { ModData } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
-import { LogLevel, PathType } from 'shared/ipc';
-import type {
-	CollectionLifecycleResult,
-	CreateCollectionLifecycleRequest,
-	DeleteCollectionLifecycleRequest,
-	DuplicateCollectionLifecycleRequest,
-	RenameCollectionLifecycleRequest,
-	SwitchCollectionLifecycleRequest
-} from 'shared/collection-lifecycle';
-import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from 'shared/startup-collection-resolution';
 import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
@@ -22,10 +12,20 @@ import type {
 	BlockLookupSettings
 } from 'shared/block-lookup';
 import type { CollectionContentSaveRequest, CollectionContentSaveResult } from 'shared/collection-content-save';
-import type { ModContextMenuRequest } from 'shared/mod-context-menu';
-import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
+import type {
+	CollectionLifecycleResult,
+	CreateCollectionLifecycleRequest,
+	DeleteCollectionLifecycleRequest,
+	DuplicateCollectionLifecycleRequest,
+	RenameCollectionLifecycleRequest,
+	SwitchCollectionLifecycleRequest
+} from 'shared/collection-lifecycle';
 import type { ElectronApi, ElectronLogFunctions, ElectronPlatform, ProgressChangeCallback, Unsubscribe } from 'shared/electron-api';
 import type { SteamworksStatus } from 'shared/ipc';
+import { LogLevel, PathType } from 'shared/ipc';
+import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
+import type { ModContextMenuRequest } from 'shared/mod-context-menu';
+import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from 'shared/startup-collection-resolution';
 import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 import { createGameLaunchCommand, parseExtraLaunchParams } from './game-launch-command';
 

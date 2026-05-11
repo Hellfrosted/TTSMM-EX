@@ -2,9 +2,9 @@ import { BLOCK_LOOKUP_COLUMN_KEYS, type BlockLookupViewConfig } from 'model';
 import { normalizeBlockLookupColumnWidth } from 'shared/block-lookup-view-config';
 import { defaultEquivalentOrder, normalizedOrder } from 'shared/view-config';
 import {
-	DEFAULT_BLOCK_LOOKUP_COLUMNS,
+	type BlockLookupColumnConfig,
 	cloneBlockLookupColumnConfig,
-	type BlockLookupColumnConfig
+	DEFAULT_BLOCK_LOOKUP_COLUMNS
 } from './block-lookup-column-definitions';
 
 export function getConfiguredBlockLookupColumns(config?: BlockLookupViewConfig): BlockLookupColumnConfig[] {

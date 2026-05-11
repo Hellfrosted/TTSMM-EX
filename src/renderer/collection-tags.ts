@@ -1,4 +1,4 @@
-import { getCorpDisplayName, getCorpType, type DisplayModData } from 'model';
+import { type DisplayModData, getCorpDisplayName, getCorpType } from 'model';
 
 function getCanonicalCollectionTagLabel(tag: string) {
 	const corp = getCorpType(tag);

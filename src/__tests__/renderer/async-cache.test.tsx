@@ -1,33 +1,33 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessionMods, type AppConfig } from '../../model';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import type { ElectronApi } from '../../shared/electron-api';
+import { type AppConfig, SessionMods } from '../../model';
 import {
 	applyCollectionLifecycleResultToCache,
 	createModMetadataScanRequest,
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
 	getBlockLookupBootstrapCacheData,
-	readConfigCache,
 	readCollectionCache,
 	readCollectionsListCache,
+	readConfigCache,
 	readGameRunningCache,
 	readModMetadataCache,
-	setConfigCacheData,
-	setCollectionCacheData,
 	setBlockLookupBootstrapCacheData,
 	setBlockLookupSearchCacheData,
+	setCollectionCacheData,
+	setConfigCacheData,
 	setGameRunningCacheData,
 	setModMetadataCacheData,
-	useConfigCacheValue,
+	useBuildBlockLookupIndexMutation,
 	useCollectionCacheValue,
 	useCollectionsListCacheValue,
-	useBuildBlockLookupIndexMutation,
+	useConfigCacheValue,
 	useUpdateCollectionMutation,
 	useWriteConfigMutation
 } from '../../renderer/async-cache';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { persistConfigChange, writeConfig } from '../../renderer/util/config-write';
+import type { ElectronApi } from '../../shared/electron-api';
 
 declare global {
 	interface Window {

@@ -1,6 +1,6 @@
 # Project Docs
 
-Last reviewed: 2026-05-03
+Last reviewed: 2026-05-11
 
 This directory holds durable project documentation for source builds, maintenance, and accepted architecture decisions. Start with the root README for setup context, then use the narrower docs here when a task touches a specific workflow or decision record.
 
@@ -8,7 +8,7 @@ This directory holds durable project documentation for source builds, maintenanc
 
 - [README.md](../README.md): install, source setup, runtime requirements, verification, packaging, app data, and behavior notes.
 - [docs/development.md](development.md): Linux runtime packages, packaging details, script inventory, and reference links.
-- [docs/adr/](adr/): accepted architecture decisions, including local diagnostics and telemetry policy.
+- [docs/adr/](adr/): accepted architecture decisions, including renderer state/cache ownership, local diagnostics, and telemetry policy.
 
 ## Maintenance
 

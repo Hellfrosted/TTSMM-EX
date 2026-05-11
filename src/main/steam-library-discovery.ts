@@ -1,8 +1,8 @@
-import childProcess from 'child_process';
-import fs from 'fs';
 import os from 'node:os';
-import path from 'path';
+import childProcess from 'child_process';
 import log from 'electron-log';
+import fs from 'fs';
+import path from 'path';
 import { normalizePathValue, parseSteamLibraryFolders } from './path-utils';
 
 interface SteamLibraryDiscoveryOptions {

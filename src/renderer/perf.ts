@@ -1,5 +1,5 @@
-import { Fragment, Profiler, createElement, type ReactNode } from 'react';
 import type { ProfilerOnRenderCallback } from 'react';
+import { createElement, Fragment, Profiler, type ReactNode } from 'react';
 
 const PERF_STORAGE_KEY = 'ttsmm.perf';
 const SLOW_MEASURE_THRESHOLD_MS = 8;

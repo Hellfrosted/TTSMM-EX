@@ -1,5 +1,5 @@
-import log from 'electron-log';
 import { Effect } from 'effect';
+import log from 'electron-log';
 import type {
 	KnownWorkshopDependencySnapshotMetadata,
 	WorkshopDependencySnapshotLookupResult,

@@ -3,16 +3,6 @@ import type { ModData } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
 import type { SessionMods } from 'model/SessionMods';
 import type {
-	CollectionLifecycleResult,
-	CreateCollectionLifecycleRequest,
-	DeleteCollectionLifecycleRequest,
-	DuplicateCollectionLifecycleRequest,
-	RenameCollectionLifecycleRequest,
-	SwitchCollectionLifecycleRequest
-} from './collection-lifecycle';
-import type { CollectionContentSaveRequest, CollectionContentSaveResult } from './collection-content-save';
-import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from './startup-collection-resolution';
-import type {
 	BlockLookupBuildRequest,
 	BlockLookupBuildResult,
 	BlockLookupIndexProgressCallback,
@@ -21,8 +11,18 @@ import type {
 	BlockLookupSearchResult,
 	BlockLookupSettings
 } from './block-lookup';
+import type { CollectionContentSaveRequest, CollectionContentSaveResult } from './collection-content-save';
+import type {
+	CollectionLifecycleResult,
+	CreateCollectionLifecycleRequest,
+	DeleteCollectionLifecycleRequest,
+	DuplicateCollectionLifecycleRequest,
+	RenameCollectionLifecycleRequest,
+	SwitchCollectionLifecycleRequest
+} from './collection-lifecycle';
 import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
 import type { ModContextMenuRequest } from './mod-context-menu';
+import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from './startup-collection-resolution';
 import type { WorkshopDependencyRefreshResult } from './workshop-dependency-snapshot';
 
 export type ElectronLogFunctions = {

@@ -1,5 +1,5 @@
-import path from 'path';
 import type { app } from 'electron';
+import path from 'path';
 import { USER_DATA_DIR_OVERRIDE_ENV } from 'shared/user-data';
 
 export const FORK_USER_DATA_DIR = 'TerraTech Steam Mod Manager EX';

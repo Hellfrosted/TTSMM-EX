@@ -1,5 +1,5 @@
-import { Suspense, lazy } from 'react';
-import { MemoryRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Navigate, Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 
 import App from './App';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';

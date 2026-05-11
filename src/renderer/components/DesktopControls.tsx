@@ -1,17 +1,17 @@
+import { X } from 'lucide-react';
 import {
-	useEffect,
-	useEffectEvent,
-	useId,
-	useRef,
 	type ButtonHTMLAttributes,
 	type CSSProperties,
 	type InputHTMLAttributes,
 	type ReactNode,
 	type Ref,
-	type SelectHTMLAttributes
+	type SelectHTMLAttributes,
+	useEffect,
+	useEffectEvent,
+	useId,
+	useRef
 } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
 import {
 	desktopButtonBaseClassName,
 	desktopControlFocusClassName,

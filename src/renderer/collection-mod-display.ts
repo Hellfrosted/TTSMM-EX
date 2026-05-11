@@ -1,4 +1,4 @@
-import { type CollectionErrors, type DisplayModData, type ModData, type SessionMods, getByUID } from 'model';
+import { type CollectionErrors, type DisplayModData, getByUID, type ModData, type SessionMods } from 'model';
 
 export function projectCollectionRowsWithErrors(rows: ModData[], errors: CollectionErrors | undefined): DisplayModData[] {
 	return rows.map((row) => {

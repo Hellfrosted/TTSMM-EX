@@ -1,5 +1,5 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods, setupDescriptors } from '../../model';
 import ModDetailsFooter from '../../renderer/components/collections/ModDetailsFooter';

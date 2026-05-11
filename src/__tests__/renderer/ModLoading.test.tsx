@@ -1,10 +1,10 @@
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SessionMods, type AppState } from '../../model';
+import { type AppState, SessionMods } from '../../model';
 import { setModMetadataCacheData } from '../../renderer/async-cache';
-import ModLoadingComponent from '../../renderer/components/loading/ModLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import ModLoadingComponent from '../../renderer/components/loading/ModLoading';
 import { createAppState, renderWithTestProviders } from './test-utils';
 
 function renderModLoading(appState: ReturnType<typeof createAppState>, modLoadCompleteCallback: () => void) {

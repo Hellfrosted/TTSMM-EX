@@ -1,13 +1,13 @@
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
-import { createTestConfig } from './test-utils';
 import type { AppConfig, ModCollection } from '../../model';
 import { readConfigCache, setConfigCacheData } from '../../renderer/async-cache';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
+import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
+import { createTestConfig } from './test-utils';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();

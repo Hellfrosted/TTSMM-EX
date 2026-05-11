@@ -1,9 +1,9 @@
 import { Effect } from 'effect';
 import type { BlockLookupRecord } from 'shared/block-lookup';
 import {
-	extractRecordsFromSources,
 	type BlockLookupSourceExtractionAdapters,
-	type BlockLookupSourceExtractionOptions
+	type BlockLookupSourceExtractionOptions,
+	extractRecordsFromSources
 } from './block-lookup-extraction';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 

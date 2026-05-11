@@ -1,20 +1,3 @@
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useEffectEvent,
-	useMemo,
-	useReducer,
-	useRef,
-	useState,
-	type Key,
-	type KeyboardEvent,
-	type MouseEvent,
-	type CSSProperties,
-	type ReactNode,
-	type SetStateAction
-} from 'react';
-import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
 	AlertTriangle,
@@ -32,8 +15,33 @@ import {
 	X
 } from 'lucide-react';
 import type { AppState } from 'model';
-import type { BlockLookupIndexStats, BlockLookupSearchRow } from 'shared/block-lookup';
-import { getBlockLookupRecordKey, sortBlockLookupRecords, type BlockLookupIndexRunStatus } from 'renderer/block-lookup-workspace';
+import {
+	type CSSProperties,
+	type Key,
+	type KeyboardEvent,
+	type MouseEvent,
+	memo,
+	type ReactNode,
+	type SetStateAction,
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useMemo,
+	useReducer,
+	useRef,
+	useState
+} from 'react';
+import { createPortal } from 'react-dom';
+import { getConfiguredBlockLookupColumns } from 'renderer/block-lookup-column-config';
+import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
+import {
+	createBlockLookupTableOptionsDraft,
+	getBlockLookupDraftColumnStates,
+	moveBlockLookupColumnByKey,
+	setBlockLookupDraftColumnVisibility,
+	setBlockLookupDraftColumnWidth
+} from 'renderer/block-lookup-draft-config';
+import { type BlockLookupIndexRunStatus, getBlockLookupRecordKey, sortBlockLookupRecords } from 'renderer/block-lookup-workspace';
 import {
 	DesktopButton as BlockLookupButton,
 	DesktopDialog,
@@ -42,25 +50,17 @@ import {
 	DesktopSwitch
 } from 'renderer/components/DesktopControls';
 import { VirtualTableBody, VirtualTableRow } from 'renderer/components/virtual-table-primitives';
-import { PerfProfiler, markPerfInteraction, measurePerf } from 'renderer/perf';
-import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
+import { markPerfInteraction, measurePerf, PerfProfiler } from 'renderer/perf';
+import { type BlockLookupColumnKey, useBlockLookupStore } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
-import { BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT, VIRTUAL_TABLE_OVERSCAN, getVirtualTableRowHeight } from 'renderer/virtual-table-geometry';
-import {
-	createBlockLookupTableOptionsDraft,
-	getBlockLookupDraftColumnStates,
-	moveBlockLookupColumnByKey,
-	setBlockLookupDraftColumnVisibility,
-	setBlockLookupDraftColumnWidth
-} from 'renderer/block-lookup-draft-config';
-import { getConfiguredBlockLookupColumns } from 'renderer/block-lookup-column-config';
-import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 import { useViewConfigCommands } from 'renderer/view-config-command';
+import { BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT, getVirtualTableRowHeight, VIRTUAL_TABLE_OVERSCAN } from 'renderer/virtual-table-geometry';
+import type { BlockLookupIndexStats, BlockLookupSearchRow } from 'shared/block-lookup';
 import {
 	BlockLookupHeaderCell,
+	getBlockLookupCellAlignment,
 	getBlockLookupColumnMinWidth,
 	getBlockLookupColumnWidthStyle,
-	getBlockLookupCellAlignment,
 	getBlockLookupTableScrollWidth,
 	getBlockLookupVirtualColumnStyle,
 	getNextBlockLookupSortDirection,
@@ -70,6 +70,7 @@ import {
 	setBlockLookupColumnWidthVariable
 } from './block-lookup-table-layout';
 import { useBlockLookupWorkflow } from './use-block-lookup-workflow';
+
 type BlockLookupViewAppState = Pick<AppState, 'config' | 'mods' | 'updateState'>;
 
 interface BlockLookupViewProps {

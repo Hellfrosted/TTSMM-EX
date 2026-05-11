@@ -1,7 +1,7 @@
-import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { releaseAppPath, repoRoot } from './lib/paths';
+import path from 'node:path';
 import { capturePackageManager, runPackageManager } from './lib/package-manager';
+import { releaseAppPath, repoRoot } from './lib/paths';
 
 const supportedIncrementTypes = new Set(['patch', 'minor', 'major']);
 

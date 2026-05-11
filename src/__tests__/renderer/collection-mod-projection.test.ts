@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { ModType, SessionMods } from '../../model';
 import type { ModData } from '../../model';
+import { ModType, SessionMods } from '../../model';
+import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../../renderer/collection-mod-display';
+import { getCollectionModDataList } from '../../renderer/collection-mod-list';
 import {
 	filterCollectionRows,
 	filterCollectionRowsByTags,
 	getCollectionRowFilterTags,
 	getVisibleCollectionRows
 } from '../../renderer/collection-mod-row-filter';
-import { getCollectionModDataList } from '../../renderer/collection-mod-list';
 import { getCollectionRows, getCollectionRowsWithMissingSelections } from '../../renderer/collection-mod-row-source';
-import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../../renderer/collection-mod-display';
 import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from '../../renderer/collection-mod-selection';
 
 function sessionWithRows(rows: ModData[]) {

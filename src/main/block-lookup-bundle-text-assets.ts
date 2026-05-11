@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
+import { Effect, Path as EffectPath, FileSystem, Layer } from 'effect';
 import log from 'electron-log';
-import { Effect, FileSystem, Layer, Path as EffectPath } from 'effect';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
 
 const EXTRACTOR_SOURCE_BATCH_SIZE = 1;

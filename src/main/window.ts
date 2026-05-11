@@ -1,16 +1,16 @@
-import fs from 'fs';
-import path from 'path';
 import {
 	app,
 	BrowserWindow,
-	session,
 	type Event as ElectronEvent,
 	type Extension,
 	type LoadExtensionOptions,
 	type Session,
+	session,
 	type WebContentsConsoleMessageEventParams
 } from 'electron';
 import log from 'electron-log';
+import fs from 'fs';
+import path from 'path';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 
 import { openExternalUrl } from './external-links';

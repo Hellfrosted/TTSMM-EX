@@ -1,6 +1,6 @@
-import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import type { AppConfig } from 'model/AppConfig';
 import type { SessionMods } from 'model/SessionMods';
+import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import { createModMetadataScanRequest, readModMetadataCache } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';

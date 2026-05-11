@@ -1,5 +1,5 @@
-import React from 'react';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, type AppState, LogLevel } from '../../model';
 import { SettingsView } from '../../renderer/views/SettingsView';

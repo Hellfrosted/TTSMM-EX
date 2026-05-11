@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 import type { ModCollection } from 'model';
-import { collectionContentSaveRequestSchema, type CollectionContentSaveRequest } from 'shared/collection-content-save';
+import { type CollectionContentSaveRequest, collectionContentSaveRequestSchema } from 'shared/collection-content-save';
 import type {
 	CollectionLifecycleBaseRequest,
 	CreateCollectionLifecycleRequest,
@@ -8,9 +8,9 @@ import type {
 	RenameCollectionLifecycleRequest,
 	SwitchCollectionLifecycleRequest
 } from 'shared/collection-lifecycle';
-import type { StartupCollectionResolutionRequest } from 'shared/startup-collection-resolution';
-import type { ValidChannel } from 'shared/ipc';
 import { MAX_COLLECTION_MODS } from 'shared/collection-payload';
+import type { ValidChannel } from 'shared/ipc';
+import type { StartupCollectionResolutionRequest } from 'shared/startup-collection-resolution';
 import { appConfigPayloadSchema } from './config-validation';
 import { parseEffectIpcPayload } from './ipc-validation';
 

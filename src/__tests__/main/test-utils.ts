@@ -2,10 +2,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, vi } from 'vitest';
-import { UGCItemVisibility, type SteamUGCDetails } from '../../main/steamworks/types';
-import type { AppConfig, ModCollection } from '../../model';
 import { updateCollectionFile } from '../../main/collection-store';
+import Steamworks from '../../main/steamworks';
+import { type SteamUGCDetails, UGCItemVisibility } from '../../main/steamworks/types';
 import { resolveHtmlPath } from '../../main/util';
+import type { AppConfig, ModCollection } from '../../model';
+import type { BlockLookupRecord } from '../../shared/block-lookup';
 
 const tempDirs = new Set<string>();
 
@@ -51,6 +53,36 @@ export function writeTestCollection(userDataPath: string, collection: ModCollect
 	if (!updateCollectionFile(userDataPath, collection)) {
 		throw new Error(`Failed to write test collection ${collection.name}`);
 	}
+}
+
+export function mockSteamworksBlockLookupInstallState() {
+	vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
+	vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+	vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+}
+
+export function createTestBlockLookupRecord(overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
+	const blockName = overrides.blockName ?? 'Alpha Cannon';
+	const modTitle = overrides.modTitle ?? 'Test Blocks';
+	const sourcePath = overrides.sourcePath ?? path.normalize('/mods/TestCannon.json');
+	const preferredAlias = overrides.preferredAlias ?? `${blockName.replace(/\s/g, '_')}(${modTitle.replace(/\s/g, '_')})`;
+
+	return {
+		blockId: overrides.blockId ?? '42',
+		blockName,
+		fallbackAlias: overrides.fallbackAlias ?? preferredAlias,
+		fallbackSpawnCommand: overrides.fallbackSpawnCommand ?? `SpawnBlock ${preferredAlias}`,
+		internalName: overrides.internalName ?? blockName.replace(/\s/g, ''),
+		modTitle,
+		preferredAlias,
+		previewBounds: overrides.previewBounds,
+		previewAssetNames: overrides.previewAssetNames,
+		renderedPreview: overrides.renderedPreview,
+		sourceKind: overrides.sourceKind ?? 'json',
+		sourcePath,
+		spawnCommand: overrides.spawnCommand ?? `SpawnBlock ${preferredAlias}`,
+		workshopId: overrides.workshopId ?? '12345'
+	};
 }
 
 export function createIpcHandlerHarness(registerHandlers: (ipcMain: never) => void) {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import {
-	createCollectionNameResolver,
 	type CollectionNameFormValues,
-	type CollectionNamingModalType
+	type CollectionNamingModalType,
+	createCollectionNameResolver
 } from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopDialog, DesktopInput } from 'renderer/components/DesktopControls';
 

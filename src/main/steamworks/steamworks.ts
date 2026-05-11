@@ -3,23 +3,23 @@ import log from 'electron-log';
 import {
 	// Steam API
 	EResult,
-	// Steamworks
-	ValidGreenworksChannels,
-	SteamErrorCallback,
-	ProgressCallback,
+	ExtendedSteamUGCDetails,
 	// ISteamUGC
 	GetItemsProps,
 	GetUserItemsProps,
-	PublishWorkshopFileProps,
-	SynchronizeItemsProps,
-	UpdatePublishedWorkshopFileProps,
-	ExtendedSteamUGCDetails,
 	ItemInstallInfo,
-	UGCItemState,
+	ProgressCallback,
+	PublishWorkshopFileProps,
+	SteamErrorCallback,
 	// IFriends
 	SteamID,
-	SteamUGCDetails,
 	SteamPageResults,
+	SteamUGCDetails,
+	SynchronizeItemsProps,
+	UGCItemState,
+	UpdatePublishedWorkshopFileProps,
+	// Steamworks
+	ValidGreenworksChannels,
 	WorkshopFileType
 } from './types';
 

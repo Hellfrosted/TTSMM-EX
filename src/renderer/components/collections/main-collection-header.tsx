@@ -1,22 +1,22 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { MainColumnTitles } from 'model';
 import type {
 	Dispatch,
-	DragEvent as ReactDragEvent,
 	Key,
+	MutableRefObject,
+	DragEvent as ReactDragEvent,
 	KeyboardEvent as ReactKeyboardEvent,
 	MouseEvent as ReactMouseEvent,
-	MutableRefObject,
 	ReactNode,
 	RefObject,
 	SetStateAction,
 	ThHTMLAttributes
 } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MainColumnTitles } from 'model';
-import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
+import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
-import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import {
 	DEFAULT_SELECTION_COLUMN_WIDTH,
 	getColumnWidthStyle,

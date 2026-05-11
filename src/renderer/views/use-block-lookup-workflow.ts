@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { AppState } from 'model';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
+import {
+	fetchBlockLookupBootstrap,
+	fetchBlockLookupSearch,
+	invalidateBlockLookupSearchQueries,
+	setBlockLookupBootstrapQueryData,
+	useBuildBlockLookupIndexMutation
+} from 'renderer/async-cache';
 import {
 	collectBlockLookupModSources,
 	createBlockLookupBootstrapCacheProjection,
@@ -9,13 +16,6 @@ import {
 	createBlockLookupWorkspaceSessionState,
 	reduceBlockLookupWorkspaceSession
 } from 'renderer/block-lookup-workspace';
-import {
-	fetchBlockLookupBootstrap,
-	fetchBlockLookupSearch,
-	invalidateBlockLookupSearchQueries,
-	setBlockLookupBootstrapQueryData,
-	useBuildBlockLookupIndexMutation
-} from 'renderer/async-cache';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
 import { measurePerfAsync } from 'renderer/perf';
 import { formatErrorMessage } from 'renderer/util/error-message';

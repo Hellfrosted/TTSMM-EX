@@ -1,12 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { type AppConfig, cloneCollection, type ModCollection } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import type { ElectronApi } from '../../shared/electron-api';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
-import { createAppState, createTestWrapper, createTestConfig } from './test-utils';
-import { cloneCollection, type AppConfig, type ModCollection } from '../../model';
-import type { CollectionLifecycleFailureCode } from '../../shared/collection-lifecycle';
 import type { CollectionContentSaveResult } from '../../shared/collection-content-save';
+import type { CollectionLifecycleFailureCode } from '../../shared/collection-lifecycle';
+import type { ElectronApi } from '../../shared/electron-api';
+import { createAppState, createTestConfig, createTestWrapper } from './test-utils';
 
 declare global {
 	interface Window {

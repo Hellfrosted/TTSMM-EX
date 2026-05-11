@@ -1,9 +1,8 @@
 import { Effect } from 'effect';
 import type { AppConfig, ModCollection } from '../model';
-import { collectionNamesEqual } from '../shared/collection-name';
 import type { CollectionLifecycleFailureCode, CollectionLifecycleResult } from '../shared/collection-lifecycle';
+import { collectionNamesEqual } from '../shared/collection-name';
 import type { StartupCollectionResolutionResult } from '../shared/startup-collection-resolution';
-import { deleteCollectionFile, readCollectionFile, renameCollectionFile } from './collection-store';
 import {
 	createActiveCollectionState,
 	createDefaultCollection,
@@ -13,6 +12,7 @@ import {
 	writeActiveCollectionConfig,
 	writeCollection
 } from './active-collection-persistence';
+import { deleteCollectionFile, readCollectionFile, renameCollectionFile } from './collection-store';
 
 interface ActiveCollectionTransitionBaseRequest {
 	config: AppConfig;

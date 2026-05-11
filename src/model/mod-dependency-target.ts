@@ -1,8 +1,8 @@
-import { type ModData, getModDataId } from './Mod';
+import { getModDataId, type ModData } from './Mod';
 import {
+	createNuterraSteamBetaMatchingPolicy,
 	NUTERRASTEAM_BETA_WORKSHOP_ID,
 	NUTERRASTEAM_CANONICAL_MOD_ID,
-	createNuterraSteamBetaMatchingPolicy,
 	type NuterraSteamCompatibilityOptions
 } from './nuterrasteam-compatibility';
 

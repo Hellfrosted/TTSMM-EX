@@ -1,9 +1,10 @@
-import path from 'node:path';
-import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { cleanReleaseArtifacts } from './lib/release';
-import { repoRoot } from './lib/paths';
+import fs from 'node:fs';
+import path from 'node:path';
+import { copyGreenworksRuntime } from './lib/greenworks-runtime';
 import { runPackageManager } from './lib/package-manager';
+import { repoRoot } from './lib/paths';
+import { cleanReleaseArtifacts } from './lib/release';
 import { terminalStyle } from './lib/terminal-style';
 
 type PublishMode = 'never' | 'onTagOrDraft';
@@ -43,43 +44,6 @@ const linkDirectory = (sourcePath: string, targetPath: string) => {
 const copyFile = (sourcePath: string, targetPath: string) => {
 	fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 	fs.copyFileSync(sourcePath, targetPath);
-};
-
-const copyGreenworksRuntime = (sourcePath: string, targetPath: string) => {
-	const requiredRuntimeFiles = [
-		'greenworks.js',
-		path.join('lib', 'greenworks-win64.node'),
-		path.join('lib', 'steam_api64.dll'),
-		path.join('lib', 'sdkencryptedappticket64.dll')
-	];
-	const missingRuntimeFiles = requiredRuntimeFiles.filter((runtimeFile) => !fs.existsSync(path.join(sourcePath, runtimeFile)));
-	if (missingRuntimeFiles.length > 0) {
-		throw new Error(
-			[
-				'Greenworks runtime files are missing from release/app.',
-				'Run "pnpm run setup:steamworks" after configuring STEAMWORKS_SDK_PATH or .steamworks-sdk-path, then run packaging again.',
-				...missingRuntimeFiles.map((runtimeFile) => `- ${path.join('node_modules', 'greenworks', runtimeFile)}`)
-			].join('\n')
-		);
-	}
-
-	removeIfExists(targetPath);
-	const packageJson = JSON.parse(fs.readFileSync(path.join(sourcePath, 'package.json'), 'utf8')) as {
-		dependencies?: Record<string, string>;
-		devDependencies?: Record<string, string>;
-		gypfile?: boolean;
-		scripts?: Record<string, string>;
-	};
-	delete packageJson.dependencies;
-	delete packageJson.devDependencies;
-	delete packageJson.gypfile;
-	delete packageJson.scripts;
-	fs.mkdirSync(targetPath, { recursive: true });
-	fs.writeFileSync(path.join(targetPath, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
-	copyFile(path.join(sourcePath, 'greenworks.js'), path.join(targetPath, 'greenworks.js'));
-	copyFile(path.join(sourcePath, 'lib', 'greenworks-win64.node'), path.join(targetPath, 'lib', 'greenworks-win64.node'));
-	copyFile(path.join(sourcePath, 'lib', 'steam_api64.dll'), path.join(targetPath, 'lib', 'steam_api64.dll'));
-	copyFile(path.join(sourcePath, 'lib', 'sdkencryptedappticket64.dll'), path.join(targetPath, 'lib', 'sdkencryptedappticket64.dll'));
 };
 
 const sanitizePackageAppLock = () => {

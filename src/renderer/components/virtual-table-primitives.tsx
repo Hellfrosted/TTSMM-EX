@@ -1,4 +1,4 @@
-import { memo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { type KeyboardEvent, type MouseEvent, memo, type ReactNode } from 'react';
 
 const INTERACTIVE_ROW_TARGET_SELECTOR =
 	'a[href],button,input,select,textarea,[role="button"],[role="checkbox"],[role="switch"],[tabindex]:not([tabindex="-1"])';

@@ -1,5 +1,5 @@
-import { resolveSteamworksSdkPath, setupSteamworksNativeDeps } from './steamworks-setup';
 import { terminalStyle } from './lib/terminal-style';
+import { resolveSteamworksSdkPath, setupSteamworksNativeDeps } from './steamworks-setup';
 
 try {
 	const steamworksSdkPath = resolveSteamworksSdkPath();

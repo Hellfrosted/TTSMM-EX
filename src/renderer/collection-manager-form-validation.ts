@@ -1,5 +1,5 @@
 import { Schema } from 'effect';
-import { MainColumnTitles, type MainCollectionConfig } from 'model';
+import { type MainCollectionConfig, MainColumnTitles } from 'model';
 import { getResolvedMainColumnMinWidth, normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
 import { createFormResolver, type FormErrorMap } from './form-resolver';
 

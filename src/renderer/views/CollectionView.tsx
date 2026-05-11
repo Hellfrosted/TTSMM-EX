@@ -1,8 +1,12 @@
+import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection } from 'model';
 import {
-	ReactNode,
-	Suspense,
+	type CSSProperties,
 	lazy,
 	memo,
+	type KeyboardEvent as ReactKeyboardEvent,
+	type MouseEvent as ReactMouseEvent,
+	ReactNode,
+	Suspense,
 	startTransition,
 	useCallback,
 	useEffect,
@@ -10,23 +14,19 @@ import {
 	useMemo,
 	useReducer,
 	useRef,
-	useState,
-	type CSSProperties,
-	type KeyboardEvent as ReactKeyboardEvent,
-	type MouseEvent as ReactMouseEvent
+	useState
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { CollectionManagerModalType, CollectionViewProps, CollectionViewType, MainColumnTitles, ModCollection } from 'model';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../collection-mod-display';
+import { filterCollectionRowsByTags, getCollectionRowFilterTags } from '../collection-mod-row-filter';
+import { getCollectionLaunchCommandState } from '../collection-workspace-session';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { PerfProfiler, markPerfInteraction } from '../perf';
-import { filterCollectionRowsByTags, getCollectionRowFilterTags } from '../collection-mod-row-filter';
-import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../collection-mod-display';
-import { getCollectionLaunchCommandState } from '../collection-workspace-session';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { useViewConfigCommands } from '../view-config-command';
 import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
+import { markPerfInteraction, PerfProfiler } from '../perf';
+import { useViewConfigCommands } from '../view-config-command';
 import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');

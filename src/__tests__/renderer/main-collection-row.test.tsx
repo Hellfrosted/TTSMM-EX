@@ -1,12 +1,12 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-	MainCollectionVirtualRow,
-	getMainCollectionCellContent,
-	type MainCollectionRowColumn
-} from '../../renderer/components/collections/main-collection-row';
 import { DisplayModData, ModType } from '../../model';
+import {
+	getMainCollectionCellContent,
+	type MainCollectionRowColumn,
+	MainCollectionVirtualRow
+} from '../../renderer/components/collections/main-collection-row';
 import { formatDateStr } from '../../util/Date';
 
 afterEach(() => {

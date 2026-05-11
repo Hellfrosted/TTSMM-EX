@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MainColumnTitles, ModType, compareModDataDisplayName, type DisplayModData } from '../../model';
+import { compareModDataDisplayName, type DisplayModData, MainColumnTitles, ModType } from '../../model';
 import {
 	createMainCollectionTableModel,
 	getMainCollectionDefaultSortState,

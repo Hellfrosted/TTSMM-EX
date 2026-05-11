@@ -1,6 +1,8 @@
 import type { AppState } from 'model/AppState';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+
 export { getAppRouteKind } from 'shared/app-route-policy';
+
 import { getAppRouteKind } from 'shared/app-route-policy';
 
 interface AppShellInputs {

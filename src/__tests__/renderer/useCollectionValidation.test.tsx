@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ModErrorType, ModType, SessionMods, getDependencies, getModDescriptorKey, setupDescriptors } from '../../model';
+import { getDependencies, getModDescriptorKey, ModErrorType, ModType, SessionMods, setupDescriptors } from '../../model';
 import { createCollectionWorkspaceSession } from '../../renderer/collection-workspace-session';
 import { useCollectionValidation } from '../../renderer/hooks/collections/useCollectionValidation';
 import { createAppState, createTestConfig } from './test-utils';

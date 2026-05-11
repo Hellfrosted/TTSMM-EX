@@ -19,6 +19,7 @@
 		"src/__tests__/main/ModHandlers.test.ts",
 		"src/__tests__/main/PersonaCache.test.ts",
 		"src/__tests__/renderer/routes.test.tsx",
+		".impeccable/**",
 		"src/main/steamworks/types/**",
 		"src/main/types/vendor.d.ts",
 		"src/renderer/types/global.d.ts"

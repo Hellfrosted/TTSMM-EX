@@ -1,9 +1,9 @@
-import { createContext, use, useEffect, useState, useSyncExternalStore } from 'react';
-import type { PropsWithChildren } from 'react';
 import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import type { AppState, AppStateUpdate } from 'model/AppState';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
+import type { PropsWithChildren } from 'react';
+import { createContext, use, useEffect, useState, useSyncExternalStore } from 'react';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
 import { DEFAULT_COLLECTIONS_PATH } from 'shared/app-route-policy';
 

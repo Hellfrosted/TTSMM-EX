@@ -1,4 +1,4 @@
-import { cloneCollection, type AppConfig, type ModCollection } from 'model';
+import { type AppConfig, cloneCollection, type ModCollection } from 'model';
 import type { AppStateUpdate } from 'model/AppState';
 
 export interface AuthoritativeCollectionState {
@@ -35,6 +35,20 @@ export function getAuthoritativeCollectionStateUpdate(state: AuthoritativeCollec
 		allCollectionNames: new Set(state.collectionNames),
 		activeCollection,
 		config: state.config
+	};
+}
+
+export function getCollectionContentSaveStateUpdate(
+	currentState: Pick<AppStateUpdate, 'activeCollection' | 'allCollections'>,
+	targetCollection: ModCollection
+): Pick<AppStateUpdate, 'activeCollection' | 'allCollections'> {
+	const nextCollection = cloneCollection(targetCollection);
+	const allCollections = new Map(currentState.allCollections);
+	allCollections.set(nextCollection.name, nextCollection);
+
+	return {
+		activeCollection: currentState.activeCollection?.name === nextCollection.name ? nextCollection : currentState.activeCollection,
+		allCollections
 	};
 }
 

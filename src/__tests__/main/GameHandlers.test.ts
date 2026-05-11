@@ -1,9 +1,8 @@
 import child_process from 'child_process';
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Effect } from 'effect';
-import { PathType, ValidChannel } from '../../model';
 import {
 	discoverGameExecutablePath,
 	launchGameProcess,
@@ -12,6 +11,7 @@ import {
 	parseSelectPathPayload,
 	pathExists
 } from '../../main/ipc/game-handlers';
+import { PathType, ValidChannel } from '../../model';
 import { createTempDir } from './test-utils';
 
 describe('game handlers', () => {

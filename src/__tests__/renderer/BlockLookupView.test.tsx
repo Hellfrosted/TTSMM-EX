@@ -4,9 +4,9 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
-import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
-import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/async-cache';
+import { BlockLookupView } from '../../renderer/views/BlockLookupView';
+import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState, createDataTransfer } from './test-utils';
 

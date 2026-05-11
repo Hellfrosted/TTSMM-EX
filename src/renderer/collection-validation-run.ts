@@ -1,17 +1,17 @@
 import {
+	type AppConfig,
+	type CollectionErrors,
 	CollectionManagerModalType,
 	createCollectionValidationResultPolicy,
 	getCollectionValidationKey,
 	getValidationIssueList,
-	summarizeValidationIssues,
-	type AppConfig,
-	type CollectionErrors,
 	type SessionMods,
+	summarizeValidationIssues,
 	type ValidationIssueSummary
 } from 'model';
 
-export { getCollectionValidationKey, getValidationIssueList, summarizeValidationIssues };
 export type { ValidationIssueSummary };
+export { getCollectionValidationKey, getValidationIssueList, summarizeValidationIssues };
 
 interface RenderValidationErrorsResult {
 	errors?: CollectionErrors;

@@ -1,12 +1,12 @@
-import child_process from 'child_process';
-import fs from 'fs';
 import os from 'node:os';
-import { app, IpcMain, dialog, shell } from 'electron';
-import log from 'electron-log';
+import child_process from 'child_process';
 import { Effect, Schema } from 'effect';
+import { app, dialog, IpcMain, shell } from 'electron';
+import log from 'electron-log';
+import fs from 'fs';
 import path from 'path';
 
-import { PathType, ValidChannel, createModManagerUid } from '../../model';
+import { createModManagerUid, PathType, ValidChannel } from '../../model';
 import { TERRATECH_STEAM_APP_ID } from '../../shared/terratech';
 import { expandUserPath } from '../path-utils';
 import { runMain } from '../runtime';

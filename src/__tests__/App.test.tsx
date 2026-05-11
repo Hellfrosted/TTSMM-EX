@@ -1,10 +1,11 @@
-import React from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App, { AppShell, AppViewStage, resetInitialSteamworksVerificationForTests } from '../renderer/App';
-import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
+import { setConfigCacheData, setModMetadataCacheData } from '../renderer/async-cache';
 import { DEFAULT_CONFIG } from '../renderer/Constants';
+import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
 import { AppRoutes } from '../renderer/routes';
 import { AppStateProvider, useAppStateSelector } from '../renderer/state/app-state';
 
@@ -48,8 +49,30 @@ function AppShellInitializedHarness() {
 	);
 }
 
+async function expectStartupCollectionWorkspaceReady() {
+	await waitFor(
+		() => {
+			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+			expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+		},
+		{ timeout: STARTUP_ROUTE_TIMEOUT_MS }
+	);
+	await new Promise((resolve) => setTimeout(resolve, 750));
+
+	expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
+	expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
+	expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
+	expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
+	expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
+	expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+	expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+}
+
 afterEach(() => {
 	cleanup();
+	setConfigCacheData(undefined);
+	setModMetadataCacheData(new Map());
 	resetInitialSteamworksVerificationForTests();
 });
 
@@ -167,23 +190,7 @@ describe('App', () => {
 				</MemoryRouter>
 			);
 
-			await waitFor(
-				() => {
-					expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-					expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-					expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-				},
-				{ timeout: STARTUP_ROUTE_TIMEOUT_MS }
-			);
-			await new Promise((resolve) => setTimeout(resolve, 750));
-
-			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-			expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-			expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
-			expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
-			expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
-			expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+			await expectStartupCollectionWorkspaceReady();
 		},
 		STARTUP_ROUTE_TEST_TIMEOUT_MS
 	);
@@ -205,23 +212,7 @@ describe('App', () => {
 				</MemoryRouter>
 			);
 
-			await waitFor(
-				() => {
-					expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-					expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-					expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-				},
-				{ timeout: STARTUP_ROUTE_TIMEOUT_MS }
-			);
-			await new Promise((resolve) => setTimeout(resolve, 750));
-
-			expect(window.electron.steamworksInited).toHaveBeenCalledTimes(1);
-			expect(window.electron.resolveStartupCollection).toHaveBeenCalledTimes(1);
-			expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
-			expect(screen.queryByText('Verifying Steamworks access')).not.toBeInTheDocument();
-			expect(screen.queryByText('Preparing TTSMM-EX')).not.toBeInTheDocument();
-			expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
-			expect(document.querySelector('.CollectionViewLayout')).toBeInTheDocument();
+			await expectStartupCollectionWorkspaceReady();
 		},
 		STARTUP_ROUTE_TEST_TIMEOUT_MS
 	);

@@ -1,6 +1,6 @@
+import { getSteamDependencyName } from 'shared/workshop-dependency-snapshot';
 import type { ModData } from '../model';
 import { createModDependencyTargetSatisfactionPolicy, type NuterraSteamCompatibilityOptions } from '../model';
-import { getSteamDependencyName } from 'shared/workshop-dependency-snapshot';
 
 export function collectMissingWorkshopDependencies(
 	mods: Iterable<ModData>,

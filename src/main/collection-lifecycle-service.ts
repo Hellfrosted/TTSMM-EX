@@ -12,8 +12,8 @@ import { validateCollectionName } from '../shared/collection-name';
 import { hasSavedCollectionName, readActiveCollection } from './active-collection-persistence';
 import {
 	createActiveCollectionTransition,
-	createCollectionLifecycleFailure as failure,
 	deleteActiveCollectionTransition,
+	createCollectionLifecycleFailure as failure,
 	renameActiveCollectionTransition,
 	switchActiveCollectionTransition
 } from './active-collection-transition';

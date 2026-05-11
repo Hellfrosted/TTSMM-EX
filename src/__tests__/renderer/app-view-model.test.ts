@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SessionMods, type AppState } from '../../model';
+import { type AppState, SessionMods } from '../../model';
 import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,

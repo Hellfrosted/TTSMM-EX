@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { type CollectionErrors, CollectionManagerModalType, type ModCollection, ModErrorType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {
 	applyCollectionContentSaveResult,
+	type CollectionWorkspaceValidationResult,
 	createCollectionDraftEditWorkflow,
-	createCollectionWorkspaceWorkflowState,
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceValidationResult,
+	createCollectionWorkspaceWorkflowState,
 	getCollectionDraftEditWorkflowDecision,
-	getCollectionLaunchRequestDecision,
 	getCollectionLaunchCommandState,
+	getCollectionLaunchRequestDecision,
 	getCollectionLaunchWorkflowDecision,
 	getCollectionLifecycleDirtyDraft,
 	getCollectionValidationCompletionDecision,
@@ -16,15 +18,13 @@ import {
 	getCollectionValidationRunCompletionEffects,
 	getLoadedModsValidationDecision,
 	getPendingDraftValidationDecision,
+	type LaunchReadinessBlocker,
 	reduceCollectionWorkspaceWorkflow,
 	setCollectionDraftEnabledMods,
 	setCollectionDraftModSubset,
 	shouldValidatePendingCollectionDraft,
-	toggleCollectionDraftMod,
-	type CollectionWorkspaceValidationResult,
-	type LaunchReadinessBlocker
+	toggleCollectionDraftMod
 } from '../../renderer/collection-workspace-session';
-import { CollectionManagerModalType, ModErrorType, type CollectionErrors, type ModCollection } from '../../model';
 
 const summary = {
 	affectedMods: 0,

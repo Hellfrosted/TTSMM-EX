@@ -1,6 +1,6 @@
-import { type DisplayModData, type ModData, type SessionMods, getModDataDisplayId, getModDataDisplayName } from 'model';
-import { getAllCollectionTags, getCollectionTagSearchTexts } from './collection-tags';
+import { type DisplayModData, getModDataDisplayId, getModDataDisplayName, type ModData, type SessionMods } from 'model';
 import { getCollectionRows } from './collection-mod-row-source';
+import { getAllCollectionTags, getCollectionTagSearchTexts } from './collection-tags';
 
 function includesSearchText(value: string | undefined | null, normalizedSearch: string) {
 	return value?.toLowerCase().includes(normalizedSearch) ?? false;

@@ -1,8 +1,7 @@
-import { app, Menu, BrowserWindow, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, MenuItemConstructorOptions } from 'electron';
 import log from 'electron-log';
-
-import { openExternalUrl } from './external-links';
 import { ValidChannel } from '../model';
+import { openExternalUrl } from './external-links';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
 	selector?: string;

@@ -1,10 +1,10 @@
-import type Logger from 'electron-log';
 import { Effect } from 'effect';
-import { type CollectionErrors, type ModErrors } from './CollectionValidation';
-import { type ModCollection } from './ModCollection';
-import { type ModData, type ModDescriptor, ModType, getModDataId } from './Mod';
-import { getDependencies, getDescriptor, type SessionMods } from './SessionMods';
+import type Logger from 'electron-log';
 import { getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
+import { type CollectionErrors, type ModErrors } from './CollectionValidation';
+import { getModDataId, type ModData, type ModDescriptor, ModType } from './Mod';
+import { type ModCollection } from './ModCollection';
+import { getDependencies, getDescriptor, type SessionMods } from './SessionMods';
 
 type ElectronLogger = typeof Logger;
 

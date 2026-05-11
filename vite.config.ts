@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { builtinModules } from 'node:module';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { type InlineConfig, defineConfig, type PluginOption } from 'vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig, type InlineConfig, type PluginOption } from 'vite';
 import { applyRendererContentSecurityPolicy } from './src/shared/renderer-csp';
 
 const __filename = fileURLToPath(import.meta.url);

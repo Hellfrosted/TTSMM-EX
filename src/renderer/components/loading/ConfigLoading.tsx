@@ -1,10 +1,17 @@
-import { useEffect, useEffectEvent, useReducer } from 'react';
 import { Effect } from 'effect';
-import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
+import { type AppConfig, AppConfigKeys } from 'model/AppConfig';
 import type { AppState } from 'model/AppState';
+import { useEffect, useEffectEvent, useReducer } from 'react';
 import api from 'renderer/Api';
+import { applyAuthoritativeCollectionStateToCache, readConfigCache } from 'renderer/async-cache';
+import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import { DEFAULT_CONFIG } from 'renderer/Constants';
+import { RendererElectron, type RendererElectron as RendererElectronService, runRenderer } from 'renderer/runtime';
+import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
 import { useAppStateSelector } from 'renderer/state/app-state';
+import { tryWriteConfig } from 'renderer/util/config-write';
+import { formatErrorMessage } from 'renderer/util/error-message';
+import { validateSettingsPath } from 'util/Validation';
 import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,
@@ -20,13 +27,6 @@ import {
 	StartupStatusTitle,
 	StartupTitle
 } from './StartupPrimitives';
-import { tryWriteConfig } from 'renderer/util/config-write';
-import { applyAuthoritativeCollectionStateToCache, readConfigCache } from 'renderer/async-cache';
-import { validateSettingsPath } from 'util/Validation';
-import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
-import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
-import { formatErrorMessage } from 'renderer/util/error-message';
-import { RendererElectron, runRenderer, type RendererElectron as RendererElectronService } from 'renderer/runtime';
 
 const validateAppConfig = Effect.fnUntraced(function* (
 	config: AppConfig

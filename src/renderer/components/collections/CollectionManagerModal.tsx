@@ -1,5 +1,3 @@
-import { InputHTMLAttributes, ReactNode, memo, useEffect, useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
 import {
 	AppConfig,
 	CollectionErrors,
@@ -7,28 +5,30 @@ import {
 	CollectionViewType,
 	createModManagerUid,
 	getByUID,
-	MainColumnTitles,
 	MainCollectionConfig,
+	MainColumnTitles,
 	ModData,
 	NotificationProps
 } from 'model';
+import { InputHTMLAttributes, memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import api from 'renderer/Api';
-import { getValidationIssueList } from 'renderer/collection-validation-run';
-import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
-import { cloneAppConfig } from 'renderer/hooks/collections/utils';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { persistConfigChange } from 'renderer/util/config-write';
-import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
-import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 import {
 	createMainTableSettingsFormValues,
+	type MainCollectionTableSettingsFormValues,
+	type ModOverrideFormValues,
 	mainCollectionTableSettingsResolver,
 	modOverrideResolver,
 	setMainTableSettingsColumnWidth,
-	toMainCollectionConfig,
-	type MainCollectionTableSettingsFormValues,
-	type ModOverrideFormValues
+	toMainCollectionConfig
 } from 'renderer/collection-manager-form-validation';
+import { getValidationIssueList } from 'renderer/collection-validation-run';
+import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
+import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { persistConfigChange } from 'renderer/util/config-write';
+import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
 
 const VALIDATION_ISSUES_HEADING_ID = 'collection-validation-issues-heading';
 const DEFAULT_MAIN_CONFIG: MainCollectionConfig = {};

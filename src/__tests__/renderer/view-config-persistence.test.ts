@@ -3,13 +3,10 @@ import {
 	BLOCK_LOOKUP_COLUMN_KEYS,
 	BLOCK_LOOKUP_COLUMN_TITLES,
 	BlockLookupColumnTitles,
-	MainColumnTitles,
 	type BlockLookupViewConfig,
-	type MainCollectionConfig
+	type MainCollectionConfig,
+	MainColumnTitles
 } from '../../model';
-import { canSetMainColumnVisibility } from '../../renderer/main-column-visibility';
-import { moveMainCollectionColumn } from '../../renderer/main-view-config-columns';
-import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
 import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
 import { DEFAULT_BLOCK_LOOKUP_COLUMNS } from '../../renderer/block-lookup-column-definitions';
 import {
@@ -18,6 +15,9 @@ import {
 	setBlockLookupDraftColumnVisibility,
 	setBlockLookupDraftColumnWidth
 } from '../../renderer/block-lookup-draft-config';
+import { canSetMainColumnVisibility } from '../../renderer/main-column-visibility';
+import { moveMainCollectionColumn } from '../../renderer/main-view-config-columns';
+import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
 import { normalizeBlockLookupViewConfig } from '../../shared/block-lookup-view-config';
 import { normalizeMainCollectionConfig } from '../../shared/main-collection-view-config';
 

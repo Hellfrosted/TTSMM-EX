@@ -1,6 +1,6 @@
+import { Effect } from 'effect';
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { Effect } from 'effect';
 import {
 	createAndActivateCollection,
 	deleteActiveCollection,

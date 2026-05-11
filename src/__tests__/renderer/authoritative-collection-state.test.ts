@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppConfig, ModCollection } from '../../model';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {
+	type AuthoritativeCollectionState,
 	applyAuthoritativeCollectionState,
-	getAuthoritativeCollectionStateUpdate,
-	type AuthoritativeCollectionState
+	getAuthoritativeCollectionStateUpdate
 } from '../../renderer/authoritative-collection-state';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
 
 function config(activeCollection: string): AppConfig {
 	return {

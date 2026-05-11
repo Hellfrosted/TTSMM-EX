@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CollectionManagerModalType, ModErrorType, ModType, SessionMods } from '../../model';
 import type { AppConfig, CollectionErrors, ModCollection } from '../../model';
+import { CollectionManagerModalType, ModErrorType, ModType, SessionMods } from '../../model';
 import {
 	getCollectionValidationKey,
 	getValidationIssueList,

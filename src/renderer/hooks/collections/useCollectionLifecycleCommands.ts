@@ -1,12 +1,13 @@
-import { useCallback, useMemo } from 'react';
 import { Effect } from 'effect';
-import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
+import { type ModCollection, type NotificationProps } from 'model';
+import { useCallback, useMemo } from 'react';
 import api from 'renderer/Api';
 import { applyAuthoritativeCollectionStateToCache } from 'renderer/async-cache';
+import { getCollectionContentSaveStateUpdate } from 'renderer/authoritative-collection-state';
 import { runCollectionContentSave } from 'renderer/collection-content-save';
+import { createCollectionLifecycleCommandRunner } from 'renderer/collection-lifecycle-command-runner';
 import { applyCollectionContentSaveResult, type CollectionContentSaveCompletion } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { createCollectionLifecycleCommandRunner } from 'renderer/collection-lifecycle-command-runner';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import type { NotificationType } from './useNotifications';
 
@@ -25,20 +26,6 @@ interface UseCollectionLifecycleCommandsOptions {
 
 export interface CollectionContentSaveCommandOptions {
 	showSuccessNotification?: boolean;
-}
-
-function getCollectionContentSaveStateUpdate(
-	appState: CollectionWorkspaceAppState,
-	targetCollection: ModCollection
-): Pick<CollectionWorkspaceAppState, 'activeCollection' | 'allCollections'> {
-	const nextCollection = cloneCollection(targetCollection);
-	const allCollections = new Map(appState.allCollections);
-	allCollections.set(nextCollection.name, nextCollection);
-
-	return {
-		activeCollection: appState.activeCollection?.name === nextCollection.name ? nextCollection : appState.activeCollection,
-		allCollections
-	};
 }
 
 export function useCollectionLifecycleCommands({

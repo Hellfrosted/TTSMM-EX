@@ -1,5 +1,5 @@
-import React from 'react';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CollectionManagerModalType, CollectionViewType, MainColumnTitles, ModType, SessionMods } from '../../model';
 import CollectionManagerModal from '../../renderer/components/collections/CollectionManagerModal';

@@ -1,7 +1,9 @@
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import type { PropsWithChildren } from 'react';
 import {
-	Suspense,
 	lazy,
 	memo,
+	Suspense,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -11,10 +13,9 @@ import {
 	useRef,
 	useState
 } from 'react';
-import type { PropsWithChildren } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import api from 'renderer/Api';
+import { AppStateProvider, type CollectionWorkspaceAppState, useAppStateSelector } from 'renderer/state/app-state';
 import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
@@ -24,9 +25,8 @@ import {
 } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
-import { AppStateProvider, useAppStateSelector, type CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { appCssVariables } from './theme';
 import { EffectAtomRendererProof } from './effect-atom-renderer-proof';
+import { appCssVariables } from './theme';
 
 const loadCollectionView = () => import('./views/CollectionView');
 const loadSettingsView = () => import('./views/SettingsView');

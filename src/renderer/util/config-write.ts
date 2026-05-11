@@ -1,8 +1,8 @@
-import type { AppConfig } from 'model';
 import { Effect } from 'effect';
+import type { AppConfig } from 'model';
 import api from 'renderer/Api';
 import { setConfigCacheData, writeConfigEffect } from 'renderer/async-cache';
-import { runRenderer, type RendererElectron } from 'renderer/runtime';
+import { type RendererElectron, runRenderer } from 'renderer/runtime';
 
 type ConfigCommit = (nextConfig: AppConfig) => void;
 

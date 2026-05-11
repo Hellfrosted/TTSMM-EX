@@ -1,34 +1,34 @@
+import { Effect } from 'effect';
+import { Edit3, Folder, Plus, X } from 'lucide-react';
+import type { AppState } from 'model';
+import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
 import {
+	type AriaAttributes,
 	Children,
 	cloneElement,
 	isValidElement,
 	memo,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useRef,
-	useState,
-	type AriaAttributes,
-	type ReactNode
+	useState
 } from 'react';
-import { Effect } from 'effect';
-import type { AppState } from 'model';
-import { AppConfigKeys, LogLevel, NLogLevel, SettingsViewModalType } from 'model';
-import { Edit3, Folder, Plus, X } from 'lucide-react';
 import {
 	DesktopButton,
-	DesktopDialog as SettingsDialog,
 	DesktopInlineControls,
 	DesktopInput,
+	DesktopDialog as SettingsDialog,
 	DesktopSelect as SettingsSelect,
 	DesktopSwitch as SettingsSwitch
 } from 'renderer/components/DesktopControls';
-import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
 import { useNotifications } from 'renderer/hooks/collections/useNotifications';
-import { APP_LOG_LEVEL_OPTIONS, NLOG_LEVEL_OPTIONS, getSettingsFormErrors } from 'renderer/settings-validation';
+import { useSettingsForm } from 'renderer/hooks/useSettingsForm';
+import { type RendererElectron, runRenderer } from 'renderer/runtime';
+import { APP_LOG_LEVEL_OPTIONS, getSettingsFormErrors, NLOG_LEVEL_OPTIONS } from 'renderer/settings-validation';
 import { formatErrorMessage } from 'renderer/util/error-message';
-import { validateSettingsPath } from 'util/Validation';
 import { DEFAULT_WORKSHOP_ID } from 'shared/app-config-defaults';
-import { runRenderer, type RendererElectron } from 'renderer/runtime';
+import { validateSettingsPath } from 'util/Validation';
 
 type SettingsViewAppState = Pick<AppState, 'config' | 'configErrors' | 'madeConfigEdits' | 'savingConfig' | 'updateState'>;
 

@@ -1,7 +1,7 @@
-import { startTransition, useCallback, useEffect, useEffectEvent } from 'react';
 import { Grid3X3, Search, Settings } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import type { AppConfig, AppState } from 'model';
+import { startTransition, useCallback, useEffect, useEffectEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getStoredViewPath } from 'shared/app-route-policy';
 
 interface MenuProps {

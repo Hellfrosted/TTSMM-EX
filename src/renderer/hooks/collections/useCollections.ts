@@ -1,21 +1,21 @@
-import { startTransition, useCallback, useMemo, useState } from 'react';
-import { cloneCollection, createModManagerUid, ModCollection, type ModData } from 'model';
 import type { NotificationProps } from 'model';
+import { cloneCollection, createModManagerUid, ModCollection, type ModData } from 'model';
+import { startTransition, useCallback, useMemo, useState } from 'react';
 import api from 'renderer/Api';
 import { useUpdateCollectionMutation } from 'renderer/async-cache';
 import { createCollectionWriteQueue } from 'renderer/collection-content-save';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import {
+	type CollectionContentSaveCompletion,
+	type CollectionDraftEditWorkflow,
 	createCollectionDraftEditWorkflow,
 	setCollectionDraftEnabledMods,
 	setCollectionDraftModSubset,
-	toggleCollectionDraftMod,
-	type CollectionContentSaveCompletion,
-	type CollectionDraftEditWorkflow
+	toggleCollectionDraftMod
 } from 'renderer/collection-workspace-session';
-import type { NotificationType } from './useNotifications';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { type CollectionContentSaveCommandOptions, useCollectionLifecycleCommands } from './useCollectionLifecycleCommands';
 import { useCollectionRowProjection } from './useCollectionRowProjection';
+import type { NotificationType } from './useNotifications';
 
 interface UseCollectionsOptions {
 	appState: CollectionWorkspaceAppState;

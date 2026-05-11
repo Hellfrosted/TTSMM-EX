@@ -1,5 +1,5 @@
+import { type ModData, updateSessionModMetadata } from 'model';
 import { useEffect, useEffectEvent } from 'react';
-import { updateSessionModMetadata, type ModData } from 'model';
 import api from 'renderer/Api';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 

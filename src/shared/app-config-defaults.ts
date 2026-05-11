@@ -1,4 +1,4 @@
-import { NLogLevel, type AppConfig } from 'model/AppConfig';
+import { type AppConfig, NLogLevel } from 'model/AppConfig';
 import { ModErrorType } from 'model/CollectionValidation';
 import type { ModDataOverride } from 'model/Mod';
 import { DEFAULT_COLLECTIONS_PATH, getStoredViewPath } from 'shared/app-route-policy';

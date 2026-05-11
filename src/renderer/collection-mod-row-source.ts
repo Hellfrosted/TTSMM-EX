@@ -1,4 +1,4 @@
-import { type ModCollection, type ModData, ModType, type SessionMods, createWorkshopPlaceholderMod, getRows, parseModUid } from 'model';
+import { createWorkshopPlaceholderMod, getRows, type ModCollection, type ModData, ModType, parseModUid, type SessionMods } from 'model';
 
 export function getCollectionRows(session: SessionMods): ModData[] {
 	return getRows(session);

@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { DisplayModData, getModDataDisplayName } from 'model';
-import { formatDateStr } from 'util/Date';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { VirtualTableRow } from 'renderer/components/virtual-table-primitives';
+import { formatDateStr } from 'util/Date';
 import { DEFAULT_SELECTION_COLUMN_WIDTH, getMainCollectionVirtualColumnStyle } from './main-collection-table-layout';
 
 interface MainCollectionCellRenderContext {

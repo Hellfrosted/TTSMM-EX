@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
 	Key,
 	KeyboardEvent as ReactKeyboardEvent,
@@ -7,7 +6,9 @@ import type {
 	RefObject,
 	ThHTMLAttributes
 } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { type BlockLookupColumnConfig, DEFAULT_BLOCK_LOOKUP_COLUMNS } from 'renderer/block-lookup-column-definitions';
 import { markPerfInteraction } from 'renderer/perf';
 import type { BlockLookupColumnKey, BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 import {
@@ -17,7 +18,6 @@ import {
 	getVirtualTableScrollWidth,
 	setVirtualTableColumnWidthVariable
 } from 'renderer/virtual-table-geometry';
-import { DEFAULT_BLOCK_LOOKUP_COLUMNS, type BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 
 const BLOCK_LOOKUP_KEYBOARD_RESIZE_STEP = 16;
 const BLOCK_LOOKUP_HEADER_MENU_OPEN_EVENT = 'block-lookup-header-menu-open';

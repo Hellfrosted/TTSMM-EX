@@ -1,5 +1,5 @@
-import type log from 'electron-log';
 import { Effect } from 'effect';
+import type log from 'electron-log';
 import type { ModData } from 'model/Mod';
 import { ModType } from 'model/Mod';
 import { cloneModData } from 'model/SessionMods';

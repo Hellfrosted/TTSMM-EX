@@ -1,17 +1,17 @@
+import { Effect } from 'effect';
 import type { MenuItemConstructorOptions } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Effect } from 'effect';
 import {
 	createContextMenuTemplate,
 	createDownloadModHandler,
 	createFetchWorkshopDependenciesHandler,
 	createReadModMetadataHandler,
-	registerModHandlers,
-	createSubscribeModHandler
+	createSubscribeModHandler,
+	registerModHandlers
 } from '../../main/ipc/mod-handlers';
+import { getModDetailsFromPath } from '../../main/mod-fetcher';
 import Steamworks from '../../main/steamworks';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
-import { getModDetailsFromPath } from '../../main/mod-fetcher';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 

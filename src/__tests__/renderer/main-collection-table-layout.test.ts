@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { MainColumnTitles, type MainCollectionConfig } from '../../model';
+import { type MainCollectionConfig, MainColumnTitles } from '../../model';
 import {
 	DEFAULT_SELECTION_COLUMN_WIDTH,
 	getColumnPixelWidth,
 	getColumnWidthStyle,
-	getColumnWidthVariableName,
 	getColumnWidths,
+	getColumnWidthVariableName,
 	getMainCollectionAvailableTableWidth,
 	getMainCollectionTableScrollWidth,
 	getMainCollectionVirtualColumnStyle,

@@ -1,6 +1,3 @@
-import { Suspense, lazy, memo, useEffect, useId, useReducer, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import { CollectionManagerModalType, NotificationProps } from 'model';
 import {
 	CheckCircle,
 	Copy,
@@ -17,6 +14,9 @@ import {
 	X,
 	XCircle
 } from 'lucide-react';
+import { CollectionManagerModalType, NotificationProps } from 'model';
+import type { ReactNode } from 'react';
+import { lazy, memo, Suspense, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { CollectionNamingModalType } from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopIconButton, DesktopInput, DesktopSelect } from 'renderer/components/DesktopControls';
 import { desktopControlFocusClassName, joinClassNames } from 'renderer/components/desktop-control-classes';

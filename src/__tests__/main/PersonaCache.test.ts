@@ -39,7 +39,7 @@ describe('steam persona resolution', () => {
 		]);
 		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
 
-		const resolvePersonaName = (steamID: string) => SteamPersonaCache.use((cache) => cache.resolve(steamID));
+		const resolvePersonaName = (steamID: string) => SteamPersonaCache['use']((cache) => cache.resolve(steamID));
 		const firstLookup = runtime.runPromise(resolvePersonaName('123'));
 		const secondLookup = runtime.runPromise(resolvePersonaName('123'));
 
@@ -66,7 +66,7 @@ describe('steam persona resolution', () => {
 		]);
 		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
 
-		const lookup = runtime.runPromise(SteamPersonaCache.use((cache) => cache.resolve('456')));
+		const lookup = runtime.runPromise(SteamPersonaCache['use']((cache) => cache.resolve('456')));
 		await vi.waitFor(() => {
 			expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1);
 		});

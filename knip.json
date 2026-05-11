@@ -10,7 +10,6 @@
 		"src/main/main.ts",
 		"src/main/preload.ts",
 		"src/renderer/index.html",
-		"src/renderer/index.tsx",
 		"src/renderer/App.tailwind.css",
 		"test-support/**/*.ts"
 	],

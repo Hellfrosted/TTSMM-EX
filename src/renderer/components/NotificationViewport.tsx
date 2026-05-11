@@ -1,5 +1,5 @@
+import { CircleAlert, CircleCheck, Info, type LucideIcon, TriangleAlert, X } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { CircleAlert, CircleCheck, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import {
 	APP_NOTIFICATION_EVENT,
 	type AppNotification,

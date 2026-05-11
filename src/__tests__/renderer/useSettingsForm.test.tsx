@@ -146,6 +146,35 @@ describe('useSettingsForm', () => {
 		expect(appState.madeConfigEdits).toBe(true);
 	});
 
+	it('formats structured settings save failures', async () => {
+		const appState = createAppState({
+			config: {
+				...DEFAULT_CONFIG,
+				localDir: 'C:\\TerraTech\\LocalMods',
+				viewConfigs: {},
+				ignoredValidationErrors: new Map(),
+				userOverrides: new Map()
+			}
+		});
+		vi.mocked(window.electron.updateConfig).mockRejectedValueOnce({ message: 'Disk denied' });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
+
+		act(() => {
+			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Other\\LocalMods');
+		});
+
+		let saveResult;
+		await act(async () => {
+			saveResult = await result.current.saveChanges();
+		});
+
+		expect(saveResult).toEqual({
+			ok: false,
+			message: 'Disk denied'
+		});
+		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
+	});
+
 	it('applies log level only after a successful save', async () => {
 		const appState = createAppState({
 			config: {

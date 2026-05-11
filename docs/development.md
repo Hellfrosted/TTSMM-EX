@@ -1,6 +1,6 @@
 # Development Notes
 
-Last reviewed: 2026-05-08
+Last reviewed: 2026-05-11
 
 Use this page for details that are useful during source builds, validation, packaging, and maintenance but too bulky for the root README.
 
@@ -28,6 +28,10 @@ pnpm run setup:steamworks
 ```
 
 ## Packaging Details
+
+The root package builds and bundles renderer code. Electron main/preload builds externalize dependencies that are listed in `release/app/package.json`, so every production main-process runtime dependency that is not bundled must also be present in `release/app/package.json` and `release/app/pnpm-lock.yaml`.
+
+When adding an Effect package for Electron main-process runtime code, keep the beta package set aligned with the root `effect` version. The current `@effect/platform-node` runtime entry uses `4.0.0-beta.64`; the release app lock pins `@effect/platform-node-shared` to the same beta set through pnpm overrides.
 
 Windows packaging:
 
@@ -84,17 +88,19 @@ The pacman target needs `bsdtar`.
 - `pnpm run dev`: development app
 - `pnpm start`: build and launch the production desktop entrypoint
 - `pnpm run build:block-lookup`: build and stage the Rust Block Lookup extractor
+- `pnpm run format`: Biome formatting write
 - `pnpm run lint`: Biome formatting and lint check
 - `pnpm run lint:fix`: Biome formatting and lint autofix
 - `pnpm run check:staged`: run staged-file checks for the pre-commit hook
 - `pnpm run check:dead-code`: Fallow unused files, exports, dependencies, cycles, and boundaries check
-- `pnpm run check:dupes`: Fallow duplication check
-- `pnpm run check:health`: Fallow complexity and maintainability check
-- `pnpm run check:audit`: Fallow changed-file audit for PR-sized review
+- `pnpm run check:dupes`: Fallow duplication summary for current baseline visibility
+- `pnpm run check:health`: Fallow health-score gate with the current floor
+- `pnpm run check:audit`: Fallow new-only changed-file audit for PR-sized review; advisory until the inherited duplication and complexity baseline is cleaned up
+- `pnpm run check:fallow`: all Fallow quality checks used by `pnpm run validate` and CI; dead-code and health score are hard gates
 - `pnpm run typecheck`: TypeScript build check
 - `pnpm run test`: Vitest
 - `pnpm run build`: build main, preload, and renderer
-- `pnpm run validate`: lint, dead-code check, typecheck, tests, and build
+- `pnpm run validate`: lint, all Fallow checks, typecheck, tests, and build
 - `pnpm audit --audit-level=moderate`: dependency security audit
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `pnpm run setup:steamworks`: stage the SDK and rebuild native dependencies
@@ -114,13 +120,13 @@ The pacman target needs `bsdtar`.
 
 ## Local Push Gate
 
-Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` with `CI=true`. This catches the same lint, dead-code, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
+Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` with `CI=true`. This catches the same Biome, Fallow, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
 
 For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run validate` before relying on the pushed commit.
 
 ## Effect Boundaries
 
-TypeScript internals use Effect v4 beta for async composition, expected failures, schema decoding, and renderer-local state/cache ownership. Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
+TypeScript internals use Effect v4 beta for async composition, expected failures, schema decoding, and renderer-local state/cache ownership. Renderer ownership is formalized in [ADR 0009](adr/0009-renderer-state-and-cache-use-effect-atom.md). Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
 
 - Electron IPC, preload, contextBridge, and the shared renderer API contract.
 - React event handlers, hooks, React Hook Form resolvers, and dynamic component imports. Renderer programs that touch Electron run through `runRenderer(...)`; React still receives Promises at its callback boundary.

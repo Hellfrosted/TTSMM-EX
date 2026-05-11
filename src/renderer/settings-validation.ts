@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
-import { LogLevel, NLogLevel } from 'model';
 import type { AppConfig } from 'model';
+import { LogLevel, NLogLevel } from 'model';
 import { createFormResolver, type FormErrorMap } from './form-resolver';
 
 export interface LogConfig {

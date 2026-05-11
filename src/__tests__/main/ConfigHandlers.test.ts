@@ -3,7 +3,7 @@ import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import { readConfigFile, writeConfigFile } from '../../main/config-store';
 import { registerConfigHandlers } from '../../main/ipc/config-handlers';
-import { ModErrorType, type AppConfig } from '../../model';
+import { type AppConfig, ModErrorType } from '../../model';
 import { createDefaultAppConfig } from '../../shared/app-config-defaults';
 import { ValidChannel } from '../../shared/ipc';
 import { createIpcHandlerHarness, createTempDir } from './test-utils';

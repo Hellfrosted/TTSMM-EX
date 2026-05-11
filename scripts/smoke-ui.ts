@@ -1,13 +1,13 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import electronPath from 'electron';
-import { repoRoot, releaseAppDistPath, releaseBuildPath } from './lib/paths';
 import { createDefaultAppConfig } from '../src/shared/app-config-defaults';
 import { UI_SMOKE_ENV, UI_SMOKE_OUTPUT_ENV, UI_SMOKE_SCREENSHOT_DIR_ENV } from '../src/shared/ui-smoke';
 import { USER_DATA_DIR_OVERRIDE_ENV } from '../src/shared/user-data';
+import { releaseAppDistPath, releaseBuildPath, repoRoot } from './lib/paths';
 
 const electronBinary = electronPath as unknown as string;
 const mainEntryPath = path.join(releaseAppDistPath, 'main', 'main.js');

@@ -1,4 +1,4 @@
-import { BLOCK_LOOKUP_COLUMN_KEYS, BLOCK_LOOKUP_COLUMN_TITLES, BlockLookupColumnTitles, type BlockLookupColumnKey } from 'model';
+import { BLOCK_LOOKUP_COLUMN_KEYS, BLOCK_LOOKUP_COLUMN_TITLES, type BlockLookupColumnKey, BlockLookupColumnTitles } from 'model';
 import { getDefaultBlockLookupColumnWidth, getMinBlockLookupColumnWidth } from 'shared/block-lookup-view-config';
 
 export interface BlockLookupColumnConfig {

@@ -1,7 +1,7 @@
-import path from 'path';
-import { app } from 'electron';
 import type { IpcMain } from 'electron';
+import { app } from 'electron';
 import log from 'electron-log';
+import path from 'path';
 
 import { AppConfig, LogLevel, ValidChannel } from '../../model';
 import { applyLogLevel, readConfigFile, writeConfigFile } from '../config-store';

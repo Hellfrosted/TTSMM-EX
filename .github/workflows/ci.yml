@@ -38,8 +38,8 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Check dead code
-        run: pnpm run check:dead-code
+      - name: Check Fallow
+        run: pnpm run check:fallow
 
       - name: Typecheck
         run: pnpm run typecheck

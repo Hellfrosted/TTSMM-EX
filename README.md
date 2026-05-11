@@ -4,7 +4,7 @@ TerraTech Steam Mod Manager EX is an Electron desktop app for configuring TerraT
 
 TTSMM-EX is a fork of [`FLSoz/terratech-steam-mod-loader`](https://github.com/FLSoz/terratech-steam-mod-loader). It has its own app identity and Electron user-data directory, so it can be installed alongside the upstream build.
 
-Last reviewed: 2026-05-08
+Last reviewed: 2026-05-11
 
 ## Install
 
@@ -39,7 +39,7 @@ Steam must be installed, running, and signed in from the same Linux or Windows i
 - Steam desktop client
 - Steamworks SDK for source builds that need Steam integration
 
-The root lockfile is `pnpm-lock.yaml`, and the repo is configured to run through pnpm end to end. The packaging-only `release/app` package keeps its own committed `release/app/pnpm-lock.yaml` for packaged runtime dependencies.
+The root lockfile is `pnpm-lock.yaml`, and the repo is configured to run through pnpm end to end. The packaging-only `release/app` package keeps its own committed `release/app/pnpm-lock.yaml` for packaged runtime dependencies that Electron main/preload builds externalize.
 
 ## Source Setup
 

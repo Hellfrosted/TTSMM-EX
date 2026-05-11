@@ -1,8 +1,8 @@
-import { render, type RenderOptions } from '@testing-library/react';
-import type { ReactElement, PropsWithChildren } from 'react';
-import { SessionMods, type AppConfig, type AppState } from '../../model';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import { type RenderOptions, render } from '@testing-library/react';
+import type { PropsWithChildren, ReactElement } from 'react';
 import { vi } from 'vitest';
+import { type AppConfig, type AppState, SessionMods } from '../../model';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
 
 export function createTestWrapper() {
 	return function TestWrapper({ children }: PropsWithChildren) {

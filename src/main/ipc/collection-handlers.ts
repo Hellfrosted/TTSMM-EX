@@ -1,13 +1,15 @@
-import { app } from 'electron';
 import type { IpcMain } from 'electron';
+import { app } from 'electron';
 
 import { ValidChannel } from '../../model';
-import { runCollectionLifecycle } from '../collection-lifecycle-service';
 import { saveExistingCollectionContent } from '../collection-content-save';
+import { runCollectionLifecycle } from '../collection-lifecycle-service';
 import { listCollections, readCollectionFile } from '../collection-store';
+import { runMain } from '../runtime';
+import { resolveStartupCollection } from '../startup-collection-resolution';
 import {
-	parseCollectionNamePayload,
 	parseCollectionContentSaveRequest,
+	parseCollectionNamePayload,
 	parseCreateCollectionLifecycleRequest,
 	parseDeleteCollectionLifecycleRequest,
 	parseDuplicateCollectionLifecycleRequest,
@@ -15,8 +17,6 @@ import {
 	parseStartupCollectionResolutionRequest,
 	parseSwitchCollectionLifecycleRequest
 } from './collection-validation';
-import { resolveStartupCollection } from '../startup-collection-resolution';
-import { runMain } from '../runtime';
 import { registerValidatedIpcHandler } from './ipc-handler';
 
 interface UserDataPathProvider {

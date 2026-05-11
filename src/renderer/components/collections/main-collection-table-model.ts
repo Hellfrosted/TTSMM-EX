@@ -1,4 +1,4 @@
-import { MainColumnTitles, type DisplayModData, type MainCollectionConfig } from 'model';
+import { type DisplayModData, type MainCollectionConfig, MainColumnTitles } from 'model';
 import { getCollectionSelectionState, setVisibleCollectionRowsSelected } from 'renderer/collection-mod-selection';
 import { measurePerf } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';

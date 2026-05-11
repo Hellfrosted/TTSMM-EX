@@ -1,6 +1,6 @@
 import { HardDrive } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { ModType } from 'model';
+import type { ReactNode } from 'react';
 import steam from '../../../../assets/steam.png';
 import ttmm from '../../../../assets/ttmm.png';
 

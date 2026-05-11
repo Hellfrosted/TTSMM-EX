@@ -1,11 +1,11 @@
-import { type ModData, type ModDataOverride, type ModDescriptor, ModType, getModDataId, getModDescriptorKey } from './Mod';
+import { getSteamDependencyName, getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
+import { getModDataId, getModDescriptorKey, type ModData, type ModDataOverride, type ModDescriptor, ModType } from './Mod';
 import { createModDependencyTargetSatisfactionPolicy, type ModDependencyTargetSatisfactionPolicy } from './mod-dependency-target';
 import {
 	createNuterraSteamBetaMatchingPolicy,
 	type NuterraSteamBetaMatchingPolicy,
 	type NuterraSteamCompatibilityOptions
 } from './nuterrasteam-compatibility';
-import { getSteamDependencyName, getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
 
 interface DependencyGraphSession {
 	dependencyGraph: ModDependencyGraph;

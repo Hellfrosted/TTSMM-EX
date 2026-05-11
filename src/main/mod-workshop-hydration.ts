@@ -1,10 +1,10 @@
-import log from 'electron-log';
 import { Effect } from 'effect';
-import { ModType, type ModData } from '../model';
-import type { SteamUGCDetails } from './steamworks';
+import log from 'electron-log';
+import { type ModData, ModType } from '../model';
 import { getModDetailsFromPath } from './mod-local-scan';
 import { createWorkshopPotentialMod, hasWorkshopModTag, populateWorkshopModMetadata } from './mod-workshop-metadata';
 import type { SteamPersonaCache } from './steam-persona-cache';
+import type { SteamUGCDetails } from './steamworks';
 import { applyWorkshopRuntimeState } from './workshop-actions';
 
 interface WorkshopModHydrationInput {

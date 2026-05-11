@@ -1,6 +1,6 @@
-import { startTransition } from 'react';
 import { type AppConfig, type ModCollection, type NotificationProps } from 'model';
 import type { AppStateUpdate } from 'model/AppState';
+import { startTransition } from 'react';
 import { applyAuthoritativeCollectionState, getAuthoritativeCollectionStateUpdate } from 'renderer/authoritative-collection-state';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';

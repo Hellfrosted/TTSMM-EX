@@ -1,20 +1,20 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles } from '../../model';
+import type { BlockLookupColumnConfig } from '../../renderer/block-lookup-column-definitions';
 import {
 	BLOCK_LOOKUP_TABLE_PADDING_WIDTH,
 	BlockLookupHeaderCell,
-	getBlockLookupColumnWidthStyle,
 	getBlockLookupCellAlignment,
-	getBlockLookupTableScrollWidth,
+	getBlockLookupColumnWidthStyle,
 	getBlockLookupColumnWidthVariableName,
+	getBlockLookupTableScrollWidth,
 	getBlockLookupVirtualColumnStyle,
 	getNextBlockLookupSortDirection,
 	getResponsiveBlockLookupColumns,
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
 } from '../../renderer/views/block-lookup-table-layout';
-import type { BlockLookupColumnConfig } from '../../renderer/block-lookup-column-definitions';
 
 afterEach(() => {
 	cleanup();

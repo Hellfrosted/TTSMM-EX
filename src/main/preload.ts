@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import log from 'electron-log';
 import type { ElectronApi } from 'shared/electron-api';
-import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import { ValidChannel } from 'shared/ipc';
+import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import { isUiSmokeRunRequest } from 'shared/ui-smoke';
 
 const invoke = <TResult>(channel: ValidChannel, ...args: unknown[]): Promise<TResult> => {

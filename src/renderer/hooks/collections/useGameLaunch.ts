@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Effect } from 'effect';
 import type { ModData, NotificationProps } from 'model';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
-import { pauseEffect } from 'util/Sleep';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { pauseEffect } from 'util/Sleep';
 import type { NotificationType } from './useNotifications';
 
 interface UseGameLaunchOptions {

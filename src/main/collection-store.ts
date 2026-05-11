@@ -1,10 +1,10 @@
+import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
-import log from 'electron-log';
 import { ModCollection, ValidChannel } from '../model';
 import { validateCollectionName } from '../shared/collection-name';
-import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from './storage';
 import { parseStoredModCollectionPayload } from './ipc/collection-validation';
+import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from './storage';
 
 function serializeCollectionFile(collection: Pick<ModCollection, 'mods'>): string {
 	return JSON.stringify({ mods: [...collection.mods] }, null, 4);

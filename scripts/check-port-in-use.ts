@@ -63,9 +63,7 @@ export function assertPortAvailable(port: number, host: string | undefined) {
 export async function assertConfiguredPortAvailable(options: PortCheckOptions = {}) {
 	const port = options.port ?? parseConfiguredPort(options.rawPort);
 	const hosts = options.hosts ?? createProbeHosts();
-	for (const host of hosts) {
-		await assertPortAvailable(port, host);
-	}
+	await hosts.reduce((previousCheck, host) => previousCheck.then(() => assertPortAvailable(port, host)), Promise.resolve());
 }
 
 export async function runCheckPortInUseCli(options: PortCheckOptions = {}) {

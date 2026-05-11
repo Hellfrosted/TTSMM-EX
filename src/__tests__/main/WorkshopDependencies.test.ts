@@ -1,14 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
 import { Effect } from 'effect';
+import { describe, expect, it, vi } from 'vitest';
+import { EResult } from '../../main/steamworks/types';
 import {
 	applyWorkshopDependencySnapshotResult,
-	createWorkshopDependencySnapshotMetadata,
 	createWorkshopDependencySnapshot,
+	createWorkshopDependencySnapshotMetadata,
 	fetchWorkshopDependencySnapshot,
 	ingestWorkshopDependencySnapshotBatch,
 	resolveWorkshopDependencyNames
 } from '../../main/workshop-dependencies';
-import { EResult } from '../../main/steamworks/types';
 import { createWorkshopDetails } from './test-utils';
 
 describe('workshop dependency snapshots', () => {

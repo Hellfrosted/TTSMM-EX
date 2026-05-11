@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cause, Effect, Exit, Fiber } from 'effect';
 import {
+	type AppConfig,
 	CollectionErrors,
 	CollectionManagerModalType,
 	ModCollection,
-	validateCollection,
-	type AppConfig,
-	type NotificationProps
+	type NotificationProps,
+	validateCollection
 } from 'model';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import { renderValidationErrors, summarizeValidationIssues, type ValidationIssueSummary } from 'renderer/collection-validation-run';
 import {
+	type CollectionValidationRunOutcome,
+	type CollectionWorkspaceValidationResult,
 	createCollectionWorkspaceValidationResult,
 	getCollectionValidationCompletionDecision,
-	getCollectionValidationPersistenceDecision,
-	type CollectionValidationRunOutcome,
-	type CollectionWorkspaceValidationResult
+	getCollectionValidationPersistenceDecision
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { NotificationType } from './useNotifications';

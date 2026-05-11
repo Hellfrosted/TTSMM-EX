@@ -1,5 +1,5 @@
 import path from 'path';
-import { cloneCollection, type AppConfig, type ModCollection } from '../model';
+import { type AppConfig, cloneCollection, type ModCollection } from '../model';
 import { collectionNamesEqual } from '../shared/collection-name';
 import { listCollections, readCollectionFile, updateCollectionFile } from './collection-store';
 import { writeConfigFile } from './config-store';

@@ -1,30 +1,30 @@
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type Key, type ReactNode } from 'react';
 import { CheckSquare, CircleHelp, Clock3, Edit3, FolderOpen, LoaderCircle, TriangleAlert } from 'lucide-react';
-import api from 'renderer/Api';
 import {
+	CollectionManagerModalType,
+	compareModDataDisplayId,
+	compareModDataDisplayName,
 	createModDependencyProjection,
 	DisplayModData,
+	getCollectionStatusTags,
 	getDescriptor,
+	getModDataDependencyIgnoreKey,
+	getModDataDisplayId,
 	getModDataDisplayName,
 	ModErrors,
 	ModErrorType,
 	ModType,
-	NotificationProps,
-	getModDataDisplayId,
-	getModDataDependencyIgnoreKey,
-	compareModDataDisplayName,
-	compareModDataDisplayId,
-	CollectionManagerModalType,
-	getCollectionStatusTags
+	NotificationProps
 } from 'model';
-import { getWorkshopDependencySnapshotState, type WorkshopDependencySnapshotState } from 'shared/workshop-dependency-snapshot';
-import { formatDateStr } from 'util/Date';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { type CSSProperties, type Key, memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
+import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { APP_TAG_STYLES } from 'renderer/theme';
 import { persistConfigChange } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
-import { APP_TAG_STYLES } from 'renderer/theme';
-import { DetailCheckbox, ModDetailsDependenciesPane, type DetailColumn, type DetailRowSelection } from './mod-details-dependencies';
+import { getWorkshopDependencySnapshotState, type WorkshopDependencySnapshotState } from 'shared/workshop-dependency-snapshot';
+import { formatDateStr } from 'util/Date';
+import { DetailCheckbox, type DetailColumn, type DetailRowSelection, ModDetailsDependenciesPane } from './mod-details-dependencies';
 import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './mod-details-presentation';
 import { ModTypeIcon } from './mod-type-presentation';
 

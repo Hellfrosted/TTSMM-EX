@@ -19,5 +19,3 @@ export class WorkshopPagingFailure extends Error {
 		super(`Failed to fetch Steam Workshop subscription page ${pageNum}`);
 	}
 }
-
-export type WorkshopSteamworksFailure = WorkshopMetadataLookupFailure | WorkshopPagingFailure;

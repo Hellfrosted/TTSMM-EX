@@ -1,7 +1,7 @@
 import { Context, Effect, Layer } from 'effect';
 import type { ModData } from '../model';
 import { createModInventoryContext, fetchModInventory } from './mod-fetcher';
-import { SteamPersonaCacheLive, type SteamPersonaCache } from './steam-persona-cache';
+import { type SteamPersonaCache, SteamPersonaCacheLive } from './steam-persona-cache';
 
 interface ProgressSender {
 	send: (channel: string, ...args: unknown[]) => void;

@@ -1,10 +1,10 @@
-import { shell, Menu } from 'electron';
 import type { IpcMain, MenuItemConstructorOptions, WebContents } from 'electron';
+import { Menu, shell } from 'electron';
 import log from 'electron-log';
 import type { SteamworksStatus } from 'shared/ipc';
 import { getWorkshopDependencySnapshotMetadataUpdate, type WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 
-import { ModData, ModType, SessionMods, ValidChannel, createModUid, parseWorkshopModUid } from '../../model';
+import { createModUid, ModData, ModType, parseWorkshopModUid, SessionMods, ValidChannel } from '../../model';
 import { cloneModData } from '../../model/SessionMods';
 import { openExternalUrl } from '../external-links';
 import { getModDetailsFromPath } from '../mod-fetcher';

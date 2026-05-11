@@ -1,4 +1,4 @@
-import { type ModCollection, type ModData, type SessionMods, getByUID } from 'model';
+import { getByUID, type ModCollection, type ModData, type SessionMods } from 'model';
 
 export function getCollectionModDataList(session: SessionMods, collection: Pick<ModCollection, 'mods'> | undefined): ModData[] {
 	if (!collection) {

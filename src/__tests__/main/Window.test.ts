@@ -2,10 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-	MAIN_WINDOW_DEFAULT_BOUNDS,
 	ensureSteamAppIdFile,
 	forwardRendererConsoleMessage,
 	installDevtoolsExtension,
+	MAIN_WINDOW_DEFAULT_BOUNDS,
 	resolveSteamAppIdFilePath
 } from '../../main/window';
 import { createTempDir } from './test-utils';

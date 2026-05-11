@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
 import type { NotificationProps } from 'model';
+import { useCallback } from 'react';
 import { createNotificationEvent, type NotificationType } from 'renderer/notification-channel';
 
 export type { NotificationType } from 'renderer/notification-channel';

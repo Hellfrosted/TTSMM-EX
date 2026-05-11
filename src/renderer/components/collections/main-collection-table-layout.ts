@@ -1,9 +1,6 @@
-import { type DisplayModData, type MainCollectionConfig, MainColumnTitles, getModDataDisplayId, getModDataDisplayName } from 'model';
+import { type DisplayModData, getModDataDisplayId, getModDataDisplayName, type MainCollectionConfig, MainColumnTitles } from 'model';
 import { getAllCollectionTags } from 'renderer/collection-tags';
-import { getDefaultMainColumnWidth, getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
-import { normalizedOrder } from 'shared/view-config';
 import { APP_FONT_FAMILY } from 'renderer/theme';
-import { formatDateStr } from 'util/Date';
 import {
 	getVirtualTableColumnPixelWidth,
 	getVirtualTableColumnWidthStyle,
@@ -13,6 +10,9 @@ import {
 	setVirtualTableColumnWidthVariable,
 	type VirtualTableColumnWidthLike
 } from 'renderer/virtual-table-geometry';
+import { getDefaultMainColumnWidth, getMainColumnMinWidth, getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
+import { normalizedOrder } from 'shared/view-config';
+import { formatDateStr } from 'util/Date';
 
 export { getDefaultMainColumnWidth };
 

@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
 import { Effect } from 'effect';
-import { SteamworksRuntime, classifySteamworksReadiness } from '../../main/steamworks-runtime';
+import { describe, expect, it, vi } from 'vitest';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
+import { classifySteamworksReadiness, SteamworksRuntime } from '../../main/steamworks-runtime';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../../main/workshop-actions';
 import { ModType } from '../../model';
 

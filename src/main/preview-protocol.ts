@@ -1,8 +1,8 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import { Protocol, ProtocolRequest, ProtocolResponse } from 'electron';
 import log from 'electron-log';
+import fs from 'fs';
+import path from 'path';
 
 const PREVIEW_HOST = 'preview';
 const BLOCK_LOOKUP_PREVIEW_HOST = 'block-preview';

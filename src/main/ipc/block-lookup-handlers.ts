@@ -1,7 +1,7 @@
 import type { IpcMain } from 'electron';
 import type { BlockLookupBuildRequest, BlockLookupIndexProgress, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { ValidChannel } from '../../model';
-import { createBlockLookupIndexModule, type BlockLookupIndexModule } from '../block-lookup-indexer';
+import { type BlockLookupIndexModule, createBlockLookupIndexModule } from '../block-lookup-indexer';
 import { runMain } from '../runtime';
 import {
 	parseBlockLookupBuildRequestPayload,

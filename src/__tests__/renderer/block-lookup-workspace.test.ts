@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ModType, SessionMods, setupDescriptors } from '../../model';
-import type { BlockLookupRecord } from '../../shared/block-lookup';
 import {
 	collectBlockLookupModSources,
 	createBlockLookupBootstrapCacheProjection,
 	createBlockLookupBootstrapState,
-	createBlockLookupBuildRequest,
 	createBlockLookupBuildIndexState,
+	createBlockLookupBuildRequest,
 	createBlockLookupSearchRequest,
 	createBlockLookupSettingsSaveState,
 	createBlockLookupWorkspaceSessionState,
@@ -18,6 +17,7 @@ import {
 	reduceBlockLookupWorkspaceSession,
 	sortBlockLookupRecords
 } from '../../renderer/block-lookup-workspace';
+import type { BlockLookupRecord } from '../../shared/block-lookup';
 
 const TEST_STATS = {
 	sources: 1,

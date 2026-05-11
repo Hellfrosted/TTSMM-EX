@@ -1,5 +1,5 @@
 import type { DisplayModData } from './CollectionValidation';
-import { getModDescriptorDisplayName, getModDescriptorKey, ModType, type ModData, type ModDescriptor } from './Mod';
+import { getModDescriptorDisplayName, getModDescriptorKey, type ModData, type ModDescriptor, ModType } from './Mod';
 import { getDependencies, getDependents, getDescriptor, type SessionMods } from './SessionMods';
 
 interface ModDependencyProjection {

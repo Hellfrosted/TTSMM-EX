@@ -1,11 +1,11 @@
-import { startTransition, useCallback, useState } from 'react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
+import { startTransition, useCallback, useState } from 'react';
 import { getCollectionModDataList } from 'renderer/collection-mod-list';
-import { markPerfInteraction } from 'renderer/perf';
 import { useCollectionWorkspaceSession } from 'renderer/hooks/collections/useCollectionWorkspaceSession';
 import { useGameLaunch } from 'renderer/hooks/collections/useGameLaunch';
 import { useGameRunning } from 'renderer/hooks/collections/useGameRunning';
 import type { NotificationType } from 'renderer/hooks/collections/useNotifications';
+import { markPerfInteraction } from 'renderer/perf';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 interface UseCollectionWorkspaceOptions {

@@ -1,7 +1,7 @@
 import type { BlockLookupColumnKey, BlockLookupViewConfig } from 'model';
 import { normalizeBlockLookupColumnWidth } from 'shared/block-lookup-view-config';
-import { cloneBlockLookupColumnConfig, type BlockLookupColumnConfig } from './block-lookup-column-definitions';
 import { getConfiguredBlockLookupColumns } from './block-lookup-column-config';
+import { type BlockLookupColumnConfig, cloneBlockLookupColumnConfig } from './block-lookup-column-definitions';
 
 interface BlockLookupTableOptionsDraft {
 	columns: BlockLookupColumnConfig[];

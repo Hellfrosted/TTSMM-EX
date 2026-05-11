@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from '../../shared/ipc-contract';
-import { ValidChannel } from '../../shared/ipc';
 import { registerBlockLookupHandlers } from '../../main/ipc/block-lookup-handlers';
 import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { registerConfigHandlers } from '../../main/ipc/config-handlers';
 import { registerGameHandlers } from '../../main/ipc/game-handlers';
 import { registerModHandlers } from '../../main/ipc/mod-handlers';
+import { ValidChannel } from '../../shared/ipc';
+import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from '../../shared/ipc-contract';
 import { createTempDir } from './test-utils';
 
 function registerAllMainHandlers() {

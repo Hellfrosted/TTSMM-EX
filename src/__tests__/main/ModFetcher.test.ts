@@ -1,14 +1,11 @@
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Effect } from 'effect';
-import Steamworks from '../../main/steamworks';
-import { UGCItemState } from '../../main/steamworks/types';
 import { buildWorkshopMod, createModInventoryContext, fetchWorkshopMods, processSteamModResults } from '../../main/mod-fetcher';
-import { ModType } from '../../model/Mod';
-import { MAX_TTSMM_METADATA_BYTES, createLocalPotentialMod, scanLocalMods } from '../../main/mod-local-scan';
-import { scanModInventory } from '../../main/mod-inventory-scan';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
+import { scanModInventory } from '../../main/mod-inventory-scan';
+import { createLocalPotentialMod, MAX_TTSMM_METADATA_BYTES, scanLocalMods } from '../../main/mod-local-scan';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
@@ -19,8 +16,11 @@ import {
 	hasWorkshopModTag
 } from '../../main/mod-workshop-metadata';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
-import { WorkshopMetadataLookupFailure, WorkshopPagingFailure } from '../../main/workshop-errors';
 import { SteamPersonaCacheLive } from '../../main/steam-persona-cache';
+import Steamworks from '../../main/steamworks';
+import { UGCItemState } from '../../main/steamworks/types';
+import { WorkshopMetadataLookupFailure, WorkshopPagingFailure } from '../../main/workshop-errors';
+import { ModType } from '../../model/Mod';
 import { createTempDir, createWorkshopDetails } from './test-utils';
 
 function runWithSteamPersonaCache<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {

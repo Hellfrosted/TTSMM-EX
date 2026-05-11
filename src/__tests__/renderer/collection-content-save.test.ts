@@ -1,6 +1,6 @@
-import { describe, expect, it as vitestIt, vi } from 'vitest';
 import { it } from '@effect/vitest';
 import { Effect } from 'effect';
+import { describe, expect, vi, it as vitestIt } from 'vitest';
 import type { ModCollection } from '../../model';
 import { createCollectionWriteQueue, runCollectionContentSave } from '../../renderer/collection-content-save';
 

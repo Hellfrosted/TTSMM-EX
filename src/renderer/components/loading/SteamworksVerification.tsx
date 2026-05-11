@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
-import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import { useAppStateSelector } from 'renderer/state/app-state';
 import type { SteamworksReadinessKind, SteamworksStatus } from 'shared/ipc';
+import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import StatusCallout from '../StatusCallout';
 import {
 	StartupActions,

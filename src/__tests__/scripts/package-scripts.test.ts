@@ -1,9 +1,11 @@
 // @vitest-environment node
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { copyGreenworksRuntime, requiredGreenworksRuntimeFiles } from '../../../scripts/lib/greenworks-runtime';
 
 interface PackageManifest {
 	scripts?: Record<string, string>;
@@ -31,10 +33,16 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.build).toBe('node --import=tsx ./scripts/vite-build.ts');
 		expect(packageJson.scripts?.['build:block-lookup']).toBe('node --import=tsx ./scripts/build-block-lookup-extractor.ts');
 		expect(packageJson.scripts?.dev).toContain('./scripts/vite-dev.ts');
+		expect(packageJson.scripts?.['dev:stop']).toBe('node --import=tsx ./scripts/stop-dev.ts');
+		expect(packageJson.scripts?.format).toBe('biome format . --write');
 		expect(packageJson.scripts?.lint).toBe('biome check .');
 		expect(packageJson.scripts?.['lint:fix']).toBe('biome check . --write --unsafe');
 		expect(packageJson.scripts?.validate).toContain('pnpm run build');
-		expect(packageJson.scripts?.validate).toContain('pnpm run check:dead-code');
+		expect(packageJson.scripts?.validate).toContain('pnpm run check:fallow');
+		expect(packageJson.scripts?.['check:fallow']).toContain('pnpm run check:dead-code');
+		expect(packageJson.scripts?.['check:fallow']).toContain('pnpm run check:dupes');
+		expect(packageJson.scripts?.['check:fallow']).toContain('pnpm run check:health');
+		expect(packageJson.scripts?.['check:fallow']).toContain('pnpm run check:audit');
 		expect(packageJson.scripts?.validate).toContain('pnpm run test');
 		expect(packageJson.scripts?.['smoke:ui']).toBe('pnpm run build && pnpm run smoke:ui:built');
 		expect(packageJson.scripts?.['smoke:ui:built']).toBe('node --import=tsx ./scripts/smoke-ui.ts');
@@ -72,5 +80,46 @@ describe('package scripts', () => {
 		expect(output).toContain('release/app/package.json (terratech-steam-mod-manager-ex)');
 		expect(output).not.toContain('release/package-app/package.json');
 		expect(output).not.toContain('release/build/');
+	});
+
+	it('copies the required Greenworks runtime files into a sanitized package directory', () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ttsmm-greenworks-runtime-'));
+		try {
+			const sourcePath = path.join(tempDir, 'source');
+			const targetPath = path.join(tempDir, 'target');
+			fs.mkdirSync(sourcePath, { recursive: true });
+			fs.writeFileSync(
+				path.join(sourcePath, 'package.json'),
+				`${JSON.stringify(
+					{
+						name: 'greenworks',
+						version: '1.0.0',
+						dependencies: { nan: '1.0.0' },
+						devDependencies: { typescript: '1.0.0' },
+						gypfile: true,
+						scripts: { install: 'node-gyp rebuild' }
+					},
+					null,
+					2
+				)}\n`
+			);
+			for (const runtimeFile of requiredGreenworksRuntimeFiles) {
+				const runtimePath = path.join(sourcePath, runtimeFile);
+				fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
+				fs.writeFileSync(runtimePath, runtimeFile);
+			}
+
+			copyGreenworksRuntime(sourcePath, targetPath);
+
+			for (const runtimeFile of requiredGreenworksRuntimeFiles) {
+				expect(fs.readFileSync(path.join(targetPath, runtimeFile), 'utf8')).toBe(runtimeFile);
+			}
+			expect(JSON.parse(fs.readFileSync(path.join(targetPath, 'package.json'), 'utf8'))).toEqual({
+				name: 'greenworks',
+				version: '1.0.0'
+			});
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 });

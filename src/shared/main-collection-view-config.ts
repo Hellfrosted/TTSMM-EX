@@ -1,4 +1,4 @@
-import { MainColumnTitles, type MainCollectionConfig } from 'model/MainCollectionView';
+import { type MainCollectionConfig, MainColumnTitles } from 'model/MainCollectionView';
 import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber } from './view-config';
 
 const MAIN_DETAILS_OVERLAY_MIN_WIDTH = 360;

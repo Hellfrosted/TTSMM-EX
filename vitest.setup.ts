@@ -2,8 +2,8 @@
 import '@testing-library/jest-dom/vitest';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { beforeEach, vi } from 'vitest';
-import { SessionMods } from './src/model';
 import type { AppConfig, ModCollection } from './src/model';
+import { SessionMods } from './src/model';
 import type { SteamworksStatus } from './src/shared/ipc';
 
 const electronLogMock = vi.hoisted(() => {

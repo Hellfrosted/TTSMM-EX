@@ -1,7 +1,7 @@
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { Effect } from 'effect';
 import { readCollectionFile } from '../../main/collection-store';
 import { readConfigFile } from '../../main/config-store';
 import { resolveStartupCollection } from '../../main/startup-collection-resolution';

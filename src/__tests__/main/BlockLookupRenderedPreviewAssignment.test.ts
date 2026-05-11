@@ -1,29 +1,18 @@
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import type { BlockLookupRecord } from '../../shared/block-lookup';
 import {
 	assignRenderedBlockPreviewsToRecords,
 	type BlockLookupRenderedPreviewAsset
 } from '../../main/block-lookup-rendered-preview-assignment';
+import type { BlockLookupRecord } from '../../shared/block-lookup';
+import { createTestBlockLookupRecord } from './test-utils';
 
 function createRecord(overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
-	const blockName = overrides.blockName ?? 'Alpha Cannon';
-	const modTitle = overrides.modTitle ?? 'Test Blocks';
-	const preferredAlias = overrides.preferredAlias ?? `${blockName.replace(/\s/g, '_')}(${modTitle.replace(/\s/g, '_')})`;
-	return {
-		blockId: overrides.blockId ?? '42',
-		blockName,
-		fallbackAlias: overrides.fallbackAlias ?? preferredAlias,
-		fallbackSpawnCommand: overrides.fallbackSpawnCommand ?? `SpawnBlock ${preferredAlias}`,
-		internalName: overrides.internalName ?? blockName.replace(/\s/g, ''),
-		modTitle,
-		preferredAlias,
-		previewAssetNames: overrides.previewAssetNames,
-		sourceKind: overrides.sourceKind ?? 'bundle',
-		sourcePath: overrides.sourcePath ?? path.normalize('/mods/TestBlocks_bundle'),
-		spawnCommand: overrides.spawnCommand ?? `SpawnBlock ${preferredAlias}`,
-		workshopId: overrides.workshopId ?? '12345'
-	};
+	return createTestBlockLookupRecord({
+		sourceKind: 'bundle',
+		sourcePath: path.normalize('/mods/TestBlocks_bundle'),
+		...overrides
+	});
 }
 
 function createAsset(overrides: Partial<BlockLookupRenderedPreviewAsset> = {}): BlockLookupRenderedPreviewAsset {

@@ -1,5 +1,5 @@
-import type { HTMLAttributes, ReactNode } from 'react';
 import { CircleAlert, TriangleAlert } from 'lucide-react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { getStatusSurfaceClassName } from './status-surface-classes';
 
 interface StatusCalloutProps extends HTMLAttributes<HTMLDivElement> {

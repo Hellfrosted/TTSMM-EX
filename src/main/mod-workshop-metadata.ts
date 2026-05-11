@@ -1,9 +1,9 @@
-import log from 'electron-log';
 import { Effect } from 'effect';
+import log from 'electron-log';
 import type { ModData } from '../model';
 import { createWorkshopPlaceholderMod } from '../model';
-import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { SteamPersonaCache } from './steam-persona-cache';
+import Steamworks, { type SteamUGCDetails } from './steamworks';
 import { WorkshopMetadataLookupFailure } from './workshop-errors';
 
 const MAX_MODS_PER_PAGE = 50;

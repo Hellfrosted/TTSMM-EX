@@ -1,28 +1,27 @@
+import childProcess from 'node:child_process';
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
-import childProcess from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Effect } from 'effect';
 import {
 	buildBlockLookupAliases,
 	buildBlockLookupIndex,
 	extractNuterraBlocksFromText,
 	searchBlockLookupIndex
 } from '../../main/block-lookup';
-import { extractBlockLookupBundleOutcomes, extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
 import { loadBlockpediaVanillaPreviewAssets, parseBlockpediaPreviewEntries } from '../../main/block-lookup-blockpedia-previews';
+import { extractBlockLookupBundleOutcomes, extractBundleTextAssets } from '../../main/block-lookup-bundle-text-assets';
 import { createBlockLookupBundleSourceExtractionAdapter } from '../../main/block-lookup-extraction';
 import { createBlockLookupIndexBuild } from '../../main/block-lookup-index-build';
 import { createBlockLookupRecordsFromTextAssets } from '../../main/block-lookup-nuterra-text';
 import {
-	MAX_BLOCK_LOOKUP_JSON_DEPTH,
+	type BlockLookupSourceRecord,
 	collectBlockLookupSources,
-	type BlockLookupSourceRecord
+	MAX_BLOCK_LOOKUP_JSON_DEPTH
 } from '../../main/block-lookup-source-discovery';
 import { indexBlockLookupSources } from '../../main/block-lookup-source-indexing';
-import Steamworks from '../../main/steamworks';
 import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupRecord } from '../../shared/block-lookup';
-import { createTempDir } from './test-utils';
+import { createTempDir, createTestBlockLookupRecord, mockSteamworksBlockLookupInstallState } from './test-utils';
 
 const runIndexBlockLookupSources = (...args: Parameters<typeof indexBlockLookupSources>) =>
 	Effect.runPromise(indexBlockLookupSources(...args));
@@ -30,9 +29,7 @@ const runCreateBlockLookupIndexBuild = (...args: Parameters<typeof createBlockLo
 	Effect.runPromise(createBlockLookupIndexBuild(...args));
 
 beforeEach(() => {
-	vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
-	vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
-	vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+	mockSteamworksBlockLookupInstallState();
 });
 
 afterEach(() => {
@@ -47,29 +44,6 @@ function createFetchResponse(body: string | Uint8Array, ok = true) {
 		ok,
 		status: ok ? 200 : 500,
 		text: async () => bytes.toString('utf8')
-	};
-}
-
-function createTestBlockLookupRecord(overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
-	const blockName = overrides.blockName ?? 'Alpha Cannon';
-	const modTitle = overrides.modTitle ?? 'Test Blocks';
-	const sourcePath = overrides.sourcePath ?? path.normalize('/mods/TestCannon.json');
-	const preferredAlias = overrides.preferredAlias ?? `${blockName.replace(/\s/g, '_')}(${modTitle.replace(/\s/g, '_')})`;
-
-	return {
-		blockId: overrides.blockId ?? '42',
-		blockName,
-		fallbackAlias: overrides.fallbackAlias ?? preferredAlias,
-		fallbackSpawnCommand: overrides.fallbackSpawnCommand ?? `SpawnBlock ${preferredAlias}`,
-		internalName: overrides.internalName ?? blockName.replace(/\s/g, ''),
-		modTitle,
-		preferredAlias,
-		previewBounds: overrides.previewBounds,
-		previewAssetNames: overrides.previewAssetNames,
-		sourceKind: overrides.sourceKind ?? 'json',
-		sourcePath,
-		spawnCommand: overrides.spawnCommand ?? `SpawnBlock ${preferredAlias}`,
-		workshopId: overrides.workshopId ?? '12345'
 	};
 }
 

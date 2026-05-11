@@ -1,29 +1,29 @@
+import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import childProcess from 'node:child_process';
-import log from 'electron-log';
 import { Effect } from 'effect';
+import log from 'electron-log';
 import type { BlockLookupRecord } from 'shared/block-lookup';
-import {
-	extractBlockLookupBundleOutcomes,
-	extractBundleTextAssets,
-	type BlockLookupBundlePreviewAsset,
-	type BlockLookupBundleExtractionOutcome
-} from './block-lookup-bundle-text-assets';
 import { loadBlockpediaVanillaPreviewAssets } from './block-lookup-blockpedia-previews';
-import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
+import {
+	type BlockLookupBundleExtractionOutcome,
+	type BlockLookupBundlePreviewAsset,
+	extractBlockLookupBundleOutcomes,
+	extractBundleTextAssets
+} from './block-lookup-bundle-text-assets';
+import {
+	createBlockLookupRecord,
+	createBlockLookupRecordsFromTextAssets,
+	type ExtractedTextBlock,
+	humanizeBlockLookupIdentifier,
+	normalizedBlockLookupKey,
+	readBlockLookupSourceTextAsset
+} from './block-lookup-nuterra-text';
 import {
 	assignRenderedBlockPreviewsToRecords,
 	getBlockLookupRecordPreviewMatchNameCandidates
 } from './block-lookup-rendered-preview-assignment';
-import {
-	createBlockLookupRecord,
-	createBlockLookupRecordsFromTextAssets,
-	humanizeBlockLookupIdentifier,
-	normalizedBlockLookupKey,
-	readBlockLookupSourceTextAsset,
-	type ExtractedTextBlock
-} from './block-lookup-nuterra-text';
+import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 
 interface BlockLookupSourceExtractionAdapter {
 	extractRecords(

@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import { Effect } from 'effect';
 import log from 'electron-log';
+import fs from 'fs';
+import path from 'path';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	BlockLookupBuildRequest,
@@ -13,12 +13,12 @@ import {
 	BlockLookupSettings,
 	PersistedBlockLookupIndex
 } from 'shared/block-lookup';
-import { writeUtf8FileAtomic } from './storage';
+import { createBlockLookupIndexBuild, createBlockLookupIndexProgress } from './block-lookup-index-build';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 import { searchBlockLookupRecords } from './block-lookup-search';
 import { normalizeWorkshopRoot } from './block-lookup-source-discovery';
-import { createBlockLookupIndexBuild, createBlockLookupIndexProgress } from './block-lookup-index-build';
 import { getBlockLookupPreviewCachePath } from './preview-protocol';
+import { writeUtf8FileAtomic } from './storage';
 
 export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-nuterra-text';
 

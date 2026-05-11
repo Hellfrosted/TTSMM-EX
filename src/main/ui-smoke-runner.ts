@@ -1,7 +1,6 @@
+import { app, type BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
-import { app, type BrowserWindow } from 'electron';
 import {
 	isUiSmokeRunRequest,
 	readPrefixedArgValue,
@@ -12,6 +11,7 @@ import {
 	UI_SMOKE_SCREENSHOT_DIR_ENV,
 	UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG
 } from 'shared/ui-smoke';
+import zlib from 'zlib';
 
 interface UiSmokeCheckpoint {
 	name: string;

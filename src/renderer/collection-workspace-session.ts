@@ -1,4 +1,4 @@
-import { CollectionManagerModalType, cloneCollection, type AppConfig, type CollectionErrors, type ModCollection } from 'model';
+import { type AppConfig, type CollectionErrors, CollectionManagerModalType, cloneCollection, type ModCollection } from 'model';
 import { getCollectionValidationKey, type ValidationIssueSummary } from './collection-validation-run';
 
 type CollectionValidationStatus = 'none' | 'validating' | 'passed' | 'failed' | 'stale';

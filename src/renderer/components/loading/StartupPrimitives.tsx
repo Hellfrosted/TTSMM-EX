@@ -1,5 +1,5 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { Check, X } from 'lucide-react';
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import { DesktopButton } from '../DesktopControls';
 import { getStatusSurfaceClassName } from '../status-surface-classes';
 

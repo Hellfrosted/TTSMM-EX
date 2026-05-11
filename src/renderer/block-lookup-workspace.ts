@@ -1,15 +1,15 @@
-import { getRows, type AppState, type BlockLookupColumnKey } from 'model';
+import { type AppState, type BlockLookupColumnKey, getRows } from 'model';
+import type { BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 import type {
-	BlockLookupBuildResult,
 	BlockLookupBuildRequest,
+	BlockLookupBuildResult,
 	BlockLookupIndexProgress,
 	BlockLookupIndexStats,
 	BlockLookupModSource,
-	BlockLookupSearchRow,
 	BlockLookupSearchResult,
+	BlockLookupSearchRow,
 	BlockLookupSettings
 } from 'shared/block-lookup';
-import type { BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 
 type BlockLookupWorkspaceAppState = Pick<AppState, 'mods'>;
 

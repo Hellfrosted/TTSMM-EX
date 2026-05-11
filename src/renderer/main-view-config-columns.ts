@@ -1,4 +1,4 @@
-import { MainColumnTitles, type AppConfig } from 'model';
+import { type AppConfig, MainColumnTitles } from 'model';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
 import { defaultEquivalentOrder, normalizedOrder } from 'shared/view-config';

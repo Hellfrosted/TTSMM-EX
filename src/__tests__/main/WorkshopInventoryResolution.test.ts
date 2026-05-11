@@ -1,9 +1,9 @@
-import { describe, expect, it as vitestIt } from 'vitest';
 import { it } from '@effect/vitest';
 import { Effect } from 'effect';
+import { describe, expect, it as vitestIt } from 'vitest';
 import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import { WorkshopInventoryResolver } from '../../main/workshop-inventory-resolution';
-import { ModType, type ModData } from '../../model';
+import { type ModData, ModType } from '../../model';
 
 describe('WorkshopInventoryResolver', () => {
 	vitestIt('tracks resolved workshop mods and queues missing dependencies', () => {

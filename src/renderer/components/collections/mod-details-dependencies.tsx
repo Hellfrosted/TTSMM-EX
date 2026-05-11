@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import type { Key, ReactNode } from 'react';
-import StatusCallout from '../StatusCallout';
 import { DisplayModData, getModDataDisplayName } from 'model';
+import type { Key, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import StatusCallout from '../StatusCallout';
 
 type DetailCellRenderer = {
 	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;

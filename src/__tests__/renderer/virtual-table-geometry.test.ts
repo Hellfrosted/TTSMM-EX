@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
 	BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT,
 	COMPACT_VIRTUAL_ROW_HEIGHT,
-	MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT,
-	VIRTUAL_TABLE_OVERSCAN,
 	getVirtualTableColumnPixelWidth,
 	getVirtualTableColumnWidthStyle,
 	getVirtualTableColumnWidthVariableName,
 	getVirtualTableFixedColumnStyle,
 	getVirtualTableRowHeight,
 	getVirtualTableScrollWidth,
-	setVirtualTableColumnWidthVariable
+	MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT,
+	setVirtualTableColumnWidthVariable,
+	VIRTUAL_TABLE_OVERSCAN
 } from '../../renderer/virtual-table-geometry';
 
 describe('virtual-table-geometry', () => {

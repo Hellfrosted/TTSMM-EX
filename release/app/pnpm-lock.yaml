@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.0.0-beta.64
-        version: 4.0.0-beta.64(effect@4.0.0-beta.64)(ioredis@5.10.1)
+        specifier: 4.0.0-beta.65
+        version: 4.0.0-beta.65(effect@4.0.0-beta.65)(ioredis@5.10.1)
       effect:
-        specifier: 4.0.0-beta.64
-        version: 4.0.0-beta.64
+        specifier: 4.0.0-beta.65
+        version: 4.0.0-beta.65
       greenworks:
         specifier: github:FLSoz/greenworks
         version: https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd
@@ -23,17 +23,17 @@ importers:
 
 packages:
 
-  '@effect/platform-node-shared@4.0.0-beta.64':
-    resolution: {integrity: sha512-F5hVnPZbgKzxy2TijjhNZKqj7tQi60dx1W/JinnsNxYKGuspvW2gDUeqmNw7sP2bEA5ToeGDPqRCRdpHj3sZxg==}
+  '@effect/platform-node-shared@4.0.0-beta.65':
+    resolution: {integrity: sha512-3rY8F3WLEax6Hj08GI/OvDIH+KqjfxH7RM2bAMfgR75NgRmwDtny1P49PtPkoRjH5dcdtThThtsvE4X9OTZkpQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-beta.64
+      effect: ^4.0.0-beta.65
 
-  '@effect/platform-node@4.0.0-beta.64':
-    resolution: {integrity: sha512-HlY04TBxe1Z2+Jl4dbwG5uHiUpEH6jvasoNtII6oergaHHQbbD8fLgFzHdy09mJTMK5B1O1fSb95Yztu5jwHxw==}
+  '@effect/platform-node@4.0.0-beta.65':
+    resolution: {integrity: sha512-QQy3KRcMwP0TngQdfQGl2u1zp03B7k7DuF5SNS8aZhD0dDBpKZpCwFad1ODY5qdY3ycPgMwBwKRRK7y/aw0C9w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-beta.64
+      effect: ^4.0.0-beta.65
       ioredis: ^5.7.0
 
   '@ioredis/commands@1.5.1':
@@ -99,8 +99,8 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  effect@4.0.0-beta.64:
-    resolution: {integrity: sha512-xI332I9guVLsqvLg7aO62IuWq9LiCMs+u5dhr4JDyND2ndYXAk5eaR8KMqtYLoJg1Ie28VQToYPM+xBLEBU3pQ==}
+  effect@4.0.0-beta.65:
+    resolution: {integrity: sha512-QYKvQPAj3CmtsvWkHQww15wX4KG2gNsszDWEcOO5sZCMknp66u6Si/Opmt3wwWCwsyvRmDAdIg+JIz5qzbbFIw==}
 
   fast-check@4.7.0:
     resolution: {integrity: sha512-NsZRtqvSSoCP0HbNjUD+r1JH8zqZalyp6gLY9e7OYs7NK9b6AHOs2baBFeBG7bVNsuoukh89x2Yg3rPsul8ziQ==}
@@ -207,19 +207,19 @@ packages:
 
 snapshots:
 
-  '@effect/platform-node-shared@4.0.0-beta.64(effect@4.0.0-beta.64)':
+  '@effect/platform-node-shared@4.0.0-beta.65(effect@4.0.0-beta.65)':
     dependencies:
       '@types/ws': 8.18.1
-      effect: 4.0.0-beta.64
+      effect: 4.0.0-beta.65
       ws: 8.20.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-beta.64(effect@4.0.0-beta.64)(ioredis@5.10.1)':
+  '@effect/platform-node@4.0.0-beta.65(effect@4.0.0-beta.65)(ioredis@5.10.1)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-beta.64(effect@4.0.0-beta.64)
-      effect: 4.0.0-beta.64
+      '@effect/platform-node-shared': 4.0.0-beta.65(effect@4.0.0-beta.65)
+      effect: 4.0.0-beta.65
       ioredis: 5.10.1
       mime: 4.1.0
       undici: 8.2.0
@@ -268,7 +268,7 @@ snapshots:
   detect-libc@2.1.2:
     optional: true
 
-  effect@4.0.0-beta.64:
+  effect@4.0.0-beta.65:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 4.7.0

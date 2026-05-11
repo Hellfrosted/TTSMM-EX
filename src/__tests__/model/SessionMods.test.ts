@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import { Effect } from 'effect';
-import { ModType } from '../../model/Mod';
+import { describe, expect, it } from 'vitest';
 import { validateCollection } from '../../model/collection-validator';
-import { SessionMods, getDependencies, getDependents, getDescriptor, setupDescriptors } from '../../model/SessionMods';
+import { ModType } from '../../model/Mod';
+import { getDependencies, getDependents, getDescriptor, SessionMods, setupDescriptors } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
 	it.each([

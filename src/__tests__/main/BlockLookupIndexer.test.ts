@@ -1,17 +1,15 @@
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Effect } from 'effect';
 import { createBlockLookupIndexModule } from '../../main/block-lookup-indexer';
 import { collectBlockLookupSources } from '../../main/block-lookup-source-discovery';
 import Steamworks from '../../main/steamworks';
 import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupBuildResult } from '../../shared/block-lookup';
-import { createTempDir } from './test-utils';
+import { createTempDir, mockSteamworksBlockLookupInstallState } from './test-utils';
 
 beforeEach(() => {
-	vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([]);
-	vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
-	vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+	mockSteamworksBlockLookupInstallState();
 });
 
 afterEach(() => {

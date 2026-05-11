@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
-import type { ModContextMenuRequest } from 'shared/mod-context-menu';
 import type { ValidChannel } from 'shared/ipc';
+import type { ModContextMenuRequest } from 'shared/mod-context-menu';
 import { parseEffectIpcPayload } from './ipc-validation';
 
 const MAX_KNOWN_MODS = 100_000;

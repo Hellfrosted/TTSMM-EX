@@ -1,9 +1,9 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
 import { MainCollectionView } from '../../renderer/components/collections/MainCollectionComponent';
 import { resetColumnMeasurementCache } from '../../renderer/components/collections/main-collection-table-layout';
-import { CollectionViewProps, MainColumnTitles, ModType } from '../../model';
 import { createDataTransfer } from './test-utils';
 
 afterEach(() => {

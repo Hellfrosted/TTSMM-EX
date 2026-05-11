@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cloneCollection, type AppConfig, type ModCollection } from '../../model';
+import { type AppConfig, cloneCollection, type ModCollection } from '../../model';
 import type { AppStateUpdate } from '../../model/AppState';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {

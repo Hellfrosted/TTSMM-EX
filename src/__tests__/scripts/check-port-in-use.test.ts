@@ -4,6 +4,7 @@ import net from 'node:net';
 import os from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertConfiguredPortAvailable } from '../../../scripts/check-port-in-use';
+
 let openServers: net.Server[] = [];
 
 function listen(port = 0, host = 'localhost') {
@@ -44,17 +45,19 @@ function runPortCheck(port: string | number) {
 }
 
 async function waitForPortCheck(port: string | number) {
-	let lastError: unknown;
-	for (let attempt = 0; attempt < 10; attempt++) {
-		try {
-			await runPortCheck(port);
-			return;
-		} catch (error) {
-			lastError = error;
-			await new Promise((resolve) => setTimeout(resolve, 10));
+	return waitForPortCheckAttempt(port, 0);
+}
+
+async function waitForPortCheckAttempt(port: string | number, attempt: number): Promise<void> {
+	try {
+		await runPortCheck(port);
+	} catch (error) {
+		if (attempt >= 9) {
+			throw error;
 		}
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		return waitForPortCheckAttempt(port, attempt + 1);
 	}
-	throw lastError;
 }
 
 function getMachineIpAddress() {

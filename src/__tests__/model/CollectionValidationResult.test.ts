@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import type { CollectionErrors } from '../../model';
 import {
-	ModErrorType,
-	ModType,
 	createCollectionValidationResultPolicy,
 	getCollectionStatusTags,
 	getModDataDependencyIgnoreKey,
-	getModDescriptorKey
+	getModDescriptorKey,
+	ModErrorType,
+	ModType
 } from '../../model';
-import type { CollectionErrors } from '../../model';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
 
 describe('collection validation result policy', () => {
 	it('uses one dependency ignore key for descriptors and dependency table records', () => {

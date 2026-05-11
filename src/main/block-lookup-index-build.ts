@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
 	type BlockLookupBuildRequest,
@@ -9,9 +10,8 @@ import {
 	type BlockLookupRecord,
 	type PersistedBlockLookupIndex
 } from 'shared/block-lookup';
-import { Effect } from 'effect';
-import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
 import { extractBlockLookupBundleOutcomes } from './block-lookup-bundle-text-assets';
+import { createBlockLookupIndexPlan, createBlockLookupIndexStats, createBlockLookupSourceIndexRecord } from './block-lookup-index-planner';
 import {
 	assignRenderedBlockPreviewsToRecords,
 	getBlockLookupRecordPreviewMatchNameCandidates

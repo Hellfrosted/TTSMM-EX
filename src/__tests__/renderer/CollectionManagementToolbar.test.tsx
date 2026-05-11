@@ -1,5 +1,5 @@
-import React from 'react';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionManagementToolbar from '../../renderer/components/collections/CollectionManagementToolbar';
 import { createAppState, renderInAppRoot } from './test-utils';

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm, useFormState, useWatch } from 'react-hook-form';
-import type { Path, PathValue } from 'react-hook-form';
 import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Path, PathValue } from 'react-hook-form';
+import { useForm, useFormState, useWatch } from 'react-hook-form';
 import api from 'renderer/Api';
 import { useWriteConfigMutation } from 'renderer/async-cache';
-import { settingsFormResolver, type EditingConfig, type LogConfig } from 'renderer/settings-validation';
+import { type EditingConfig, type LogConfig, settingsFormResolver } from 'renderer/settings-validation';
+import { formatErrorMessage } from 'renderer/util/error-message';
 
 function cloneEditingConfig(config: EditingConfig): EditingConfig {
 	return {
@@ -226,7 +227,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 			api.logger.error(error);
 			return {
 				ok: false,
-				message: error instanceof Error ? error.message : 'Failed to save settings'
+				message: formatErrorMessage(error, 'Failed to save settings')
 			};
 		} finally {
 			updateState({ savingConfig: false });

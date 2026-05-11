@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import React, { useEffect, useRef } from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SteamworksVerification from '../../renderer/components/loading/SteamworksVerification';
