@@ -3,6 +3,17 @@ export interface VirtualTableColumnWidthLike {
 	width?: number | string;
 }
 
+export const VIRTUAL_TABLE_OVERSCAN = 8;
+export const MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT = 48;
+export const BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT = 44;
+export const COMPACT_VIRTUAL_ROW_HEIGHT = 34;
+
+interface VirtualTableRowHeightOptions {
+	compact?: boolean;
+	coarsePointer?: boolean;
+	regularHeight: number;
+}
+
 function normalizeVirtualTablePixelWidth(width: number, fallbackWidth = 0) {
 	const resolvedWidth = Number.isFinite(width) ? width : fallbackWidth;
 	return Math.max(0, Math.round(resolvedWidth));
@@ -62,4 +73,8 @@ export function getVirtualTableScrollWidth(columnWidths: Iterable<number>, fixed
 		scrollWidth += normalizeVirtualTablePixelWidth(columnWidth);
 	}
 	return scrollWidth;
+}
+
+export function getVirtualTableRowHeight({ compact, coarsePointer, regularHeight }: VirtualTableRowHeightOptions) {
+	return compact && !coarsePointer ? COMPACT_VIRTUAL_ROW_HEIGHT : regularHeight;
 }

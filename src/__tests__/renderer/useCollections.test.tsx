@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import type { ElectronApi } from '../../shared/electron-api';
 import { useCollections } from '../../renderer/hooks/collections/useCollections';
-import { createAppState, createQueryWrapper, createTestConfig } from './test-utils';
+import { createAppState, createTestWrapper, createTestConfig } from './test-utils';
 import { cloneCollection, type AppConfig, type ModCollection } from '../../model';
 import type { CollectionLifecycleFailureCode } from '../../shared/collection-lifecycle';
 import type { CollectionContentSaveResult } from '../../shared/collection-content-save';
@@ -54,7 +54,7 @@ function renderCollectionsHook(appState: ReturnType<typeof createAppState>, over
 				onDraftEditWorkflow: vi.fn(),
 				...overrides
 			}),
-		{ wrapper: createQueryWrapper() }
+		{ wrapper: createTestWrapper() }
 	);
 }
 

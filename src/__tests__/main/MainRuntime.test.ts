@@ -2,6 +2,12 @@ import { Effect } from 'effect';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('main Effect runtime', () => {
+	it('includes the main-process Effect platform-node proof layer', async () => {
+		const { MainPlatformNodeProofLayer } = await import('../../main/platform-node-proof');
+
+		expect(MainPlatformNodeProofLayer).toBeDefined();
+	});
+
 	it('memoizes the main runtime layer across runs', async () => {
 		vi.resetModules();
 		const fetchModInventory = vi.fn(() => Effect.succeed([]));

@@ -45,6 +45,7 @@ import { VirtualTableBody, VirtualTableRow } from 'renderer/components/virtual-t
 import { PerfProfiler, markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useBlockLookupStore, type BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
+import { BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT, VIRTUAL_TABLE_OVERSCAN, getVirtualTableRowHeight } from 'renderer/virtual-table-geometry';
 import {
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
@@ -75,17 +76,16 @@ interface BlockLookupViewProps {
 	appState: BlockLookupViewAppState;
 }
 
-const blockLookupToolbarRowClassName = 'BlockLookupToolbarRow flex min-w-0 items-center gap-2.5 max-[760px]:flex-wrap';
+const blockLookupToolbarRowClassName = 'BlockLookupToolbarRow flex min-w-0 items-center gap-2.5 max-[1320px]:flex-wrap';
 const blockLookupSearchControlClassName =
-	'min-w-70 max-w-160 flex-[1_1_42rem] max-[760px]:min-w-0 max-[760px]:max-w-none max-[760px]:basis-full';
-const blockLookupActionGroupClassName = 'grid w-[31rem] shrink-0 grid-cols-3 items-center gap-2 max-[760px]:w-full';
+	'min-w-70 max-w-140 flex-[0_1_35rem] max-[1320px]:min-w-0 max-[1320px]:max-w-none max-[1320px]:basis-full';
+const blockLookupActionGroupClassName = 'grid w-[31rem] shrink-0 grid-cols-3 items-center gap-2 max-[1320px]:w-full';
 const blockLookupIndexActionGroupClassName =
-	'grid w-[31rem] shrink-0 grid-cols-3 items-center justify-self-end gap-2 max-[1120px]:col-span-2 max-[1120px]:w-full max-[1120px]:justify-self-stretch max-[760px]:col-span-1';
+	'grid w-[31rem] shrink-0 grid-cols-3 items-center justify-self-end gap-2 max-[1320px]:col-span-2 max-[1320px]:w-full max-[1320px]:justify-self-stretch max-[760px]:col-span-1';
 const blockLookupColumnMoveButtonClassName = 'shrink-0';
 const blockLookupIndexSourceClassName =
-	'BlockLookupIndexSource grid min-w-0 grid-cols-[minmax(17.5rem,40rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2 max-[1120px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:grid-cols-1';
+	'BlockLookupIndexSource grid min-w-0 grid-cols-[minmax(17.5rem,35rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2 max-[1320px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:grid-cols-1';
 const BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH = 260;
-const BLOCK_LOOKUP_VIRTUAL_OVERSCAN = 24;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
 
 function clampTableNavigationIndex(value: number, rowCount: number) {
@@ -939,12 +939,16 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		return Math.max(getBlockLookupTableScrollWidth(visibleColumns), availableTableWidth);
 	}, [availableTableWidth, visibleColumns]);
 	const needsHorizontalScroll = tableScrollX > availableTableWidth + 1;
-	const estimatedRowHeight = blockLookupConfig?.smallRows && !coarsePointer ? 34 : 44;
+	const estimatedRowHeight = getVirtualTableRowHeight({
+		compact: blockLookupConfig?.smallRows,
+		coarsePointer,
+		regularHeight: BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT
+	});
 	const rowVirtualizer = useVirtualizer({
 		count: sortedRows.length,
 		getScrollElement: () => tableScrollRef.current,
 		estimateSize: () => estimatedRowHeight,
-		overscan: BLOCK_LOOKUP_VIRTUAL_OVERSCAN,
+		overscan: VIRTUAL_TABLE_OVERSCAN,
 		isScrollingResetDelay: VIRTUAL_SCROLLING_RESET_DELAY_MS,
 		useFlushSync: false,
 		initialRect: {
@@ -1126,7 +1130,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								onChange={(event) => {
 									setWorkshopRoot(event.target.value);
 								}}
-								placeholder="TerraTech workshop content folder"
+								placeholder="Workshop content folder"
 							/>
 						</div>
 						<div className="inline-flex min-h-11 shrink-0 items-center gap-2 text-body text-text">

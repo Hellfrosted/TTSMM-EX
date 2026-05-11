@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppConfigKeys, LogLevel, SettingsViewModalType } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
-import { createAppState, createQueryWrapper } from './test-utils';
+import { createAppState, createTestWrapper } from './test-utils';
 
 describe('useSettingsForm', () => {
 	it('selects a settings path through the promise-based preload API', async () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockResolvedValueOnce('C:\\Games\\TerraTech\\LocalMods');
 
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		await act(async () => {
 			await result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory');
@@ -30,7 +30,7 @@ describe('useSettingsForm', () => {
 				userOverrides: new Map()
 			}
 		});
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Temp\\LocalMods');
@@ -61,7 +61,7 @@ describe('useSettingsForm', () => {
 				gameExec: 'old error'
 			}
 		});
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.GAME_EXEC, 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
@@ -95,7 +95,7 @@ describe('useSettingsForm', () => {
 				userOverrides: new Map()
 			}
 		});
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.setField('treatNuterraSteamBetaAsEquivalent', false);
@@ -126,7 +126,7 @@ describe('useSettingsForm', () => {
 			}
 		});
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.setField(AppConfigKeys.LOCAL_DIR, 'D:\\Other\\LocalMods');
@@ -161,7 +161,7 @@ describe('useSettingsForm', () => {
 		vi.mocked(window.electron.updateConfig)
 			.mockResolvedValueOnce(null)
 			.mockImplementationOnce(async (config) => config);
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.setField('logLevel', LogLevel.DEBUG);
@@ -188,7 +188,7 @@ describe('useSettingsForm', () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockRejectedValueOnce('exploded');
 
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		await act(async () => {
 			await expect(result.current.selectPath(AppConfigKeys.LOCAL_DIR, true, 'Select TerraTech LocalMods directory')).rejects.toThrow(
@@ -201,7 +201,7 @@ describe('useSettingsForm', () => {
 
 	it('restores modal-scoped settings edits when a modal is cancelled', () => {
 		const appState = createAppState();
-		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
 
 		act(() => {
 			result.current.openWorkshopIdModal();

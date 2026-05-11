@@ -4,9 +4,9 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
-import { AppQueryProvider, queryClient } from '../../renderer/query-client';
 import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
+import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/async-cache';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
 import { createAppState, createDataTransfer } from './test-utils';
 
@@ -78,9 +78,7 @@ function renderBlockLookupView(configOverrides: Parameters<typeof createAppState
 		appState,
 		...render(
 			<div className="AppRoot">
-				<AppQueryProvider>
-					<BlockLookupView appState={appState} />
-				</AppQueryProvider>
+				<BlockLookupView appState={appState} />
 			</div>
 		)
 	};
@@ -88,7 +86,8 @@ function renderBlockLookupView(configOverrides: Parameters<typeof createAppState
 
 afterEach(() => {
 	cleanup();
-	queryClient.clear();
+	setBlockLookupBootstrapCacheData(undefined);
+	setBlockLookupSearchCacheData(new Map());
 	vi.unstubAllGlobals();
 });
 

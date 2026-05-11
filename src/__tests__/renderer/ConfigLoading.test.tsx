@@ -1,14 +1,13 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
-import { createTestConfig, createTestQueryClient } from './test-utils';
+import { createTestConfig } from './test-utils';
 import type { AppConfig, ModCollection } from '../../model';
-import { queryKeys } from '../../renderer/async-cache';
+import { readConfigCache, setConfigCacheData } from '../../renderer/async-cache';
 
 function ConfigLoadingHarness() {
 	const location = useLocation();
@@ -32,16 +31,13 @@ function ConfigLoadingHarness() {
 	);
 }
 
-function ConfigLoadingAppHarness({ queryClient }: { queryClient?: QueryClient }) {
+function ConfigLoadingAppHarness() {
 	const navigate = useNavigate();
-	const [ownedQueryClient] = React.useState(() => queryClient ?? createTestQueryClient());
 
 	return (
-		<QueryClientProvider client={ownedQueryClient}>
-			<AppStateProvider navigate={navigate}>
-				<ConfigLoadingHarness />
-			</AppStateProvider>
-		</QueryClientProvider>
+		<AppStateProvider navigate={navigate}>
+			<ConfigLoadingHarness />
+		</AppStateProvider>
 	);
 }
 
@@ -59,6 +55,10 @@ function startupSuccess(config: AppConfig, activeCollection: ModCollection, coll
 }
 
 describe('ConfigLoading', () => {
+	beforeEach(() => {
+		setConfigCacheData(undefined);
+	});
+
 	it('uses the corrected default Windows executable path', () => {
 		expect(DEFAULT_CONFIG.gameExec).toBe('C:\\Program Files (x86)\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe');
 	});
@@ -223,7 +223,6 @@ describe('ConfigLoading', () => {
 	});
 
 	it('caches the normalized startup route after applying authoritative collection state', async () => {
-		const queryClient = createTestQueryClient();
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ currentPath: '/settings' }));
 		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
@@ -233,17 +232,17 @@ describe('ConfigLoading', () => {
 		render(
 			<MemoryRouter initialEntries={['/loading/config']}>
 				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness queryClient={queryClient} />} />
+					<Route path="*" element={<ConfigLoadingAppHarness />} />
 				</Routes>
 			</MemoryRouter>
 		);
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
-			expect(queryClient.getQueryData<AppConfig>(queryKeys.config.current())).toEqual(
-				expect.objectContaining({ currentPath: '/collections/main', activeCollection: 'default' })
-			);
 		});
+		await expect(readConfigCache()).resolves.toEqual(
+			expect.objectContaining({ currentPath: '/collections/main', activeCollection: 'default' })
+		);
 	});
 
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {

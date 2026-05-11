@@ -57,7 +57,6 @@ describe('main-collection-row', () => {
 		const onContextMenu = vi.fn();
 		const onOpenDetails = vi.fn();
 		const onRowHighlight = vi.fn();
-		const measureElement = vi.fn();
 		const record = createRecord();
 
 		render(
@@ -66,8 +65,8 @@ describe('main-collection-row', () => {
 					<MainCollectionVirtualRow
 						columns={[{ title: 'ID', dataIndex: 'id', width: 140 }]}
 						highlighted={true}
-						measureElement={measureElement}
 						record={record}
+						rowHeight={48}
 						rowIndex={2}
 						selected={true}
 						start={96}
@@ -87,7 +86,7 @@ describe('main-collection-row', () => {
 		expect(screen.getByText('HumanReadableModId')).toBeInTheDocument();
 		expect(onSelectedChange).toHaveBeenCalledWith(record, false);
 		expect(onContextMenu).toHaveBeenCalledTimes(1);
-		expect(measureElement).toHaveBeenCalled();
+		expect(screen.getByRole('row', { name: /Mod row for HumanReadableModId/ })).toHaveStyle({ height: '48px' });
 	});
 
 	it('highlights rows from mouse and keyboard interaction and opens details on double click', () => {
@@ -102,8 +101,8 @@ describe('main-collection-row', () => {
 					<MainCollectionVirtualRow
 						columns={[{ title: 'ID', dataIndex: 'id', width: 140 }]}
 						highlighted={false}
-						measureElement={vi.fn()}
 						record={record}
+						rowHeight={48}
 						rowIndex={2}
 						selected={false}
 						start={96}
@@ -144,8 +143,8 @@ describe('main-collection-row', () => {
 						columns={[{ title: 'ID', dataIndex: 'id', width: 140 }]}
 						detailsOpen
 						highlighted={false}
-						measureElement={vi.fn()}
 						record={record}
+						rowHeight={48}
 						rowIndex={2}
 						selected={false}
 						start={96}

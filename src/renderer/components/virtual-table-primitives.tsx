@@ -33,7 +33,6 @@ interface VirtualTableRowProps {
 	children: ReactNode;
 	className: string;
 	dataIndex: number;
-	measureElement?: (element: HTMLTableRowElement | null) => void;
 	keyboardShortcuts?: string;
 	onActivate?: (event: MouseEvent<HTMLTableRowElement> | KeyboardEvent<HTMLTableRowElement>) => void;
 	onContextMenu?: () => void;
@@ -49,7 +48,6 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 	children,
 	className,
 	dataIndex,
-	measureElement,
 	keyboardShortcuts,
 	onActivate,
 	onContextMenu,
@@ -92,7 +90,6 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 	return (
 		<tr
 			{...props}
-			ref={measureElement}
 			data-index={dataIndex}
 			className={className}
 			style={{ height: rowHeight, transform: `translateY(${start}px)`, width }}

@@ -1,4 +1,5 @@
-import { create } from 'zustand';
+import { useAtomRef } from '@effect/atom-react';
+import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import type { BlockLookupColumnKey } from 'model';
 
 export type { BlockLookupColumnKey } from 'model';
@@ -14,15 +15,20 @@ interface BlockLookupState {
 	) => void;
 }
 
-export const useBlockLookupStore = create<BlockLookupState>((set) => ({
+const blockLookupStateRef = AtomRef.make<BlockLookupState>({
 	sortKey: 'relevance',
 	sortDirection: 'ascend',
 	setSortKey: (sortKey) => {
-		set({ sortKey });
+		blockLookupStateRef.update((state) => ({ ...state, sortKey }));
 	},
 	setSortDirection: (nextDirection) => {
-		set((state) => ({
+		blockLookupStateRef.update((state) => ({
+			...state,
 			sortDirection: typeof nextDirection === 'function' ? nextDirection(state.sortDirection) : nextDirection
 		}));
 	}
-}));
+});
+
+export function useBlockLookupStore<T>(selector: (state: BlockLookupState) => T) {
+	return selector(useAtomRef(blockLookupStateRef));
+}

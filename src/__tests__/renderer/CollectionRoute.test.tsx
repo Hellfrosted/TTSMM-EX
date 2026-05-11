@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppState } from '../../model';
 import MainCollectionComponent from '../../renderer/components/collections/MainCollectionComponent';
 import CollectionRoute from '../../renderer/views/CollectionView';
-import { createAppState, renderWithQueryClient } from './test-utils';
+import { createAppState, renderWithTestProviders } from './test-utils';
 
 afterEach(() => {
 	cleanup();
@@ -32,7 +32,7 @@ describe('CollectionRoute', () => {
 			allCollectionNames: new Set(['default'])
 		});
 
-		renderWithQueryClient(
+		renderWithTestProviders(
 			<MemoryRouter initialEntries={['/collections']}>
 				<Routes>
 					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>
@@ -63,7 +63,7 @@ describe('CollectionRoute', () => {
 		});
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 
-		renderWithQueryClient(
+		renderWithTestProviders(
 			<MemoryRouter initialEntries={['/collections/main']}>
 				<Routes>
 					<Route path="/" element={<CollectionRouteHarness appState={appState} />}>

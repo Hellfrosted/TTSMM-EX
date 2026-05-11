@@ -1,15 +1,12 @@
 import React from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App, { AppShell, AppViewStage, resetInitialSteamworksVerificationForTests } from '../renderer/App';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
 import { DEFAULT_CONFIG } from '../renderer/Constants';
-import { queryClient } from '../renderer/query-client';
 import { AppRoutes } from '../renderer/routes';
 import { AppStateProvider, useAppStateSelector } from '../renderer/state/app-state';
-import { createTestQueryClient } from './renderer/test-utils';
 
 const STARTUP_ROUTE_TIMEOUT_MS = 25000;
 const STARTUP_ROUTE_TEST_TIMEOUT_MS = 30000;
@@ -41,26 +38,18 @@ function InitializedConfigSeeder() {
 function AppShellInitializedHarness() {
 	const location = useLocation();
 	const navigate = useNavigate();
-	const [queryClient] = React.useState(() => createTestQueryClient());
 
 	return (
-		<QueryClientProvider client={queryClient}>
-			<AppStateProvider navigate={(path) => void navigate(path)}>
-				<InitializedConfigSeeder />
-				<AppShell />
-				<div data-testid="location">{location.pathname}</div>
-			</AppStateProvider>
-		</QueryClientProvider>
+		<AppStateProvider navigate={(path) => void navigate(path)}>
+			<InitializedConfigSeeder />
+			<AppShell />
+			<div data-testid="location">{location.pathname}</div>
+		</AppStateProvider>
 	);
 }
 
-beforeEach(() => {
-	queryClient.clear();
-});
-
 afterEach(() => {
 	cleanup();
-	queryClient.clear();
 	resetInitialSteamworksVerificationForTests();
 });
 

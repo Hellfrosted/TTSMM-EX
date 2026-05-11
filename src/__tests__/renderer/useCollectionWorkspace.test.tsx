@@ -2,7 +2,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods } from '../../model';
 import { useCollectionWorkspace } from '../../renderer/views/use-collection-workspace';
-import { createAppState, createQueryWrapper } from './test-utils';
+import { createAppState, createTestWrapper } from './test-utils';
 
 afterEach(() => {
 	cleanup();
@@ -39,7 +39,7 @@ describe('useCollectionWorkspace', () => {
 		});
 
 		const { result } = renderHook(() => useCollectionWorkspace({ appState, openNotification: vi.fn() }), {
-			wrapper: createQueryWrapper()
+			wrapper: createTestWrapper()
 		});
 
 		act(() => {

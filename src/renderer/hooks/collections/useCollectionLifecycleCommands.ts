@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
 import api from 'renderer/Api';
@@ -55,12 +54,11 @@ export function useCollectionLifecycleCommands({
 	setSavingCollection
 }: UseCollectionLifecycleCommandsOptions) {
 	const { updateState } = appState;
-	const queryClient = useQueryClient();
 	const lifecycleCommands = useMemo(
 		() =>
 			createCollectionLifecycleCommandRunner({
 				applyLifecycleResult: (result) => {
-					applyAuthoritativeCollectionStateToCache(queryClient, result);
+					applyAuthoritativeCollectionStateToCache(result);
 				},
 				client: api,
 				getState: () => ({
@@ -83,7 +81,6 @@ export function useCollectionLifecycleCommands({
 			madeEdits,
 			onCollectionLifecycleResultApplied,
 			openNotification,
-			queryClient,
 			resetValidationState,
 			runQueuedCollectionWrite,
 			setMadeEdits,

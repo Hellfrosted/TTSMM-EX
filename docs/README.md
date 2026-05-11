@@ -8,7 +8,7 @@ This directory holds durable project documentation for source builds, maintenanc
 
 - [README.md](../README.md): install, source setup, runtime requirements, verification, packaging, app data, and behavior notes.
 - [docs/development.md](development.md): Linux runtime packages, packaging details, script inventory, and reference links.
-- [docs/adr/](adr/): accepted architecture decisions.
+- [docs/adr/](adr/): accepted architecture decisions, including local diagnostics and telemetry policy.
 
 ## Maintenance
 

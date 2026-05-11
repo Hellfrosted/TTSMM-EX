@@ -2,8 +2,10 @@ import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
+import * as NodePath from '@effect/platform-node/NodePath';
 import log from 'electron-log';
-import { Effect } from 'effect';
+import { Effect, FileSystem, Layer, Path as EffectPath } from 'effect';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
 
 const EXTRACTOR_SOURCE_BATCH_SIZE = 1;
@@ -148,7 +150,9 @@ const runBlockLookupBundleExtractor = Effect.fnUntraced(function* (
 	});
 });
 
-function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | undefined): { directory: string; filePath: string } | null {
+const BlockLookupPlatformNodeIoLayer = Layer.merge(NodeFileSystem.layer, NodePath.layer);
+
+function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | undefined) {
 	const uniqueNames = [
 		...new Set(
 			(previewMatchNames ?? []).flatMap((name) => {
@@ -158,12 +162,26 @@ function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | unde
 		)
 	];
 	if (!uniqueNames.length) {
-		return null;
+		return Effect.succeed(null);
 	}
-	const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ttsmm-block-lookup-preview-match-'));
-	const filePath = path.join(directory, 'names.txt');
-	fs.writeFileSync(filePath, uniqueNames.join('\n'), 'utf8');
-	return { directory, filePath };
+	return Effect.gen(function* () {
+		const fileSystem = yield* FileSystem.FileSystem;
+		const platformPath = yield* EffectPath.Path;
+		const directory = yield* fileSystem.makeTempDirectory({
+			directory: os.tmpdir(),
+			prefix: 'ttsmm-block-lookup-preview-match-'
+		});
+		const filePath = platformPath.join(directory, 'names.txt');
+		yield* fileSystem.writeFileString(filePath, uniqueNames.join('\n'));
+		return { directory, filePath };
+	}).pipe(Effect.provide(BlockLookupPlatformNodeIoLayer));
+}
+
+function removePreviewMatchNamesDirectory(directory: string) {
+	return Effect.gen(function* () {
+		const fileSystem = yield* FileSystem.FileSystem;
+		yield* fileSystem.remove(directory, { force: true, recursive: true });
+	}).pipe(Effect.provide(BlockLookupPlatformNodeIoLayer), Effect.ignore);
 }
 
 function createExtractorSourceBatches(sourcePaths: readonly string[]): string[][] {
@@ -183,7 +201,7 @@ export const extractBlockLookupBundleOutcomes = Effect.fnUntraced(function* (
 		return yield* Effect.fail(new Error('Block Lookup native extractor is unavailable.'));
 	}
 
-	const previewMatchNamesFile = createPreviewMatchNamesFile(options.previewMatchNames);
+	const previewMatchNamesFile = yield* createPreviewMatchNamesFile(options.previewMatchNames);
 	const outputs = yield* Effect.gen(function* () {
 		const outputs: ExtractorOutput[] = [];
 		for (const batch of createExtractorSourceBatches(sourcePaths)) {
@@ -203,9 +221,9 @@ export const extractBlockLookupBundleOutcomes = Effect.fnUntraced(function* (
 		return outputs;
 	}).pipe(
 		Effect.ensuring(
-			Effect.sync(() => {
+			Effect.gen(function* () {
 				if (previewMatchNamesFile) {
-					fs.rmSync(previewMatchNamesFile.directory, { force: true, recursive: true });
+					yield* removePreviewMatchNamesDirectory(previewMatchNamesFile.directory);
 				}
 			})
 		),

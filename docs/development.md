@@ -120,18 +120,21 @@ For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify
 
 ## Effect Boundaries
 
-TypeScript internals use Effect v4 beta for async composition, expected failures, and schema decoding. Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
+TypeScript internals use Effect v4 beta for async composition, expected failures, schema decoding, and renderer-local state/cache ownership. Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
 
 - Electron IPC, preload, contextBridge, and the shared renderer API contract.
-- React event handlers, hooks, TanStack Query callbacks, React Hook Form resolvers, and dynamic component imports. Renderer programs that touch Electron run through `runRenderer(...)`; React and TanStack still receive Promises at their callback boundary.
+- React event handlers, hooks, React Hook Form resolvers, and dynamic component imports. Renderer programs that touch Electron run through `runRenderer(...)`; React still receives Promises at its callback boundary.
 - Electron app startup, window/devtools/updater/menu wiring, UI smoke scripts, and Vitest bridges.
 - Main-process IPC handlers that run Effect programs use `runMain(...)` at the Electron Promise boundary.
 - Native or callback adapters that must expose a Promise or callback to an external lifecycle, including Steam UGC callbacks, Steam persona event callbacks that resume Effect state with `Effect.runFork`, process/window lifecycle hooks, dynamic imports, and low-level test adapters.
-- Internal concurrency owners should stay in Effect services or primitives. Current owners include validation fibers, the Steam persona cache service, and the hook-local collection write semaphore.
+- Renderer config, collection, mod metadata, game-running, Block Lookup cache, and local table/app state are owned by Effect Atom refs. Do not reintroduce React Query or Zustand as parallel owners.
+- Internal concurrency owners should stay in Effect services or primitives. Current owners include validation fibers, the Steam persona cache service, Atom refs, and the hook-local collection write semaphore.
+- `@effect/platform-node` belongs to Electron main-process and local script code only. Renderer code must not import it unless a future boundary proof explicitly expands that rule.
+- `@effect/opentelemetry` is deferred by [ADR 0008](adr/0008-defer-effect-opentelemetry.md). Any future telemetry must be local-only by default, with no network exporter or off-device data flow unless a later decision designs an explicit user-controlled export path.
 
 Remaining Promise/Effect ledger:
 
-- Framework edges: `runRenderer(...)`, `runMain(...)`, React hooks/events, TanStack Query callbacks, React Hook Form resolvers, and Vitest `Effect.runPromise(...)` bridges.
+- Framework edges: `runRenderer(...)`, `runMain(...)`, React hooks/events, React Hook Form resolvers, and Vitest `Effect.runPromise(...)` bridges.
 - Transport edges: `src/renderer/Api.ts`, `src/shared/electron-api.ts`, preload/contextBridge, and Electron IPC handler return values.
 - Native/callback edges: Steamworks callback adapters, child process launch events, Electron window/updater/devtools lifecycle code, dynamic imports, and UI smoke delays.
 - Runtime edges: `src/main/runtime.ts` and `src/renderer/runtime.ts`; do not create additional ad hoc runtime runners inside domain code.
@@ -160,13 +163,11 @@ Core app stack:
 Renderer libraries:
 
 - [Tailwind CSS documentation](https://tailwindcss.com/docs)
-- [TanStack Query documentation](https://tanstack.com/query/latest)
 - [TanStack Table documentation](https://tanstack.com/table/latest)
 - [TanStack Virtual documentation](https://tanstack.com/virtual/latest)
 - [React Hook Form documentation](https://react-hook-form.com/)
 - [Effect documentation](https://effect.website/docs/)
 - [Effect Schema documentation](https://effect.website/docs/schema/introduction/)
-- [Zustand documentation](https://zustand.docs.pmnd.rs/)
 - [Lucide React documentation](https://lucide.dev/guide/packages/lucide-react)
 
 Tooling and validation:

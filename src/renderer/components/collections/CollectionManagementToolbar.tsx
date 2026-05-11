@@ -27,6 +27,7 @@ const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
 const toolbarRowClassName = 'flex min-w-0 items-center gap-2.5 max-[1100px]:flex-wrap';
 const toolbarLeadingControlClassName =
 	'min-w-70 max-w-140 flex-[0_1_35rem] max-[1100px]:min-w-0 max-[1100px]:max-w-none max-[1100px]:basis-full';
+const toolbarCollectionSelectorClassName = 'min-w-52 max-w-88 flex-[0_1_22rem] max-[760px]:min-w-0 max-[760px]:max-w-none';
 const toolbarActionGridClassName = 'ml-auto grid w-[31rem] shrink-0 grid-cols-3 items-center gap-2 max-[1100px]:ml-0 max-[1100px]:w-full';
 const toolbarLaunchActionClassName = 'CollectionToolbarGridButton';
 const toolbarMenuButtonClassName =
@@ -419,17 +420,19 @@ function PrimaryCollectionControls({
 function CollectionSelector({
 	activeCollectionName,
 	changeActiveCollectionCallback,
+	className = toolbarLeadingControlClassName,
 	disabledFeatures,
 	sortedCollectionNames
 }: {
 	activeCollectionName?: string;
 	changeActiveCollectionCallback: (name: string) => void;
+	className?: string;
 	disabledFeatures: boolean;
 	sortedCollectionNames: string[];
 }) {
 	return (
 		<DesktopSelect
-			className={`${toolbarLeadingControlClassName} px-2.75`}
+			className={`${className} px-2.75`}
 			value={activeCollectionName || ''}
 			aria-label="Select the active collection"
 			onChange={(event) => {
@@ -677,16 +680,19 @@ function CollectionManagementToolbarComponent({
 				<CollectionSelector
 					activeCollectionName={activeCollection?.name}
 					changeActiveCollectionCallback={changeActiveCollectionCallback}
+					className={toolbarCollectionSelectorClassName}
 					disabledFeatures={disabledFeatures}
 					sortedCollectionNames={sortedCollectionNames}
 				/>
 				{resultSummary ? (
 					<div
 						id={resultSummaryId}
-						className="min-w-0 shrink-0 text-ui leading-[var(--app-leading-ui)] text-text-muted max-[1100px]:w-full"
+						className="grid min-h-11 min-w-38 shrink-0 content-center justify-items-end gap-0.5 text-right text-ui leading-[var(--app-leading-ui)] text-text-muted"
 						aria-live="polite"
 					>
-						<span>{resultSummary}</span>
+						{shownSummary ? <span>{shownSummary}</span> : null}
+						{selectedSummary ? <span>{selectedSummary}</span> : null}
+						{filterSummary ? <span>{filterSummary}</span> : null}
 					</div>
 				) : null}
 				<ToolbarSecondaryMenus

@@ -1,16 +1,21 @@
 import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionMods, type AppState } from '../../model';
+import { setModMetadataCacheData } from '../../renderer/async-cache';
 import ModLoadingComponent from '../../renderer/components/loading/ModLoading';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
-import { createAppState, createTestQueryClient, renderWithQueryClient } from './test-utils';
+import { createAppState, renderWithTestProviders } from './test-utils';
 
 function renderModLoading(appState: ReturnType<typeof createAppState>, modLoadCompleteCallback: () => void) {
-	return renderWithQueryClient(<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />);
+	return renderWithTestProviders(<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />);
 }
 
 describe('ModLoading', () => {
+	beforeEach(() => {
+		setModMetadataCacheData(new Map());
+	});
+
 	it('keeps the route in loading state and surfaces the scan error when metadata loading fails', async () => {
 		const appState = createAppState({
 			loadingMods: true,
@@ -57,11 +62,8 @@ describe('ModLoading', () => {
 		const freshMods = new SessionMods('', [{ uid: 'local:fresh', id: 'Fresh', name: 'Fresh', type: 'local' as const }]);
 		const staleMods = new SessionMods('', [{ uid: 'local:stale', id: 'Stale', name: 'Stale', type: 'local' as const }]);
 
-		const queryClient = createTestQueryClient();
-
-		const { rerender } = renderWithQueryClient(
-			<ModLoadingComponent appState={appStateA} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		const { rerender } = renderWithTestProviders(
+			<ModLoadingComponent appState={appStateA} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 		rerender(<ModLoadingComponent appState={appStateB} modLoadCompleteCallback={modLoadCompleteCallback} />);
 
@@ -95,11 +97,8 @@ describe('ModLoading', () => {
 			mods: new SessionMods('', [])
 		});
 		const modLoadCompleteCallback = vi.fn();
-		const queryClient = createTestQueryClient();
-
-		const { rerender } = renderWithQueryClient(
-			<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		const { rerender } = renderWithTestProviders(
+			<ModLoadingComponent appState={appState} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 
 		await waitFor(() => {
@@ -142,11 +141,8 @@ describe('ModLoading', () => {
 			Object.assign(sharedState, props);
 		});
 		const modLoadCompleteCallback = vi.fn();
-		const queryClient = createTestQueryClient();
-
-		const { rerender } = renderWithQueryClient(
-			<ModLoadingComponent appState={{ ...sharedState, updateState }} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		const { rerender } = renderWithTestProviders(
+			<ModLoadingComponent appState={{ ...sharedState, updateState }} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 
 		await waitFor(() => {
@@ -190,11 +186,8 @@ describe('ModLoading', () => {
 			mods: new SessionMods('', [])
 		});
 		const modLoadCompleteCallback = vi.fn();
-		const queryClient = createTestQueryClient();
-
-		const firstRender = renderWithQueryClient(
-			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		const firstRender = renderWithTestProviders(
+			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 
 		await waitFor(() => {
@@ -203,9 +196,8 @@ describe('ModLoading', () => {
 		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
 
 		firstRender.unmount();
-		renderWithQueryClient(
-			<ModLoadingComponent appState={{ ...sharedState, loadingMods: true }} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		renderWithTestProviders(
+			<ModLoadingComponent appState={{ ...sharedState, loadingMods: true }} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 
 		await waitFor(() => {
@@ -227,11 +219,8 @@ describe('ModLoading', () => {
 			mods: new SessionMods('', [])
 		});
 		const modLoadCompleteCallback = vi.fn();
-		const queryClient = createTestQueryClient();
-
-		const firstRender = renderWithQueryClient(
-			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />,
-			{ queryClient }
+		const firstRender = renderWithTestProviders(
+			<ModLoadingComponent appState={sharedState} modLoadCompleteCallback={modLoadCompleteCallback} />
 		);
 
 		await waitFor(() => {
@@ -240,12 +229,11 @@ describe('ModLoading', () => {
 		expect(window.electron.readModMetadata).toHaveBeenCalledTimes(1);
 
 		firstRender.unmount();
-		renderWithQueryClient(
+		renderWithTestProviders(
 			<ModLoadingComponent
 				appState={{ ...sharedState, forceReloadMods: true, loadingMods: true }}
 				modLoadCompleteCallback={modLoadCompleteCallback}
-			/>,
-			{ queryClient }
+			/>
 		);
 
 		await waitFor(() => {

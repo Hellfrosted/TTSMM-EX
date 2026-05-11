@@ -1,9 +1,8 @@
 import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { AppConfig } from 'model/AppConfig';
 import type { SessionMods } from 'model/SessionMods';
 import api from 'renderer/Api';
-import { createModMetadataScanRequest, modMetadataQueryOptions } from 'renderer/async-cache';
+import { createModMetadataScanRequest, readModMetadataCache } from 'renderer/async-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { ProgressTypes } from 'shared/ipc';
@@ -62,7 +61,6 @@ function reduceModLoadingState(state: ModLoadingState, action: ModLoadingAction)
 }
 
 export default function ModLoadingComponent({ appState, modLoadCompleteCallback }: ModLoadingProps) {
-	const queryClient = useQueryClient();
 	const { allCollections, config: rawConfig, forceReloadMods, loadingMods, updateState: updateAppState } = appState;
 	const config = rawConfig as AppConfig;
 	const [state, dispatchLoading] = useReducer(reduceModLoadingState, {
@@ -116,17 +114,14 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 			}
 		});
 
-		void queryClient
-			.fetchQuery(
-				modMetadataQueryOptions({
-					localDir: config.localDir,
-					scanRequest,
-					forceReload: !!forceReloadMods,
-					attempt: retryCount,
-					userOverrides: userOverridesRef.current,
-					treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
-				})
-			)
+		void readModMetadataCache({
+			localDir: config.localDir,
+			scanRequest,
+			forceReload: !!forceReloadMods,
+			attempt: retryCount,
+			userOverrides: userOverridesRef.current,
+			treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent
+		})
 			.then((mods) => {
 				if (loadRequestIdRef.current !== requestId) {
 					return mods;
@@ -148,7 +143,7 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 				loadRequestIdRef.current += 1;
 			}
 		};
-	}, [config.localDir, config.treatNuterraSteamBetaAsEquivalent, forceReloadMods, loadingMods, metadataScanKey, queryClient, retryCount]);
+	}, [config.localDir, config.treatNuterraSteamBetaAsEquivalent, forceReloadMods, loadingMods, metadataScanKey, retryCount]);
 
 	const progressPercent = Math.min(100, Math.max(0, Math.round(progress * 100)));
 	const statusLabel = loadError ? 'Mod scan needs attention' : progressPercent >= 100 ? 'Mod scan complete' : 'Scanning installed mods';

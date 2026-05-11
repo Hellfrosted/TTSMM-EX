@@ -3,7 +3,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionMods } from '../../model';
 import { CollectionView } from '../../renderer/views/CollectionView';
-import { createAppState, renderWithQueryClient } from './test-utils';
+import { createAppState, renderWithTestProviders } from './test-utils';
 
 afterEach(() => {
 	cleanup();
@@ -19,7 +19,7 @@ describe('CollectionView', () => {
 			mods: new SessionMods('', [])
 		});
 
-		const { container } = renderWithQueryClient(<CollectionView appState={appState} />);
+		const { container } = renderWithTestProviders(<CollectionView appState={appState} />);
 
 		await vi.dynamicImportSettled();
 		const contentStage = container.querySelector('[style*="pointer-events: auto"]');
@@ -37,7 +37,7 @@ describe('CollectionView', () => {
 		});
 		vi.mocked(window.electron.readModMetadata).mockRejectedValue(new Error('scan failed'));
 
-		renderWithQueryClient(<CollectionView appState={appState} />);
+		renderWithTestProviders(<CollectionView appState={appState} />);
 
 		expect(screen.getByRole('button', { name: 'Validate Collection' })).toBeDisabled();
 		expect(screen.getAllByRole('button', { name: 'Launch Game' }).at(-1)).toBeDisabled();

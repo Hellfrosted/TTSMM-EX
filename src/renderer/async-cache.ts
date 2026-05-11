@@ -1,5 +1,7 @@
-import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useAtomRef } from '@effect/atom-react';
+import { useCallback, useState } from 'react';
 import { Effect } from 'effect';
+import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import { hydrateSessionMods, type AppConfig } from 'model';
 import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
@@ -11,61 +13,58 @@ import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 import { RendererElectron, runRenderer } from './runtime';
 
 type BlockLookupBootstrapQueryData = readonly [BlockLookupSettings, BlockLookupIndexStats | null];
+type BlockLookupSearchCacheData = Awaited<ReturnType<typeof window.electron.searchBlockLookup>>;
+type ModMetadataCacheData = ReturnType<typeof hydrateSessionMods>;
 
-const MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS = Number.POSITIVE_INFINITY;
-
-export const queryKeys = {
-	config: {
-		root: () => ['config'] as const,
-		current: () => [...queryKeys.config.root(), 'current'] as const
-	},
-	collections: {
-		root: () => ['collections'] as const,
-		list: () => [...queryKeys.collections.root(), 'list'] as const,
-		detail: (collectionName: string) => [...queryKeys.collections.root(), 'detail', collectionName] as const
-	},
-	mods: {
-		root: () => ['mods'] as const,
-		metadataRoot: () => [...queryKeys.mods.root(), 'metadata'] as const,
-		metadataScan: (
-			localDir: string | undefined,
-			knownModIds: readonly string[],
-			forceReload: boolean,
-			attempt: number,
-			treatNuterraSteamBetaAsEquivalent: boolean,
-			userOverridesKey: readonly unknown[]
-		) =>
-			[
-				...queryKeys.mods.metadataRoot(),
-				localDir ?? null,
-				knownModIds,
-				forceReload,
-				attempt,
-				treatNuterraSteamBetaAsEquivalent,
-				userOverridesKey
-			] as const
-	},
-	game: {
-		root: () => ['game'] as const,
-		running: (requestId: number) => [...queryKeys.game.root(), 'running', requestId] as const
-	},
-	blockLookup: {
-		root: () => ['blockLookup'] as const,
-		bootstrap: () => [...queryKeys.blockLookup.root(), 'bootstrap'] as const,
-		searchRoot: () => [...queryKeys.blockLookup.root(), 'search'] as const,
-		search: (query: string, limit: number | undefined) => [...queryKeys.blockLookup.searchRoot(), query, limit] as const
-	}
-};
-
-export function configQueryOptions() {
-	return queryOptions({
-		queryKey: queryKeys.config.current(),
-		queryFn: () => runRenderer(readConfigEffect())
-	});
+const configCacheRef = AtomRef.make<AppConfig | null | undefined>(undefined);
+interface CollectionCacheState {
+	collectionNames: string[] | undefined;
+	collections: Map<string, ModCollection | null>;
 }
 
-export function setConfigQueryData(queryClient: QueryClient, config: AppConfig | null) {
-	queryClient.setQueryData(queryKeys.config.current(), config);
+const collectionCacheRef = AtomRef.make<CollectionCacheState>({
+	collectionNames: undefined,
+	collections: new Map()
+});
+const modMetadataCacheRef = AtomRef.make<Map<string, ModMetadataCacheData>>(new Map());
+const gameRunningCacheRef = AtomRef.make<boolean | undefined>(undefined);
+const blockLookupBootstrapCacheRef = AtomRef.make<BlockLookupBootstrapQueryData | undefined>(undefined);
+const blockLookupSearchCacheRef = AtomRef.make<Map<string, BlockLookupSearchCacheData>>(new Map());
+
+function useCacheMutation<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>, onSuccess?: (result: TResult) => void) {
+	const [isPending, setIsPending] = useState(false);
+	const mutateAsync = useCallback(
+		async (input: TInput) => {
+			setIsPending(true);
+			try {
+				const result = await mutationFn(input);
+				onSuccess?.(result);
+				return result;
+			} finally {
+				setIsPending(false);
+			}
+		},
+		[mutationFn, onSuccess]
+	);
+	return { isPending, mutateAsync };
+}
+
+export function setConfigCacheData(config: AppConfig | null | undefined) {
+	configCacheRef.set(config);
+}
+
+export function useConfigCacheValue() {
+	return useAtomRef(configCacheRef);
+}
+
+export async function readConfigCache(): Promise<AppConfig | null> {
+	const cachedConfig = configCacheRef.value;
+	if (cachedConfig !== undefined) {
+		return cachedConfig;
+	}
+	const config = await runRenderer(readConfigEffect());
+	configCacheRef.set(config);
+	return config;
 }
 
 const readConfigEffect = Effect.fnUntraced(function* (): Effect.fn.Return<AppConfig | null, unknown, RendererElectron> {
@@ -95,21 +94,41 @@ function writeConfigMutationFn(nextConfig: AppConfig) {
 }
 
 export function useWriteConfigMutation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: writeConfigMutationFn,
-		onSuccess: (nextConfig) => {
-			queryClient.setQueryData(queryKeys.config.current(), nextConfig);
-		}
+	return useCacheMutation(writeConfigMutationFn, (nextConfig) => {
+		setConfigCacheData(nextConfig);
 	});
 }
 
-export function collectionsListQueryOptions() {
-	return queryOptions({
-		queryKey: queryKeys.collections.list(),
-		queryFn: () => runRenderer(readCollectionsListEffect())
+export function setCollectionCacheData(state: CollectionCacheState) {
+	collectionCacheRef.set({
+		collectionNames: state.collectionNames,
+		collections: new Map(state.collections)
 	});
+}
+
+export function useCollectionsListCacheValue() {
+	return useAtomRef(collectionCacheRef).collectionNames;
+}
+
+export function useCollectionCacheValue(collectionName: string) {
+	return useAtomRef(collectionCacheRef).collections.get(collectionName);
+}
+
+function updateCollectionCache(update: (state: CollectionCacheState) => CollectionCacheState) {
+	setCollectionCacheData(update(collectionCacheRef.value));
+}
+
+export async function readCollectionsListCache(): Promise<string[]> {
+	const cachedCollectionNames = collectionCacheRef.value.collectionNames;
+	if (cachedCollectionNames !== undefined) {
+		return cachedCollectionNames;
+	}
+	const collectionNames = await runRenderer(readCollectionsListEffect());
+	updateCollectionCache((state) => ({
+		...state,
+		collectionNames
+	}));
+	return collectionNames;
 }
 
 const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Return<string[], unknown, RendererElectron> {
@@ -121,11 +140,16 @@ const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Retu
 	return collections || [];
 });
 
-export function collectionQueryOptions(collectionName: string) {
-	return queryOptions({
-		queryKey: queryKeys.collections.detail(collectionName),
-		queryFn: () => runRenderer(readCollectionEffect(collectionName))
-	});
+export async function readCollectionCache(collectionName: string): Promise<ModCollection | null> {
+	if (collectionCacheRef.value.collections.has(collectionName)) {
+		return collectionCacheRef.value.collections.get(collectionName) ?? null;
+	}
+	const collection = await runRenderer(readCollectionEffect(collectionName));
+	updateCollectionCache((state) => ({
+		...state,
+		collections: new Map(state.collections).set(collectionName, collection)
+	}));
+	return collection;
 }
 
 const readCollectionEffect = Effect.fnUntraced(function* (
@@ -190,30 +214,36 @@ export function createModMetadataScanRequest({
 	};
 }
 
-export function modMetadataQueryOptions({
-	localDir,
-	scanRequest,
-	forceReload,
-	attempt,
-	userOverrides,
-	treatNuterraSteamBetaAsEquivalent
-}: ModMetadataQueryOptionsInput) {
-	const dependencyGraphOptions = {
-		treatNuterraSteamBetaAsEquivalent
-	};
+export function setModMetadataCacheData(cache: Map<string, ModMetadataCacheData>) {
+	modMetadataCacheRef.set(new Map(cache));
+}
 
-	return queryOptions({
-		queryKey: queryKeys.mods.metadataScan(
-			localDir,
-			scanRequest.knownModIds,
-			forceReload,
-			attempt,
-			treatNuterraSteamBetaAsEquivalent,
-			scanRequest.userOverridesKey
-		),
-		queryFn: () => runRenderer(readModMetadataEffect(localDir, scanRequest.knownModIds, userOverrides, dependencyGraphOptions)),
-		staleTime: forceReload ? 0 : MOD_METADATA_STARTUP_SCAN_STALE_TIME_MS
-	});
+function getModMetadataCacheKey({ localDir, scanRequest, attempt, treatNuterraSteamBetaAsEquivalent }: ModMetadataQueryOptionsInput) {
+	return JSON.stringify([
+		localDir ?? null,
+		scanRequest.knownModIds,
+		attempt,
+		treatNuterraSteamBetaAsEquivalent,
+		scanRequest.userOverridesKey
+	]);
+}
+
+export async function readModMetadataCache(input: ModMetadataQueryOptionsInput): Promise<ModMetadataCacheData> {
+	const dependencyGraphOptions = {
+		treatNuterraSteamBetaAsEquivalent: input.treatNuterraSteamBetaAsEquivalent
+	};
+	const cacheKey = getModMetadataCacheKey(input);
+	if (!input.forceReload) {
+		const cachedMods = modMetadataCacheRef.value.get(cacheKey);
+		if (cachedMods) {
+			return cachedMods;
+		}
+	}
+	const mods = await runRenderer(
+		readModMetadataEffect(input.localDir, input.scanRequest.knownModIds, input.userOverrides, dependencyGraphOptions)
+	);
+	modMetadataCacheRef.set(new Map(modMetadataCacheRef.value).set(cacheKey, mods));
+	return mods;
 }
 
 const readModMetadataEffect = Effect.fnUntraced(function* (
@@ -230,12 +260,17 @@ const readModMetadataEffect = Effect.fnUntraced(function* (
 	return hydrateSessionMods(mods, userOverrides, dependencyGraphOptions);
 });
 
-export function gameRunningQueryOptions(requestId: number) {
-	return queryOptions({
-		queryKey: queryKeys.game.running(requestId),
-		queryFn: () => runRenderer(gameRunningEffect()),
-		staleTime: 0
-	});
+export function setGameRunningCacheData(running: boolean | undefined) {
+	gameRunningCacheRef.set(running);
+}
+
+export async function readGameRunningCache({ forceReload = false }: { forceReload?: boolean } = {}): Promise<boolean> {
+	if (!forceReload && gameRunningCacheRef.value !== undefined) {
+		return gameRunningCacheRef.value;
+	}
+	const running = await runRenderer(gameRunningEffect());
+	gameRunningCacheRef.set(running);
+	return running;
 }
 
 const gameRunningEffect = Effect.fnUntraced(function* (): Effect.fn.Return<boolean, unknown, RendererElectron> {
@@ -246,11 +281,16 @@ const gameRunningEffect = Effect.fnUntraced(function* (): Effect.fn.Return<boole
 	});
 });
 
-export function blockLookupBootstrapQueryOptions() {
-	return queryOptions({
-		queryKey: queryKeys.blockLookup.bootstrap(),
-		queryFn: () => runRenderer(readBlockLookupBootstrapEffect())
-	});
+export function getBlockLookupBootstrapCacheData() {
+	return blockLookupBootstrapCacheRef.value;
+}
+
+export function setBlockLookupBootstrapCacheData(data: BlockLookupBootstrapQueryData | undefined) {
+	blockLookupBootstrapCacheRef.set(data);
+}
+
+export function setBlockLookupSearchCacheData(data: Map<string, BlockLookupSearchCacheData>) {
+	blockLookupSearchCacheRef.set(new Map(data));
 }
 
 const readBlockLookupBootstrapEffect = Effect.fnUntraced(function* (): Effect.fn.Return<
@@ -275,11 +315,8 @@ const readBlockLookupBootstrapEffect = Effect.fnUntraced(function* (): Effect.fn
 	return [settings, stats] as const;
 });
 
-export function blockLookupSearchQueryOptions(request: BlockLookupSearchRequest) {
-	return queryOptions({
-		queryKey: queryKeys.blockLookup.search(request.query, request.limit),
-		queryFn: () => runRenderer(searchBlockLookupEffect(request))
-	});
+function getBlockLookupSearchCacheKey(request: BlockLookupSearchRequest) {
+	return JSON.stringify([request.query, request.limit ?? null]);
 }
 
 const searchBlockLookupEffect = Effect.fnUntraced(function* (
@@ -292,12 +329,24 @@ const searchBlockLookupEffect = Effect.fnUntraced(function* (
 	});
 });
 
-export function fetchBlockLookupBootstrap(queryClient: QueryClient) {
-	return queryClient.fetchQuery(blockLookupBootstrapQueryOptions());
+export async function fetchBlockLookupBootstrap() {
+	if (blockLookupBootstrapCacheRef.value !== undefined) {
+		return blockLookupBootstrapCacheRef.value;
+	}
+	const data = await runRenderer(readBlockLookupBootstrapEffect());
+	blockLookupBootstrapCacheRef.set(data);
+	return data;
 }
 
-export function fetchBlockLookupSearch(queryClient: QueryClient, request: BlockLookupSearchRequest) {
-	return queryClient.fetchQuery(blockLookupSearchQueryOptions(request));
+export async function fetchBlockLookupSearch(request: BlockLookupSearchRequest) {
+	const cacheKey = getBlockLookupSearchCacheKey(request);
+	const cachedResult = blockLookupSearchCacheRef.value.get(cacheKey);
+	if (cachedResult) {
+		return cachedResult;
+	}
+	const result = await runRenderer(searchBlockLookupEffect(request));
+	blockLookupSearchCacheRef.set(new Map(blockLookupSearchCacheRef.value).set(cacheKey, result));
+	return result;
 }
 
 const buildBlockLookupIndexEffect = Effect.fnUntraced(function* (request: BlockLookupBuildRequest) {
@@ -313,31 +362,10 @@ function buildBlockLookupIndexMutationFn(request: BlockLookupBuildRequest) {
 }
 
 export function useBuildBlockLookupIndexMutation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: buildBlockLookupIndexMutationFn,
-		onSuccess: () => {
-			void queryClient.invalidateQueries({ queryKey: queryKeys.blockLookup.root() });
-		}
+	return useCacheMutation(buildBlockLookupIndexMutationFn, () => {
+		setBlockLookupBootstrapCacheData(undefined);
+		setBlockLookupSearchCacheData(new Map());
 	});
-}
-
-function setCollectionQueryData(queryClient: QueryClient, collection: ModCollection) {
-	queryClient.setQueryData(queryKeys.collections.detail(collection.name), collection);
-}
-
-function getCachedCollectionDetailNames(queryClient: QueryClient) {
-	return queryClient
-		.getQueryCache()
-		.findAll({ queryKey: queryKeys.collections.root() })
-		.flatMap((query) => {
-			const queryKey = query.queryKey;
-			if (queryKey[0] === 'collections' && queryKey[1] === 'detail' && typeof queryKey[2] === 'string') {
-				return [queryKey[2]];
-			}
-			return [];
-		});
 }
 
 const updateCollectionEffect = Effect.fnUntraced(function* (
@@ -355,47 +383,33 @@ function updateCollectionMutationFn(collection: ModCollection): Promise<Collecti
 }
 
 export function useUpdateCollectionMutation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		mutationFn: updateCollectionMutationFn,
-		onSuccess: (result) => {
-			if (result.ok) {
-				queryClient.setQueryData(queryKeys.collections.detail(result.collection.name), result.collection);
-			}
+	return useCacheMutation(updateCollectionMutationFn, (result) => {
+		if (result.ok) {
+			updateCollectionCache((state) => ({
+				...state,
+				collections: new Map(state.collections).set(result.collection.name, result.collection)
+			}));
 		}
 	});
 }
 
-export function applyAuthoritativeCollectionStateToCache(queryClient: QueryClient, result: AuthoritativeCollectionState) {
-	const nextCollectionNames = new Set(result.collectionNames);
-	const currentCollectionNames = queryClient.getQueryData<string[]>(queryKeys.collections.list()) ?? [];
-	const cachedDetailNames = getCachedCollectionDetailNames(queryClient);
-
-	setConfigQueryData(queryClient, result.config);
-	queryClient.setQueryData(queryKeys.collections.list(), result.collectionNames);
-	result.collections.forEach((collection) => {
-		setCollectionQueryData(queryClient, collection);
-	});
-
-	new Set([...currentCollectionNames, ...cachedDetailNames]).forEach((collectionName) => {
-		if (!nextCollectionNames.has(collectionName)) {
-			queryClient.removeQueries({
-				queryKey: queryKeys.collections.detail(collectionName),
-				exact: true
-			});
-		}
+export function applyAuthoritativeCollectionStateToCache(result: AuthoritativeCollectionState) {
+	setConfigCacheData(result.config);
+	setCollectionCacheData({
+		collectionNames: result.collectionNames,
+		collections: new Map(result.collections.map((collection) => [collection.name, collection]))
 	});
 }
 
-export function applyCollectionLifecycleResultToCache(queryClient: QueryClient, result: Extract<CollectionLifecycleResult, { ok: true }>) {
-	applyAuthoritativeCollectionStateToCache(queryClient, result);
+export function applyCollectionLifecycleResultToCache(result: Extract<CollectionLifecycleResult, { ok: true }>) {
+	applyAuthoritativeCollectionStateToCache(result);
 }
 
-export function setBlockLookupBootstrapQueryData(queryClient: QueryClient, data: BlockLookupBootstrapQueryData) {
-	queryClient.setQueryData(queryKeys.blockLookup.bootstrap(), data);
+export function setBlockLookupBootstrapQueryData(data: BlockLookupBootstrapQueryData) {
+	setBlockLookupBootstrapCacheData(data);
 }
 
-export function invalidateBlockLookupSearchQueries(queryClient: QueryClient) {
-	return queryClient.invalidateQueries({ queryKey: queryKeys.blockLookup.searchRoot() });
+export function invalidateBlockLookupSearchQueries() {
+	setBlockLookupSearchCacheData(new Map());
+	return Promise.resolve();
 }

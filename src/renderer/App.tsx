@@ -26,7 +26,7 @@ import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallb
 import { NotificationViewport } from './components/NotificationViewport';
 import { AppStateProvider, useAppStateSelector, type CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { appCssVariables } from './theme';
-import { AppQueryProvider } from './query-client';
+import { EffectAtomRendererProof } from './effect-atom-renderer-proof';
 
 const loadCollectionView = () => import('./views/CollectionView');
 const loadSettingsView = () => import('./views/SettingsView');
@@ -309,15 +309,6 @@ export function AppShell() {
 	return (
 		<div className="AppLayout">
 			<aside className={`AppSidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} aria-label="Workspace navigation">
-				<div className="AppBrand">
-					<span className="AppBrandMark" aria-hidden="true">
-						TX
-					</span>
-					<span className="AppBrandCopy">
-						<span className="AppBrandName">TTSMM-EX</span>
-						<span className="AppBrandMeta">Mod manager</span>
-					</span>
-				</div>
 				<Suspense fallback={null}>
 					<MenuBarStageView disableNavigation={appShell.disableNavigation} onWorkspacePreview={previewWorkspaceNavigation} />
 				</Suspense>
@@ -388,12 +379,11 @@ export default function App() {
 
 	return (
 		<div className="AppRoot" style={{ ...appCssVariables, width: '100%', height: '100%' }}>
-			<AppQueryProvider>
-				<AppStateProvider navigate={navigateApp}>
-					<AppShell />
-					<NotificationViewport />
-				</AppStateProvider>
-			</AppQueryProvider>
+			<AppStateProvider navigate={navigateApp}>
+				<AppShell />
+				<EffectAtomRendererProof />
+				<NotificationViewport />
+			</AppStateProvider>
 		</div>
 	);
 }

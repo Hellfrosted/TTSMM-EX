@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AppConfigKeys, type AppState, LogLevel } from '../../model';
 import { SettingsView } from '../../renderer/views/SettingsView';
-import { createAppState, createTestConfig, renderWithQueryClient } from './test-utils';
+import { createAppState, createTestConfig, renderWithTestProviders } from './test-utils';
 
 function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}) {
 	const appRoot = document.createElement('div');
@@ -30,7 +30,7 @@ function renderSettingsView(overrides: Parameters<typeof createAppState>[0] = {}
 
 	return {
 		appState,
-		...renderWithQueryClient(<SettingsHarness />, { container: appRoot })
+		...renderWithTestProviders(<SettingsHarness />, { container: appRoot })
 	};
 }
 

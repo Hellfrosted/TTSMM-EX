@@ -29,7 +29,7 @@ Saving edits to the enabled TerraTech Mods inside the Active Collection is a Col
 
 When a lifecycle command receives a dirty Active Collection Draft, it preserves that draft for commands where the source collection continues to exist or is transformed: create, switch, duplicate, and rename. Delete discards the dirty draft with the deleted collection after the normal user confirmation.
 
-React Query or other renderer async-cache code may wrap the renderer request/application flow, but cache invalidation does not become the authority for lifecycle persistence. The main process remains the boundary that validates names, writes collection/config files, and returns the authoritative post-command state.
+Renderer async-cache code may wrap the renderer request/application flow, but cache invalidation does not become the authority for lifecycle persistence. The main process remains the boundary that validates names, writes collection/config files, and returns the authoritative post-command state.
 
 ## Consequences
 

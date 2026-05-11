@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT,
+	COMPACT_VIRTUAL_ROW_HEIGHT,
+	MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT,
+	VIRTUAL_TABLE_OVERSCAN,
 	getVirtualTableColumnPixelWidth,
 	getVirtualTableColumnWidthStyle,
 	getVirtualTableColumnWidthVariableName,
 	getVirtualTableFixedColumnStyle,
+	getVirtualTableRowHeight,
 	getVirtualTableScrollWidth,
 	setVirtualTableColumnWidthVariable
 } from '../../renderer/virtual-table-geometry';
@@ -44,5 +49,15 @@ describe('virtual-table-geometry', () => {
 	it('adds fixed leading or padding columns to scroll width', () => {
 		expect(getVirtualTableScrollWidth([320, 132], 48)).toBe(500);
 		expect(getVirtualTableScrollWidth([360, 220], 32)).toBe(612);
+	});
+
+	it('owns fixed virtual row heights and conservative overscan for scrolling tables', () => {
+		expect(VIRTUAL_TABLE_OVERSCAN).toBe(8);
+		expect(MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT).toBe(48);
+		expect(BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT).toBe(44);
+		expect(COMPACT_VIRTUAL_ROW_HEIGHT).toBe(34);
+		expect(getVirtualTableRowHeight({ compact: false, coarsePointer: false, regularHeight: MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT })).toBe(48);
+		expect(getVirtualTableRowHeight({ compact: true, coarsePointer: false, regularHeight: MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT })).toBe(34);
+		expect(getVirtualTableRowHeight({ compact: true, coarsePointer: true, regularHeight: BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT })).toBe(44);
 	});
 });

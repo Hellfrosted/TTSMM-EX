@@ -1,36 +1,21 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderOptions } from '@testing-library/react';
-import React from 'react';
 import type { ReactElement, PropsWithChildren } from 'react';
 import { SessionMods, type AppConfig, type AppState } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import { vi } from 'vitest';
 
-export function createTestQueryClient() {
-	return new QueryClient({
-		defaultOptions: {
-			queries: {
-				gcTime: Infinity,
-				retry: false
-			}
-		}
-	});
-}
-
-export function createQueryWrapper(queryClient = createTestQueryClient()) {
-	return function QueryWrapper({ children }: PropsWithChildren) {
-		return React.createElement(QueryClientProvider, { client: queryClient }, children);
+export function createTestWrapper() {
+	return function TestWrapper({ children }: PropsWithChildren) {
+		return children;
 	};
 }
 
-export function renderWithQueryClient(ui: ReactElement, options?: RenderOptions & { queryClient?: QueryClient }) {
-	const queryClient = options?.queryClient ?? createTestQueryClient();
-	const { queryClient: _queryClient, wrapper, ...renderOptions } = options ?? {};
+export function renderWithTestProviders(ui: ReactElement, options?: RenderOptions & { providerState?: unknown }) {
+	const { providerState: _providerState, wrapper, ...renderOptions } = options ?? {};
 
 	return {
-		queryClient,
 		...render(ui, {
-			wrapper: wrapper ?? createQueryWrapper(queryClient),
+			wrapper: wrapper ?? createTestWrapper(),
 			...renderOptions
 		})
 	};

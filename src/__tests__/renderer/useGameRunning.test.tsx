@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGameRunning } from '../../renderer/hooks/collections/useGameRunning';
-import { createQueryWrapper } from './test-utils';
+import { createTestWrapper } from './test-utils';
 
 describe('useGameRunning', () => {
 	beforeEach(() => {
@@ -17,7 +17,7 @@ describe('useGameRunning', () => {
 	it('continues polling after an initial false result', async () => {
 		vi.mocked(window.electron.isGameRunning).mockResolvedValueOnce(false).mockResolvedValueOnce(false);
 
-		renderHook(() => useGameRunning(), { wrapper: createQueryWrapper() });
+		renderHook(() => useGameRunning(), { wrapper: createTestWrapper() });
 
 		await act(async () => {
 			await Promise.resolve();
@@ -40,7 +40,7 @@ describe('useGameRunning', () => {
 				})
 		);
 
-		const { result } = renderHook(() => useGameRunning(), { wrapper: createQueryWrapper() });
+		const { result } = renderHook(() => useGameRunning(), { wrapper: createTestWrapper() });
 
 		await act(async () => {
 			await Promise.resolve();

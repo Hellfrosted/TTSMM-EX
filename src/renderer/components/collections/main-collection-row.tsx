@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { DisplayModData, getModDataDisplayName } from 'model';
 import { formatDateStr } from 'util/Date';
@@ -113,7 +113,6 @@ interface MainCollectionVirtualRowProps {
 	columns: MainCollectionRowColumn[];
 	highlighted: boolean;
 	detailsOpen?: boolean;
-	measureElement?: (element: HTMLTableRowElement | null) => void;
 	record: DisplayModData;
 	rowHeight: number;
 	rowIndex: number;
@@ -121,7 +120,7 @@ interface MainCollectionVirtualRowProps {
 	small?: boolean;
 	start: number;
 	tableWidth: number;
-	onContextMenu: () => void;
+	onContextMenu: (record: DisplayModData) => void;
 	onKeyDown?: (event: KeyboardEvent<HTMLTableRowElement>) => void;
 	onOpenDetails: (record: DisplayModData) => void;
 	onRowHighlight: (record: DisplayModData) => void;
@@ -132,7 +131,6 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 	columns,
 	detailsOpen,
 	highlighted,
-	measureElement,
 	record,
 	rowHeight,
 	rowIndex,
@@ -146,7 +144,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 	onRowHighlight,
 	onSelectedChange
 }: MainCollectionVirtualRowProps) {
-	const activateRow = () => {
+	const activateRow = useCallback(() => {
 		if (detailsOpen) {
 			if (!highlighted) {
 				onOpenDetails(record);
@@ -158,24 +156,32 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 			return;
 		}
 		onRowHighlight(record);
-	};
-	const openDetails = () => {
+	}, [detailsOpen, highlighted, onOpenDetails, onRowHighlight, record]);
+	const openDetails = useCallback(() => {
 		onOpenDetails(record);
-	};
+	}, [onOpenDetails, record]);
+	const openContextMenu = useCallback(() => {
+		onContextMenu(record);
+	}, [onContextMenu, record]);
+	const setSelected = useCallback(
+		(checked: boolean) => {
+			onSelectedChange(record, checked);
+		},
+		[onSelectedChange, record]
+	);
 	const rowLabel = getModDataDisplayName(record) || record.uid;
 
 	return (
 		<VirtualTableRow
 			className={`MainCollectionVirtualRow${small ? ' CompactModRow' : ''}${highlighted ? ' is-selected' : ''}`}
 			dataIndex={rowIndex}
-			measureElement={measureElement}
 			rowHeight={rowHeight}
 			start={start}
 			width={tableWidth}
 			aria-label={`Mod row for ${rowLabel}. Press Enter or Space to select the row.`}
 			aria-selected={highlighted}
 			keyboardShortcuts="Enter Space ArrowUp ArrowDown Home End"
-			onContextMenu={onContextMenu}
+			onContextMenu={openContextMenu}
 			onDoubleClick={openDetails}
 			onKeyDown={onKeyDown}
 			onActivate={activateRow}
@@ -187,9 +193,7 @@ export const MainCollectionVirtualRow = memo(function MainCollectionVirtualRow({
 				<SelectionCheckbox
 					aria-label={`Include ${getModDataDisplayName(record) || record.uid} in collection`}
 					checked={selected}
-					onChange={(checked) => {
-						onSelectedChange(record, checked);
-					}}
+					onChange={setSelected}
 				/>
 			</td>
 			{columns.map((column) => {

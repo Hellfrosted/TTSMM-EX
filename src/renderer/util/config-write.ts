@@ -1,24 +1,19 @@
 import type { AppConfig } from 'model';
 import { Effect } from 'effect';
 import api from 'renderer/Api';
-import { setConfigQueryData, writeConfigEffect } from 'renderer/async-cache';
-import { queryClient as defaultQueryClient } from 'renderer/query-client';
+import { setConfigCacheData, writeConfigEffect } from 'renderer/async-cache';
 import { runRenderer, type RendererElectron } from 'renderer/runtime';
-import type { QueryClient } from '@tanstack/react-query';
 
 type ConfigCommit = (nextConfig: AppConfig) => void;
 
-const writeConfigProgram = Effect.fnUntraced(function* (
-	nextConfig: AppConfig,
-	queryClient: QueryClient = defaultQueryClient
-): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
+const writeConfigProgram = Effect.fnUntraced(function* (nextConfig: AppConfig): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
 	const persistedConfig = yield* writeConfigEffect(nextConfig);
-	setConfigQueryData(queryClient, persistedConfig);
+	setConfigCacheData(persistedConfig);
 	return persistedConfig;
 });
 
-export function writeConfig(nextConfig: AppConfig, queryClient: QueryClient = defaultQueryClient): Promise<AppConfig> {
-	return runRenderer(writeConfigProgram(nextConfig, queryClient));
+export function writeConfig(nextConfig: AppConfig): Promise<AppConfig> {
+	return runRenderer(writeConfigProgram(nextConfig));
 }
 
 export const persistConfigChangeProgram = Effect.fnUntraced(function* (

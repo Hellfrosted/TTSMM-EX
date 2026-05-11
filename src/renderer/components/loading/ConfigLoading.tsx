@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useReducer } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Effect } from 'effect';
 import { AppConfigKeys, type AppConfig } from 'model/AppConfig';
 import type { AppState } from 'model/AppState';
@@ -22,7 +21,7 @@ import {
 	StartupTitle
 } from './StartupPrimitives';
 import { tryWriteConfig } from 'renderer/util/config-write';
-import { applyAuthoritativeCollectionStateToCache, configQueryOptions } from 'renderer/async-cache';
+import { applyAuthoritativeCollectionStateToCache, readConfigCache } from 'renderer/async-cache';
 import { validateSettingsPath } from 'util/Validation';
 import { applyAuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverGameExec } from 'renderer/startup-loading';
@@ -256,7 +255,6 @@ const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 	dispatchLoading,
 	haltBootOnPersistenceFailure,
 	navigateApp,
-	queryClient,
 	updateAppState
 }: {
 	config: AppConfig;
@@ -264,7 +262,6 @@ const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 	dispatchLoading: (action: ConfigLoadingAction) => void;
 	haltBootOnPersistenceFailure: (message: string) => void;
 	navigateApp: AppState['navigate'];
-	queryClient: QueryClient;
 	updateAppState: AppState['updateState'];
 }): Effect.fn.Return<void> {
 	const result = yield* Effect.tryPromise({
@@ -292,14 +289,13 @@ const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 		config: navigation.config
 	};
 	applyAuthoritativeCollectionState(authoritativeResult, {
-		syncCache: (state) => applyAuthoritativeCollectionStateToCache(queryClient, state),
+		syncCache: applyAuthoritativeCollectionStateToCache,
 		updateState: (update) => updateAppState({ ...update, loadingMods: navigation.loadingMods })
 	});
 	navigateApp(navigation.path);
 });
 
 export default function ConfigLoading() {
-	const queryClient = useQueryClient();
 	const config = useAppStateSelector((state) => state.config);
 	const configErrors = useAppStateSelector((state) => state.configErrors);
 	const navigateApp = useAppStateSelector((state) => state.navigate);
@@ -364,7 +360,7 @@ export default function ConfigLoading() {
 
 	const readConfig = useEffectEvent(async () => {
 		try {
-			const response = await queryClient.fetchQuery(configQueryOptions());
+			const response = await readConfigCache();
 			if (response) {
 				const discoveredConfig = await populateDiscoveredGameExec(response as AppConfig, true);
 				updateAppState({ config: discoveredConfig });
@@ -398,7 +394,6 @@ export default function ConfigLoading() {
 				dispatchLoading,
 				haltBootOnPersistenceFailure,
 				navigateApp,
-				queryClient,
 				updateAppState
 			})
 		);

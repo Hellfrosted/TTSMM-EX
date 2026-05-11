@@ -8,6 +8,7 @@ import api from 'renderer/Api';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES } from 'renderer/theme';
+import { MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT, VIRTUAL_TABLE_OVERSCAN, getVirtualTableRowHeight } from 'renderer/virtual-table-geometry';
 import {
 	MainCollectionVirtualHeaderRow,
 	getMainCollectionHeaderColumnBehavior,
@@ -82,7 +83,6 @@ import { getModTypeLabel, ModTypeIcon } from './mod-type-presentation';
 
 const SIZE_COLOR_MAX_BYTES = 100 * 1024 * 1024;
 const SIZE_METER_MIN_BYTES = 10 * 1024;
-const MAIN_COLLECTION_VIRTUAL_OVERSCAN = 28;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
 const TAG_FILTER_MENU_WIDTH = 236;
 
@@ -933,7 +933,11 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 	const mainConfig = config as MainCollectionConfig | undefined;
 	const small = mainConfig?.smallRows;
 	const coarsePointer = useCoarsePointer();
-	const estimatedRowHeight = small && !coarsePointer ? 34 : 48;
+	const estimatedRowHeight = getVirtualTableRowHeight({
+		compact: small,
+		coarsePointer,
+		regularHeight: MAIN_COLLECTION_VIRTUAL_ROW_HEIGHT
+	});
 	const columnActiveConfig = mainConfig?.columnActiveConfig;
 	const columnWidthConfig = mainConfig?.columnWidthConfig;
 	const deferredRows = useDeferredValue(filteredRows);
@@ -1169,7 +1173,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		count: sortedRows.length,
 		getScrollElement: () => scrollParentRef.current,
 		estimateSize: () => estimatedRowHeight,
-		overscan: MAIN_COLLECTION_VIRTUAL_OVERSCAN,
+		overscan: VIRTUAL_TABLE_OVERSCAN,
 		isScrollingResetDelay: VIRTUAL_SCROLLING_RESET_DELAY_MS,
 		useFlushSync: false,
 		initialRect: {
@@ -1467,9 +1471,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 										small={small}
 										start={virtualRow.start}
 										tableWidth={tableScrollX}
-										onContextMenu={() => {
-											openRowContextMenu(record);
-										}}
+										onContextMenu={openRowContextMenu}
 										onKeyDown={navigateRowsByKeyboard}
 										onOpenDetails={openRowDetails}
 										onRowHighlight={highlightRow}

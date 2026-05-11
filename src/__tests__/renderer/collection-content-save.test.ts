@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it as vitestIt, vi } from 'vitest';
+import { it } from '@effect/vitest';
 import { Effect } from 'effect';
 import type { ModCollection } from '../../model';
 import { createCollectionWriteQueue, runCollectionContentSave } from '../../renderer/collection-content-save';
@@ -15,36 +16,36 @@ function createDeferred() {
 }
 
 describe('collection-content-save', () => {
-	it('returns a completion event after a successful pure Collection Content Save', async () => {
-		const collection: ModCollection = { name: 'default', mods: ['local:a'] };
-		let persistedCollection: ModCollection | undefined;
-		const persistCollectionFile = vi.fn((nextCollection: ModCollection) => {
-			persistedCollection = { ...nextCollection, mods: [...nextCollection.mods] };
-			nextCollection.mods.push('local:mutated');
-			return Effect.succeed({ ok: true, collection: persistedCollection } as const);
-		});
+	it.effect('returns a completion event after a successful pure Collection Content Save', () =>
+		Effect.gen(function* () {
+			const collection: ModCollection = { name: 'default', mods: ['local:a'] };
+			let persistedCollection: ModCollection | undefined;
+			const persistCollectionFile = vi.fn((nextCollection: ModCollection) => {
+				persistedCollection = { ...nextCollection, mods: [...nextCollection.mods] };
+				nextCollection.mods.push('local:mutated');
+				return Effect.succeed({ ok: true, collection: persistedCollection } as const);
+			});
 
-		const outcome = await Effect.runPromise(
-			runCollectionContentSave({
+			const outcome = yield* runCollectionContentSave({
 				collection,
 				logger: { error: vi.fn() },
 				persistCollectionFile,
 				pureSave: true
-			})
-		);
+			});
 
-		expect(persistedCollection).toEqual({ name: 'default', mods: ['local:a'] });
-		expect(collection.mods).toEqual(['local:a']);
-		expect(outcome.completion).toEqual({
-			pureSave: true,
-			writeAccepted: true
-		});
-		expect(outcome).not.toHaveProperty('nextHasUnsavedDraft');
-		expect(outcome.writeAccepted).toBe(true);
-		expect(outcome.notification).toBeUndefined();
-	});
+			expect(persistedCollection).toEqual({ name: 'default', mods: ['local:a'] });
+			expect(collection.mods).toEqual(['local:a']);
+			expect(outcome.completion).toEqual({
+				pureSave: true,
+				writeAccepted: true
+			});
+			expect(outcome).not.toHaveProperty('nextHasUnsavedDraft');
+			expect(outcome.writeAccepted).toBe(true);
+			expect(outcome.notification).toBeUndefined();
+		})
+	);
 
-	it('keeps dirty draft state after a non-pure save and can request success notification', async () => {
+	vitestIt('keeps dirty draft state after a non-pure save and can request success notification', async () => {
 		const outcome = await Effect.runPromise(
 			runCollectionContentSave({
 				collection: { name: 'default', mods: ['local:a'] },
@@ -69,7 +70,7 @@ describe('collection-content-save', () => {
 		});
 	});
 
-	it('keeps dirty draft state and returns an error notification when persistence is rejected', async () => {
+	vitestIt('keeps dirty draft state and returns an error notification when persistence is rejected', async () => {
 		const outcome = await Effect.runPromise(
 			runCollectionContentSave({
 				collection: { name: 'default', mods: ['local:a'] },
@@ -100,7 +101,7 @@ describe('collection-content-save', () => {
 		});
 	});
 
-	it('serializes queued collection writes', async () => {
+	vitestIt('serializes queued collection writes', async () => {
 		const queue = createCollectionWriteQueue();
 		const firstRelease = createDeferred();
 		const events: string[] = [];

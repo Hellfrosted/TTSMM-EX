@@ -129,7 +129,7 @@ describe('vite config', () => {
 			expect(isExternal('ps-list')).toBe(true);
 			expect(isExternal('greenworks')).toBe(true);
 			expect(isExternal('effect')).toBe(true);
-			expect(isExternal('@tanstack/react-query')).toBe(false);
+			expect(isExternal('@effect/platform-node')).toBe(true);
 		}
 	});
 

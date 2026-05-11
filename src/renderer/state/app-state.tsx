@@ -1,7 +1,6 @@
-import { createContext, use, useEffect, useState } from 'react';
+import { createContext, use, useEffect, useState, useSyncExternalStore } from 'react';
 import type { PropsWithChildren } from 'react';
-import { useStore } from 'zustand';
-import { createStore, type StoreApi } from 'zustand/vanilla';
+import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import type { AppState, AppStateUpdate } from 'model/AppState';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';
@@ -138,24 +137,24 @@ interface AppStateStore extends AppState {
 	dispatch: React.Dispatch<AppAction>;
 }
 
-type AppStateStoreApi = StoreApi<AppStateStore>;
+type AppStateStoreApi = AtomRef.AtomRef<AppStateStore>;
 
-function createAppStateStore(navigate: (path: string) => void) {
-	return createStore<AppStateStore>()((set) => {
-		const dispatch: React.Dispatch<AppAction> = (action) => {
-			set((state) => appReducer(state, action) as AppStateStore);
-		};
-		const updateState: AppState['updateState'] = (props) => {
-			dispatch(mergeAppState(props));
-		};
+function createAppStateStore(navigate: (path: string) => void): AppStateStoreApi {
+	let storeRef: AppStateStoreApi;
+	const dispatch: React.Dispatch<AppAction> = (action) => {
+		storeRef.update((state) => appReducer(state, action) as AppStateStore);
+	};
+	const updateState: AppState['updateState'] = (props) => {
+		dispatch(mergeAppState(props));
+	};
 
-		return {
-			...createInitialAppState(),
-			navigate,
-			updateState,
-			dispatch
-		};
+	storeRef = AtomRef.make({
+		...createInitialAppState(),
+		navigate,
+		updateState,
+		dispatch
 	});
+	return storeRef;
 }
 
 const AppStateStoreContext = createContext<AppStateStoreApi | null>(null);
@@ -164,7 +163,7 @@ export function AppStateProvider({ children, navigate }: PropsWithChildren<{ nav
 	const [store] = useState(() => createAppStateStore(navigate));
 
 	useEffect(() => {
-		store.setState({ navigate });
+		store.update((state) => (state.navigate === navigate ? state : { ...state, navigate }));
 	}, [navigate, store]);
 
 	return <AppStateStoreContext.Provider value={store}>{children}</AppStateStoreContext.Provider>;
@@ -180,5 +179,10 @@ function useAppStateStore() {
 }
 
 export function useAppStateSelector<T>(selector: (state: AppState) => T) {
-	return useStore(useAppStateStore(), selector);
+	const store = useAppStateStore();
+	return useSyncExternalStore(
+		(onStoreChange) => store.subscribe(onStoreChange),
+		() => selector(store.value),
+		() => selector(store.value)
+	);
 }

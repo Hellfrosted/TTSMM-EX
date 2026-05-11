@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { AppState } from 'model';
 import api from 'renderer/Api';
 import {
@@ -29,7 +28,6 @@ interface BlockLookupWorkflowOptions {
 
 export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions) {
 	const { openNotification } = useNotifications();
-	const queryClient = useQueryClient();
 	const [sessionState, dispatchSessionEvent] = useReducer(reduceBlockLookupWorkspaceSession, createBlockLookupWorkspaceSessionState());
 	const {
 		availableModFilters,
@@ -69,7 +67,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 			dispatchSessionEvent({ type: 'search-started', requestId });
 			try {
 				const request = createBlockLookupSearchRequest(nextQuery);
-				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(queryClient, request), {
+				const result = await measurePerfAsync('blockLookup.search.ipc', () => fetchBlockLookupSearch(request), {
 					queryLength: nextQuery.length
 				});
 				dispatchSessionEvent({ type: 'search-completed', requestId, result });
@@ -93,14 +91,14 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				}
 			}
 		},
-		[openNotification, queryClient]
+		[openNotification]
 	);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			try {
-				const [nextSettings, nextStats] = await fetchBlockLookupBootstrap(queryClient);
+				const [nextSettings, nextStats] = await fetchBlockLookupBootstrap();
 				if (cancelled) {
 					return;
 				}
@@ -114,7 +112,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 		return () => {
 			cancelled = true;
 		};
-	}, [queryClient, refreshResults]);
+	}, [refreshResults]);
 
 	useEffect(() => {
 		if (!skippedInitialSearchEffectRef.current) {
@@ -158,7 +156,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				const nextSettings = await api.saveBlockLookupSettings({ workshopRoot, renderedPreviewsEnabled });
 				const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
 				dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-				setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
+				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
 				if (notify) {
 					openNotification(
 						{
@@ -183,7 +181,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 			}
 		},
-		[openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]
+		[openNotification, renderedPreviewsEnabled, sessionState, workshopRoot]
 	);
 
 	useEffect(() => {
@@ -260,8 +258,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				});
 				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', forceRebuild, result });
 				dispatchSessionEvent({ type: 'build-index-completed', forceRebuild, result });
-				setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(buildState));
-				await invalidateBlockLookupSearchQueries(queryClient);
+				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(buildState));
+				await invalidateBlockLookupSearchQueries();
 				await refreshResults(query);
 				openNotification(
 					{
@@ -290,7 +288,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				dispatchSessionEvent({ type: 'build-index-finished' });
 			}
 		},
-		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, queryClient, refreshResults, sessionState]
+		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults, sessionState]
 	);
 
 	const selectAllVisibleRows = useCallback((orderedRowKeys: string[]) => {
@@ -336,7 +334,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 						settings: nextSettings
 					});
 					dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-					setBlockLookupBootstrapQueryData(queryClient, createBlockLookupBootstrapCacheProjection(settingsState));
+					setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
 				} catch (error) {
 					api.logger.error(error);
 					dispatchSessionEvent({
@@ -355,7 +353,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				}
 			})();
 		},
-		[openNotification, queryClient, renderedPreviewsEnabled, sessionState, workshopRoot]
+		[openNotification, renderedPreviewsEnabled, sessionState, workshopRoot]
 	);
 
 	const syncSelectionCopyOrder = useCallback((orderedRowKeys: string[]) => {
