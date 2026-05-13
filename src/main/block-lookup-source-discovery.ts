@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import type { BlockLookupBuildRequest, BlockLookupModSource, BlockLookupSourceKind } from 'shared/block-lookup';
@@ -183,6 +184,12 @@ export function autoDetectBlockLookupWorkshopRoot(
 	return null;
 }
 
+export const autoDetectBlockLookupWorkshopRootEffect = Effect.fnUntraced(function* (
+	request: Pick<BlockLookupBuildRequest, 'gameExec' | 'modSources' | 'workshopRoot'> = {}
+): Effect.fn.Return<string | null> {
+	return autoDetectBlockLookupWorkshopRoot(request);
+});
+
 function isBundleCandidate(filepath: string): boolean {
 	const filename = path.basename(filepath);
 	if (IGNORE_FILENAMES.has(filename)) {
@@ -353,3 +360,9 @@ export function collectBlockLookupSources(request: BlockLookupBuildRequest): { s
 		workshopRoot
 	};
 }
+
+export const collectBlockLookupSourcesEffect = Effect.fnUntraced(function* (
+	request: BlockLookupBuildRequest
+): Effect.fn.Return<{ sources: BlockLookupSourceRecord[]; workshopRoot: string }> {
+	return collectBlockLookupSources(request);
+});

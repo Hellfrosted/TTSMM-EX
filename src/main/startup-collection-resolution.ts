@@ -6,6 +6,6 @@ import { resolveStartupActiveCollectionTransition } from './active-collection-tr
 export const resolveStartupCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	config: AppConfig
-): Effect.fn.Return<StartupCollectionResolutionResult> {
+): Effect.fn.Return<StartupCollectionResolutionResult, Error> {
 	return yield* resolveStartupActiveCollectionTransition(userDataPath, { config });
 });

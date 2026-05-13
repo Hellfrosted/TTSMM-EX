@@ -59,6 +59,12 @@ describe('block lookup ipc handlers', () => {
 		});
 	});
 
+	it('resolves autodetected workshop roots through the Effect IPC boundary', async () => {
+		const { invoke } = createBlockLookupHandlerHarness();
+
+		await expect(invoke(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, { forceRebuild: true, modSources: [] })).resolves.toBeNull();
+	});
+
 	it('emits determinate progress while building the index', async () => {
 		const { invokeWithEvent } = createBlockLookupHandlerHarness();
 		const send = vi.fn();

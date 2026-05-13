@@ -2,13 +2,12 @@ import type { IpcMain } from 'electron';
 import type { BlockLookupBuildRequest, BlockLookupIndexProgress, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { ValidChannel } from '../../model';
 import { type BlockLookupIndexModule, createBlockLookupIndexModule } from '../block-lookup-indexer';
-import { runMain } from '../runtime';
 import {
 	parseBlockLookupBuildRequestPayload,
 	parseBlockLookupSearchRequestPayload,
 	parseBlockLookupSettingsPayload
 } from './block-lookup-validation';
-import { registerValidatedIpcHandler } from './ipc-handler';
+import { registerValidatedEffectIpcHandler, registerValidatedIpcHandler } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -40,12 +39,10 @@ export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvid
 		return getIndexModule().saveSettings(parseBlockLookupSettingsPayload(ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS, settings));
 	});
 
-	registerValidatedIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, async (event, request: BlockLookupBuildRequest) => {
-		return runMain(
-			getIndexModule().buildIndex(
-				parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
-				sendBlockLookupIndexProgress(event)
-			)
+	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, (event, request: BlockLookupBuildRequest) => {
+		return getIndexModule().buildIndex(
+			parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_BUILD_INDEX, request),
+			sendBlockLookupIndexProgress(event)
 		);
 	});
 
@@ -58,11 +55,11 @@ export function registerBlockLookupHandlers(ipcMain: IpcMain, userDataPathProvid
 		return getIndexModule().getStats();
 	});
 
-	registerValidatedIpcHandler(
+	registerValidatedEffectIpcHandler(
 		ipcMain,
 		ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT,
-		async (_event, request: BlockLookupBuildRequest) => {
-			return getIndexModule().autoDetectWorkshopRoot(
+		(_event, request: BlockLookupBuildRequest) => {
+			return getIndexModule().autoDetectWorkshopRootEffect(
 				parseBlockLookupBuildRequestPayload(ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT, request)
 			);
 		}

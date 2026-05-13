@@ -1,6 +1,5 @@
 import { Effect } from 'effect';
 import log from 'electron-log';
-import fs from 'fs';
 import path from 'path';
 import {
 	BLOCK_LOOKUP_INDEX_VERSION,
@@ -18,7 +17,7 @@ import { createBlockLookupIndexStats } from './block-lookup-index-planner';
 import { searchBlockLookupRecords } from './block-lookup-search';
 import { normalizeWorkshopRoot } from './block-lookup-source-discovery';
 import { getBlockLookupPreviewCachePath } from './preview-protocol';
-import { writeUtf8FileAtomic } from './storage';
+import { fileExistsEffect, readJsonFileEffect, writeUtf8FileAtomicEffect } from './storage';
 
 export { buildBlockLookupAliases, extractNuterraBlocksFromText } from './block-lookup-nuterra-text';
 
@@ -33,40 +32,56 @@ function getBlockLookupSettingsPath(userDataPath: string) {
 	return path.join(userDataPath, BLOCK_LOOKUP_SETTINGS_FILENAME);
 }
 
-function readJsonFile<T>(filepath: string): T | null {
-	if (!fs.existsSync(filepath)) {
+const readBlockLookupJsonFileEffect = Effect.fnUntraced(function* <T>(filepath: string): Effect.fn.Return<T | null> {
+	const exists = yield* fileExistsEffect(filepath).pipe(Effect.catch(() => Effect.succeed(false)));
+	if (!exists) {
 		return null;
 	}
 
-	try {
-		return JSON.parse(fs.readFileSync(filepath, 'utf8')) as T;
-	} catch (error) {
-		log.warn(`Failed to read JSON file ${filepath}`);
-		log.warn(error);
-		return null;
-	}
+	return yield* readJsonFileEffect<T>(filepath).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to read JSON file ${filepath}`);
+			log.warn(error.cause);
+			return Effect.succeed(null);
+		})
+	);
+});
+
+function writeJsonFileEffect(filepath: string, value: unknown) {
+	return writeUtf8FileAtomicEffect(filepath, JSON.stringify(value, null, 2));
 }
 
-function writeJsonFile(filepath: string, value: unknown) {
-	writeUtf8FileAtomic(filepath, JSON.stringify(value, null, 2));
+function runBlockLookupStorage<A>(effect: Effect.Effect<A, unknown>) {
+	return Effect.runSync(effect);
 }
 
 export function readBlockLookupSettings(userDataPath: string): BlockLookupSettings {
-	const settings = readJsonFile<Partial<BlockLookupSettings>>(getBlockLookupSettingsPath(userDataPath));
+	return runBlockLookupStorage(readBlockLookupSettingsEffect(userDataPath));
+}
+
+export const readBlockLookupSettingsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<BlockLookupSettings> {
+	const settings = yield* readBlockLookupJsonFileEffect<Partial<BlockLookupSettings>>(getBlockLookupSettingsPath(userDataPath));
 	return {
 		workshopRoot: typeof settings?.workshopRoot === 'string' ? settings.workshopRoot : '',
 		renderedPreviewsEnabled: settings?.renderedPreviewsEnabled === true
 	};
-}
+});
 
 export function writeBlockLookupSettings(userDataPath: string, settings: BlockLookupSettings): BlockLookupSettings {
+	return runBlockLookupStorage(writeBlockLookupSettingsEffect(userDataPath, settings));
+}
+
+export const writeBlockLookupSettingsEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	settings: BlockLookupSettings
+): Effect.fn.Return<BlockLookupSettings, unknown> {
 	const normalizedSettings: BlockLookupSettings = {
 		workshopRoot: normalizeWorkshopRoot(settings.workshopRoot) || settings.workshopRoot.trim(),
 		renderedPreviewsEnabled: settings.renderedPreviewsEnabled === true
 	};
-	writeJsonFile(getBlockLookupSettingsPath(userDataPath), normalizedSettings);
+	yield* writeJsonFileEffect(getBlockLookupSettingsPath(userDataPath), normalizedSettings);
 	return normalizedSettings;
-}
+});
 
 function createEmptyIndex(): PersistedBlockLookupIndex {
 	return {
@@ -259,20 +274,27 @@ function normalizeBlockLookupIndex(index: unknown): PersistedBlockLookupIndex {
 }
 
 export function readBlockLookupIndex(userDataPath: string): PersistedBlockLookupIndex {
-	return normalizeBlockLookupIndex(readJsonFile<unknown>(getBlockLookupIndexPath(userDataPath)));
+	return runBlockLookupStorage(readBlockLookupIndexEffect(userDataPath));
 }
 
-function writeBlockLookupIndex(userDataPath: string, index: PersistedBlockLookupIndex) {
-	writeJsonFile(getBlockLookupIndexPath(userDataPath), index);
-}
+export const readBlockLookupIndexEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<PersistedBlockLookupIndex> {
+	return normalizeBlockLookupIndex(yield* readBlockLookupJsonFileEffect<unknown>(getBlockLookupIndexPath(userDataPath)));
+});
+
+const writeBlockLookupIndexEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	index: PersistedBlockLookupIndex
+): Effect.fn.Return<void, unknown> {
+	yield* writeJsonFileEffect(getBlockLookupIndexPath(userDataPath), index);
+});
 
 export const buildBlockLookupIndex = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: BlockLookupBuildRequest,
 	onProgress?: BlockLookupIndexProgressCallback
 ): Effect.fn.Return<{ stats: BlockLookupIndexStats }, unknown> {
-	const existingIndex = readBlockLookupIndex(userDataPath);
-	const settings = readBlockLookupSettings(userDataPath);
+	const existingIndex = yield* readBlockLookupIndexEffect(userDataPath);
+	const settings = yield* readBlockLookupSettingsEffect(userDataPath);
 	const build = yield* createBlockLookupIndexBuild(
 		existingIndex,
 		{
@@ -286,7 +308,7 @@ export const buildBlockLookupIndex = Effect.fnUntraced(function* (
 		}
 	);
 	onProgress?.(createBlockLookupIndexProgress('writing-index', 0, 1, 98));
-	writeBlockLookupIndex(userDataPath, build.index);
+	yield* writeBlockLookupIndexEffect(userDataPath, build.index);
 	onProgress?.(createBlockLookupIndexProgress('complete', 1, 1, 100));
 	return {
 		stats: build.stats
@@ -294,14 +316,28 @@ export const buildBlockLookupIndex = Effect.fnUntraced(function* (
 });
 
 export function getBlockLookupStats(userDataPath: string): BlockLookupIndexStats | null {
-	const index = readBlockLookupIndex(userDataPath);
+	return runBlockLookupStorage(getBlockLookupStatsEffect(userDataPath));
+}
+
+export function searchBlockLookupIndex(userDataPath: string, query: string, limit?: number): BlockLookupSearchResult {
+	return runBlockLookupStorage(searchBlockLookupIndexEffect(userDataPath, query, limit));
+}
+
+export const getBlockLookupStatsEffect = Effect.fnUntraced(function* (
+	userDataPath: string
+): Effect.fn.Return<BlockLookupIndexStats | null> {
+	const index = yield* readBlockLookupIndexEffect(userDataPath);
 	if (!index.builtAt) {
 		return null;
 	}
 	return createBlockLookupIndexStats(index);
-}
+});
 
-export function searchBlockLookupIndex(userDataPath: string, query: string, limit?: number): BlockLookupSearchResult {
-	const index = readBlockLookupIndex(userDataPath);
+export const searchBlockLookupIndexEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	query: string,
+	limit?: number
+): Effect.fn.Return<BlockLookupSearchResult> {
+	const index = yield* readBlockLookupIndexEffect(userDataPath);
 	return searchBlockLookupRecords(index, query, limit);
-}
+});

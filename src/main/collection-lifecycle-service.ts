@@ -9,7 +9,7 @@ import type {
 	SwitchCollectionLifecycleRequest
 } from '../shared/collection-lifecycle';
 import { validateCollectionName } from '../shared/collection-name';
-import { hasSavedCollectionName, readActiveCollection } from './active-collection-persistence';
+import { hasSavedCollectionNameEffect, readActiveCollectionEffect } from './active-collection-persistence';
 import {
 	createActiveCollectionTransition,
 	deleteActiveCollectionTransition,
@@ -18,18 +18,22 @@ import {
 	switchActiveCollectionTransition
 } from './active-collection-transition';
 
-function validateNewCollectionName(userDataPath: string, name: string, currentName?: string): CollectionLifecycleResult | undefined {
+const validateNewCollectionName = Effect.fnUntraced(function* (
+	userDataPath: string,
+	name: string,
+	currentName?: string
+): Effect.fn.Return<CollectionLifecycleResult | undefined> {
 	const validationError = validateCollectionName(name);
 	if (validationError) {
 		return failure('invalid-name', validationError);
 	}
 
-	if (hasSavedCollectionName(userDataPath, name, currentName)) {
+	if (yield* hasSavedCollectionNameEffect(userDataPath, name, currentName)) {
 		return failure('duplicate-name', `A collection named ${name} already exists`);
 	}
 
 	return undefined;
-}
+});
 
 export type CollectionLifecycleCommand =
 	| {
@@ -56,8 +60,8 @@ export type CollectionLifecycleCommand =
 export const createAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: CreateCollectionLifecycleRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const nameFailure = validateNewCollectionName(userDataPath, request.name);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const nameFailure = yield* validateNewCollectionName(userDataPath, request.name);
 	if (nameFailure) {
 		return nameFailure;
 	}
@@ -76,8 +80,8 @@ export const createAndActivateCollection = Effect.fnUntraced(function* (
 export const duplicateAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DuplicateCollectionLifecycleRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const source = readActiveCollection(userDataPath, request);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const source = yield* readActiveCollectionEffect(userDataPath, request);
 	if (!source) {
 		return failure('missing-active-collection', 'No active collection is available to duplicate');
 	}
@@ -93,13 +97,13 @@ export const duplicateAndActivateCollection = Effect.fnUntraced(function* (
 export const renameActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: RenameCollectionLifecycleRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const activeCollection = readActiveCollection(userDataPath, request);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const activeCollection = yield* readActiveCollectionEffect(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to rename');
 	}
 
-	const nameFailure = validateNewCollectionName(userDataPath, request.name, activeCollection.name);
+	const nameFailure = yield* validateNewCollectionName(userDataPath, request.name, activeCollection.name);
 	if (nameFailure) {
 		return nameFailure;
 	}
@@ -114,8 +118,8 @@ export const renameActiveCollection = Effect.fnUntraced(function* (
 export const deleteActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DeleteCollectionLifecycleRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const activeCollection = readActiveCollection(userDataPath, request);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const activeCollection = yield* readActiveCollectionEffect(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to delete');
 	}
@@ -129,14 +133,14 @@ export const deleteActiveCollection = Effect.fnUntraced(function* (
 export const switchActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: SwitchCollectionLifecycleRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
 	return yield* switchActiveCollectionTransition(userDataPath, request);
 });
 
 export const runCollectionLifecycle = Effect.fnUntraced(function* (
 	userDataPath: string,
 	command: CollectionLifecycleCommand
-): Effect.fn.Return<CollectionLifecycleResult> {
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
 	switch (command.type) {
 		case 'create':
 			return yield* createAndActivateCollection(userDataPath, command.request);

@@ -1,10 +1,20 @@
+import { Effect } from 'effect';
 import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
 import { ModCollection, ValidChannel } from '../model';
 import { validateCollectionName } from '../shared/collection-name';
 import { parseStoredModCollectionPayload } from './ipc/collection-validation';
-import { ensureCollectionsDirectory, readJsonFile, writeUtf8FileAtomic } from './storage';
+import {
+	deleteFileEffect,
+	ensureCollectionsDirectory,
+	ensureCollectionsDirectoryEffect,
+	fileExistsEffect,
+	listDirectoryEffect,
+	readJsonFileEffect,
+	realpathEffect,
+	writeUtf8FileAtomicEffect
+} from './storage';
 
 function serializeCollectionFile(collection: Pick<ModCollection, 'mods'>): string {
 	return JSON.stringify({ mods: [...collection.mods] }, null, 4);
@@ -46,62 +56,95 @@ export function refersToSameCollectionPath(oldpath: string, newpath: string): bo
 	}
 }
 
-export function readCollectionFile(userDataPath: string, collection: string): ModCollection | null {
+export const readCollectionFileEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	collection: string
+): Effect.fn.Return<ModCollection | null, Error> {
 	const collectionPath = resolveCollectionFilePath(userDataPath, collection);
 	if (!collectionPath) {
 		return null;
 	}
 
-	if (!fs.existsSync(collectionPath)) {
+	const collectionExists = yield* fileExistsEffect(collectionPath);
+	if (!collectionExists) {
 		return null;
 	}
 
-	try {
-		const data = parseStoredModCollectionPayload(ValidChannel.READ_COLLECTION, readJsonFile<unknown>(collectionPath));
-		return {
-			name: collection,
-			mods: [...data.mods]
-		};
-	} catch (error) {
-		log.error(`Failed to read collection file ${collectionPath}`);
-		log.error(error);
-		throw new Error(`Failed to load collection "${collection}"`);
-	}
+	return yield* readJsonFileEffect<unknown>(collectionPath).pipe(
+		Effect.flatMap((payload) =>
+			Effect.try({
+				try: () => {
+					const data = parseStoredModCollectionPayload(ValidChannel.READ_COLLECTION, payload);
+					return {
+						name: collection,
+						mods: [...data.mods]
+					};
+				},
+				catch: (error) => error
+			})
+		),
+		Effect.mapError((error) => {
+			log.error(`Failed to read collection file ${collectionPath}`);
+			log.error(error);
+			return new Error(`Failed to load collection "${collection}"`);
+		})
+	);
+});
+
+export function readCollectionFile(userDataPath: string, collection: string): ModCollection | null {
+	return Effect.runSync(readCollectionFileEffect(userDataPath, collection));
 }
+
+export const listCollectionsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<string[]> {
+	const collectionsDirectory = yield* ensureCollectionsDirectoryEffect(userDataPath).pipe(
+		Effect.catch(() => Effect.succeed(ensureCollectionsDirectory(userDataPath)))
+	);
+	const dirContents = yield* listDirectoryEffect(collectionsDirectory).pipe(
+		Effect.catch((error) => {
+			log.error(error.cause);
+			return Effect.succeed([]);
+		})
+	);
+	return dirContents.flatMap((entry) => {
+		if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') {
+			return [];
+		}
+		const collectionName = path.parse(entry.name).name;
+		return validateCollectionName(collectionName) === undefined ? [collectionName] : [];
+	});
+});
 
 export function listCollections(userDataPath: string): string[] {
-	const collectionsDirectory = ensureCollectionsDirectory(userDataPath);
-	try {
-		const dirContents = fs.readdirSync(collectionsDirectory, { withFileTypes: true });
-		return dirContents.flatMap((entry) => {
-			if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') {
-				return [];
-			}
-			const collectionName = path.parse(entry.name).name;
-			return validateCollectionName(collectionName) === undefined ? [collectionName] : [];
-		});
-	} catch (error) {
-		log.error(error);
-		return [];
-	}
+	return Effect.runSync(listCollectionsEffect(userDataPath));
 }
 
-export function updateCollectionFile(userDataPath: string, collection: ModCollection): boolean {
+export const updateCollectionFileEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	collection: ModCollection
+): Effect.fn.Return<boolean> {
 	const filepath = resolveCollectionFilePath(userDataPath, collection.name);
 	if (!filepath) {
 		return false;
 	}
 
-	try {
-		writeUtf8FileAtomic(filepath, serializeCollectionFile(collection));
-		return true;
-	} catch (error) {
-		log.error(error);
-		return false;
-	}
+	return yield* writeUtf8FileAtomicEffect(filepath, serializeCollectionFile(collection)).pipe(
+		Effect.as(true),
+		Effect.catch((error) => {
+			log.error(error.cause);
+			return Effect.succeed(false);
+		})
+	);
+});
+
+export function updateCollectionFile(userDataPath: string, collection: ModCollection): boolean {
+	return Effect.runSync(updateCollectionFileEffect(userDataPath, collection));
 }
 
-export function renameCollectionFile(userDataPath: string, collection: ModCollection, newName: string): boolean {
+export const renameCollectionFileEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	collection: ModCollection,
+	newName: string
+): Effect.fn.Return<boolean> {
 	const oldpath = resolveCollectionFilePath(userDataPath, collection.name);
 	const newpath = resolveCollectionFilePath(userDataPath, newName);
 	if (!oldpath || !newpath) {
@@ -109,53 +152,75 @@ export function renameCollectionFile(userDataPath: string, collection: ModCollec
 	}
 
 	log.info(`Renaming file ${oldpath} to ${newpath}`);
-	try {
-		const serializedCollection = serializeCollectionFile(collection);
-		const oldCollectionExists = fs.existsSync(oldpath);
-		const newCollectionExists = fs.existsSync(newpath);
-		const sameCollectionPath = oldCollectionExists && newCollectionExists && refersToSameCollectionPath(oldpath, newpath);
-		if (oldpath !== newpath && newCollectionExists && !sameCollectionPath) {
-			log.warn(`Refusing to rename collection ${collection.name} because ${newName} already exists`);
-			return false;
-		}
+	const oldCollectionExists = yield* fileExistsEffect(oldpath).pipe(Effect.catch(() => Effect.succeed(false)));
+	const newCollectionExists = yield* fileExistsEffect(newpath).pipe(Effect.catch(() => Effect.succeed(false)));
+	const sameCollectionPath =
+		oldCollectionExists &&
+		newCollectionExists &&
+		(yield* Effect.all([realpathEffect(oldpath), realpathEffect(newpath)]).pipe(
+			Effect.map(([oldRealpath, newRealpath]) => oldRealpath === newRealpath),
+			Effect.catch((error) => {
+				log.error(`Failed to compare collection paths ${oldpath} and ${newpath}`);
+				log.error(error.cause);
+				return Effect.succeed(false);
+			})
+		));
 
-		writeUtf8FileAtomic(newpath, serializedCollection);
-		if (oldCollectionExists && oldpath !== newpath && !sameCollectionPath) {
-			try {
-				fs.unlinkSync(oldpath);
-			} catch (error) {
-				try {
-					if (fs.existsSync(newpath)) {
-						fs.unlinkSync(newpath);
-					}
-				} catch (rollbackError) {
-					log.error(`Failed to roll back rename for ${newpath}`);
-					log.error(rollbackError);
-				}
-				throw error;
-			}
-		}
-		return true;
-	} catch (error) {
-		log.error(error);
+	if (oldpath !== newpath && newCollectionExists && !sameCollectionPath) {
+		log.warn(`Refusing to rename collection ${collection.name} because ${newName} already exists`);
 		return false;
 	}
+
+	return yield* writeUtf8FileAtomicEffect(newpath, serializeCollectionFile(collection)).pipe(
+		Effect.flatMap(() => {
+			if (!oldCollectionExists || oldpath === newpath || sameCollectionPath) {
+				return Effect.succeed(true);
+			}
+			return deleteFileEffect(oldpath).pipe(
+				Effect.as(true),
+				Effect.catch((error) =>
+					deleteFileEffect(newpath).pipe(
+						Effect.catch((rollbackError) =>
+							Effect.sync(() => {
+								log.error(`Failed to roll back rename for ${newpath}`);
+								log.error(rollbackError.cause);
+							})
+						),
+						Effect.flatMap(() => Effect.fail(error))
+					)
+				)
+			);
+		}),
+		Effect.catch((error) => {
+			log.error(error.cause);
+			return Effect.succeed(false);
+		})
+	);
+});
+
+export function renameCollectionFile(userDataPath: string, collection: ModCollection, newName: string): boolean {
+	return Effect.runSync(renameCollectionFileEffect(userDataPath, collection, newName));
 }
 
-export function deleteCollectionFile(userDataPath: string, collection: string): boolean {
+export const deleteCollectionFileEffect = Effect.fnUntraced(function* (
+	userDataPath: string,
+	collection: string
+): Effect.fn.Return<boolean> {
 	const filepath = resolveCollectionFilePath(userDataPath, collection);
 	if (!filepath) {
 		return false;
 	}
 
 	log.info(`Deleting file ${filepath}`);
-	try {
-		if (fs.existsSync(filepath)) {
-			fs.unlinkSync(filepath);
-		}
-		return true;
-	} catch (error) {
-		log.error(error);
-		return false;
-	}
+	return yield* deleteFileEffect(filepath).pipe(
+		Effect.as(true),
+		Effect.catch((error) => {
+			log.error(error.cause);
+			return Effect.succeed(false);
+		})
+	);
+});
+
+export function deleteCollectionFile(userDataPath: string, collection: string): boolean {
+	return Effect.runSync(deleteCollectionFileEffect(userDataPath, collection));
 }

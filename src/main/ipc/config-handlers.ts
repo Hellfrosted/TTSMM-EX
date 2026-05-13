@@ -4,9 +4,9 @@ import log from 'electron-log';
 import path from 'path';
 
 import { AppConfig, LogLevel, ValidChannel } from '../../model';
-import { applyLogLevel, readConfigFile, writeConfigFile } from '../config-store';
+import { applyLogLevel, readConfigFileEffect, writeConfigFileEffect } from '../config-store';
 import { parseAppConfigPayload } from './config-validation';
-import { registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
+import { registerValidatedEffectIpcHandler, registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -29,12 +29,12 @@ export function registerConfigHandlers(
 		return getUserDataPath();
 	});
 
-	registerValidatedIpcHandler(ipcMain, ValidChannel.READ_CONFIG, async () => {
-		return readConfigFile(path.join(getUserDataPath(), 'config.json'), isDevelopment);
+	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.READ_CONFIG, () => {
+		return readConfigFileEffect(path.join(getUserDataPath(), 'config.json'), isDevelopment);
 	});
 
-	registerValidatedIpcHandler(ipcMain, ValidChannel.UPDATE_CONFIG, async (_event, config: AppConfig) => {
+	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.UPDATE_CONFIG, (_event, config: AppConfig) => {
 		log.debug('updated config');
-		return writeConfigFile(path.join(getUserDataPath(), 'config.json'), parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config));
+		return writeConfigFileEffect(path.join(getUserDataPath(), 'config.json'), parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config));
 	});
 }

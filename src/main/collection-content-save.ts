@@ -1,12 +1,12 @@
 import { Effect } from 'effect';
 import type { CollectionContentSaveRequest, CollectionContentSaveResult } from 'shared/collection-content-save';
-import { readCollectionFile, updateCollectionFile } from './collection-store';
+import { readCollectionFileEffect, updateCollectionFileEffect } from './collection-store';
 
 export const saveExistingCollectionContent = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: CollectionContentSaveRequest
-): Effect.fn.Return<CollectionContentSaveResult> {
-	if (!readCollectionFile(userDataPath, request.collectionName)) {
+): Effect.fn.Return<CollectionContentSaveResult, Error> {
+	if (!(yield* readCollectionFileEffect(userDataPath, request.collectionName))) {
 		return {
 			ok: false,
 			code: 'missing-collection',
@@ -14,7 +14,7 @@ export const saveExistingCollectionContent = Effect.fnUntraced(function* (
 		};
 	}
 
-	const writeAccepted = updateCollectionFile(userDataPath, {
+	const writeAccepted = yield* updateCollectionFileEffect(userDataPath, {
 		name: request.collectionName,
 		mods: [...request.mods]
 	});
@@ -26,7 +26,7 @@ export const saveExistingCollectionContent = Effect.fnUntraced(function* (
 		};
 	}
 
-	const savedCollection = readCollectionFile(userDataPath, request.collectionName);
+	const savedCollection = yield* readCollectionFileEffect(userDataPath, request.collectionName);
 	if (!savedCollection) {
 		return {
 			ok: false,

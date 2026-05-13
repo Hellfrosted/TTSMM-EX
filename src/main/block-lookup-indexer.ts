@@ -16,7 +16,7 @@ import {
 	writeBlockLookupSettings
 } from './block-lookup';
 import { createWarmBlockLookupSearchIndex, searchWarmBlockLookupRecords, type WarmBlockLookupSearchIndex } from './block-lookup-search';
-import { autoDetectBlockLookupWorkshopRoot } from './block-lookup-source-discovery';
+import { autoDetectBlockLookupWorkshopRootEffect } from './block-lookup-source-discovery';
 
 interface BlockLookupIndexerAdapters {
 	buildBlockLookupIndex?: typeof buildBlockLookupIndex;
@@ -25,6 +25,7 @@ interface BlockLookupIndexerAdapters {
 
 export interface BlockLookupIndexModule {
 	autoDetectWorkshopRoot(request: BlockLookupBuildRequest): string | null;
+	autoDetectWorkshopRootEffect(request: BlockLookupBuildRequest): Effect.Effect<string | null>;
 	buildIndex(
 		request: BlockLookupBuildRequest,
 		onProgress?: BlockLookupIndexProgressCallback
@@ -50,7 +51,10 @@ export function createBlockLookupIndexModule(userDataPath: string, adapters: Blo
 
 	return {
 		autoDetectWorkshopRoot(request: BlockLookupBuildRequest) {
-			return autoDetectBlockLookupWorkshopRoot(request);
+			return Effect.runSync(autoDetectBlockLookupWorkshopRootEffect(request));
+		},
+		autoDetectWorkshopRootEffect(request: BlockLookupBuildRequest) {
+			return autoDetectBlockLookupWorkshopRootEffect(request);
 		},
 		buildIndex(request: BlockLookupBuildRequest, onProgress?: BlockLookupIndexProgressCallback) {
 			return buildSemaphore.withPermits(1)(

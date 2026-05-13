@@ -16,7 +16,7 @@ import {
 	assignRenderedBlockPreviewsToRecords,
 	getBlockLookupRecordPreviewMatchNameCandidates
 } from './block-lookup-rendered-preview-assignment';
-import { collectBlockLookupSources } from './block-lookup-source-discovery';
+import { collectBlockLookupSourcesEffect } from './block-lookup-source-discovery';
 import { indexBlockLookupSources } from './block-lookup-source-indexing';
 
 interface BlockLookupIndexBuildAdapters {
@@ -250,7 +250,7 @@ export const createBlockLookupIndexBuild = Effect.fnUntraced(function* (
 	const indexBlockLookupSourcesImpl = adapters.indexBlockLookupSources ?? indexBlockLookupSources;
 	const extractBlockLookupBundleOutcomesImpl = adapters.extractBlockLookupBundleOutcomes ?? extractBlockLookupBundleOutcomes;
 	reportBlockLookupIndexProgress(onProgress, 'planning', 0, 1, 0);
-	const { sources, workshopRoot } = collectBlockLookupSources(request);
+	const { sources, workshopRoot } = yield* collectBlockLookupSourcesEffect(request);
 	const renderedPreviewsEnabled = request.renderedPreviewsEnabled === true;
 	const indexPlan = createBlockLookupIndexPlan(
 		existingIndex,

@@ -8,6 +8,8 @@ export const MainRuntimeLayer = Layer.mergeAll(ModInventoryScannerLive, SteamPer
 
 const MainRuntime = ManagedRuntime.make(MainRuntimeLayer);
 
-export function runMain<A, E>(program: Effect.Effect<A, E, ModInventoryScanner | SteamPersonaCache>): Promise<A> {
+export function runMain<A, E, R extends ModInventoryScanner | SteamPersonaCache = ModInventoryScanner | SteamPersonaCache>(
+	program: Effect.Effect<A, E, R>
+): Promise<A> {
 	return MainRuntime.runPromise(program);
 }

@@ -6,13 +6,13 @@ import type { StartupCollectionResolutionResult } from '../shared/startup-collec
 import {
 	createActiveCollectionState,
 	createDefaultCollection,
-	readSavedCollections,
-	selectReplacementCollection,
+	readSavedCollectionsEffect,
+	selectReplacementCollectionEffect,
 	withActiveCollection,
-	writeActiveCollectionConfig,
-	writeCollection
+	writeActiveCollectionConfigEffect,
+	writeCollectionEffect
 } from './active-collection-persistence';
-import { deleteCollectionFile, readCollectionFile, renameCollectionFile } from './collection-store';
+import { deleteCollectionFileEffect, readCollectionFileEffect, renameCollectionFileEffect } from './collection-store';
 
 interface ActiveCollectionTransitionBaseRequest {
 	config: AppConfig;
@@ -50,108 +50,111 @@ export function createCollectionLifecycleFailure(code: CollectionLifecycleFailur
 	};
 }
 
-function persistDirtyActiveCollection(
+const persistDirtyActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	dirtyCollection: ModCollection | undefined
-): CollectionLifecycleResult | undefined {
+): Effect.fn.Return<CollectionLifecycleResult | undefined> {
 	if (!dirtyCollection) {
 		return undefined;
 	}
 
-	if (!writeCollection(userDataPath, dirtyCollection)) {
+	if (!(yield* writeCollectionEffect(userDataPath, dirtyCollection))) {
 		return createCollectionLifecycleFailure('dirty-collection-write-failed', `Failed to save collection ${dirtyCollection.name}`);
 	}
 
 	return undefined;
-}
+});
 
-function createActiveCollectionTransitionSuccess(
+const createActiveCollectionTransitionSuccess = Effect.fnUntraced(function* (
 	userDataPath: string,
 	config: AppConfig,
 	activeCollection: ModCollection
-): CollectionLifecycleResult {
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
 	return {
 		ok: true,
 		...createActiveCollectionState({
 			activeCollection,
-			collections: readSavedCollections(userDataPath),
+			collections: yield* readSavedCollectionsEffect(userDataPath),
 			config
 		})
 	};
-}
+});
 
-function activateActiveCollection(
+const activateActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	config: AppConfig,
 	activeCollection: ModCollection,
-	onConfigWriteFailure: () => CollectionLifecycleResult
-): CollectionLifecycleResult {
+	onConfigWriteFailure: () => Effect.Effect<CollectionLifecycleResult, Error>
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
 	const nextConfig = withActiveCollection(config, activeCollection.name);
-	const persistedConfig = writeActiveCollectionConfig(userDataPath, nextConfig);
+	const persistedConfig = yield* writeActiveCollectionConfigEffect(userDataPath, nextConfig);
 	if (!persistedConfig) {
-		writeActiveCollectionConfig(userDataPath, config);
-		return onConfigWriteFailure();
+		yield* writeActiveCollectionConfigEffect(userDataPath, config);
+		return yield* onConfigWriteFailure();
 	}
 
-	return createActiveCollectionTransitionSuccess(userDataPath, persistedConfig, activeCollection);
-}
+	return yield* createActiveCollectionTransitionSuccess(userDataPath, persistedConfig, activeCollection);
+});
 
-function restoreDeletedActiveCollection(
+const restoreDeletedActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	activeCollection: ModCollection,
 	code: CollectionLifecycleFailureCode,
 	message: string
-) {
-	const restored = writeCollection(userDataPath, activeCollection);
+): Effect.fn.Return<CollectionLifecycleResult> {
+	const restored = yield* writeCollectionEffect(userDataPath, activeCollection);
 	return createCollectionLifecycleFailure(restored ? code : 'rollback-failed', message);
-}
+});
 
 export const createActiveCollectionTransition = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: CreateActiveCollectionTransitionRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const dirtyFailure = persistDirtyActiveCollection(userDataPath, request.dirtyCollection);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* persistDirtyActiveCollection(userDataPath, request.dirtyCollection);
 	if (dirtyFailure) {
 		return dirtyFailure;
 	}
 
-	if (!writeCollection(userDataPath, request.collection)) {
+	if (!(yield* writeCollectionEffect(userDataPath, request.collection))) {
 		return createCollectionLifecycleFailure('collection-write-failed', `Failed to create collection ${request.collection.name}`);
 	}
 
-	return activateActiveCollection(userDataPath, request.config, request.collection, () => {
-		const rolledBack = deleteCollectionFile(userDataPath, request.collection.name);
-		return createCollectionLifecycleFailure(
-			rolledBack ? 'config-write-failed' : 'rollback-failed',
-			`Created collection ${request.collection.name} but failed to activate it`
-		);
-	});
+	return yield* activateActiveCollection(userDataPath, request.config, request.collection, () =>
+		deleteCollectionFileEffect(userDataPath, request.collection.name).pipe(
+			Effect.map((rolledBack) =>
+				createCollectionLifecycleFailure(
+					rolledBack ? 'config-write-failed' : 'rollback-failed',
+					`Created collection ${request.collection.name} but failed to activate it`
+				)
+			)
+		)
+	);
 });
 
 export const switchActiveCollectionTransition = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: SwitchActiveCollectionTransitionRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	const dirtyFailure = persistDirtyActiveCollection(userDataPath, request.dirtyCollection);
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* persistDirtyActiveCollection(userDataPath, request.dirtyCollection);
 	if (dirtyFailure) {
 		return dirtyFailure;
 	}
 
-	const targetCollection = readCollectionFile(userDataPath, request.name);
+	const targetCollection = yield* readCollectionFileEffect(userDataPath, request.name);
 	if (!targetCollection) {
 		return createCollectionLifecycleFailure('missing-target-collection', `Collection ${request.name} does not exist`);
 	}
 
-	return activateActiveCollection(userDataPath, request.config, targetCollection, () =>
-		createCollectionLifecycleFailure('config-write-failed', `Failed to switch to collection ${request.name}`)
+	return yield* activateActiveCollection(userDataPath, request.config, targetCollection, () =>
+		Effect.succeed(createCollectionLifecycleFailure('config-write-failed', `Failed to switch to collection ${request.name}`))
 	);
 });
 
 export const renameActiveCollectionTransition = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: RenameActiveCollectionTransitionRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	if (!renameCollectionFile(userDataPath, request.activeCollection, request.name)) {
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	if (!(yield* renameCollectionFileEffect(userDataPath, request.activeCollection, request.name))) {
 		return createCollectionLifecycleFailure(
 			'collection-write-failed',
 			`Failed to rename collection ${request.activeCollection.name} to ${request.name}`
@@ -162,31 +165,32 @@ export const renameActiveCollectionTransition = Effect.fnUntraced(function* (
 		...request.activeCollection,
 		name: request.name
 	};
-	return activateActiveCollection(userDataPath, request.config, renamedCollection, () => {
-		const rolledBack = renameCollectionFile(userDataPath, renamedCollection, request.activeCollection.name);
-		return createCollectionLifecycleFailure(
-			rolledBack ? 'config-write-failed' : 'rollback-failed',
-			`Renamed collection ${request.activeCollection.name} but failed to persist the active collection change`
-		);
-	});
+	return yield* activateActiveCollection(userDataPath, request.config, renamedCollection, () =>
+		renameCollectionFileEffect(userDataPath, renamedCollection, request.activeCollection.name).pipe(
+			Effect.map((rolledBack) =>
+				createCollectionLifecycleFailure(
+					rolledBack ? 'config-write-failed' : 'rollback-failed',
+					`Renamed collection ${request.activeCollection.name} but failed to persist the active collection change`
+				)
+			)
+		)
+	);
 });
 
 export const deleteActiveCollectionTransition = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DeleteActiveCollectionTransitionRequest
-): Effect.fn.Return<CollectionLifecycleResult> {
-	if (!deleteCollectionFile(userDataPath, request.activeCollection.name)) {
+): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	if (!(yield* deleteCollectionFileEffect(userDataPath, request.activeCollection.name))) {
 		return createCollectionLifecycleFailure('collection-delete-failed', 'Failed to delete collection');
 	}
 
-	let replacement: ReturnType<typeof selectReplacementCollection>;
-	try {
-		replacement = selectReplacementCollection(userDataPath, request.activeCollection.name);
-	} catch {
-		replacement = undefined;
-	}
+	let replacement: { collection: ModCollection; createdFallback: boolean } | undefined;
+	replacement = yield* selectReplacementCollectionEffect(userDataPath, request.activeCollection.name).pipe(
+		Effect.catch(() => Effect.succeed(undefined))
+	);
 	if (!replacement) {
-		return restoreDeletedActiveCollection(
+		return yield* restoreDeletedActiveCollection(
 			userDataPath,
 			request.activeCollection,
 			'missing-target-collection',
@@ -194,9 +198,9 @@ export const deleteActiveCollectionTransition = Effect.fnUntraced(function* (
 		);
 	}
 
-	if (replacement.createdFallback && !writeCollection(userDataPath, replacement.collection)) {
-		deleteCollectionFile(userDataPath, replacement.collection.name);
-		return restoreDeletedActiveCollection(
+	if (replacement.createdFallback && !(yield* writeCollectionEffect(userDataPath, replacement.collection))) {
+		yield* deleteCollectionFileEffect(userDataPath, replacement.collection.name);
+		return yield* restoreDeletedActiveCollection(
 			userDataPath,
 			request.activeCollection,
 			'collection-write-failed',
@@ -204,16 +208,18 @@ export const deleteActiveCollectionTransition = Effect.fnUntraced(function* (
 		);
 	}
 
-	return activateActiveCollection(userDataPath, request.config, replacement.collection, () => {
-		if (replacement.createdFallback) {
-			deleteCollectionFile(userDataPath, replacement.collection.name);
-		}
-		const restored = writeCollection(userDataPath, request.activeCollection);
-		return createCollectionLifecycleFailure(
-			restored ? 'config-write-failed' : 'rollback-failed',
-			`Deleted collection ${request.activeCollection.name} but failed to persist the replacement selection`
-		);
-	});
+	return yield* activateActiveCollection(userDataPath, request.config, replacement.collection, () =>
+		Effect.gen(function* () {
+			if (replacement.createdFallback) {
+				yield* deleteCollectionFileEffect(userDataPath, replacement.collection.name);
+			}
+			const restored = yield* writeCollectionEffect(userDataPath, request.activeCollection);
+			return createCollectionLifecycleFailure(
+				restored ? 'config-write-failed' : 'rollback-failed',
+				`Deleted collection ${request.activeCollection.name} but failed to persist the replacement selection`
+			);
+		})
+	);
 });
 
 function createStartupCollectionFailure(
@@ -246,13 +252,24 @@ function createStartupTransitionSuccess(
 export const resolveStartupActiveCollectionTransition = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: ResolveStartupActiveCollectionTransitionRequest
-): Effect.fn.Return<StartupCollectionResolutionResult> {
+): Effect.fn.Return<StartupCollectionResolutionResult, Error> {
 	let collections: ModCollection[];
-	try {
-		collections = readSavedCollections(userDataPath, { sort: true });
-	} catch (error) {
-		return createStartupCollectionFailure('collection-read-failed', error instanceof Error ? error.message : 'Failed to load collection');
+	const collectionsResult = yield* readSavedCollectionsEffect(userDataPath, { sort: true }).pipe(
+		Effect.match({
+			onSuccess: (savedCollections) => ({ ok: true as const, collections: savedCollections }),
+			onFailure: (error) => ({
+				ok: false as const,
+				failure: createStartupCollectionFailure(
+					'collection-read-failed',
+					error instanceof Error ? error.message : 'Failed to load collection'
+				)
+			})
+		})
+	);
+	if (!collectionsResult.ok) {
+		return collectionsResult.failure;
 	}
+	collections = collectionsResult.collections;
 
 	if (request.config.activeCollection) {
 		const activeCollection = collections.find((collection) => collectionNamesEqual(collection.name, request.config.activeCollection ?? ''));
@@ -264,7 +281,7 @@ export const resolveStartupActiveCollectionTransition = Effect.fnUntraced(functi
 	const fallbackCollection = collections[0];
 	if (fallbackCollection) {
 		const nextConfig = withActiveCollection(request.config, fallbackCollection.name);
-		const persistedConfig = writeActiveCollectionConfig(userDataPath, nextConfig);
+		const persistedConfig = yield* writeActiveCollectionConfigEffect(userDataPath, nextConfig);
 		if (!persistedConfig) {
 			return createStartupCollectionFailure(
 				'config-write-failed',
@@ -276,14 +293,14 @@ export const resolveStartupActiveCollectionTransition = Effect.fnUntraced(functi
 	}
 
 	const defaultCollection = createDefaultCollection();
-	if (!writeCollection(userDataPath, defaultCollection)) {
+	if (!(yield* writeCollectionEffect(userDataPath, defaultCollection))) {
 		return createStartupCollectionFailure('collection-write-failed', 'Failed to persist the default collection during boot');
 	}
 
 	const nextConfig = withActiveCollection(request.config, defaultCollection.name);
-	const persistedConfig = writeActiveCollectionConfig(userDataPath, nextConfig);
+	const persistedConfig = yield* writeActiveCollectionConfigEffect(userDataPath, nextConfig);
 	if (!persistedConfig) {
-		deleteCollectionFile(userDataPath, defaultCollection.name);
+		yield* deleteCollectionFileEffect(userDataPath, defaultCollection.name);
 		return createStartupCollectionFailure('config-write-failed', 'Failed to persist the default active collection during boot');
 	}
 
