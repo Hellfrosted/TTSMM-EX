@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CollectionManagerModalType, type ModCollection, ModType, SessionMods } from '../../model';
+import { CollectionManagerModalType, type ModCollection } from '../../model';
 import {
 	type ActiveCollectionDraftDriverAdapters,
 	type ActiveCollectionDraftDriverFacts,
@@ -56,18 +56,11 @@ function createDriverHarness(
 	} = {}
 ) {
 	const facts: ActiveCollectionDraftDriverFacts = {
-		mods: new SessionMods('', [
-			{
-				uid: 'local:a',
-				type: ModType.LOCAL,
-				name: 'Local A'
-			},
-			{
-				uid: 'local:b',
-				type: ModType.LOCAL,
-				name: 'Local B'
-			}
-		]),
+		gameRunning: false,
+		launchingGame: false,
+		loadingMods: false,
+		overrideGameRunning: false,
+		savingDraft: false,
 		...options.facts
 	};
 	const adapters: ActiveCollectionDraftDriverAdapters = {
@@ -93,7 +86,7 @@ function createDriverHarness(
 			config: DEFAULT_CONFIG,
 			draft: options.draft
 		},
-		facts: () => facts,
+		initialFacts: facts,
 		adapters
 	});
 
@@ -125,6 +118,7 @@ describe('active-collection-draft-driver', () => {
 		});
 
 		expect(adapters.launchDraft).toHaveBeenCalledOnce();
+		expect(adapters.launchDraft).toHaveBeenCalledWith(draft);
 	});
 
 	it('validates an edited draft through the driver before launch', async () => {
@@ -238,6 +232,37 @@ describe('active-collection-draft-driver', () => {
 
 		expect(driver.getSnapshot().draft).toEqual(lifecycleCollection);
 		expect(driver.getSnapshot().hasUnsavedDraft).toBe(false);
+	});
+
+	it('updates launch readiness from explicit runtime facts', () => {
+		const draft = collection(['local:a']);
+		const { driver } = createDriverHarness({ draft });
+
+		driver.dispatch({
+			type: 'runtime-facts-changed',
+			facts: {
+				gameRunning: true,
+				launchingGame: false,
+				loadingMods: false,
+				overrideGameRunning: false,
+				savingDraft: false
+			}
+		});
+
+		expect(driver.getSnapshot().launchReadiness.blockers).toContain('game-running');
+
+		driver.dispatch({
+			type: 'runtime-facts-changed',
+			facts: {
+				gameRunning: false,
+				launchingGame: false,
+				loadingMods: false,
+				overrideGameRunning: false,
+				savingDraft: false
+			}
+		});
+
+		expect(driver.getSnapshot().launchReadiness.blockers).not.toContain('game-running');
 	});
 
 	it('cancels validation and ignores late completion after dispose', async () => {

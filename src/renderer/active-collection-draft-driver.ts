@@ -1,6 +1,5 @@
-import { CollectionManagerModalType, type ModCollection, type ModData } from 'model';
+import { CollectionManagerModalType, type ModCollection } from 'model';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { getCollectionModDataList } from './collection-mod-list';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
@@ -15,19 +14,18 @@ import {
 } from './collection-workspace-session';
 
 export interface ActiveCollectionDraftDriverFacts {
-	gameRunning?: boolean;
-	launchingGame?: boolean;
-	loadingMods?: boolean;
-	mods: CollectionWorkspaceAppState['mods'];
-	overrideGameRunning?: boolean;
-	savingDraft?: boolean;
+	gameRunning: boolean;
+	launchingGame: boolean;
+	loadingMods: boolean;
+	overrideGameRunning: boolean;
+	savingDraft: boolean;
 }
 
 export interface ActiveCollectionDraftDriverAdapters {
 	cancelValidation: () => void;
 	clearCollectionErrors: () => void;
 	clearLaunchState: () => void;
-	launchDraft: (mods: ModData[]) => void | Promise<void>;
+	launchDraft: (draft: ModCollection) => void | Promise<void>;
 	openModal: (modalType: CollectionManagerModalType) => void;
 	persistDraft: (draft: ModCollection) => void | Promise<unknown>;
 	recalculateModData: () => void;
@@ -59,7 +57,8 @@ export type ActiveCollectionDraftDriverEvent =
 			type: 'active-draft-edited';
 	  }
 	| {
-			type: 'facts-changed';
+			facts: ActiveCollectionDraftDriverFacts;
+			type: 'runtime-facts-changed';
 	  }
 	| {
 			type: 'has-unsaved-draft-changed';
@@ -87,7 +86,7 @@ export type ActiveCollectionDraftDriverEvent =
 
 interface ActiveCollectionDraftDriverOptions {
 	adapters: ActiveCollectionDraftDriverAdapters;
-	facts: () => ActiveCollectionDraftDriverFacts;
+	initialFacts: ActiveCollectionDraftDriverFacts;
 	initial: {
 		config: CollectionWorkspaceAppState['config'];
 		draft?: ModCollection;
@@ -104,11 +103,12 @@ export interface ActiveCollectionDraftDriver {
 
 export function createActiveCollectionDraftDriver({
 	adapters,
-	facts,
+	initialFacts,
 	initial
 }: ActiveCollectionDraftDriverOptions): ActiveCollectionDraftDriver {
 	let disposed = false;
 	let validationRequestId = 0;
+	let runtimeFacts = initialFacts;
 	let workflowState = createCollectionWorkspaceWorkflowState({
 		config: initial.config,
 		draft: initial.draft
@@ -120,15 +120,14 @@ export function createActiveCollectionDraftDriver({
 	};
 
 	const getSnapshot = () => {
-		const currentFacts = facts();
 		return createCollectionWorkspaceSession({
 			activeCollection: workflowState.draft,
 			config: workflowState.config,
-			gameRunning: currentFacts.gameRunning || currentFacts.overrideGameRunning,
+			gameRunning: runtimeFacts.gameRunning || runtimeFacts.overrideGameRunning,
 			hasUnsavedDraft: workflowState.hasUnsavedDraft,
-			launchingGame: currentFacts.launchingGame,
-			loadingMods: currentFacts.loadingMods,
-			savingDraft: currentFacts.savingDraft,
+			launchingGame: runtimeFacts.launchingGame,
+			loadingMods: runtimeFacts.loadingMods,
+			savingDraft: runtimeFacts.savingDraft,
 			validatingDraft: workflowState.validatingDraft,
 			validationResult: workflowState.validationResult
 		});
@@ -208,7 +207,7 @@ export function createActiveCollectionDraftDriver({
 				break;
 			case 'launch-current-draft':
 				if (workflowState.draft) {
-					void adapters.launchDraft(getCollectionModDataList(facts().mods, workflowState.draft));
+					void adapters.launchDraft(workflowState.draft);
 				}
 				break;
 			case 'set-launching-game':
@@ -247,7 +246,8 @@ export function createActiveCollectionDraftDriver({
 			case 'active-draft-edited':
 				applyWorkflowEvent({ type: 'active-draft-edited', edit: event.edit });
 				break;
-			case 'facts-changed':
+			case 'runtime-facts-changed':
+				runtimeFacts = event.facts;
 				emit();
 				break;
 			case 'has-unsaved-draft-changed':

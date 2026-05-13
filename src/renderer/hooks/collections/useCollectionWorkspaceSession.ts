@@ -2,6 +2,7 @@ import { CollectionManagerModalType, type ModData, type NotificationProps } from
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import { type ActiveCollectionDraftDriver, createActiveCollectionDraftDriver } from 'renderer/active-collection-draft-driver';
+import { getCollectionModDataList } from 'renderer/collection-mod-list';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
@@ -37,12 +38,13 @@ export function useCollectionWorkspaceSession({
 	const { activeCollection, config, launchingGame, loadingMods, mods, updateState } = appState;
 	const collectionsRef = useRef<ReturnType<typeof useCollections> | undefined>(undefined);
 	const validationRef = useRef<ReturnType<typeof useCollectionValidation> | undefined>(undefined);
-	const factsRef = useRef({ gameRunning, launchingGame, loadingMods, mods, overrideGameRunning, savingDraft: false });
 	const launchModsRef = useRef(launchMods);
+	const modsRef = useRef(mods);
 	const onLaunchStateClearedRef = useRef(onLaunchStateCleared);
 	const setModalTypeRef = useRef(setModalType);
 	const updateStateRef = useRef(updateState);
 	launchModsRef.current = launchMods;
+	modsRef.current = mods;
 	onLaunchStateClearedRef.current = onLaunchStateCleared;
 	setModalTypeRef.current = setModalType;
 	updateStateRef.current = updateState;
@@ -51,7 +53,7 @@ export function useCollectionWorkspaceSession({
 	if (!driverRef.current) {
 		driverRef.current = createActiveCollectionDraftDriver({
 			initial: { config, draft: activeCollection },
-			facts: () => factsRef.current,
+			initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
 			adapters: {
 				cancelValidation: () => validationRef.current?.cancelValidation(),
 				clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
@@ -59,7 +61,7 @@ export function useCollectionWorkspaceSession({
 					updateStateRef.current({ launchingGame: false });
 					onLaunchStateClearedRef.current?.();
 				},
-				launchDraft: (modDataList) => launchModsRef.current(modDataList),
+				launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
 				openModal: (modalType) => setModalTypeRef.current(modalType),
 				persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
 				recalculateModData: () => collectionsRef.current?.recalculateModData(),
@@ -138,9 +140,17 @@ export function useCollectionWorkspaceSession({
 	validationRef.current = validation;
 
 	useEffect(() => {
-		factsRef.current = { gameRunning, launchingGame, loadingMods, mods, overrideGameRunning, savingDraft: collections.savingCollection };
-		driver.dispatch({ type: 'facts-changed' });
-	}, [collections.savingCollection, driver, gameRunning, launchingGame, loadingMods, mods, overrideGameRunning]);
+		driver.dispatch({
+			type: 'runtime-facts-changed',
+			facts: {
+				gameRunning,
+				launchingGame: !!launchingGame,
+				loadingMods: !!loadingMods,
+				overrideGameRunning,
+				savingDraft: collections.savingCollection
+			}
+		});
+	}, [collections.savingCollection, driver, gameRunning, launchingGame, loadingMods, overrideGameRunning]);
 
 	useEffect(() => {
 		driver.dispatch({ type: 'active-draft-changed', config, currentDraft: activeCollection });
