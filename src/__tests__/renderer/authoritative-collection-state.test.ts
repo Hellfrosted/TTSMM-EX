@@ -3,7 +3,8 @@ import type { AppConfig, ModCollection } from '../../model';
 import {
 	type AuthoritativeCollectionState,
 	applyAuthoritativeCollectionState,
-	getAuthoritativeCollectionStateUpdate
+	getAuthoritativeCollectionStateUpdate,
+	getCollectionContentSaveStateUpdate
 } from '../../renderer/authoritative-collection-state';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 
@@ -68,6 +69,34 @@ describe('authoritative Collection state application', () => {
 		expect(secondUpdate.allCollections?.has('alpha')).toBe(false);
 		expect(secondUpdate.allCollections?.has('renamed')).toBe(true);
 		expect(secondUpdate.allCollectionNames).toEqual(new Set(['renamed']));
+	});
+
+	it('projects accepted collection content saves into AppState collection ownership', () => {
+		const activeCollection = { name: 'default', mods: ['local:old'] };
+		const otherCollection = { name: 'other', mods: ['local:other'] };
+		const savedCollection = { name: 'default', mods: ['local:new'] };
+
+		const update = getCollectionContentSaveStateUpdate(
+			{
+				activeCollection,
+				allCollections: new Map([
+					['default', activeCollection],
+					['other', otherCollection]
+				])
+			},
+			savedCollection
+		);
+
+		expect(update.activeCollection).toEqual(savedCollection);
+		expect(update.activeCollection).not.toBe(savedCollection);
+		expect(update.allCollections).toEqual(
+			new Map([
+				['default', savedCollection],
+				['other', otherCollection]
+			])
+		);
+		expect(update.allCollections.get('default')).toBe(update.activeCollection);
+		expect(update.allCollections.get('other')).toBe(otherCollection);
 	});
 
 	it('rejects failed authoritative results', () => {

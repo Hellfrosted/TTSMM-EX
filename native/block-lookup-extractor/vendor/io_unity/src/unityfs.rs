@@ -171,7 +171,7 @@ impl UnityFS {
         let mut paths = vec![];
         for file in &self.content.blocks_info.directory_info {
             let path = file.path();
-            if !path.ends_with(".resource") {
+            if is_serialized_file_path(&path) {
                 paths.push(path);
             }
         }
@@ -208,6 +208,22 @@ impl UnityFS {
             resource_search_path,
             storage_blocks_start_positions,
         })
+    }
+}
+
+fn is_serialized_file_path(path: &str) -> bool {
+    !(path.ends_with(".resource") || path.ends_with(".resS"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_serialized_file_path;
+
+    #[test]
+    fn excludes_unity_resource_payload_paths() {
+        assert!(is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860"));
+        assert!(!is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860.resource"));
+        assert!(!is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860.resS"));
     }
 }
 

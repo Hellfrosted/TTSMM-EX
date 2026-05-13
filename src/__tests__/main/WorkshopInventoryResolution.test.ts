@@ -1,11 +1,18 @@
 import { it } from '@effect/vitest';
 import { Effect } from 'effect';
-import { describe, expect, it as vitestIt } from 'vitest';
-import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
+import { afterEach, describe, expect, vi, it as vitestIt } from 'vitest';
+import { ModInventoryProgress } from '../../main/mod-inventory-progress';
+import { buildWorkshopModBatch, resolveWorkshopDependencyChunk, scanWorkshopInventory } from '../../main/mod-workshop-inventory';
+import Steamworks from '../../main/steamworks';
 import { WorkshopInventoryResolver } from '../../main/workshop-inventory-resolution';
 import { type ModData, ModType } from '../../model';
+import { createWorkshopDetails } from './test-utils';
 
 describe('WorkshopInventoryResolver', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	vitestIt('tracks resolved workshop mods and queues missing dependencies', () => {
 		const loadedDependency = BigInt(2);
 		const missingDependency = BigInt(3);
@@ -77,6 +84,82 @@ describe('WorkshopInventoryResolver', () => {
 					}
 				})
 			);
+		})
+	);
+
+	it.effect('reports coarse unresolved reasons while building workshop mods', () =>
+		Effect.gen(function* () {
+			const nonModWorkshopID = BigInt(30);
+			const hydrationFailedWorkshopID = BigInt(31);
+			const validWorkshopID = BigInt(32);
+
+			const outcome = yield* buildWorkshopModBatch(
+				[
+					createWorkshopDetails({
+						publishedFileId: nonModWorkshopID,
+						tags: ['Screenshots'],
+						tagsDisplayNames: ['Screenshots']
+					}),
+					createWorkshopDetails({
+						publishedFileId: hydrationFailedWorkshopID,
+						tags: ['Mods'],
+						tagsDisplayNames: ['Mods']
+					}),
+					createWorkshopDetails({
+						publishedFileId: validWorkshopID,
+						tags: ['Mods'],
+						tagsDisplayNames: ['Mods']
+					})
+				],
+				(workshopID) =>
+					Effect.succeed(
+						workshopID === validWorkshopID
+							? {
+									uid: `workshop:${validWorkshopID}`,
+									id: 'Valid',
+									type: ModType.WORKSHOP,
+									workshopID: validWorkshopID
+								}
+							: null
+					)
+			);
+
+			expect(outcome.mods).toEqual([
+				expect.objectContaining({
+					uid: `workshop:${validWorkshopID}`,
+					workshopID: validWorkshopID
+				})
+			]);
+			expect(outcome.unresolvedWorkshopItems).toEqual([
+				{ workshopID: nonModWorkshopID, reason: 'non-mod' },
+				{ workshopID: hydrationFailedWorkshopID, reason: 'hydration-failed' }
+			]);
+		})
+	);
+
+	it.effect('keeps the richer workshop scan outcome behind the workshop inventory seam', () =>
+		Effect.gen(function* () {
+			vi.spyOn(Steamworks, 'getAppInstallDir').mockReturnValue('');
+			vi.spyOn(Steamworks, 'isAppInstalled').mockReturnValue(false);
+
+			const outcome = yield* scanWorkshopInventory({
+				buildWorkshopMod: () => Effect.fail(new Error('should not hydrate skipped workshop scans')),
+				getDetailsForWorkshopModList: () => Effect.fail(new Error('should not fetch skipped workshop scans')),
+				knownWorkshopMods: new Set([BigInt(40)]),
+				platform: 'linux',
+				progress: new ModInventoryProgress({ send: () => undefined }),
+				updateModLoadingProgress: () => undefined
+			});
+
+			expect(outcome).toEqual({
+				mods: [],
+				stats: {
+					dependencyItems: 0,
+					knownItems: 0,
+					subscribedItems: 0
+				},
+				unresolvedWorkshopItems: []
+			});
 		})
 	);
 });

@@ -74,6 +74,19 @@ describe('startup collection resolution', () => {
 		});
 	});
 
+	it('returns a user-safe failure when saved collection loading fails', () => {
+		fs.mkdirSync(path.join(tempDir, 'collections'), { recursive: true });
+		fs.writeFileSync(path.join(tempDir, 'collections', 'broken.json'), '{', 'utf8');
+
+		const result = Effect.runSync(resolveStartupCollection(tempDir, createTestAppConfig({ activeCollection: 'broken' })));
+
+		expect(result).toMatchObject({
+			ok: false,
+			code: 'collection-read-failed',
+			message: 'Failed to load collection "broken"'
+		});
+	});
+
 	it('rolls back the default collection when default activation fails', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 
