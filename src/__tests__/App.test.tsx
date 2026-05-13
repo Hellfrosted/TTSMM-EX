@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -179,6 +179,28 @@ describe('App', () => {
 
 		expect(screen.getByTestId('location')).toHaveTextContent('/collections/main');
 		expect(document.querySelector('[data-view-stage="collections"]')).toHaveClass('is-active');
+	});
+
+	it('mounts the target workspace stage during navigation preview before the route commits', async () => {
+		render(
+			<MemoryRouter initialEntries={['/settings']}>
+				<Routes>
+					<Route path="*" element={<AppShellInitializedHarness />} />
+				</Routes>
+			</MemoryRouter>
+		);
+
+		const collectionsButton = await screen.findByTitle('Mod Collections');
+
+		expect(screen.getByTestId('location')).toHaveTextContent('/settings');
+		expect(document.querySelector('[data-view-stage="collections"]')).not.toBeInTheDocument();
+
+		fireEvent.click(collectionsButton);
+
+		const collectionsStage = document.querySelector('[data-view-stage="collections"]');
+		expect(screen.getByTestId('location')).toHaveTextContent('/settings');
+		expect(collectionsStage).toBeInTheDocument();
+		expect(collectionsStage).toHaveAttribute('data-active', 'true');
 	});
 
 	it(

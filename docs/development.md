@@ -1,8 +1,18 @@
 # Development Notes
 
-Last reviewed: 2026-05-11
+Last reviewed: 2026-05-13
 
 Use this page for details that are useful during source builds, validation, packaging, and maintenance but too bulky for the root README.
+
+## Source Build Requirements
+
+- Node `>=24 <26`
+- pnpm `>=11 <12`
+- Rust toolchain with `cargo` for source builds that build or package Block Lookup bundle extraction
+- Steam desktop client
+- Steamworks SDK for source builds that need Steam integration
+
+The root lockfile is `pnpm-lock.yaml`, and the repo is configured to run through pnpm end to end. The packaging-only `release/app` package keeps its own committed `release/app/pnpm-lock.yaml` for packaged runtime dependencies that Electron main/preload builds externalize.
 
 ## Linux Runtime Packages
 
@@ -20,12 +30,29 @@ Linux notes:
 
 ## WSL Commands
 
-From WSL in the shared Windows checkout, run source setup with pnpm directly:
+Set `STEAMWORKS_SDK_PATH`, or create a repo-local `.steamworks-sdk-path` file that points at the extracted Steamworks `sdk` directory. From WSL in the shared Windows checkout, run source setup with pnpm directly:
 
 ```bash
 pnpm install
 pnpm run setup:steamworks
 ```
+
+Run the production desktop entrypoint from source:
+
+```bash
+steam &
+pnpm start
+```
+
+`pnpm start` builds the Rust Block Lookup extractor, builds the Electron app, and launches the production desktop entrypoint.
+
+For frontend development with the Vite dev server:
+
+```bash
+pnpm run dev
+```
+
+This repository assumes Steamworks is available for source builds. Steam must be running and initialized for the desktop app to load.
 
 ## Packaging Details
 
@@ -123,6 +150,27 @@ The pacman target needs `bsdtar`.
 Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` with `CI=true`. This catches the same Biome, Fallow, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
 
 For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run validate` before relying on the pushed commit.
+
+## App Data Overrides
+
+Development and smoke-test runs can override the Electron `userData` directory with `TTSMM_EX_USER_DATA_DIR` or `--ttsmm-ex-user-data-dir=<path>`. The EX fork stores its normal app data under `TerraTech Steam Mod Manager EX`, separate from the upstream app.
+
+Files of interest:
+
+- `config.json`
+- `collections/*.json`
+- `block-lookup-index.json`
+- `block-lookup-settings.json`
+- `block-lookup-rendered-previews/`
+
+## Behavior Notes
+
+- Workshop dependencies are resolved from Steamworks first.
+- If Steamworks does not return dependency children for a Workshop item, the app records the dependency metadata as unknown rather than scraping the public Workshop page.
+- `Treat NuterraSteam and NuterraSteam (Beta) as equivalent` affects both explicit mod-ID dependencies and unresolved Workshop dependency names.
+- Collection create, duplicate, rename, delete, and switch are main-process lifecycle commands. Renderer code should apply the returned state instead of coordinating filesystem rollback.
+- Startup Collection Resolution runs before the Collection workspace loads and must leave the app with a valid saved or newly created Active Collection.
+- Block Lookup bundle extraction runs through the Rust sidecar staged at `release/app/bin`; TypeScript owns parsing, index persistence, SpawnBlock aliases, and search.
 
 ## Effect Boundaries
 

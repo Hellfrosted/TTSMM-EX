@@ -9,13 +9,15 @@ import { createCollectionLifecycleCommandRunner } from 'renderer/collection-life
 import { applyCollectionContentSaveResult, type CollectionContentSaveCompletion } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
+import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionLifecycleCommandsOptions {
+	activeCollectionDraft?: ModCollection;
 	appState: CollectionWorkspaceAppState;
 	madeEdits: boolean;
 	onCollectionContentSaveCompleted?: (completion: CollectionContentSaveCompletion) => void;
-	onCollectionLifecycleResultApplied?: () => void;
+	onCollectionLifecycleResultApplied?: (result: Extract<CollectionLifecycleResult, { ok: true }>) => void;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	persistCollectionFile: (collection: ModCollection) => Promise<CollectionContentSaveResult>;
 	resetValidationState: () => void;
@@ -29,6 +31,7 @@ export interface CollectionContentSaveCommandOptions {
 }
 
 export function useCollectionLifecycleCommands({
+	activeCollectionDraft,
 	appState,
 	madeEdits,
 	onCollectionContentSaveCompleted,
@@ -49,7 +52,7 @@ export function useCollectionLifecycleCommands({
 				},
 				client: api,
 				getState: () => ({
-					activeCollection: appState.activeCollection,
+					activeCollection: activeCollectionDraft,
 					config: appState.config,
 					hasUnsavedDraft: madeEdits
 				}),
@@ -63,8 +66,8 @@ export function useCollectionLifecycleCommands({
 				updateState
 			}),
 		[
-			appState.activeCollection,
 			appState.config,
+			activeCollectionDraft,
 			madeEdits,
 			onCollectionLifecycleResultApplied,
 			openNotification,
@@ -85,21 +88,21 @@ export function useCollectionLifecycleCommands({
 
 	const duplicateCollection = useCallback(
 		async (name: string) => {
-			await lifecycleCommands.run({ kind: 'duplicate', name, sourceName: appState.activeCollection?.name ?? name });
+			await lifecycleCommands.run({ kind: 'duplicate', name, sourceName: activeCollectionDraft?.name ?? name });
 		},
-		[appState.activeCollection?.name, lifecycleCommands]
+		[activeCollectionDraft?.name, lifecycleCommands]
 	);
 
 	const renameCollection = useCallback(
 		async (name: string) => {
-			await lifecycleCommands.run({ kind: 'rename', name, previousName: appState.activeCollection?.name ?? name });
+			await lifecycleCommands.run({ kind: 'rename', name, previousName: activeCollectionDraft?.name ?? name });
 		},
-		[appState.activeCollection?.name, lifecycleCommands]
+		[activeCollectionDraft?.name, lifecycleCommands]
 	);
 
 	const deleteCollection = useCallback(async () => {
-		await lifecycleCommands.run({ kind: 'delete', deletedName: appState.activeCollection?.name });
-	}, [appState.activeCollection?.name, lifecycleCommands]);
+		await lifecycleCommands.run({ kind: 'delete', deletedName: activeCollectionDraft?.name });
+	}, [activeCollectionDraft?.name, lifecycleCommands]);
 
 	const changeActiveCollection = useCallback(
 		async (name: string) => {
@@ -135,7 +138,10 @@ export function useCollectionLifecycleCommands({
 						openNotification(saveOutcome.notification.props, saveOutcome.notification.type);
 					}
 					if (onCollectionContentSaveCompleted) {
-						onCollectionContentSaveCompleted(saveOutcome.completion);
+						onCollectionContentSaveCompleted({
+							...saveOutcome.completion,
+							savedCollection: saveOutcome.writeAccepted ? saveOutcome.targetCollection : undefined
+						});
 					}
 					const completionState = applyCollectionContentSaveResult({
 						hasUnsavedDraft: madeEdits,

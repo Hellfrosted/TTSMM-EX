@@ -16,7 +16,7 @@ export class MainStorageError extends Error {
 	}
 }
 
-export function getCollectionsDirectory(userDataPath: string): string {
+function getCollectionsDirectory(userDataPath: string): string {
 	return path.join(userDataPath, 'collections');
 }
 
@@ -76,10 +76,6 @@ export function readJsonFileEffect<T>(filepath: string): Effect.Effect<T, MainSt
 	});
 }
 
-export function readJsonFile<T>(filepath: string): T {
-	return Effect.runSync(readJsonFileEffect<T>(filepath));
-}
-
 function createAtomicWritePaths(filepath: string) {
 	const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 	return {
@@ -131,10 +127,6 @@ export function writeUtf8FileAtomicEffect(filepath: string, contents: string): E
 	});
 }
 
-export function writeUtf8FileAtomic(filepath: string, contents: string): void {
-	Effect.runSync(writeUtf8FileAtomicEffect(filepath, contents));
-}
-
 export function deleteFileEffect(filepath: string): Effect.Effect<void, MainStorageError> {
 	return Effect.try({
 		try: () => {
@@ -150,12 +142,5 @@ export function realpathEffect(filepath: string): Effect.Effect<string, MainStor
 	return Effect.try({
 		try: () => fs.realpathSync.native(filepath),
 		catch: (error) => new MainStorageError('realpath', filepath, error)
-	});
-}
-
-export function statEffect(filepath: string): Effect.Effect<fs.Stats, MainStorageError> {
-	return Effect.try({
-		try: () => fs.statSync(filepath),
-		catch: (error) => new MainStorageError('stat', filepath, error)
 	});
 }

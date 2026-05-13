@@ -220,7 +220,3 @@ export const deleteCollectionFileEffect = Effect.fnUntraced(function* (
 		})
 	);
 });
-
-export function deleteCollectionFile(userDataPath: string, collection: string): boolean {
-	return Effect.runSync(deleteCollectionFileEffect(userDataPath, collection));
-}

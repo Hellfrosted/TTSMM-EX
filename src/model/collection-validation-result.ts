@@ -34,7 +34,7 @@ interface CollectionStatusTagInput {
 	selectedMods: readonly string[] | ReadonlySet<string>;
 }
 
-type CollectionValidationOutcome = 'valid' | 'blocked' | 'warnings';
+export type CollectionValidationOutcome = 'valid' | 'blocked' | 'warnings';
 
 interface CollectionValidationResultPolicy {
 	errors?: CollectionErrors;

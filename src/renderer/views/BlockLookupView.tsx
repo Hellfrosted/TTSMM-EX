@@ -223,6 +223,7 @@ function BlockLookupSwitch({ checked, disabled, onChange, ...props }: BlockLooku
 	return (
 		<DesktopSwitch
 			{...props}
+			aria-checked={checked}
 			className="m-0"
 			checked={checked}
 			disabled={disabled}

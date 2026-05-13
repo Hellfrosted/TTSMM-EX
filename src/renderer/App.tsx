@@ -178,6 +178,17 @@ function preloadWorkspaceRoutes() {
 	void loadBlockLookupView();
 }
 
+function getWorkspaceStageKey(pathname: string): keyof AppShellMountedStages {
+	const routeKind = getAppRouteKind(pathname);
+	return routeKind === 'settings' ? 'settings' : routeKind === 'block-lookup' ? 'blockLookup' : 'collections';
+}
+
+interface AppShellMountedStages {
+	blockLookup: boolean;
+	collections: boolean;
+	settings: boolean;
+}
+
 function MenuBarStageView({
 	disableNavigation,
 	onWorkspacePreview
@@ -210,7 +221,7 @@ export function AppShell() {
 	const initializedConfigsRef = useRef(initializedConfigs);
 	initializedConfigsRef.current = initializedConfigs;
 	const initialRouteKind = getAppRouteKind(currentPathname);
-	const [mountedStages, setMountedStages] = useState({
+	const [mountedStages, setMountedStages] = useState<AppShellMountedStages>({
 		blockLookup: initialRouteKind === 'block-lookup',
 		collections: initialRouteKind === 'collections',
 		settings: initialRouteKind === 'settings'
@@ -239,6 +250,8 @@ export function AppShell() {
 	});
 	const previewWorkspaceNavigation = useCallback((pathname: string) => {
 		if (getAppRouteKind(pathname) !== 'loading') {
+			const stageKey = getWorkspaceStageKey(pathname);
+			setMountedStages((current) => (current[stageKey] ? current : { ...current, [stageKey]: true }));
 			setPreviewPathname(pathname);
 		}
 	}, []);
@@ -273,20 +286,14 @@ export function AppShell() {
 		setPreviewPathname(null);
 	}, [currentPathname]);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (appShell.isLoadingRoute) {
 			return;
 		}
 
-		const timeoutId = window.setTimeout(() => {
-			const stageKey = appShell.isSettingsRoute ? 'settings' : appShell.isBlockLookupRoute ? 'blockLookup' : 'collections';
-			setMountedStages((current) => (current[stageKey] ? current : { ...current, [stageKey]: true }));
-		}, 0);
-
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [appShell.isBlockLookupRoute, appShell.isLoadingRoute, appShell.isSettingsRoute]);
+		const stageKey = getWorkspaceStageKey(effectivePathname);
+		setMountedStages((current) => (current[stageKey] ? current : { ...current, [stageKey]: true }));
+	}, [appShell.isLoadingRoute, effectivePathname]);
 
 	useEffect(() => {
 		if (appShell.isLoadingRoute) {

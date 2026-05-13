@@ -1,19 +1,17 @@
 # TerraTech Steam Mod Manager EX
 
-TerraTech Steam Mod Manager EX is an Electron desktop app for configuring TerraTech local mods, resolving Steam Workshop metadata and dependencies, validating collections, and launching the game with a predictable setup.
+TerraTech Steam Mod Manager EX is a desktop app for managing TerraTech mods from Steam Workshop and local mod folders.
 
-TTSMM-EX is a fork of [`FLSoz/terratech-steam-mod-loader`](https://github.com/FLSoz/terratech-steam-mod-loader). It has its own app identity and Electron user-data directory, so it can be installed alongside the upstream build.
-
-Last reviewed: 2026-05-11
+TTSMM-EX is a fork of [`FLSoz/terratech-steam-mod-loader`](https://github.com/FLSoz/terratech-steam-mod-loader). It uses its own app identity and data folder, so it can be installed alongside the upstream app.
 
 ## Install
 
-If you only want to run the app, download a release artifact for your platform and install it directly.
+Download the release artifact for your platform from [Releases](https://github.com/Hellfrosted/TTSMM-EX/releases) and install it directly.
 
 Windows:
 
-- Run `TTSMM-EX Setup <version>.exe`
-- Launch `TTSMM-EX` from the Start menu or the desktop shortcut
+- Run `TTSMM-EX Setup <version>.exe`.
+- Launch `TTSMM-EX` from the Start menu or desktop shortcut.
 
 Debian or Ubuntu:
 
@@ -29,63 +27,29 @@ sudo pacman -U ./terratech-steam-mod-manager-ex-<version>.pacman
 terratech-steam-mod-manager-ex
 ```
 
-Steam must be installed, running, and signed in from the same Linux or Windows install before launching the app.
-
-## Build from source requirements
-
-- Node `>=24 <26`
-- pnpm `>=11 <12`
-- Rust toolchain with `cargo` for source builds that build or package Block Lookup bundle extraction
-- Steam desktop client
-- Steamworks SDK for source builds that need Steam integration
-
-The root lockfile is `pnpm-lock.yaml`, and the repo is configured to run through pnpm end to end. The packaging-only `release/app` package keeps its own committed `release/app/pnpm-lock.yaml` for packaged runtime dependencies that Electron main/preload builds externalize.
-
-## Source Setup
-
-Set `STEAMWORKS_SDK_PATH`, or create a repo-local `.steamworks-sdk-path` file that points at the extracted Steamworks `sdk` directory. Then install dependencies and rebuild Steamworks:
+AppImage:
 
 ```bash
-pnpm install
-pnpm run setup:steamworks
+chmod +x ./terratech-steam-mod-manager-ex-<version>.AppImage
+./terratech-steam-mod-manager-ex-<version>.AppImage
 ```
 
-Run the production desktop entrypoint from source:
+Steam must be installed, running, and signed in from the same Windows or Linux install before launching the app. TerraTech should also be installed in that Steam library if you want TTSMM-EX to find the game and Workshop content automatically.
 
-```bash
-steam &
-pnpm start
-```
+## Platform Notes
 
-`pnpm start` builds the Rust Block Lookup extractor, builds the Electron app, and launches the production desktop entrypoint.
+Windows uses the configured TerraTech executable when launching the game.
 
-For frontend development with the Vite dev server:
-
-```bash
-pnpm run dev
-```
-
-This repository assumes Steamworks is available for source builds. Steam must be running and initialized for the desktop app to load.
+Linux launches TerraTech through Steam. The `TerraTech Executable` setting is not used on Linux, but Steam still needs to be running and signed in.
 
 ## App Data
 
-The EX fork stores its data under its own Electron `userData` directory, `TerraTech Steam Mod Manager EX`.
+TTSMM-EX stores its settings, collections, and Block Lookup cache in its own Electron app data folder named `TerraTech Steam Mod Manager EX`.
 
-Files of interest:
+Useful files inside that folder include:
 
 - `config.json`
 - `collections/*.json`
 - `block-lookup-index.json`
 - `block-lookup-settings.json`
 - `block-lookup-rendered-previews/`
-
-Development and smoke-test runs can override this directory with `TTSMM_EX_USER_DATA_DIR` or `--ttsmm-ex-user-data-dir=<path>`.
-
-## Behavior Notes
-
-- Workshop dependencies are resolved from Steamworks first.
-- If Steamworks does not return dependency children for a Workshop item, the app records the dependency metadata as unknown rather than scraping the public Workshop page.
-- `Treat NuterraSteam and NuterraSteam (Beta) as equivalent` affects both explicit mod-ID dependencies and unresolved Workshop dependency names.
-- Collection create, duplicate, rename, delete, and switch are main-process lifecycle commands. Renderer code should apply the returned state instead of coordinating filesystem rollback.
-- Startup Collection Resolution runs before the Collection workspace loads and must leave the app with a valid saved or newly created Active Collection.
-- Block Lookup bundle extraction runs through the Rust sidecar staged at `release/app/bin`; TypeScript owns parsing, index persistence, SpawnBlock aliases, and search.

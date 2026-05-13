@@ -1065,15 +1065,59 @@ a:hover {
 	border-color: color-mix(in oklch, var(--app-color-success) 72%, var(--app-color-text-base));
 }
 
-.CollectionValidateButton.DesktopButton:enabled:hover {
-	background: var(--app-color-error-action-hover);
-	border-color: var(--app-color-error-action-hover);
+.CollectionToolbarGridButton.DesktopButton[data-game-running="true"]:disabled {
+	opacity: 1;
+	border-color: var(--app-color-primary);
+	background: var(--app-color-primary);
+	color: var(--app-color-primary-text);
 }
 
 .CollectionValidateButton.DesktopButton {
+	color: var(--app-color-text-base);
+}
+
+.CollectionValidateButton--neutral.DesktopButton {
+	border-color: color-mix(in oklch, var(--app-color-border) 82%, var(--app-color-text-base));
+	background: color-mix(in oklch, var(--app-color-surface-elevated) 88%, var(--app-color-text-base) 5%);
+	color: color-mix(in oklch, var(--app-color-text-base) 84%, var(--app-color-text-muted));
+}
+
+.CollectionValidateButton--neutral.DesktopButton:enabled:hover {
+	background: color-mix(in oklch, var(--app-color-surface-elevated) 74%, var(--app-color-text-base) 9%);
+	border-color: color-mix(in oklch, var(--app-color-border) 58%, var(--app-color-text-base));
+}
+
+.CollectionValidateButton--valid.DesktopButton {
+	border-color: color-mix(in oklch, var(--app-color-success) 82%, var(--app-color-text-base));
+	background: var(--app-color-success);
+	color: oklch(98% 0.01 145);
+}
+
+.CollectionValidateButton--valid.DesktopButton:enabled:hover {
+	background: color-mix(in oklch, var(--app-color-success) 86%, var(--app-color-text-base));
+	border-color: color-mix(in oklch, var(--app-color-success) 72%, var(--app-color-text-base));
+}
+
+.CollectionValidateButton--warnings.DesktopButton {
+	border-color: color-mix(in oklch, var(--app-color-warning) 82%, var(--app-color-text-base));
+	background: var(--app-color-warning);
+	color: oklch(18% 0.03 72);
+}
+
+.CollectionValidateButton--warnings.DesktopButton:enabled:hover {
+	background: color-mix(in oklch, var(--app-color-warning) 86%, var(--app-color-text-base));
+	border-color: color-mix(in oklch, var(--app-color-warning) 72%, var(--app-color-text-base));
+}
+
+.CollectionValidateButton--blocked.DesktopButton {
 	border-color: var(--app-color-error-action);
 	background: var(--app-color-error-action);
 	color: oklch(98% 0.01 20);
+}
+
+.CollectionValidateButton--blocked.DesktopButton:enabled:hover {
+	background: var(--app-color-error-action-hover);
+	border-color: var(--app-color-error-action-hover);
 }
 
 .CollectionValidateButton .DesktopButtonLabel {

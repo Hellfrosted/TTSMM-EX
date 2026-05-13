@@ -160,7 +160,7 @@ describe('useCollectionValidation', () => {
 		).toBe('stale');
 	});
 
-	it('does not mark validation current or launch when persisting the validated collection fails', async () => {
+	it('records launch-triggered validation without persisting the validated collection', async () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA]);
 		const appState = createAppState({
@@ -186,16 +186,16 @@ describe('useCollectionValidation', () => {
 			outcome = await result.current.validateActiveCollection(true);
 		});
 
-		if (outcome?.type !== 'persistence-failed') {
-			throw new Error(`Expected persistence-failed validation outcome, received ${outcome?.type}`);
+		if (outcome?.type !== 'recorded-current-result') {
+			throw new Error(`Expected recorded-current-result validation outcome, received ${outcome?.type}`);
 		}
-		expect(persistCollection).toHaveBeenCalledWith(appState.activeCollection);
+		expect(persistCollection).not.toHaveBeenCalled();
 		expect(outcome.validationResult.success).toBe(true);
-		expect(result.current.lastValidationStatus).toBeUndefined();
-		expect(result.current.validationResult).toBeUndefined();
+		expect(result.current.lastValidationStatus).toBe(true);
+		expect(result.current.validationResult).toEqual(outcome.validationResult);
 	});
 
-	it('returns a launch continuation after successful validation only when the validated draft is still current', async () => {
+	it('returns a recorded validation result after successful launch-triggered validation', async () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA]);
 		const appState = createAppState({
@@ -221,11 +221,10 @@ describe('useCollectionValidation', () => {
 			outcome = await result.current.validateActiveCollection(true);
 		});
 
-		if (outcome?.type !== 'recorded-and-ready-to-launch-current-draft') {
-			throw new Error(`Expected recorded-and-ready-to-launch-current-draft validation outcome, received ${outcome?.type}`);
+		if (outcome?.type !== 'recorded-current-result') {
+			throw new Error(`Expected recorded-current-result validation outcome, received ${outcome?.type}`);
 		}
-		expect(persistCollection).toHaveBeenCalledWith(appState.activeCollection);
-		expect(outcome.launchCollection).toEqual(appState.activeCollection);
+		expect(persistCollection).not.toHaveBeenCalled();
 		expect(
 			createCollectionWorkspaceSession({
 				activeCollection: appState.activeCollection,
@@ -236,7 +235,7 @@ describe('useCollectionValidation', () => {
 		).toBe('passed');
 	});
 
-	it('does not return a launch continuation when the validated draft becomes stale before persistence completes', async () => {
+	it('validates the supplied Active Collection Draft instead of app state activeCollection', async () => {
 		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
 		const modB = { uid: 'local:b', id: 'ModB', name: 'Mod B', type: ModType.LOCAL };
 		const mods = new SessionMods('', [modA, modB]);
@@ -245,18 +244,13 @@ describe('useCollectionValidation', () => {
 			mods,
 			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
-		let resolvePersist: (saved: boolean) => void = () => undefined;
-		const persistCollection = vi.fn(
-			() =>
-				new Promise<boolean>((resolve) => {
-					resolvePersist = resolve;
-				})
-		);
+		const persistCollection = vi.fn(async () => true);
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result, rerender } = renderHook(() =>
+		const { result } = renderHook(() =>
 			useCollectionValidation({
+				activeCollectionDraft: { name: 'default', mods: ['local:b'] },
 				appState,
 				openNotification: vi.fn(),
 				setModalType: vi.fn(),
@@ -264,30 +258,52 @@ describe('useCollectionValidation', () => {
 			})
 		);
 
-		let validationPromise: ReturnType<typeof result.current.validateActiveCollection> | undefined;
-		act(() => {
-			validationPromise = result.current.validateActiveCollection(true);
+		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
+		await act(async () => {
+			outcome = await result.current.validateActiveCollection(true);
 		});
 
-		await waitFor(() => {
-			expect(persistCollection).toHaveBeenCalledWith({ name: 'default', mods: ['local:a'] });
-		});
+		if (outcome?.type !== 'recorded-current-result') {
+			throw new Error(`Expected recorded-current-result validation outcome, received ${outcome?.type}`);
+		}
+		expect(persistCollection).not.toHaveBeenCalled();
+		expect(outcome.validationResult.draftKey).toContain('local:b');
+		expect(result.current.validationResult).toEqual(outcome.validationResult);
+	});
 
-		act(() => {
-			appState.activeCollection = { name: 'default', mods: ['local:b'] };
+	it('records validation for an explicitly supplied draft before the hook rerenders with that draft', async () => {
+		const modA = { uid: 'local:a', id: 'ModA', name: 'Mod A', type: ModType.LOCAL };
+		const modB = { uid: 'local:b', id: 'ModB', name: 'Mod B', type: ModType.LOCAL };
+		const mods = new SessionMods('', [modA, modB]);
+		const appState = createAppState({
+			config: createTestConfig({ activeCollection: 'default' }),
+			mods,
+			activeCollection: { name: 'default', mods: ['local:a'] }
 		});
-		rerender();
+		const editedDraft = { name: 'default', mods: ['local:b'] };
+
+		setupDescriptors(mods, appState.config.userOverrides);
+
+		const { result } = renderHook(() =>
+			useCollectionValidation({
+				activeCollectionDraft: appState.activeCollection,
+				appState,
+				openNotification: vi.fn(),
+				setModalType: vi.fn(),
+				persistCollection: vi.fn(async () => true)
+			})
+		);
 
 		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
 		await act(async () => {
-			resolvePersist(true);
-			outcome = await validationPromise;
+			outcome = await result.current.validateActiveCollection(false, { collection: editedDraft });
 		});
 
-		if (outcome?.type !== 'discarded-stale-result') {
-			throw new Error(`Expected discarded-stale-result validation outcome, received ${outcome?.type}`);
+		if (outcome?.type !== 'recorded-current-result') {
+			throw new Error(`Expected recorded-current-result validation outcome, received ${outcome?.type}`);
 		}
-		expect(result.current.validationResult).toBeUndefined();
+		expect(outcome.validationResult.draftKey).toContain('local:b');
+		expect(result.current.validationResult).toEqual(outcome.validationResult);
 	});
 
 	it('applies ignored validation errors from a supplied config override', async () => {

@@ -168,7 +168,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useReducer(preferredHalfDetailsLayoutReducer, undefined);
 	const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
 	const guidedFixActive = false;
-	const { activeCollection, config, loadingMods, mods, updateState } = appState;
+	const { config, loadingMods, mods, updateState } = appState;
 
 	const {
 		bigDetails,
@@ -184,10 +184,13 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		setPrewarmAlternateDetails,
 		collections,
 		collectionWorkspaceSession,
+		currentValidationOutcome,
 		currentValidationStatus,
 		currentCollectionErrors,
 		currentRecord,
 		detailsActiveTabKey,
+		gameRunning,
+		overrideGameRunning,
 		setBigDetails: handleExpandFooter,
 		setDetailsActiveTabKey,
 		setModalType,
@@ -196,6 +199,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		appState,
 		openNotification
 	});
+	const activeCollection = collectionWorkspaceSession.draft;
 
 	const {
 		searchString,
@@ -216,6 +220,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const hasUnsavedDraft = collectionWorkspaceSession.hasUnsavedDraft;
 	const savingDraft = collectionWorkspaceSession.savingDraft;
 	const validatingDraft = collectionWorkspaceSession.validatingDraft;
+	const gameRunningForLaunch = gameRunning || overrideGameRunning;
 
 	const currentView = CollectionViewType.MAIN;
 
@@ -472,10 +477,17 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		launchReadiness: collectionWorkspaceSession.launchReadiness,
 		modalOpen: modalType !== CollectionManagerModalType.NONE
 	});
+	const collectionWorkspaceAppState = useMemo(
+		() => ({
+			...appState,
+			activeCollection
+		}),
+		[activeCollection, appState]
+	);
 	const sharedDetailsProps = displayedCurrentRecord
 		? {
 				lastValidationStatus: currentValidationStatus,
-				appState,
+				appState: collectionWorkspaceAppState,
 				halfLayoutMode: halfDetailsLayout,
 				currentRecord: displayedCurrentRecord,
 				activeTabKey: detailsActiveTabKey,
@@ -537,7 +549,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const launchDisabledReason = launchCommandState.reason;
 
 	return {
-		appState,
+		appState: collectionWorkspaceAppState,
 		bigDetails,
 		bottomDetailsHeight,
 		changeActiveCollection,
@@ -548,10 +560,12 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		createNewCollection,
 		currentCollectionErrors,
 		currentView,
+		currentValidationOutcome,
 		currentValidationStatus,
 		displayedCurrentRecord,
 		duplicateCollection,
 		fullDetailsFooter,
+		gameRunning: gameRunningForLaunch,
 		handleCloseDetails: closeCurrentRecord,
 		handleDeleteCollection,
 		handleLaunchAnyway,
@@ -960,10 +974,12 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 		createNewCollection,
 		currentCollectionErrors,
 		currentView,
+		currentValidationOutcome,
 		currentValidationStatus,
 		displayedCurrentRecord,
 		duplicateCollection,
 		fullDetailsFooter,
+		gameRunning,
 		handleCloseDetails,
 		handleDeleteCollection,
 		handleLaunchAnyway,
@@ -1013,11 +1029,13 @@ function CollectionViewComponent(props: CollectionViewRouteProps) {
 					savingCollection={savingDraft}
 					onSearchChangeCallback={onSearchChange}
 					madeEdits={hasUnsavedDraft}
+					currentValidationOutcome={currentValidationOutcome}
 					currentValidationStatus={currentValidationStatus}
 					validatingCollection={validatingDraft}
 					launchingGame={appState.launchingGame}
 					launchGameDisabled={launchCommandState.disabled}
 					launchGameDisabledReason={launchDisabledReason}
+					gameRunning={gameRunning}
 					launchReady={launchReady}
 					onReloadModListCallback={handleReloadModList}
 					validateCollectionCallback={handleValidateCollection}

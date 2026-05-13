@@ -324,4 +324,78 @@ describe('CollectionManagementToolbar', () => {
 		expect(readyButton).toHaveTextContent(/^Ready$/);
 		expect(readyButton).toHaveAttribute('title', 'Collection is validated and ready to launch');
 	});
+
+	it.each([
+		[undefined, 'CollectionValidateButton--neutral'],
+		['valid' as const, 'CollectionValidateButton--valid'],
+		['warnings' as const, 'CollectionValidateButton--warnings'],
+		['blocked' as const, 'CollectionValidateButton--blocked']
+	])('uses the %s validation tone on the validate button', (currentValidationOutcome, expectedClassName) => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		renderInAppRoot(
+			<CollectionManagementToolbar
+				appState={appState}
+				currentValidationOutcome={currentValidationOutcome}
+				currentValidationStatus={currentValidationOutcome === undefined ? undefined : currentValidationOutcome === 'valid'}
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={vi.fn()}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={vi.fn()}
+			/>
+		);
+
+		expect(screen.getByRole('button', { name: 'Validate Collection' })).toHaveClass(expectedClassName);
+	});
+
+	it('shows a blue game-running launch state while the game is already running', () => {
+		const defaultCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			allCollections: new Map([['default', defaultCollection]]),
+			allCollectionNames: new Set(['default']),
+			activeCollection: defaultCollection
+		});
+
+		renderInAppRoot(
+			<CollectionManagementToolbar
+				appState={appState}
+				gameRunning
+				launchGameDisabled
+				launchGameDisabledReason="Game already running"
+				madeEdits={false}
+				searchString=""
+				openModal={vi.fn()}
+				saveCollectionCallback={vi.fn()}
+				changeActiveCollectionCallback={vi.fn()}
+				onReloadModListCallback={vi.fn()}
+				openViewSettingsCallback={vi.fn()}
+				onSearchCallback={vi.fn()}
+				onSearchChangeCallback={vi.fn()}
+				newCollectionCallback={vi.fn()}
+				duplicateCollectionCallback={vi.fn()}
+				renameCollectionCallback={vi.fn()}
+				openNotification={vi.fn()}
+			/>
+		);
+
+		const launchButton = screen.getByRole('button', { name: 'Game Running' });
+		expect(launchButton).toBeDisabled();
+		expect(launchButton).toHaveTextContent(/^Game Running$/);
+		expect(launchButton).toHaveAttribute('data-game-running', 'true');
+		expect(launchButton).toHaveAttribute('title', 'Game is running');
+	});
 });

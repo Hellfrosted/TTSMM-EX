@@ -9,7 +9,7 @@ import type {
 	SwitchCollectionLifecycleRequest
 } from '../shared/collection-lifecycle';
 import { validateCollectionName } from '../shared/collection-name';
-import { hasSavedCollectionNameEffect, readActiveCollectionEffect } from './active-collection-persistence';
+import { collectionNameExists, readActiveCollectionForLifecycle } from './active-collection-persistence';
 import {
 	createActiveCollectionTransition,
 	deleteActiveCollectionTransition,
@@ -28,7 +28,7 @@ const validateNewCollectionName = Effect.fnUntraced(function* (
 		return failure('invalid-name', validationError);
 	}
 
-	if (yield* hasSavedCollectionNameEffect(userDataPath, name, currentName)) {
+	if (yield* collectionNameExists(userDataPath, name, currentName)) {
 		return failure('duplicate-name', `A collection named ${name} already exists`);
 	}
 
@@ -81,7 +81,7 @@ export const duplicateAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DuplicateCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
-	const source = yield* readActiveCollectionEffect(userDataPath, request);
+	const source = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!source) {
 		return failure('missing-active-collection', 'No active collection is available to duplicate');
 	}
@@ -98,7 +98,7 @@ export const renameActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: RenameCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
-	const activeCollection = yield* readActiveCollectionEffect(userDataPath, request);
+	const activeCollection = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to rename');
 	}
@@ -119,7 +119,7 @@ export const deleteActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DeleteCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
-	const activeCollection = yield* readActiveCollectionEffect(userDataPath, request);
+	const activeCollection = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to delete');
 	}

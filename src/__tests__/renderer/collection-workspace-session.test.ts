@@ -4,25 +4,20 @@ import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {
 	applyCollectionContentSaveResult,
 	type CollectionWorkspaceValidationResult,
-	createCollectionDraftEditWorkflow,
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceValidationResult,
 	createCollectionWorkspaceWorkflowState,
-	getCollectionDraftEditWorkflowDecision,
 	getCollectionLaunchCommandState,
 	getCollectionLaunchRequestDecision,
 	getCollectionLaunchWorkflowDecision,
 	getCollectionLifecycleDirtyDraft,
 	getCollectionValidationCompletionDecision,
 	getCollectionValidationPersistenceDecision,
-	getCollectionValidationRunCompletionEffects,
 	getLoadedModsValidationDecision,
-	getPendingDraftValidationDecision,
 	type LaunchReadinessBlocker,
 	reduceCollectionWorkspaceWorkflow,
 	setCollectionDraftEnabledMods,
 	setCollectionDraftModSubset,
-	shouldValidatePendingCollectionDraft,
 	toggleCollectionDraftMod
 } from '../../renderer/collection-workspace-session';
 
@@ -227,93 +222,64 @@ describe('collection-workspace-session', () => {
 		expect(activeCollection.mods).toEqual(['local:a']);
 	});
 
-	it('creates a workflow outcome that applies an edited draft and schedules validation after application', () => {
-		const activeCollection = collection(['local:a']);
-		const editResult = toggleCollectionDraftMod({
+	it('reduces Active Collection Draft edit events into validation effects', () => {
+		const activeCollection = collection(['workshop:1']);
+		const edit = toggleCollectionDraftMod({
 			checked: true,
 			collection: activeCollection,
 			modManagerUid: 'workshop:1',
 			uid: 'local:b'
 		});
 
-		const workflow = createCollectionDraftEditWorkflow(editResult);
-
-		expect(workflow).toEqual({
-			blockedModManagerDeselect: false,
-			nextDraft: { name: 'default', mods: ['local:a', 'local:b'] },
-			pendingValidationDraft: { name: 'default', mods: ['local:a', 'local:b'] },
-			shouldMarkUnsavedDraft: true
-		});
-		expect(workflow.nextDraft).not.toBe(editResult.nextDraft);
-		expect(workflow.pendingValidationDraft).not.toBe(workflow.nextDraft);
-		expect(
-			shouldValidatePendingCollectionDraft({
-				currentDraft: workflow.nextDraft,
-				pendingDraft: workflow.pendingValidationDraft
-			})
-		).toBe(true);
-	});
-
-	it('decides draft edit workflow side effects without performing them', () => {
-		const activeCollection = collection(['workshop:1']);
-		const editedWorkflow = createCollectionDraftEditWorkflow(
-			toggleCollectionDraftMod({
-				checked: true,
-				collection: activeCollection,
-				modManagerUid: 'workshop:1',
-				uid: 'local:b'
-			})
-		);
-		const blockedWorkflow = createCollectionDraftEditWorkflow(
-			toggleCollectionDraftMod({
-				checked: false,
-				collection: activeCollection,
-				modManagerUid: 'workshop:1',
-				uid: 'workshop:1'
-			})
-		);
-
-		expect(getCollectionDraftEditWorkflowDecision(editedWorkflow)).toEqual({
-			pendingValidationDraft: { name: 'default', mods: ['workshop:1', 'local:b'] },
-			shouldCancelValidation: true,
-			shouldOpenBlockedModManagerDeselectDialog: false
-		});
-		expect(getCollectionDraftEditWorkflowDecision(blockedWorkflow)).toEqual({
-			shouldCancelValidation: false,
-			shouldOpenBlockedModManagerDeselectDialog: true
-		});
-	});
-
-	it('reduces draft edit workflow events into pending validation effects', () => {
-		const activeCollection = collection(['workshop:1']);
-		const workflow = createCollectionDraftEditWorkflow(
-			toggleCollectionDraftMod({
-				checked: true,
-				collection: activeCollection,
-				modManagerUid: 'workshop:1',
-				uid: 'local:b'
-			})
-		);
-
 		const editTransition = reduceCollectionWorkspaceWorkflow(createCollectionWorkspaceWorkflowState(), {
-			type: 'draft-edit-workflow-created',
-			workflow
+			type: 'active-draft-edited',
+			edit
 		});
 
-		expect(editTransition.state).toEqual({
+		expect(editTransition.state).toMatchObject({
+			draft: { name: 'default', mods: ['workshop:1', 'local:b'] },
 			hasUnsavedDraft: true,
-			hasValidatedLoadedMods: false,
-			pendingValidationDraft: { name: 'default', mods: ['workshop:1', 'local:b'] }
+			hasValidatedLoadedMods: false
 		});
-		expect(editTransition.effects).toEqual([{ type: 'cancel-validation' }]);
+		expect(editTransition.effects).toEqual([{ type: 'cancel-validation' }, { type: 'validate-active-collection', launchIfValid: false }]);
+	});
 
-		const validationTransition = reduceCollectionWorkspaceWorkflow(editTransition.state, {
-			type: 'active-draft-changed',
-			currentDraft: workflow.nextDraft
+	it('reduces unchanged Active Collection Draft edits without validation effects', () => {
+		const activeCollection = collection(['local:a']);
+		const edit = toggleCollectionDraftMod({
+			checked: true,
+			collection: activeCollection,
+			modManagerUid: 'workshop:1',
+			uid: 'local:a'
 		});
 
-		expect(validationTransition.state.pendingValidationDraft).toBeUndefined();
-		expect(validationTransition.effects).toEqual([{ type: 'validate-active-collection', launchIfValid: false }]);
+		const initialState = createCollectionWorkspaceWorkflowState({ draft: activeCollection });
+		const transition = reduceCollectionWorkspaceWorkflow(initialState, {
+			type: 'active-draft-edited',
+			edit
+		});
+
+		expect(transition.state).toBe(initialState);
+		expect(transition.effects).toEqual([]);
+	});
+
+	it('reduces blocked Mod Manager deselection without cancelling or validating', () => {
+		const activeCollection = collection(['workshop:1']);
+		const edit = toggleCollectionDraftMod({
+			checked: false,
+			collection: activeCollection,
+			modManagerUid: 'workshop:1',
+			uid: 'workshop:1'
+		});
+
+		const transition = reduceCollectionWorkspaceWorkflow(createCollectionWorkspaceWorkflowState({ draft: activeCollection }), {
+			type: 'active-draft-edited',
+			edit
+		});
+
+		expect(transition.effects).toEqual([{ type: 'open-blocked-mod-manager-deselect-dialog' }]);
+		expect(transition.state.hasUnsavedDraft).toBe(false);
+		expect(transition.state.draft).toEqual(activeCollection);
 	});
 
 	it('reduces loaded-mod changes into recalculate and validation effects', () => {
@@ -354,22 +320,6 @@ describe('collection-workspace-session', () => {
 		]);
 	});
 
-	it('creates a workflow outcome without draft side effects when a draft edit is unchanged', () => {
-		const workflow = createCollectionDraftEditWorkflow(
-			toggleCollectionDraftMod({
-				checked: true,
-				collection: collection(['local:a']),
-				modManagerUid: 'workshop:1',
-				uid: 'local:a'
-			})
-		);
-
-		expect(workflow).toEqual({
-			blockedModManagerDeselect: false,
-			shouldMarkUnsavedDraft: false
-		});
-	});
-
 	it('blocks draft edits that deselect Mod Manager', () => {
 		const result = toggleCollectionDraftMod({
 			checked: false,
@@ -380,17 +330,6 @@ describe('collection-workspace-session', () => {
 
 		expect(result).toEqual({
 			blockedModManagerDeselect: true
-		});
-	});
-
-	it('decides when pending draft validation should run', () => {
-		const pendingDraft = collection(['local:a', 'local:b']);
-
-		expect(getPendingDraftValidationDecision({ currentDraft: collection(['local:a']), pendingDraft })).toEqual({
-			shouldValidateActiveCollection: false
-		});
-		expect(getPendingDraftValidationDecision({ currentDraft: collection(['local:a', 'local:b']), pendingDraft })).toEqual({
-			shouldValidateActiveCollection: true
 		});
 	});
 
@@ -407,7 +346,7 @@ describe('collection-workspace-session', () => {
 		});
 		expect(getLoadedModsValidationDecision({ hasValidatedLoadedMods: true, loadingMods: false })).toEqual({
 			nextHasValidatedLoadedMods: true,
-			shouldRecalculateModData: true,
+			shouldRecalculateModData: false,
 			shouldValidateActiveCollection: false
 		});
 	});
@@ -458,6 +397,126 @@ describe('collection-workspace-session', () => {
 			commandState: { disabled: false },
 			launchCollection: activeCollection
 		});
+	});
+
+	it('reduces launch requests into validation, modal, or save-before-launch effects', () => {
+		const draft = collection(['local:a']);
+		const readySession = createCollectionWorkspaceSession({
+			activeCollection: draft,
+			config: DEFAULT_CONFIG,
+			hasUnsavedDraft: false,
+			validationResult: validationResult(draft)
+		});
+		const missingValidationSession = createCollectionWorkspaceSession({
+			activeCollection: draft,
+			config: DEFAULT_CONFIG,
+			hasUnsavedDraft: false
+		});
+		const failedValidationSession = createCollectionWorkspaceSession({
+			activeCollection: draft,
+			config: DEFAULT_CONFIG,
+			hasUnsavedDraft: false,
+			validationResult: validationResult(draft, false)
+		});
+
+		const readyTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({
+				config: DEFAULT_CONFIG,
+				draft,
+				validationResult: validationResult(draft)
+			}),
+			{
+				type: 'launch-requested',
+				launchReadiness: readySession.launchReadiness
+			}
+		);
+		expect(readyTransition.state.pendingLaunchAfterSaveDraftKey).toBe(validationResult(draft).draftKey);
+		expect(readyTransition.effects).toEqual([
+			{ type: 'set-launching-game', launchingGame: true },
+			{ type: 'persist-active-collection-draft' }
+		]);
+
+		const validateTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft }),
+			{
+				type: 'launch-requested',
+				launchReadiness: missingValidationSession.launchReadiness
+			}
+		);
+		expect(validateTransition.effects).toEqual([
+			{ type: 'set-launching-game', launchingGame: true },
+			{ type: 'clear-collection-errors' },
+			{ type: 'validate-active-collection', launchIfValid: true }
+		]);
+
+		const failedTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft, validationResult: validationResult(draft, false) }),
+			{
+				type: 'launch-requested',
+				launchReadiness: failedValidationSession.launchReadiness
+			}
+		);
+		expect(failedTransition.effects).toEqual([{ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND }]);
+	});
+
+	it('launches anyway only past validation blockers and still saves dirty drafts first', () => {
+		const draft = collection(['local:a']);
+		const failedValidationSession = createCollectionWorkspaceSession({
+			activeCollection: draft,
+			config: DEFAULT_CONFIG,
+			hasUnsavedDraft: true,
+			validationResult: validationResult(draft, false)
+		});
+		const loadingSession = createCollectionWorkspaceSession({
+			activeCollection: draft,
+			config: DEFAULT_CONFIG,
+			hasUnsavedDraft: true,
+			loadingMods: true,
+			validationResult: validationResult(draft, false)
+		});
+
+		const dirtyAnywayTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({
+				config: DEFAULT_CONFIG,
+				draft,
+				hasUnsavedDraft: true,
+				validationResult: validationResult(draft, false)
+			}),
+			{
+				type: 'launch-anyway-requested',
+				launchReadiness: failedValidationSession.launchReadiness,
+				modalOpen: true
+			}
+		);
+		expect(dirtyAnywayTransition.state.pendingLaunchAfterSaveDraftKey).toBe(validationResult(draft).draftKey);
+		expect(dirtyAnywayTransition.effects).toEqual([
+			{ type: 'set-launching-game', launchingGame: true },
+			{ type: 'persist-active-collection-draft' }
+		]);
+
+		const cleanAnywayTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft, validationResult: validationResult(draft, false) }),
+			{
+				type: 'launch-anyway-requested',
+				launchReadiness: failedValidationSession.launchReadiness
+			}
+		);
+		expect(cleanAnywayTransition.effects).toEqual([{ type: 'set-launching-game', launchingGame: true }, { type: 'launch-current-draft' }]);
+
+		const blockedTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({
+				config: DEFAULT_CONFIG,
+				draft,
+				hasUnsavedDraft: true,
+				validationResult: validationResult(draft, false)
+			}),
+			{
+				type: 'launch-anyway-requested',
+				launchReadiness: loadingSession.launchReadiness
+			}
+		);
+		expect(blockedTransition.effects).toEqual([{ type: 'clear-launching-game' }]);
+		expect(blockedTransition.state.pendingLaunchAfterSaveDraftKey).toBeUndefined();
 	});
 
 	it('decides validation completion actions from draft freshness and success', () => {
@@ -535,39 +594,27 @@ describe('collection-workspace-session', () => {
 		});
 	});
 
-	it('plans validation run completion effects for stale results, failures, persistence, and launch continuation', () => {
+	it('opens the validation modal from the workflow after launch-triggered validation fails', () => {
 		const activeCollection = collection(['local:a']);
-		const successfulResult = validationResult(activeCollection);
+		const failedResult = validationResult(activeCollection, false);
+		const validatingTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft: activeCollection }),
+			{
+				type: 'validation-started',
+				launchIfValid: true
+			}
+		);
 
-		expect(getCollectionValidationRunCompletionEffects({ type: 'missing-active-collection' }, true)).toEqual([
-			{ type: 'launch-empty-mod-list' }
+		const failedTransition = reduceCollectionWorkspaceWorkflow(validatingTransition.state, {
+			type: 'validation-completed',
+			result: failedResult,
+			modalType: CollectionManagerModalType.ERRORS_FOUND
+		});
+
+		expect(failedTransition.effects).toEqual([
+			{ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND },
+			{ type: 'clear-launching-game' }
 		]);
-		expect(
-			getCollectionValidationRunCompletionEffects(
-				{
-					type: 'recorded-and-ready-to-launch-current-draft',
-					launchCollection: activeCollection,
-					validationResult: successfulResult
-				},
-				true
-			)
-		).toEqual([{ type: 'launch-current-draft', launchCollection: activeCollection }]);
-		expect(
-			getCollectionValidationRunCompletionEffects(
-				{
-					type: 'recorded-failed-result',
-					modalType: CollectionManagerModalType.ERRORS_FOUND,
-					validationResult: validationResult(activeCollection, false)
-				},
-				true
-			)
-		).toEqual([{ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND }]);
-		expect(
-			getCollectionValidationRunCompletionEffects({ type: 'discarded-stale-result', validationResult: successfulResult }, true)
-		).toEqual([{ type: 'clear-launching-game' }]);
-		expect(
-			getCollectionValidationRunCompletionEffects({ type: 'recorded-current-result', validationResult: successfulResult }, false)
-		).toEqual([]);
 	});
 
 	it('sets enabled draft mods while forcing Mod Manager to stay enabled', () => {
@@ -599,30 +646,7 @@ describe('collection-workspace-session', () => {
 		expect(result.nextDraft).toEqual({ name: 'default', mods: ['local:b', 'workshop:1'] });
 	});
 
-	it('validates a pending draft only after the current draft matches it', () => {
-		const pendingDraft = collection(['local:a', 'local:b']);
-
-		expect(
-			shouldValidatePendingCollectionDraft({
-				currentDraft: collection(['local:a', 'local:b']),
-				pendingDraft
-			})
-		).toBe(true);
-		expect(
-			shouldValidatePendingCollectionDraft({
-				currentDraft: collection(['local:b', 'local:a']),
-				pendingDraft
-			})
-		).toBe(false);
-		expect(
-			shouldValidatePendingCollectionDraft({
-				currentDraft: { name: 'other', mods: ['local:a', 'local:b'] },
-				pendingDraft
-			})
-		).toBe(false);
-	});
-
-	it('clears unsaved draft state only after accepted pure content saves', () => {
+	it('clears unsaved draft state after accepted content saves', () => {
 		expect(
 			applyCollectionContentSaveResult({
 				hasUnsavedDraft: true,
@@ -643,7 +667,57 @@ describe('collection-workspace-session', () => {
 				pureSave: false,
 				writeAccepted: true
 			})
-		).toEqual({ hasUnsavedDraft: true });
+		).toEqual({ hasUnsavedDraft: false });
+	});
+
+	it('requests save before launch and launches only after the saved draft is accepted', () => {
+		const draft = collection(['local:a']);
+		const validation = validationResult(draft);
+		const validatingTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft }),
+			{
+				type: 'validation-started',
+				launchIfValid: true
+			}
+		);
+		const validatedTransition = reduceCollectionWorkspaceWorkflow(validatingTransition.state, {
+			type: 'validation-completed',
+			result: validation
+		});
+
+		expect(validatedTransition.effects).toEqual([{ type: 'persist-active-collection-draft' }]);
+		expect(validatedTransition.state.pendingLaunchAfterSaveDraftKey).toBe(validation.draftKey);
+
+		const savedTransition = reduceCollectionWorkspaceWorkflow(validatedTransition.state, {
+			type: 'collection-content-save-completed',
+			pureSave: true,
+			savedCollection: draft,
+			writeAccepted: true
+		});
+
+		expect(savedTransition.effects).toEqual([{ type: 'launch-current-draft' }]);
+		expect(savedTransition.state.hasUnsavedDraft).toBe(false);
+		expect(savedTransition.state.pendingLaunchAfterSaveDraftKey).toBeUndefined();
+	});
+
+	it('clears launch state when save fails during launch continuation', () => {
+		const draft = collection(['local:a']);
+		const validation = validationResult(draft);
+		const validatedTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft, validationLaunchIfValid: true, validatingDraft: true }),
+			{
+				type: 'validation-completed',
+				result: validation
+			}
+		);
+		const failedSaveTransition = reduceCollectionWorkspaceWorkflow(validatedTransition.state, {
+			type: 'collection-content-save-completed',
+			pureSave: true,
+			writeAccepted: false
+		});
+
+		expect(failedSaveTransition.effects).toEqual([{ type: 'clear-launching-game' }]);
+		expect(failedSaveTransition.state.pendingLaunchAfterSaveDraftKey).toBeUndefined();
 	});
 
 	it('creates lifecycle dirty draft payloads only when the draft is unsaved', () => {

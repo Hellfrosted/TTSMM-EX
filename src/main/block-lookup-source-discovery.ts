@@ -129,7 +129,7 @@ function deriveWorkshopRootFromSteamWorkshopId(workshopId: bigint): string | nul
 	return looksLikeWorkshopRoot(workshopRoot) ? workshopRoot : null;
 }
 
-export function autoDetectBlockLookupWorkshopRoot(
+function autoDetectBlockLookupWorkshopRoot(
 	request: Pick<BlockLookupBuildRequest, 'gameExec' | 'modSources' | 'workshopRoot'> = {}
 ): string | null {
 	const configuredRoot = normalizeWorkshopRoot(request.workshopRoot);

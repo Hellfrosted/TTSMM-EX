@@ -1,4 +1,5 @@
 import { Effect } from 'effect';
+import fs from 'fs';
 import path from 'path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -62,6 +63,20 @@ describe('collection lifecycle service', () => {
 			code: 'duplicate-name'
 		});
 		expect(readCollectionFile(tempDir, '..\\escape')).toBeNull();
+	});
+
+	it('rolls back a created collection when activation config persistence fails', () => {
+		writeTestCollection(tempDir, { name: 'default', mods: [] });
+		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
+
+		const result = Effect.runSync(createAndActivateCollection(tempDir, { config: createTestAppConfig(), name: 'fresh' }));
+
+		expect(result).toMatchObject({
+			ok: false,
+			code: 'config-write-failed',
+			message: 'Created collection fresh but failed to activate it'
+		});
+		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
 	});
 
 	it('duplicates and activates the active collection with the dirty mod selection', () => {

@@ -2,15 +2,8 @@ import { Effect } from 'effect';
 import path from 'path';
 import { type AppConfig, cloneCollection, type ModCollection } from '../model';
 import { collectionNamesEqual } from '../shared/collection-name';
-import {
-	listCollections,
-	listCollectionsEffect,
-	readCollectionFile,
-	readCollectionFileEffect,
-	updateCollectionFile,
-	updateCollectionFileEffect
-} from './collection-store';
-import { writeConfigFile, writeConfigFileEffect } from './config-store';
+import { listCollectionsEffect, readCollectionFileEffect, updateCollectionFileEffect } from './collection-store';
+import { writeConfigFileEffect } from './config-store';
 
 const DEFAULT_COLLECTION_NAME = 'default';
 
@@ -21,41 +14,36 @@ interface ActiveCollectionState {
 	config: AppConfig;
 }
 
-export function createDefaultCollection(): ModCollection {
+export function createDefaultActiveCollection(): ModCollection {
 	return {
 		name: DEFAULT_COLLECTION_NAME,
 		mods: []
 	};
 }
 
-export function withActiveCollection(config: AppConfig, activeCollection: string): AppConfig {
+function withActiveCollection(config: AppConfig, activeCollection: string): AppConfig {
 	return {
 		...config,
 		activeCollection
 	};
 }
 
-export function writeActiveCollectionConfig(userDataPath: string, config: AppConfig) {
-	return writeConfigFile(path.join(userDataPath, 'config.json'), config);
-}
+export const persistActiveCollectionSelection = Effect.fnUntraced(function* (
+	userDataPath: string,
+	config: AppConfig,
+	activeCollection: string
+): Effect.fn.Return<AppConfig | null, Error> {
+	return yield* writeConfigFileEffect(path.join(userDataPath, 'config.json'), withActiveCollection(config, activeCollection));
+});
 
-export function writeActiveCollectionConfigEffect(userDataPath: string, config: AppConfig) {
-	return writeConfigFileEffect(path.join(userDataPath, 'config.json'), config);
-}
+export const persistActiveCollectionConfig = Effect.fnUntraced(function* (
+	userDataPath: string,
+	config: AppConfig
+): Effect.fn.Return<AppConfig | null, Error> {
+	return yield* writeConfigFileEffect(path.join(userDataPath, 'config.json'), config);
+});
 
-export function readSavedCollections(userDataPath: string, options: { sort?: boolean } = {}) {
-	const collectionNames = listCollections(userDataPath);
-	if (options.sort) {
-		collectionNames.sort();
-	}
-
-	return collectionNames.flatMap((name) => {
-		const collection = readCollectionFile(userDataPath, name);
-		return collection ? [collection] : [];
-	});
-}
-
-export const readSavedCollectionsEffect = Effect.fnUntraced(function* (
+export const readSavedActiveCollections = Effect.fnUntraced(function* (
 	userDataPath: string,
 	options: { sort?: boolean } = {}
 ): Effect.fn.Return<ModCollection[], Error> {
@@ -74,19 +62,7 @@ export const readSavedCollectionsEffect = Effect.fnUntraced(function* (
 	return collections;
 });
 
-export function readActiveCollection(userDataPath: string, request: { config: AppConfig; dirtyCollection?: ModCollection }) {
-	if (request.dirtyCollection) {
-		return cloneCollection(request.dirtyCollection);
-	}
-
-	if (!request.config.activeCollection) {
-		return undefined;
-	}
-
-	return readCollectionFile(userDataPath, request.config.activeCollection) ?? undefined;
-}
-
-export const readActiveCollectionEffect = Effect.fnUntraced(function* (
+export const readActiveCollectionForLifecycle = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: { config: AppConfig; dirtyCollection?: ModCollection }
 ): Effect.fn.Return<ModCollection | undefined, Error> {
@@ -101,16 +77,7 @@ export const readActiveCollectionEffect = Effect.fnUntraced(function* (
 	return (yield* readCollectionFileEffect(userDataPath, request.config.activeCollection)) ?? undefined;
 });
 
-export function hasSavedCollectionName(userDataPath: string, name: string, currentName?: string) {
-	return listCollections(userDataPath).some((collectionName) => {
-		if (currentName && collectionNamesEqual(collectionName, currentName)) {
-			return false;
-		}
-		return collectionNamesEqual(collectionName, name);
-	});
-}
-
-export const hasSavedCollectionNameEffect = Effect.fnUntraced(function* (
+export const collectionNameExists = Effect.fnUntraced(function* (
 	userDataPath: string,
 	name: string,
 	currentName?: string
@@ -124,25 +91,7 @@ export const hasSavedCollectionNameEffect = Effect.fnUntraced(function* (
 	});
 });
 
-export function selectReplacementCollection(
-	userDataPath: string,
-	deletedName: string
-): { collection: ModCollection; createdFallback: boolean } | undefined {
-	const remainingNames = listCollections(userDataPath).filter((name) => !collectionNamesEqual(name, deletedName));
-	const remainingName =
-		remainingNames.length > 0 ? remainingNames.reduce((left, right) => (left.localeCompare(right) <= 0 ? left : right)) : undefined;
-	if (remainingName) {
-		const collection = readCollectionFile(userDataPath, remainingName);
-		return collection ? { collection, createdFallback: false } : undefined;
-	}
-
-	return {
-		collection: createDefaultCollection(),
-		createdFallback: true
-	};
-}
-
-export const selectReplacementCollectionEffect = Effect.fnUntraced(function* (
+export const selectReplacementActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	deletedName: string
 ): Effect.fn.Return<{ collection: ModCollection; createdFallback: boolean } | undefined, Error> {
@@ -155,12 +104,12 @@ export const selectReplacementCollectionEffect = Effect.fnUntraced(function* (
 	}
 
 	return {
-		collection: createDefaultCollection(),
+		collection: createDefaultActiveCollection(),
 		createdFallback: true
 	};
 });
 
-export function createActiveCollectionState(input: {
+export function createActiveCollectionLifecycleState(input: {
 	activeCollection: ModCollection;
 	collections: ModCollection[];
 	config: AppConfig;
@@ -181,10 +130,6 @@ export function createActiveCollectionState(input: {
 	};
 }
 
-export function writeCollection(userDataPath: string, collection: ModCollection) {
-	return updateCollectionFile(userDataPath, cloneCollection(collection));
-}
-
-export function writeCollectionEffect(userDataPath: string, collection: ModCollection) {
+export function persistActiveCollectionFile(userDataPath: string, collection: ModCollection) {
 	return updateCollectionFileEffect(userDataPath, cloneCollection(collection));
 }

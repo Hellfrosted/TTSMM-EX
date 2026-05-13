@@ -51,7 +51,7 @@ function renderCollectionsHook(appState: ReturnType<typeof createAppState>, over
 				appState,
 				openNotification: vi.fn(),
 				resetValidationState: vi.fn(),
-				onDraftEditWorkflow: vi.fn(),
+				onActiveDraftEdited: vi.fn(),
 				...overrides
 			}),
 		{ wrapper: createTestWrapper() }
@@ -105,10 +105,10 @@ describe('useCollections', () => {
 			allCollectionNames: new Set(['default', 'archived']),
 			activeCollection: defaultCollection
 		});
-		const onDraftEditWorkflow = vi.fn();
+		const onActiveDraftEdited = vi.fn();
 
 		const { result, rerender } = renderCollectionsHook(appState, {
-			onDraftEditWorkflow
+			onActiveDraftEdited
 		});
 
 		act(() => {
@@ -117,16 +117,24 @@ describe('useCollections', () => {
 		rerender();
 
 		await waitFor(() => {
-			expect(onDraftEditWorkflow).toHaveBeenCalledWith(
+			expect(onActiveDraftEdited).toHaveBeenCalledWith(
 				expect.objectContaining({
-					pendingValidationDraft: {
+					nextDraft: {
 						name: 'default',
 						mods: [`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]
 					}
 				})
 			);
 		});
-		expect(appState.activeCollection?.mods).toEqual([`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]);
+		expect(onActiveDraftEdited).toHaveBeenCalledWith(
+			expect.objectContaining({
+				nextDraft: {
+					name: 'default',
+					mods: [`local:mod-a`, `workshop:${DEFAULT_CONFIG.workshopID}`]
+				}
+			})
+		);
+		expect(appState.activeCollection?.mods).toEqual([]);
 		expect(appState.allCollections.get('archived')).toBe(archivedCollection);
 		expect(result.current.madeEdits).toBe(true);
 	});

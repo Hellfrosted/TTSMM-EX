@@ -161,6 +161,7 @@ function CollectionSwitch({ checked, disabled, onChange, ...props }: CollectionS
 	return (
 		<DesktopSwitch
 			{...props}
+			aria-checked={checked}
 			className="m-0"
 			checked={checked}
 			disabled={disabled}

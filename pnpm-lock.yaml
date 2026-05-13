@@ -53,7 +53,7 @@ importers:
         version: 2.4.15
       '@effect/vitest':
         specifier: 4.0.0-beta.65
-        version: 4.0.0-beta.65(effect@4.0.0-beta.65)(vitest@4.1.5(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)))
+        version: 4.0.0-beta.65(effect@4.0.0-beta.65)(vitest@4.1.6(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)))
       '@electron/rebuild':
         specifier: ^4.0.4
         version: 4.0.4
@@ -94,8 +94,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       fallow:
-        specifier: ^2.69.0
-        version: 2.69.0
+        specifier: ^2.73.0
+        version: 2.73.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -118,23 +118,8 @@ importers:
         specifier: ^8.0.12
         version: 8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
       vitest:
-        specifier: ^4.1.5
-        version: 4.1.5(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
-
-  release/app:
-    dependencies:
-      '@effect/platform-node':
-        specifier: 4.0.0-beta.65
-        version: 4.0.0-beta.65(effect@4.0.0-beta.65)(ioredis@5.10.1)
-      effect:
-        specifier: 4.0.0-beta.65
-        version: 4.0.0-beta.65
-      greenworks:
-        specifier: github:FLSoz/greenworks
-        version: https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd
-      ps-list:
-        specifier: ^9.0.0
-        version: 9.0.0
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
 
 packages:
 
@@ -515,43 +500,43 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@fallow-cli/darwin-arm64@2.69.0':
-    resolution: {integrity: sha512-8pp/AY4lNml/N9Bo0xbSzrmvyiiJg6lz5i8G9HCEptrH9W2YyFhQYm0XTbwoy3ATNnjw3aRDajiFTV5njahhSQ==}
+  '@fallow-cli/darwin-arm64@2.73.0':
+    resolution: {integrity: sha512-4mo+35ufU3H5HpyYi/UT12EvRJA7ibglIaWTDqjc6TkZoz7fXYKh9PT+KcBBZyMbFC1kvAxJsfJP1J4zKXr5xQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@fallow-cli/darwin-x64@2.69.0':
-    resolution: {integrity: sha512-nCZwXCJC+MQpwDb0CS4aGHPbaNAnH5//eceotjGc/sSrvXYg3oINAP2ztVDwBAUwwiYwiOGU0W1npVIoQrYgVQ==}
+  '@fallow-cli/darwin-x64@2.73.0':
+    resolution: {integrity: sha512-bgob14wLLRXTXI+/XMT7OhVIZV1aBw0lvlXJwl/+t8MOUftlG68VoZVRkpzDypWc/dPxsa5J72kUv/5b1F/jXg==}
     cpu: [x64]
     os: [darwin]
 
-  '@fallow-cli/linux-arm64-gnu@2.69.0':
-    resolution: {integrity: sha512-cfRKQHZMXd8/k8Arr2LlYr2eZDvqx/jZ6K30/8ji/iREXcGYkhfFB4Hk53t7CP8MxbtXGzJ05yyC7n+gf3MOaw==}
+  '@fallow-cli/linux-arm64-gnu@2.73.0':
+    resolution: {integrity: sha512-7q058FGiv92VCMikoaNkcJOlhuUeYbu/dvzAyjwBYCt2FBadPdkafz29IRZN2McfLXmCdizV6531TPh2H8Z/XA==}
     cpu: [arm64]
     os: [linux]
 
-  '@fallow-cli/linux-arm64-musl@2.69.0':
-    resolution: {integrity: sha512-SgOcAG0VMWJ1eOsMvOdIGYYjebUNsTzNHaOnUch2o8KFvaZkWuoLvfllLC7jI5UMbC4dET/+siOcruKprxPR5w==}
+  '@fallow-cli/linux-arm64-musl@2.73.0':
+    resolution: {integrity: sha512-rykM9ClOZ7cSUvox0Qesq3Vh4XTdHdgVDqgEo+njs1vJsj9IMINZhENsR7/9PKIEbH5rH/3BsOQ6wwkXwi7Z/w==}
     cpu: [arm64]
     os: [linux]
 
-  '@fallow-cli/linux-x64-gnu@2.69.0':
-    resolution: {integrity: sha512-mx9h6Fv7IpoFWJtilKlNFWtANbsxMSDDdHTatYN+VJh9WpsmgMgsoiyxI+K3lheLUe9albgMZjOa3EKlR8ry7w==}
+  '@fallow-cli/linux-x64-gnu@2.73.0':
+    resolution: {integrity: sha512-BOk8LUgb97giUB5gUbH2PDV68EV/KlIKmNe+UyYeb8qsQkuIbwnYIxYQ1SmvagcCJdjkzGnJI4JXswvDB96MJg==}
     cpu: [x64]
     os: [linux]
 
-  '@fallow-cli/linux-x64-musl@2.69.0':
-    resolution: {integrity: sha512-H5oS1lge94bp6GoxCgJgi+wT36zD9nDW7rTxBfEG6gqXKpALYs3uIF4lbzzELNC8GZwGe4YQhMxxqGm5CXfCrg==}
+  '@fallow-cli/linux-x64-musl@2.73.0':
+    resolution: {integrity: sha512-zaHIF7rdNGj7gRJ49EG64nmuco1N074Na1DiOBn/bWg1YZxGlQlJL5d0cq1Kb+EoQ0sTwa+Ya4g4/mQ0Wdb+nA==}
     cpu: [x64]
     os: [linux]
 
-  '@fallow-cli/win32-arm64-msvc@2.69.0':
-    resolution: {integrity: sha512-NEl4EnKzXw/lwrboUiAxWHrVx4tBO+cpNuPmvJoRsLS8wG5UIOxbyjHjD9Ux2FbwXNaRzZZ+vjLJAvGdOEU0Xw==}
+  '@fallow-cli/win32-arm64-msvc@2.73.0':
+    resolution: {integrity: sha512-IlWjJiSPY8j0n7jUEMNaEEdygwI4F2gzulAQmIcTlemZgdzAQCDuI3i8ylePcCc2+1YfD5IwdoQIS+WRkUulBw==}
     cpu: [arm64]
     os: [win32]
 
-  '@fallow-cli/win32-x64-msvc@2.69.0':
-    resolution: {integrity: sha512-EeL+Bbdg9XOgMl7tG0k6DCKhCaXLS0EPiy3HWccKUaMYDgR+haUWDzAGa9nJqIBlR4GYz/lz6amSCJtV+XsMzA==}
+  '@fallow-cli/win32-x64-msvc@2.73.0':
+    resolution: {integrity: sha512-pceEJAFpqmlp4gL+ANyhnNLFGtaHCydEaJCUFZ3TL885RWP2nvOIe4TbbdIGRJwAnw0aa6jtM8QKK0DNCSQlxQ==}
     cpu: [x64]
     os: [win32]
 
@@ -881,8 +866,8 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
-  '@types/estree@1.0.8':
-    resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+  '@types/estree@1.0.9':
+    resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
   '@types/fs-extra@9.0.13':
     resolution: {integrity: sha512-nEnwB++1u5lVDM2UI4c1+5R+FYaKfaAzS4OococimjVm3nQw3TuzH5UNsocrcTBbhnerblyHj4A49qXbIiZdpA==}
@@ -938,11 +923,11 @@ packages:
       babel-plugin-react-compiler:
         optional: true
 
-  '@vitest/expect@4.1.5':
-    resolution: {integrity: sha512-PWBaRY5JoKuRnHlUHfpV/KohFylaDZTupcXN1H9vYryNLOnitSw60Mw9IAE2r67NbwwzBw/Cc/8q9BK3kIX8Kw==}
+  '@vitest/expect@4.1.6':
+    resolution: {integrity: sha512-7EHDquPthALSV0jhhjgEW8FXaviMx7rSqu8W6oqCoAuOhKov814P99QDV1pxMA3QPv21YudvJngIhjrNI4opLg==}
 
-  '@vitest/mocker@4.1.5':
-    resolution: {integrity: sha512-/x2EmFC4mT4NNzqvC3fmesuV97w5FC903KPmey4gsnJiMQ3Be1IlDKVaDaG8iqaLFHqJ2FVEkxZk5VmeLjIItw==}
+  '@vitest/mocker@4.1.6':
+    resolution: {integrity: sha512-MCFc63czMjEInOlcY2cpQCvCN+KgbAn+60xu9cMgP4sKaLC5JNAKw7JH8QdAnoAC88hW1IiSNZ+GgVXlN1UcMQ==}
     peerDependencies:
       msw: ^2.4.9
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -952,20 +937,20 @@ packages:
       vite:
         optional: true
 
-  '@vitest/pretty-format@4.1.5':
-    resolution: {integrity: sha512-7I3q6l5qr03dVfMX2wCo9FxwSJbPdwKjy2uu/YPpU3wfHvIL4QHwVRp57OfGrDFeUJ8/8QdfBKIV12FTtLn00g==}
+  '@vitest/pretty-format@4.1.6':
+    resolution: {integrity: sha512-h5SxD/IzNhZYnrSZRsUZQIC+vD0GY8cUvq0iwsmkFKixRCKLLWqCXa/FIQ4S1R+sI+PGoojkHsdNrbZiM9Qpgw==}
 
-  '@vitest/runner@4.1.5':
-    resolution: {integrity: sha512-2D+o7Pr82IEO46YPpoA/YU0neeyr6FTerQb5Ro7BUnBuv6NQtT/kmVnczngiMEBhzgqz2UZYl5gArejsyERDSQ==}
+  '@vitest/runner@4.1.6':
+    resolution: {integrity: sha512-nOPCmn2+yD0ZNmKdsXGv/UxMMWbMuKeD6GyYncNwdkYDxpQvrPSKYj2rWuDjC2Y4b6w6hjip5dBKFzEUuZe3vA==}
 
-  '@vitest/snapshot@4.1.5':
-    resolution: {integrity: sha512-zypXEt4KH/XgKGPUz4eC2AvErYx0My5hfL8oDb1HzGFpEk1P62bxSohdyOmvz+d9UJwanI68MKwr2EquOaOgMQ==}
+  '@vitest/snapshot@4.1.6':
+    resolution: {integrity: sha512-YhsdE6xAVfTDmzjxL2ZDUvjj+ZsgyOKe+TdQzqkD72wIOmHka8NuGQ6NpTNZv9D2Z63fbwWKJPeVpEw4EQgYxw==}
 
-  '@vitest/spy@4.1.5':
-    resolution: {integrity: sha512-2lNOsh6+R2Idnf1TCZqSwYlKN2E/iDlD8sgU59kYVl+OMDmvldO1VDk39smRfpUNwYpNRVn3w4YfuC7KfbBnkQ==}
+  '@vitest/spy@4.1.6':
+    resolution: {integrity: sha512-JFKxMx6udhwKh/Ldo270e17QX710vgunMkuPAvXjHSvC6oqLWAHhVhjg/I71q0u0CBSErIODV1Kjv0FQNSWjdg==}
 
-  '@vitest/utils@4.1.5':
-    resolution: {integrity: sha512-76wdkrmfXfqGjueGgnb45ITPyUi1ycZ4IHgC2bhPDUfWHklY/q3MdLOAB+TF1e6xfl8NxNY0ZYaPCFNWSsw3Ug==}
+  '@vitest/utils@4.1.6':
+    resolution: {integrity: sha512-FxIY+U81R3LGKCxaHHFRQ5+g6/iRgGLmeHWdp2Amj4ljQRrEIWHmZyDfDYBRZlpyqA7qKxtS9DD1dhk8RnRIVQ==}
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -1415,8 +1400,8 @@ packages:
     resolution: {integrity: sha512-Wrk35e8ydCKDj/ArClo1VrPVmN8zph5V4AtHwIuHhvMXsKf73UT3BOD+azBIW+3wOJ4FhEH7zyaJCFvChjYvMA==}
     engines: {'0': node >=0.6.0}
 
-  fallow@2.69.0:
-    resolution: {integrity: sha512-N3vPCjKSJ6mM919xoOtbImoksCgtTllC/y2xOe3aQfffK5AVJNvP4STgZ69xnqcMTfSB6CYQBFbHPnKgfOgrVg==}
+  fallow@2.73.0:
+    resolution: {integrity: sha512-4qyUIGWhPvmeOnS6tNwB+WyVB92ImVWYEF6wiJT6Khn53SxIBi0+IxTsUT2NVjFR6mL4xRwL2vvpUe/OzvMYcw==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -1528,10 +1513,6 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
-
-  greenworks@https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd:
-    resolution: {gitHosted: true, integrity: sha512-iObiNVVTBQ8uJpIJFvKk8ZYzWzqv7G0XwsiSVNjgHNHZ8JsiH4esLCumCU3ZCFHvU6/UNQMAiH/1XZc+vOFdTg==, tarball: https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd}
-    version: 0.20.0
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -1910,9 +1891,6 @@ packages:
 
   multipasta@0.2.7:
     resolution: {integrity: sha512-KPA58d68KgGil15oDqXjkUBEBYc00XvbPj5/X+dyzeo/lWm9Nc25pQRlf1D+gv4OpK7NM0J1odrbu9JNNGvynA==}
-
-  nan@2.26.2:
-    resolution: {integrity: sha512-0tTvBTYkt3tdGw22nrAy50x7gpbGCCFH3AFcyS5WiUu7Eu4vWlri1woE6qHBSfy11vksDqkiwjOnlR7WV8G1Hw==}
 
   nano-staged@1.0.2:
     resolution: {integrity: sha512-Fytar3zHLY99nlMfqPPbraxZodqQAHPpdPRyYaplL+lB9DCR6pUrafxbG+Btz4+7fO5Rm/+DO4ZeDO/nLSUMhw==}
@@ -2455,20 +2433,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@4.1.5:
-    resolution: {integrity: sha512-9Xx1v3/ih3m9hN+SbfkUyy0JAs72ap3r7joc87XL6jwF0jGg6mFBvQ1SrwaX+h8BlkX6Hz9shdd1uo6AF+ZGpg==}
+  vitest@4.1.6:
+    resolution: {integrity: sha512-6lvjbS3p9b4CrdCmguzbh2/4uoXhGE2q71R4OX5sqF9R1bo9Xd6fGrMAfvp5wnCzlBnFVdCOp6onuTQVbo8iUQ==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^20.0.0 || ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 4.1.5
-      '@vitest/browser-preview': 4.1.5
-      '@vitest/browser-webdriverio': 4.1.5
-      '@vitest/coverage-istanbul': 4.1.5
-      '@vitest/coverage-v8': 4.1.5
-      '@vitest/ui': 4.1.5
+      '@vitest/browser-playwright': 4.1.6
+      '@vitest/browser-preview': 4.1.6
+      '@vitest/browser-webdriverio': 4.1.6
+      '@vitest/coverage-istanbul': 4.1.6
+      '@vitest/coverage-v8': 4.1.6
+      '@vitest/ui': 4.1.6
       happy-dom: '*'
       jsdom: '*'
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -2726,10 +2704,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/vitest@4.0.0-beta.65(effect@4.0.0-beta.65)(vitest@4.1.5(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.0-beta.65(effect@4.0.0-beta.65)(vitest@4.1.6(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)))':
     dependencies:
       effect: 4.0.0-beta.65
-      vitest: 4.1.5(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      vitest: 4.1.6(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -2921,28 +2899,28 @@ snapshots:
 
   '@exodus/bytes@1.15.0': {}
 
-  '@fallow-cli/darwin-arm64@2.69.0':
+  '@fallow-cli/darwin-arm64@2.73.0':
     optional: true
 
-  '@fallow-cli/darwin-x64@2.69.0':
+  '@fallow-cli/darwin-x64@2.73.0':
     optional: true
 
-  '@fallow-cli/linux-arm64-gnu@2.69.0':
+  '@fallow-cli/linux-arm64-gnu@2.73.0':
     optional: true
 
-  '@fallow-cli/linux-arm64-musl@2.69.0':
+  '@fallow-cli/linux-arm64-musl@2.73.0':
     optional: true
 
-  '@fallow-cli/linux-x64-gnu@2.69.0':
+  '@fallow-cli/linux-x64-gnu@2.73.0':
     optional: true
 
-  '@fallow-cli/linux-x64-musl@2.69.0':
+  '@fallow-cli/linux-x64-musl@2.73.0':
     optional: true
 
-  '@fallow-cli/win32-arm64-msvc@2.69.0':
+  '@fallow-cli/win32-arm64-msvc@2.73.0':
     optional: true
 
-  '@fallow-cli/win32-x64-msvc@2.69.0':
+  '@fallow-cli/win32-x64-msvc@2.73.0':
     optional: true
 
   '@ioredis/commands@1.5.1': {}
@@ -3202,7 +3180,7 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
-  '@types/estree@1.0.8': {}
+  '@types/estree@1.0.9': {}
 
   '@types/fs-extra@9.0.13':
     dependencies:
@@ -3259,44 +3237,44 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.7
       vite: 8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
 
-  '@vitest/expect@4.1.5':
+  '@vitest/expect@4.1.6':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@vitest/spy': 4.1.5
-      '@vitest/utils': 4.1.5
+      '@vitest/spy': 4.1.6
+      '@vitest/utils': 4.1.6
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.5(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.6(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
-      '@vitest/spy': 4.1.5
+      '@vitest/spy': 4.1.6
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
 
-  '@vitest/pretty-format@4.1.5':
+  '@vitest/pretty-format@4.1.6':
     dependencies:
       tinyrainbow: 3.1.0
 
-  '@vitest/runner@4.1.5':
+  '@vitest/runner@4.1.6':
     dependencies:
-      '@vitest/utils': 4.1.5
+      '@vitest/utils': 4.1.6
       pathe: 2.0.3
 
-  '@vitest/snapshot@4.1.5':
+  '@vitest/snapshot@4.1.6':
     dependencies:
-      '@vitest/pretty-format': 4.1.5
-      '@vitest/utils': 4.1.5
+      '@vitest/pretty-format': 4.1.6
+      '@vitest/utils': 4.1.6
       magic-string: 0.30.21
       pathe: 2.0.3
 
-  '@vitest/spy@4.1.5': {}
+  '@vitest/spy@4.1.6': {}
 
-  '@vitest/utils@4.1.5':
+  '@vitest/utils@4.1.6':
     dependencies:
-      '@vitest/pretty-format': 4.1.5
+      '@vitest/pretty-format': 4.1.6
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
@@ -3842,7 +3820,7 @@ snapshots:
 
   estree-walker@3.0.3:
     dependencies:
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
 
   expect-type@1.3.0: {}
 
@@ -3861,18 +3839,18 @@ snapshots:
   extsprintf@1.4.1:
     optional: true
 
-  fallow@2.69.0:
+  fallow@2.73.0:
     dependencies:
       detect-libc: 2.1.2
     optionalDependencies:
-      '@fallow-cli/darwin-arm64': 2.69.0
-      '@fallow-cli/darwin-x64': 2.69.0
-      '@fallow-cli/linux-arm64-gnu': 2.69.0
-      '@fallow-cli/linux-arm64-musl': 2.69.0
-      '@fallow-cli/linux-x64-gnu': 2.69.0
-      '@fallow-cli/linux-x64-musl': 2.69.0
-      '@fallow-cli/win32-arm64-msvc': 2.69.0
-      '@fallow-cli/win32-x64-msvc': 2.69.0
+      '@fallow-cli/darwin-arm64': 2.73.0
+      '@fallow-cli/darwin-x64': 2.73.0
+      '@fallow-cli/linux-arm64-gnu': 2.73.0
+      '@fallow-cli/linux-arm64-musl': 2.73.0
+      '@fallow-cli/linux-x64-gnu': 2.73.0
+      '@fallow-cli/linux-x64-musl': 2.73.0
+      '@fallow-cli/win32-arm64-msvc': 2.73.0
+      '@fallow-cli/win32-x64-msvc': 2.73.0
 
   fast-check@4.7.0:
     dependencies:
@@ -4019,10 +3997,6 @@ snapshots:
       responselike: 2.0.1
 
   graceful-fs@4.2.11: {}
-
-  greenworks@https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd:
-    dependencies:
-      nan: 2.26.2
 
   has-flag@4.0.0: {}
 
@@ -4363,8 +4337,6 @@ snapshots:
       msgpackr-extract: 3.0.3
 
   multipasta@0.2.7: {}
-
-  nan@2.26.2: {}
 
   nano-staged@1.0.2: {}
 
@@ -4848,15 +4820,15 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.9.0
 
-  vitest@4.1.5(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)):
+  vitest@4.1.6(@types/node@24.12.3)(jsdom@29.1.1)(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
-      '@vitest/expect': 4.1.5
-      '@vitest/mocker': 4.1.5(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
-      '@vitest/pretty-format': 4.1.5
-      '@vitest/runner': 4.1.5
-      '@vitest/snapshot': 4.1.5
-      '@vitest/spy': 4.1.5
-      '@vitest/utils': 4.1.5
+      '@vitest/expect': 4.1.6
+      '@vitest/mocker': 4.1.6(vite@8.0.12(@types/node@24.12.3)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@vitest/pretty-format': 4.1.6
+      '@vitest/runner': 4.1.6
+      '@vitest/snapshot': 4.1.6
+      '@vitest/spy': 4.1.6
+      '@vitest/utils': 4.1.6
       es-module-lexer: 2.1.0
       expect-type: 1.3.0
       magic-string: 0.30.21

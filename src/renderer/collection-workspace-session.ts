@@ -1,4 +1,11 @@
-import { type AppConfig, type CollectionErrors, CollectionManagerModalType, cloneCollection, type ModCollection } from 'model';
+import {
+	type AppConfig,
+	type CollectionErrors,
+	CollectionManagerModalType,
+	type CollectionValidationOutcome,
+	cloneCollection,
+	type ModCollection
+} from 'model';
 import { getCollectionValidationKey, type ValidationIssueSummary } from './collection-validation-run';
 
 type CollectionValidationStatus = 'none' | 'validating' | 'passed' | 'failed' | 'stale';
@@ -17,11 +24,12 @@ export type LaunchReadinessBlocker =
 export interface CollectionWorkspaceValidationResult {
 	draftKey: string;
 	errors?: CollectionErrors;
+	outcome?: CollectionValidationOutcome;
 	success: boolean;
 	summary?: ValidationIssueSummary;
 }
 
-interface CollectionWorkspaceSessionInput {
+export interface CollectionWorkspaceSessionInput {
 	activeCollection?: ModCollection;
 	config: AppConfig;
 	gameRunning?: boolean;
@@ -33,7 +41,7 @@ interface CollectionWorkspaceSessionInput {
 	validationResult?: CollectionWorkspaceValidationResult;
 }
 
-interface LaunchReadiness {
+export interface LaunchReadiness {
 	blockers: LaunchReadinessBlocker[];
 	ready: boolean;
 }
@@ -48,7 +56,6 @@ type CollectionValidationCompletionAction = 'discard-stale-result' | 'persist-cu
 type CollectionValidationPersistenceAction = 'discard-stale-result' | 'record-and-launch-current-draft' | 'record-current-result';
 
 interface CollectionDraftEditWorkflowDecision {
-	pendingValidationDraft?: ModCollection;
 	shouldCancelValidation: boolean;
 	shouldOpenBlockedModManagerDeselectDialog: boolean;
 }
@@ -60,9 +67,14 @@ interface LoadedModsValidationDecision {
 }
 
 export interface CollectionWorkspaceWorkflowState {
+	config: AppConfig;
+	draft?: ModCollection;
 	hasUnsavedDraft: boolean;
 	hasValidatedLoadedMods: boolean;
-	pendingValidationDraft?: ModCollection;
+	pendingLaunchAfterSaveDraftKey?: string;
+	validationLaunchIfValid?: boolean;
+	validationResult?: CollectionWorkspaceValidationResult;
+	validatingDraft: boolean;
 }
 
 export type CollectionWorkspaceWorkflowEffect =
@@ -78,16 +90,42 @@ export type CollectionWorkspaceWorkflowEffect =
 	| {
 			launchIfValid: boolean;
 			type: 'validate-active-collection';
+	  }
+	| {
+			type: 'persist-active-collection-draft';
+	  }
+	| {
+			type: 'launch-current-draft';
+	  }
+	| {
+			launchingGame: boolean;
+			type: 'set-launching-game';
+	  }
+	| {
+			modalType: CollectionManagerModalType;
+			type: 'open-validation-modal';
+	  }
+	| {
+			type: 'clear-collection-errors';
+	  }
+	| {
+			type: 'clear-launching-game';
 	  };
 
 export type CollectionWorkspaceWorkflowEvent =
 	| {
-			type: 'draft-edit-workflow-created';
-			workflow: CollectionDraftEditWorkflow;
+			edit: CollectionDraftEditResult;
+			type: 'active-draft-edited';
 	  }
 	| {
+			config: AppConfig;
 			currentDraft?: ModCollection;
 			type: 'active-draft-changed';
+	  }
+	| {
+			config: AppConfig;
+			currentDraft?: ModCollection;
+			type: 'collection-lifecycle-result-applied';
 	  }
 	| {
 			loadingMods?: boolean;
@@ -99,11 +137,38 @@ export type CollectionWorkspaceWorkflowEvent =
 	  }
 	| {
 			pureSave: boolean;
+			savedCollection?: ModCollection;
 			type: 'collection-content-save-completed';
 			writeAccepted: boolean;
 	  }
 	| {
-			type: 'collection-lifecycle-result-applied';
+			launchIfValid: boolean;
+			type: 'validation-started';
+	  }
+	| {
+			modalType?: CollectionManagerModalType;
+			result?: CollectionWorkspaceValidationResult;
+			type: 'validation-completed';
+	  }
+	| {
+			type: 'validation-cancelled';
+	  }
+	| {
+			type: 'validation-failed-to-run';
+	  }
+	| {
+			launchReadiness: LaunchReadiness;
+			modalOpen?: boolean;
+			type: 'launch-requested';
+	  }
+	| {
+			launchReadiness: LaunchReadiness;
+			modalOpen?: boolean;
+			type: 'launch-anyway-requested';
+	  }
+	| {
+			hasUnsavedDraft: boolean;
+			type: 'has-unsaved-draft-changed';
 	  };
 
 export type CollectionContentSaveCompletion = Omit<
@@ -116,8 +181,9 @@ interface CollectionWorkspaceWorkflowTransition {
 	state: CollectionWorkspaceWorkflowState;
 }
 
-interface CollectionWorkspaceSession {
+export interface CollectionWorkspaceSession {
 	currentCollectionErrors?: CollectionErrors;
+	currentValidationOutcome?: CollectionValidationOutcome;
 	currentValidationStatus?: boolean;
 	draft?: ModCollection;
 	draftKey?: string;
@@ -129,15 +195,14 @@ interface CollectionWorkspaceSession {
 	validatingDraft: boolean;
 }
 
-interface CollectionDraftEditResult {
+export interface CollectionDraftEditResult {
 	blockedModManagerDeselect: boolean;
 	nextDraft?: ModCollection;
 }
 
-export interface CollectionDraftEditWorkflow {
+interface CollectionDraftEditWorkflow {
 	blockedModManagerDeselect: boolean;
 	nextDraft?: ModCollection;
-	pendingValidationDraft?: ModCollection;
 	shouldMarkUnsavedDraft: boolean;
 }
 
@@ -172,15 +237,6 @@ export type CollectionValidationRunOutcome =
 			type: 'missing-active-collection';
 	  }
 	| {
-			type: 'persistence-failed';
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
-			type: 'recorded-and-ready-to-launch-current-draft';
-			launchCollection: ModCollection;
-			validationResult: CollectionWorkspaceValidationResult;
-	  }
-	| {
 			type: 'recorded-current-result';
 			validationResult: CollectionWorkspaceValidationResult;
 	  }
@@ -191,22 +247,6 @@ export type CollectionValidationRunOutcome =
 	  }
 	| {
 			type: 'validation-run-failed';
-	  };
-
-export type CollectionValidationRunCompletionEffect =
-	| {
-			type: 'clear-launching-game';
-	  }
-	| {
-			type: 'launch-empty-mod-list';
-	  }
-	| {
-			launchCollection: ModCollection;
-			type: 'launch-current-draft';
-	  }
-	| {
-			modalType: CollectionManagerModalType;
-			type: 'open-validation-modal';
 	  };
 
 function hasSameEnabledMods(currentMods: string[], nextMods: string[]) {
@@ -401,6 +441,7 @@ export function createCollectionWorkspaceValidationResult(input: {
 	collection?: ModCollection;
 	config: AppConfig;
 	errors?: CollectionErrors;
+	outcome?: CollectionValidationOutcome;
 	success: boolean;
 	summary?: ValidationIssueSummary;
 }): CollectionWorkspaceValidationResult | undefined {
@@ -412,6 +453,7 @@ export function createCollectionWorkspaceValidationResult(input: {
 	return {
 		draftKey,
 		errors: input.errors,
+		outcome: input.outcome,
 		success: input.success,
 		summary: input.summary
 	};
@@ -482,29 +524,6 @@ export function getCollectionValidationPersistenceDecision(input: {
 	};
 }
 
-export function getCollectionValidationRunCompletionEffects(
-	outcome: CollectionValidationRunOutcome,
-	launchRequested: boolean
-): CollectionValidationRunCompletionEffect[] {
-	switch (outcome.type) {
-		case 'missing-active-collection':
-			return launchRequested ? [{ type: 'launch-empty-mod-list' }] : [];
-		case 'recorded-and-ready-to-launch-current-draft':
-			return [{ type: 'launch-current-draft', launchCollection: outcome.launchCollection }];
-		case 'recorded-failed-result':
-			if (outcome.modalType) {
-				return [{ type: 'open-validation-modal', modalType: outcome.modalType }];
-			}
-			return launchRequested ? [{ type: 'clear-launching-game' }] : [];
-		case 'cancelled':
-		case 'discarded-stale-result':
-		case 'persistence-failed':
-		case 'recorded-current-result':
-		case 'validation-run-failed':
-			return launchRequested ? [{ type: 'clear-launching-game' }] : [];
-	}
-}
-
 export function toggleCollectionDraftMod(input: {
 	checked: boolean;
 	collection?: ModCollection;
@@ -540,7 +559,7 @@ export function toggleCollectionDraftMod(input: {
 	);
 }
 
-export function createCollectionDraftEditWorkflow(editResult: CollectionDraftEditResult): CollectionDraftEditWorkflow {
+function createCollectionDraftEditWorkflow(editResult: CollectionDraftEditResult): CollectionDraftEditWorkflow {
 	if (!editResult.nextDraft) {
 		return {
 			blockedModManagerDeselect: editResult.blockedModManagerDeselect,
@@ -552,14 +571,12 @@ export function createCollectionDraftEditWorkflow(editResult: CollectionDraftEdi
 	return {
 		blockedModManagerDeselect: editResult.blockedModManagerDeselect,
 		nextDraft,
-		pendingValidationDraft: cloneCollection(nextDraft),
 		shouldMarkUnsavedDraft: true
 	};
 }
 
-export function getCollectionDraftEditWorkflowDecision(workflow: CollectionDraftEditWorkflow): CollectionDraftEditWorkflowDecision {
+function getCollectionDraftEditWorkflowDecision(workflow: CollectionDraftEditWorkflow): CollectionDraftEditWorkflowDecision {
 	return {
-		pendingValidationDraft: workflow.pendingValidationDraft,
 		shouldCancelValidation: !!workflow.nextDraft,
 		shouldOpenBlockedModManagerDeselectDialog: workflow.blockedModManagerDeselect
 	};
@@ -620,20 +637,6 @@ export function setCollectionDraftModSubset(input: {
 	};
 }
 
-export function shouldValidatePendingCollectionDraft(input: { currentDraft?: ModCollection; pendingDraft?: ModCollection }) {
-	if (!input.currentDraft || !input.pendingDraft) {
-		return false;
-	}
-
-	return input.currentDraft.name === input.pendingDraft.name && hasSameEnabledMods(input.currentDraft.mods, input.pendingDraft.mods);
-}
-
-export function getPendingDraftValidationDecision(input: { currentDraft?: ModCollection; pendingDraft?: ModCollection }) {
-	return {
-		shouldValidateActiveCollection: shouldValidatePendingCollectionDraft(input)
-	};
-}
-
 export function getLoadedModsValidationDecision(input: {
 	hasValidatedLoadedMods: boolean;
 	loadingMods?: boolean;
@@ -648,23 +651,61 @@ export function getLoadedModsValidationDecision(input: {
 
 	return {
 		nextHasValidatedLoadedMods: true,
-		shouldRecalculateModData: true,
+		shouldRecalculateModData: !input.hasValidatedLoadedMods,
 		shouldValidateActiveCollection: !input.hasValidatedLoadedMods
 	};
+}
+
+function getLaunchContinuationDraftKey(state: CollectionWorkspaceWorkflowState) {
+	return state.draft ? getCollectionValidationKey(state.draft, state.config) : undefined;
+}
+
+function requestLaunchAfterSave(
+	state: CollectionWorkspaceWorkflowState,
+	effects: CollectionWorkspaceWorkflowEffect[],
+	draftKey = getLaunchContinuationDraftKey(state)
+) {
+	if (!draftKey) {
+		return;
+	}
+	state.pendingLaunchAfterSaveDraftKey = draftKey;
+	effects.push({ type: 'persist-active-collection-draft' });
 }
 
 export function createCollectionWorkspaceWorkflowState(
 	input: Partial<CollectionWorkspaceWorkflowState> = {}
 ): CollectionWorkspaceWorkflowState {
 	return {
+		config: input.config ?? ({} as AppConfig),
+		draft: input.draft ? cloneCollection(input.draft) : undefined,
 		hasUnsavedDraft: !!input.hasUnsavedDraft,
 		hasValidatedLoadedMods: !!input.hasValidatedLoadedMods,
-		pendingValidationDraft: input.pendingValidationDraft ? cloneCollection(input.pendingValidationDraft) : undefined
+		pendingLaunchAfterSaveDraftKey: input.pendingLaunchAfterSaveDraftKey,
+		validationLaunchIfValid: input.validationLaunchIfValid,
+		validationResult: input.validationResult,
+		validatingDraft: !!input.validatingDraft
 	};
 }
 
 function cloneWorkflowState(state: CollectionWorkspaceWorkflowState): CollectionWorkspaceWorkflowState {
 	return createCollectionWorkspaceWorkflowState(state);
+}
+
+function isSameCollectionDraft(current: ModCollection | undefined, next: ModCollection | undefined) {
+	return current?.name === next?.name && hasSameEnabledMods(current?.mods ?? [], next?.mods ?? []);
+}
+
+function isSameWorkflowState(current: CollectionWorkspaceWorkflowState, next: CollectionWorkspaceWorkflowState) {
+	return (
+		current.config === next.config &&
+		isSameCollectionDraft(current.draft, next.draft) &&
+		current.hasUnsavedDraft === next.hasUnsavedDraft &&
+		current.hasValidatedLoadedMods === next.hasValidatedLoadedMods &&
+		current.pendingLaunchAfterSaveDraftKey === next.pendingLaunchAfterSaveDraftKey &&
+		current.validationLaunchIfValid === next.validationLaunchIfValid &&
+		current.validationResult === next.validationResult &&
+		current.validatingDraft === next.validatingDraft
+	);
 }
 
 export function reduceCollectionWorkspaceWorkflow(
@@ -675,28 +716,74 @@ export function reduceCollectionWorkspaceWorkflow(
 	const effects: CollectionWorkspaceWorkflowEffect[] = [];
 
 	switch (event.type) {
-		case 'draft-edit-workflow-created': {
-			const decision = getCollectionDraftEditWorkflowDecision(event.workflow);
+		case 'launch-requested': {
+			const decision = getCollectionLaunchWorkflowDecision({
+				hasActiveCollection: !!nextState.draft,
+				launchReadiness: event.launchReadiness,
+				modalOpen: event.modalOpen
+			});
+			if (decision.action === 'none') {
+				break;
+			}
+			if (event.launchReadiness.blockers.includes('validation-failed')) {
+				effects.push({ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND });
+				break;
+			}
+			effects.push({ type: 'set-launching-game', launchingGame: true });
+			if (decision.action === 'launch-current-draft' && nextState.validationResult) {
+				requestLaunchAfterSave(nextState, effects, nextState.validationResult.draftKey);
+				break;
+			}
+			effects.push({ type: 'clear-collection-errors' });
+			effects.push({ type: 'validate-active-collection', launchIfValid: true });
+			break;
+		}
+		case 'launch-anyway-requested': {
+			const commandState = getCollectionLaunchCommandState({
+				launchReadiness: event.launchReadiness
+			});
+			if (commandState.disabled) {
+				effects.push({ type: 'clear-launching-game' });
+				break;
+			}
+			effects.push({ type: 'set-launching-game', launchingGame: true });
+			if (nextState.hasUnsavedDraft) {
+				requestLaunchAfterSave(nextState, effects);
+				break;
+			}
+			effects.push({ type: 'launch-current-draft' });
+			break;
+		}
+		case 'active-draft-edited': {
+			const workflow = createCollectionDraftEditWorkflow(event.edit);
+			const decision = getCollectionDraftEditWorkflowDecision(workflow);
 			if (decision.shouldOpenBlockedModManagerDeselectDialog) {
 				effects.push({ type: 'open-blocked-mod-manager-deselect-dialog' });
 			}
 			if (decision.shouldCancelValidation) {
 				effects.push({ type: 'cancel-validation' });
+				nextState.validatingDraft = false;
+				nextState.validationLaunchIfValid = undefined;
 			}
-			if (event.workflow.shouldMarkUnsavedDraft) {
+			if (workflow.shouldMarkUnsavedDraft) {
 				nextState.hasUnsavedDraft = true;
 			}
-			nextState.pendingValidationDraft = decision.pendingValidationDraft ? cloneCollection(decision.pendingValidationDraft) : undefined;
+			if (workflow.nextDraft) {
+				nextState.draft = cloneCollection(workflow.nextDraft);
+			}
+			if (workflow.nextDraft) {
+				effects.push({ type: 'validate-active-collection', launchIfValid: false });
+			}
+			break;
+		}
+		case 'has-unsaved-draft-changed': {
+			nextState.hasUnsavedDraft = event.hasUnsavedDraft;
 			break;
 		}
 		case 'active-draft-changed': {
-			const decision = getPendingDraftValidationDecision({
-				currentDraft: event.currentDraft,
-				pendingDraft: nextState.pendingValidationDraft
-			});
-			if (decision.shouldValidateActiveCollection) {
-				nextState.pendingValidationDraft = undefined;
-				effects.push({ type: 'validate-active-collection', launchIfValid: false });
+			nextState.config = event.config;
+			if (!nextState.hasUnsavedDraft) {
+				nextState.draft = event.currentDraft ? cloneCollection(event.currentDraft) : undefined;
 			}
 			break;
 		}
@@ -722,29 +809,95 @@ export function reduceCollectionWorkspaceWorkflow(
 			break;
 		}
 		case 'collection-content-save-completed': {
-			nextState.hasUnsavedDraft = applyCollectionContentSaveResult({
-				hasUnsavedDraft: nextState.hasUnsavedDraft,
-				pureSave: event.pureSave,
-				writeAccepted: event.writeAccepted
-			}).hasUnsavedDraft;
+			if (event.writeAccepted && event.savedCollection) {
+				nextState.draft = cloneCollection(event.savedCollection);
+				nextState.hasUnsavedDraft = false;
+			}
+			if (!event.writeAccepted) {
+				nextState.hasUnsavedDraft = nextState.hasUnsavedDraft;
+			}
+			if (nextState.pendingLaunchAfterSaveDraftKey) {
+				if (
+					event.writeAccepted &&
+					event.savedCollection &&
+					getCollectionValidationKey(event.savedCollection, nextState.config) === nextState.pendingLaunchAfterSaveDraftKey
+				) {
+					effects.push({ type: 'launch-current-draft' });
+				} else {
+					effects.push({ type: 'clear-launching-game' });
+				}
+				nextState.pendingLaunchAfterSaveDraftKey = undefined;
+			}
 			break;
 		}
 		case 'collection-lifecycle-result-applied': {
+			nextState.config = event.config;
+			nextState.draft = event.currentDraft ? cloneCollection(event.currentDraft) : undefined;
 			nextState.hasUnsavedDraft = false;
-			nextState.pendingValidationDraft = undefined;
+			nextState.pendingLaunchAfterSaveDraftKey = undefined;
+			nextState.validationLaunchIfValid = undefined;
+			nextState.validationResult = undefined;
+			nextState.validatingDraft = false;
+			break;
+		}
+		case 'validation-started': {
+			nextState.validatingDraft = true;
+			nextState.validationLaunchIfValid = event.launchIfValid;
+			break;
+		}
+		case 'validation-completed': {
+			const launchIfValid = nextState.validationLaunchIfValid;
+			nextState.validatingDraft = false;
+			nextState.validationLaunchIfValid = undefined;
+			if (!event.result) {
+				break;
+			}
+			const session = createCollectionWorkspaceSession({
+				activeCollection: nextState.draft,
+				config: nextState.config,
+				hasUnsavedDraft: nextState.hasUnsavedDraft,
+				validationResult: event.result
+			});
+			if (session.validationStatus === 'stale') {
+				break;
+			}
+			nextState.validationResult = event.result;
+			if (launchIfValid) {
+				if (event.result.success) {
+					requestLaunchAfterSave(nextState, effects, event.result.draftKey);
+				} else {
+					if (event.modalType) {
+						effects.push({ type: 'open-validation-modal', modalType: event.modalType });
+					}
+					effects.push({ type: 'clear-launching-game' });
+				}
+			}
+			break;
+		}
+		case 'validation-cancelled': {
+			nextState.validatingDraft = false;
+			nextState.validationLaunchIfValid = undefined;
+			break;
+		}
+		case 'validation-failed-to-run': {
+			if (nextState.validationLaunchIfValid) {
+				effects.push({ type: 'clear-launching-game' });
+			}
+			nextState.validatingDraft = false;
+			nextState.validationLaunchIfValid = undefined;
 			break;
 		}
 	}
 
 	return {
 		effects,
-		state: nextState
+		state: effects.length === 0 && isSameWorkflowState(state, nextState) ? state : nextState
 	};
 }
 
 export function applyCollectionContentSaveResult(input: { hasUnsavedDraft: boolean; pureSave: boolean; writeAccepted: boolean }) {
 	return {
-		hasUnsavedDraft: input.writeAccepted && input.pureSave ? false : input.hasUnsavedDraft
+		hasUnsavedDraft: input.writeAccepted ? false : input.hasUnsavedDraft
 	};
 }
 
@@ -763,6 +916,7 @@ export function createCollectionWorkspaceSession(input: CollectionWorkspaceSessi
 
 	return {
 		currentCollectionErrors: validationStatus === 'passed' || validationStatus === 'failed' ? input.validationResult?.errors : undefined,
+		currentValidationOutcome: validationStatus === 'passed' || validationStatus === 'failed' ? input.validationResult?.outcome : undefined,
 		currentValidationStatus: getCurrentValidationStatus(validationStatus),
 		draft,
 		draftKey,

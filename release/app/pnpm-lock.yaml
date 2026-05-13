@@ -14,6 +14,9 @@ importers:
       effect:
         specifier: 4.0.0-beta.65
         version: 4.0.0-beta.65
+      fast-check:
+        specifier: 4.7.0
+        version: 4.7.0
       greenworks:
         specifier: github:FLSoz/greenworks
         version: https://codeload.github.com/FLSoz/greenworks/tar.gz/244fbe89c5c79503995eb8468ce42aa5f91f81fd

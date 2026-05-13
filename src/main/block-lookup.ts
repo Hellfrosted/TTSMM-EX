@@ -59,7 +59,7 @@ export function readBlockLookupSettings(userDataPath: string): BlockLookupSettin
 	return runBlockLookupStorage(readBlockLookupSettingsEffect(userDataPath));
 }
 
-export const readBlockLookupSettingsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<BlockLookupSettings> {
+const readBlockLookupSettingsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<BlockLookupSettings> {
 	const settings = yield* readBlockLookupJsonFileEffect<Partial<BlockLookupSettings>>(getBlockLookupSettingsPath(userDataPath));
 	return {
 		workshopRoot: typeof settings?.workshopRoot === 'string' ? settings.workshopRoot : '',
@@ -71,7 +71,7 @@ export function writeBlockLookupSettings(userDataPath: string, settings: BlockLo
 	return runBlockLookupStorage(writeBlockLookupSettingsEffect(userDataPath, settings));
 }
 
-export const writeBlockLookupSettingsEffect = Effect.fnUntraced(function* (
+const writeBlockLookupSettingsEffect = Effect.fnUntraced(function* (
 	userDataPath: string,
 	settings: BlockLookupSettings
 ): Effect.fn.Return<BlockLookupSettings, unknown> {
@@ -277,7 +277,7 @@ export function readBlockLookupIndex(userDataPath: string): PersistedBlockLookup
 	return runBlockLookupStorage(readBlockLookupIndexEffect(userDataPath));
 }
 
-export const readBlockLookupIndexEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<PersistedBlockLookupIndex> {
+const readBlockLookupIndexEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<PersistedBlockLookupIndex> {
 	return normalizeBlockLookupIndex(yield* readBlockLookupJsonFileEffect<unknown>(getBlockLookupIndexPath(userDataPath)));
 });
 
@@ -323,9 +323,7 @@ export function searchBlockLookupIndex(userDataPath: string, query: string, limi
 	return runBlockLookupStorage(searchBlockLookupIndexEffect(userDataPath, query, limit));
 }
 
-export const getBlockLookupStatsEffect = Effect.fnUntraced(function* (
-	userDataPath: string
-): Effect.fn.Return<BlockLookupIndexStats | null> {
+const getBlockLookupStatsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<BlockLookupIndexStats | null> {
 	const index = yield* readBlockLookupIndexEffect(userDataPath);
 	if (!index.builtAt) {
 		return null;
@@ -333,7 +331,7 @@ export const getBlockLookupStatsEffect = Effect.fnUntraced(function* (
 	return createBlockLookupIndexStats(index);
 });
 
-export const searchBlockLookupIndexEffect = Effect.fnUntraced(function* (
+const searchBlockLookupIndexEffect = Effect.fnUntraced(function* (
 	userDataPath: string,
 	query: string,
 	limit?: number

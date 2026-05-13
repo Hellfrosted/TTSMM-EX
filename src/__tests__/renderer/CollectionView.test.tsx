@@ -43,4 +43,21 @@ describe('CollectionView', () => {
 		expect(screen.getAllByRole('button', { name: 'Launch Game' }).at(-1)).toBeDisabled();
 		await vi.dynamicImportSettled();
 	});
+
+	it('shows the running launch state when the game is already running', async () => {
+		const activeCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			activeCollection,
+			allCollections: new Map([['default', activeCollection]]),
+			allCollectionNames: new Set(['default']),
+			mods: new SessionMods('', [])
+		});
+		vi.mocked(window.electron.isGameRunning).mockResolvedValue(true);
+
+		renderWithTestProviders(<CollectionView appState={appState} />);
+
+		const launchButton = await screen.findByRole('button', { name: 'Game Running' });
+		expect(launchButton).toBeDisabled();
+		expect(launchButton).toHaveAttribute('data-game-running', 'true');
+	});
 });

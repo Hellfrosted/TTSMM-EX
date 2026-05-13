@@ -3,6 +3,7 @@ import {
 	Copy,
 	Edit3,
 	FileJson,
+	Gamepad2,
 	Link2,
 	Play,
 	Plus,
@@ -11,10 +12,11 @@ import {
 	Search,
 	Settings2,
 	Trash2,
+	TriangleAlert,
 	X,
 	XCircle
 } from 'lucide-react';
-import { CollectionManagerModalType, NotificationProps } from 'model';
+import { CollectionManagerModalType, type CollectionValidationOutcome, NotificationProps } from 'model';
 import type { ReactNode } from 'react';
 import { lazy, memo, Suspense, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { CollectionNamingModalType } from 'renderer/collection-form-validation';
@@ -46,6 +48,8 @@ interface CollectionManagementToolbarProps {
 	savingCollection?: boolean;
 	validatingCollection?: boolean;
 	launchingGame?: boolean;
+	gameRunning?: boolean;
+	currentValidationOutcome?: CollectionValidationOutcome;
 	currentValidationStatus?: boolean;
 	launchReady?: boolean;
 	launchGameDisabled?: boolean;
@@ -310,6 +314,7 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 }
 
 function PrimaryCollectionControls({
+	currentValidationOutcome,
 	currentValidationStatus,
 	disabledFeatures,
 	launchReady,
@@ -317,15 +322,18 @@ function PrimaryCollectionControls({
 	launchGameDisabled,
 	launchGameDisabledReason,
 	launchingGame,
+	gameRunning,
 	onReloadModListCallback,
 	validateCollectionCallback,
 	validatingCollection
 }: Pick<
 	CollectionManagementToolbarProps,
+	| 'currentValidationOutcome'
 	| 'currentValidationStatus'
 	| 'launchGameCallback'
 	| 'launchGameDisabled'
 	| 'launchGameDisabledReason'
+	| 'gameRunning'
 	| 'launchReady'
 	| 'launchingGame'
 	| 'onReloadModListCallback'
@@ -335,18 +343,30 @@ function PrimaryCollectionControls({
 	disabledFeatures: boolean;
 }) {
 	const validateIcon =
-		currentValidationStatus === true ? (
+		currentValidationOutcome === 'valid' ? (
 			<CheckCircle size={16} aria-hidden="true" />
-		) : currentValidationStatus === false ? (
+		) : currentValidationOutcome === 'warnings' ? (
+			<TriangleAlert size={16} aria-hidden="true" />
+		) : currentValidationOutcome === 'blocked' || currentValidationStatus === false ? (
 			<XCircle size={16} aria-hidden="true" />
 		) : (
 			<RefreshCw className={validatingCollection ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
 		);
+	const validateToneClassName =
+		currentValidationOutcome === 'valid'
+			? 'CollectionValidateButton--valid'
+			: currentValidationOutcome === 'warnings'
+				? 'CollectionValidateButton--warnings'
+				: currentValidationOutcome === 'blocked'
+					? 'CollectionValidateButton--blocked'
+					: 'CollectionValidateButton--neutral';
 	const [launchReadyPulse, dispatchLaunchReadyPulse] = useReducer((_current: boolean, next: boolean) => next, false);
 	const validationRequestedRef = useRef(false);
 	const wasValidatingCollectionRef = useRef(!!validatingCollection);
 	const validateLabel = launchReady ? 'Collection Ready' : 'Validate Collection';
 	const readyTitle = launchReady ? 'Collection is validated and ready to launch' : 'Validate collection';
+	const launchButtonLabel = gameRunning ? 'Game Running' : 'Launch Game';
+	const launchButtonTitle = gameRunning ? 'Game is running' : launchGameDisabledReason || 'Launch game';
 
 	useEffect(() => {
 		const wasValidatingCollection = wasValidatingCollectionRef.current;
@@ -377,9 +397,8 @@ function PrimaryCollectionControls({
 			<DesktopButton
 				aria-label={validateLabel}
 				title={readyTitle}
-				className="CollectionToolbarGridButton CollectionValidateButton"
+				className={joinClassNames('CollectionToolbarGridButton CollectionValidateButton', validateToneClassName)}
 				icon={validateIcon}
-				danger={currentValidationStatus === false}
 				onClick={() => {
 					validationRequestedRef.current = true;
 					validateCollectionCallback?.();
@@ -399,11 +418,12 @@ function PrimaryCollectionControls({
 				Reload Mods
 			</DesktopButton>
 			<DesktopButton
-				aria-label="Launch Game"
-				title={launchGameDisabledReason || 'Launch game'}
+				aria-label={launchButtonLabel}
+				title={launchButtonTitle}
 				className={toolbarLaunchActionClassName}
 				data-ready-pulse={launchReadyPulse ? 'true' : undefined}
-				icon={<Play size={16} aria-hidden="true" />}
+				data-game-running={gameRunning ? 'true' : undefined}
+				icon={gameRunning ? <Gamepad2 size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
 				loading={launchingGame}
 				variant="primary"
 				onClick={() => {
@@ -411,7 +431,7 @@ function PrimaryCollectionControls({
 				}}
 				disabled={disabledFeatures || !!launchGameDisabled || !launchGameCallback}
 			>
-				Launch Game
+				{launchButtonLabel}
 			</DesktopButton>
 		</div>
 	);
@@ -545,6 +565,8 @@ function CollectionManagementToolbarComponent({
 	savingCollection,
 	validatingCollection,
 	launchingGame,
+	gameRunning,
+	currentValidationOutcome,
 	currentValidationStatus,
 	launchGameDisabled,
 	launchGameDisabledReason,
@@ -664,11 +686,13 @@ function CollectionManagementToolbarComponent({
 					searchString={searchString}
 				/>
 				<PrimaryCollectionControls
+					currentValidationOutcome={currentValidationOutcome}
 					currentValidationStatus={currentValidationStatus}
 					disabledFeatures={disabledFeatures}
 					launchGameCallback={launchGameCallback}
 					launchGameDisabled={launchGameDisabled}
 					launchGameDisabledReason={launchGameDisabledReason}
+					gameRunning={gameRunning}
 					launchReady={launchReady}
 					launchingGame={launchingGame}
 					onReloadModListCallback={onReloadModListCallback}

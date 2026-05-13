@@ -1,29 +1,30 @@
 import type { NotificationProps } from 'model';
 import { cloneCollection, createModManagerUid, ModCollection, type ModData } from 'model';
-import { startTransition, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import api from 'renderer/Api';
 import { useUpdateCollectionMutation } from 'renderer/async-cache';
 import { createCollectionWriteQueue } from 'renderer/collection-content-save';
 import {
 	type CollectionContentSaveCompletion,
-	type CollectionDraftEditWorkflow,
-	createCollectionDraftEditWorkflow,
+	type CollectionDraftEditResult,
 	setCollectionDraftEnabledMods,
 	setCollectionDraftModSubset,
 	toggleCollectionDraftMod
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
 import { type CollectionContentSaveCommandOptions, useCollectionLifecycleCommands } from './useCollectionLifecycleCommands';
 import { useCollectionRowProjection } from './useCollectionRowProjection';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionsOptions {
+	activeCollectionDraft?: ModCollection;
 	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	resetValidationState: () => void;
-	onDraftEditWorkflow: (workflow: CollectionDraftEditWorkflow) => void;
+	onActiveDraftEdited: (edit: CollectionDraftEditResult) => void;
 	onCollectionContentSaveCompleted?: (completion: CollectionContentSaveCompletion) => void;
-	onCollectionLifecycleResultApplied?: () => void;
+	onCollectionLifecycleResultApplied?: (result: Extract<CollectionLifecycleResult, { ok: true }>) => void;
 	draftState?: {
 		hasUnsavedDraft: boolean;
 		setHasUnsavedDraft: (hasUnsavedDraft: boolean) => void;
@@ -54,21 +55,23 @@ interface UseCollectionsResult {
 }
 
 export function useCollections({
+	activeCollectionDraft,
 	appState,
 	draftState,
 	openNotification,
 	resetValidationState,
 	onCollectionContentSaveCompleted,
 	onCollectionLifecycleResultApplied,
-	onDraftEditWorkflow
+	onActiveDraftEdited
 }: UseCollectionsOptions): UseCollectionsResult {
 	const [savingCollection, setSavingCollection] = useState(false);
 	const [localMadeEdits, setLocalMadeEdits] = useState(false);
 	const collectionWriteQueue = useMemo(() => createCollectionWriteQueue(), []);
-	const { config, updateState } = appState;
+	const { config } = appState;
+	const activeCollectionDraftOrFallback = activeCollectionDraft ?? appState.activeCollection;
 	const { mutateAsync: updateCollectionFileMutation } = useUpdateCollectionMutation();
 	const { filteredRows, onSearch, onSearchChange, recalculateModData, rows, searchString } = useCollectionRowProjection({
-		collection: appState.activeCollection,
+		collection: activeCollectionDraftOrFallback,
 		mods: appState.mods
 	});
 	const madeEdits = draftState?.hasUnsavedDraft ?? localMadeEdits;
@@ -109,84 +112,60 @@ export function useCollections({
 		[updateCollectionFileMutation]
 	);
 
-	const applyActiveCollectionDraft = useCallback(
-		(nextCollection: ModCollection) => {
-			startTransition(() => {
-				updateState({
-					activeCollection: nextCollection
-				});
-			});
-		},
-		[updateState]
-	);
-
-	const applyCollectionDraftEditWorkflow = useCallback(
-		(workflow: CollectionDraftEditWorkflow) => {
-			onDraftEditWorkflow(workflow);
-			if (!workflow.nextDraft) {
-				return;
-			}
-
-			if (workflow.shouldMarkUnsavedDraft) {
+	const applyActiveDraftEdit = useCallback(
+		(edit: CollectionDraftEditResult) => {
+			onActiveDraftEdited(edit);
+			if (edit.nextDraft) {
 				setMadeEdits(true);
 			}
-			applyActiveCollectionDraft(workflow.nextDraft);
 		},
-		[applyActiveCollectionDraft, onDraftEditWorkflow, setMadeEdits]
+		[onActiveDraftEdited, setMadeEdits]
 	);
 
 	const toggleMod = useCallback(
 		(checked: boolean, uid: string) => {
-			const { activeCollection } = appState;
-			applyCollectionDraftEditWorkflow(
-				createCollectionDraftEditWorkflow(
-					toggleCollectionDraftMod({
-						checked,
-						collection: activeCollection,
-						modManagerUid: getModManagerUID(),
-						uid
-					})
-				)
+			applyActiveDraftEdit(
+				toggleCollectionDraftMod({
+					checked,
+					collection: activeCollectionDraftOrFallback,
+					modManagerUid: getModManagerUID(),
+					uid
+				})
 			);
 		},
-		[appState, applyCollectionDraftEditWorkflow, getModManagerUID]
+		[activeCollectionDraftOrFallback, applyActiveDraftEdit, getModManagerUID]
 	);
 
 	const setEnabledMods = useCallback(
 		(enabledMods: Set<string>) => {
-			const { activeCollection } = appState;
-			applyCollectionDraftEditWorkflow(
-				createCollectionDraftEditWorkflow(
-					setCollectionDraftEnabledMods({
-						collection: activeCollection,
-						enabledMods,
-						modManagerUid: getModManagerUID()
-					})
-				)
+			applyActiveDraftEdit(
+				setCollectionDraftEnabledMods({
+					collection: activeCollectionDraftOrFallback,
+					enabledMods,
+					modManagerUid: getModManagerUID()
+				})
 			);
 		},
-		[appState, applyCollectionDraftEditWorkflow, getModManagerUID]
+		[activeCollectionDraftOrFallback, applyActiveDraftEdit, getModManagerUID]
 	);
 
 	const setModSubset = useCallback(
 		(changes: { [uid: string]: boolean }) => {
-			const { activeCollection } = appState;
-			applyCollectionDraftEditWorkflow(
-				createCollectionDraftEditWorkflow(
-					setCollectionDraftModSubset({
-						changes,
-						collection: activeCollection,
-						modManagerUid: getModManagerUID()
-					})
-				)
+			applyActiveDraftEdit(
+				setCollectionDraftModSubset({
+					changes,
+					collection: activeCollectionDraftOrFallback,
+					modManagerUid: getModManagerUID()
+				})
 			);
 		},
-		[appState, applyCollectionDraftEditWorkflow, getModManagerUID]
+		[activeCollectionDraftOrFallback, applyActiveDraftEdit, getModManagerUID]
 	);
 
 	const { createNewCollection, duplicateCollection, renameCollection, deleteCollection, changeActiveCollection, saveCollection } =
 		useCollectionLifecycleCommands({
 			appState,
+			activeCollectionDraft: activeCollectionDraftOrFallback,
 			madeEdits,
 			onCollectionContentSaveCompleted,
 			onCollectionLifecycleResultApplied,

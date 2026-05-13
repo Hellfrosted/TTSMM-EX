@@ -1,15 +1,43 @@
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ModType, SessionMods } from '../../model';
-import { useCollectionWorkspace } from '../../renderer/views/use-collection-workspace';
 import { createAppState, createTestWrapper } from './test-utils';
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 });
 
 describe('useCollectionWorkspace', () => {
+	it('treats launch override as a running-game launch blocker', async () => {
+		const { useCollectionWorkspace } = await import('../../renderer/views/use-collection-workspace');
+		vi.mocked(window.electron.isGameRunning).mockResolvedValue(false);
+		const activeCollection = { name: 'default', mods: [] };
+		const appState = createAppState({
+			activeCollection,
+			allCollections: new Map([[activeCollection.name, activeCollection]]),
+			allCollectionNames: new Set([activeCollection.name]),
+			mods: new SessionMods('', [])
+		});
+
+		const { result } = renderHook(() => useCollectionWorkspace({ appState, openNotification: vi.fn() }), {
+			wrapper: createTestWrapper()
+		});
+
+		act(() => {
+			result.current.setOverrideGameRunning(true);
+		});
+
+		expect(result.current.overrideGameRunning).toBe(true);
+		expect(result.current.collectionWorkspaceSession.launchReadiness.blockers).toContain('game-running');
+		result.current.clearGameRunningPoll();
+		result.current.clearGameLaunchOverrideTimeout();
+	});
+
 	it.each(['dependencies', 'inspect'])('keeps the %s details tab active when opening another mod', async (tabKey) => {
+		const { useCollectionWorkspace } = await import('../../renderer/views/use-collection-workspace');
+		vi.useFakeTimers();
+		vi.mocked(window.electron.isGameRunning).mockResolvedValue(false);
 		const rows = [
 			{
 				uid: 'workshop:1',
@@ -37,32 +65,29 @@ describe('useCollectionWorkspace', () => {
 			allCollectionNames: new Set([activeCollection.name]),
 			mods: new SessionMods('', rows)
 		});
+		const openNotification = vi.fn();
 
-		const { result } = renderHook(() => useCollectionWorkspace({ appState, openNotification: vi.fn() }), {
+		const { result } = renderHook(() => useCollectionWorkspace({ appState, openNotification }), {
 			wrapper: createTestWrapper()
 		});
 
 		act(() => {
 			result.current.getModDetails(rows[0].uid, rows[0]);
 		});
-		await waitFor(() => {
-			expect(result.current.currentRecord?.uid).toBe(rows[0].uid);
-		});
+		expect(result.current.currentRecord?.uid).toBe(rows[0].uid);
 
 		act(() => {
 			result.current.setDetailsActiveTabKey(tabKey);
 		});
-		await waitFor(() => {
-			expect(result.current.detailsActiveTabKey).toBe(tabKey);
-		});
+		expect(result.current.detailsActiveTabKey).toBe(tabKey);
 
 		act(() => {
 			result.current.getModDetails(rows[1].uid, rows[1]);
 		});
 
-		await waitFor(() => {
-			expect(result.current.currentRecord?.uid).toBe(rows[1].uid);
-			expect(result.current.detailsActiveTabKey).toBe(tabKey);
-		});
+		expect(result.current.currentRecord?.uid).toBe(rows[1].uid);
+		expect(result.current.detailsActiveTabKey).toBe(tabKey);
+		result.current.clearGameRunningPoll();
+		result.current.clearGameLaunchOverrideTimeout();
 	});
 });

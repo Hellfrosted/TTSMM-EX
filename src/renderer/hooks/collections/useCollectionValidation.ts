@@ -14,20 +14,21 @@ import {
 	type CollectionValidationRunOutcome,
 	type CollectionWorkspaceValidationResult,
 	createCollectionWorkspaceValidationResult,
-	getCollectionValidationCompletionDecision,
-	getCollectionValidationPersistenceDecision
+	getCollectionValidationCompletionDecision
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionValidationOptions {
+	activeCollectionDraft?: ModCollection;
 	appState: CollectionWorkspaceAppState;
 	openNotification?: (props: NotificationProps, type?: NotificationType) => void;
 	setModalType?: (modalType: CollectionManagerModalType) => void;
-	persistCollection: (collection: ModCollection) => Promise<boolean>;
+	persistCollection?: (collection: ModCollection) => Promise<boolean>;
 }
 
 interface ValidationOptions {
+	collection?: ModCollection;
 	config?: CollectionWorkspaceAppState['config'];
 }
 
@@ -53,11 +54,12 @@ function notifyValidationFailure(openNotification: UseCollectionValidationOption
 	);
 }
 
-export function useCollectionValidation({ appState, openNotification, persistCollection }: UseCollectionValidationOptions) {
+export function useCollectionValidation({ activeCollectionDraft, appState, openNotification }: UseCollectionValidationOptions) {
 	const [validatingMods, setValidatingMods] = useState(false);
 	const [validationResult, setValidationResult] = useState<CollectionWorkspaceValidationResult>();
 	const validationFiberRef = useRef<ActiveValidationFiber | undefined>(undefined);
-	const { activeCollection, config, mods } = appState;
+	const { config, mods } = appState;
+	const activeCollection = activeCollectionDraft ?? appState.activeCollection;
 	const collectionErrors = validationResult?.errors;
 	const lastValidationStatus = validationResult?.success;
 	const lastValidatedCollectionKey = validationResult?.draftKey;
@@ -137,8 +139,8 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 				success: Object.keys(errors).length === 0
 			});
 			const preRenderWorkspace = {
-				activeCollection: appState.activeCollection,
-				config: appState.config
+				activeCollection: request.collection,
+				config: request.config
 			};
 			const preRenderDecision = getCollectionValidationCompletionDecision({
 				...preRenderWorkspace,
@@ -157,6 +159,7 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 				collection: request.collection,
 				config: request.config,
 				errors: renderedErrors.errors,
+				outcome: renderedErrors.outcome,
 				success,
 				summary: renderedErrors.summary
 			});
@@ -187,57 +190,22 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 				};
 			}
 
-			const persisted = await persistCollection(request.collection);
-			if (!persisted) {
-				setValidationResult(undefined);
-				notifyValidationFailure(openNotification, 'Collection validated, but the saved collection could not be updated. Try saving again.');
-				return {
-					type: 'persistence-failed',
-					validationResult
-				};
-			}
-
-			const postPersistenceWorkspace = {
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				mods: appState.mods
-			};
-			const persistenceDecision = getCollectionValidationPersistenceDecision({
-				activeCollection: postPersistenceWorkspace.activeCollection,
-				config: postPersistenceWorkspace.config,
-				launchIfValid,
-				validationResult
-			});
-			if (persistenceDecision.action === 'discard-stale-result') {
-				return {
-					type: 'discarded-stale-result',
-					validationResult
-				};
-			}
-
 			setValidationResult(validationResult);
-
-			if (persistenceDecision.action === 'record-and-launch-current-draft' && persistenceDecision.launchCollection) {
-				return {
-					type: 'recorded-and-ready-to-launch-current-draft',
-					launchCollection: persistenceDecision.launchCollection,
-					validationResult
-				};
-			}
 
 			return {
 				type: 'recorded-current-result',
 				validationResult
 			};
 		},
-		[appState, logValidationIssues, openNotification, persistCollection, renderCollectionErrors]
+		[logValidationIssues, renderCollectionErrors]
 	);
 
 	const validateActiveCollection = useCallback(
 		async (launchIfValid: boolean, options?: ValidationOptions) => {
 			setValidatingMods(true);
 
-			if (!activeCollection) {
+			const collection = options?.collection ?? activeCollection;
+			if (!collection) {
 				setValidatingMods(false);
 				return {
 					type: 'missing-active-collection'
@@ -246,7 +214,7 @@ export function useCollectionValidation({ appState, openNotification, persistCol
 
 			cancelValidation();
 			const validationRequest = {
-				collection: activeCollection,
+				collection,
 				config: options?.config ?? appState.config,
 				mods: appState.mods
 			};

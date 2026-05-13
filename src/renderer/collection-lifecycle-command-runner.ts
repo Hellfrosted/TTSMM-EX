@@ -73,7 +73,7 @@ interface CollectionLifecycleCommandRunnerOptions {
 	logger: Pick<Console, 'error'>;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	applyLifecycleResult?: (result: CollectionLifecycleSuccessResult) => void;
-	onLifecycleResultApplied?: () => void;
+	onLifecycleResultApplied?: (result: CollectionLifecycleSuccessResult) => void;
 	resetValidationState: () => void;
 	runQueuedCollectionWrite: <T>(operation: () => Promise<T>) => Promise<T>;
 	setMadeEdits: (madeEdits: boolean) => void;
@@ -242,7 +242,7 @@ export function createCollectionLifecycleCommandRunner({
 						});
 					});
 					if (onLifecycleResultApplied) {
-						onLifecycleResultApplied();
+						onLifecycleResultApplied(result);
 					} else {
 						setMadeEdits(false);
 					}

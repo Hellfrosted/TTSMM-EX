@@ -2,6 +2,7 @@ import {
 	type AppConfig,
 	type CollectionErrors,
 	CollectionManagerModalType,
+	type CollectionValidationOutcome,
 	createCollectionValidationResultPolicy,
 	getCollectionValidationKey,
 	getValidationIssueList,
@@ -16,6 +17,7 @@ export { getCollectionValidationKey, getValidationIssueList, summarizeValidation
 interface RenderValidationErrorsResult {
 	errors?: CollectionErrors;
 	modalType?: CollectionManagerModalType;
+	outcome: CollectionValidationOutcome;
 	success: boolean;
 	summary: ValidationIssueSummary;
 }
@@ -37,6 +39,7 @@ export function renderValidationErrors(
 	return {
 		errors: validationResult.errors,
 		modalType,
+		outcome: validationResult.outcome,
 		success: validationResult.success,
 		summary: validationResult.summary
 	};
