@@ -477,6 +477,13 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		launchReadiness: collectionWorkspaceSession.launchReadiness,
 		modalOpen: modalType !== CollectionManagerModalType.NONE
 	});
+	const effectiveLaunchCommandState =
+		gameRunningForLaunch && !launchCommandState.disabled
+			? {
+					disabled: true,
+					reason: 'Game already running'
+				}
+			: launchCommandState;
 	const collectionWorkspaceAppState = useMemo(
 		() => ({
 			...appState,
@@ -546,7 +553,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		</Suspense>
 	) : null;
 	const isCollectionModalOpen = modalType !== CollectionManagerModalType.NONE;
-	const launchDisabledReason = launchCommandState.reason;
+	const launchDisabledReason = effectiveLaunchCommandState.reason;
 
 	return {
 		appState: collectionWorkspaceAppState,
@@ -578,7 +585,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		hasUnsavedDraft,
 		halfDetailsFooter,
 		isCollectionModalOpen,
-		launchCommandState,
+		launchCommandState: effectiveLaunchCommandState,
 		launchDisabledReason,
 		launchReady: collectionWorkspaceSession.launchReadiness.ready,
 		launchGame,
