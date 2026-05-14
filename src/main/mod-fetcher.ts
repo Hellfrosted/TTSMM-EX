@@ -74,31 +74,36 @@ export const buildWorkshopMod = Effect.fnUntraced(function* (
 
 export const processSteamModResults = Effect.fnUntraced(function* (
 	context: ModInventoryContext,
-	steamDetails: SteamUGCDetails[]
+	steamDetails: SteamUGCDetails[],
+	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false
 ): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
-	return yield* buildWorkshopMods(steamDetails, (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
-		buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem)
+	return yield* buildWorkshopMods(
+		steamDetails,
+		(workshopID, steamUGCDetails, keepUnknownWorkshopItemForMod) =>
+			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItemForMod),
+		keepUnknownWorkshopItem
 	);
 });
 
 const getDetailsForWorkshopModList = Effect.fnUntraced(function* (
 	context: ModInventoryContext,
-	workshopIDs: bigint[]
+	workshopIDs: bigint[],
+	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false
 ): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
 	const steamDetails = yield* getRawWorkshopDetailsForList(workshopIDs);
-	return yield* processSteamModResults(context, steamDetails);
+	return yield* processSteamModResults(context, steamDetails, keepUnknownWorkshopItem);
 });
 
 export function fetchWorkshopMods(context: ModInventoryContext): Effect.Effect<ModData[], unknown, SteamPersonaCache> {
 	return fetchWorkshopInventory({
 		buildWorkshopMod: (workshopID, steamUGCDetails, keepUnknownWorkshopItem) =>
 			buildWorkshopMod(context, workshopID, steamUGCDetails, keepUnknownWorkshopItem),
-		getDetailsForWorkshopModList: (workshopIDs) => getDetailsForWorkshopModList(context, workshopIDs),
+		getDetailsForWorkshopModList: (workshopIDs, keepUnknownWorkshopItem) =>
+			getDetailsForWorkshopModList(context, workshopIDs, keepUnknownWorkshopItem),
 		knownWorkshopMods: context.knownWorkshopMods,
 		options: getNuterraSteamCompatibilityOptions(context),
 		platform: context.platform,
-		progress: context.progress,
-		updateModLoadingProgress: (size) => updateModLoadingProgress(context, size)
+		progress: context.progress
 	});
 }
 

@@ -3,36 +3,25 @@ import log from 'electron-log';
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
 import { toEffectOperationError } from '../shared/effect-errors';
 import type { ModInventoryProgress } from './mod-inventory-progress';
-import { chunkWorkshopIds, getWorkshopDetailsMap } from './mod-workshop-metadata';
+import { getWorkshopDetailsMap } from './mod-workshop-metadata';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
 import type { SteamPersonaCache } from './steam-persona-cache';
 import Steamworks, { type SteamUGCDetails } from './steamworks';
-import { applyWorkshopDependencySnapshotResult, ingestWorkshopDependencySnapshotBatch } from './workshop-dependencies';
-import { WorkshopInventoryResolver } from './workshop-inventory-resolution';
+import {
+	buildWorkshopModBatch,
+	createEmptyWorkshopInventoryScanOutcome,
+	scanWorkshopInventoryExpansion,
+	type WorkshopInventoryProgressEffect,
+	type WorkshopInventoryScanOutcome
+} from './workshop-inventory-expansion';
 
-export type UnresolvedWorkshopReason = 'non-mod' | 'duplicate' | 'metadata-failed' | 'hydration-failed';
-
-export interface UnresolvedWorkshopItem {
-	reason: UnresolvedWorkshopReason;
-	workshopID: bigint;
-}
-
-export interface WorkshopInventoryScanOutcome {
-	mods: ModData[];
-	stats: {
-		dependencyItems: number;
-		knownItems: number;
-		subscribedItems: number;
-	};
-	unresolvedWorkshopItems: UnresolvedWorkshopItem[];
-}
-
-interface WorkshopDependencyExpansionAdapters {
-	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Effect.Effect<ModData[], unknown, SteamPersonaCache>;
-	knownWorkshopMods: Set<bigint>;
-	options?: NuterraSteamCompatibilityOptions;
-	updateModLoadingProgress: (size: number) => void;
-}
+export {
+	buildWorkshopModBatch,
+	resolveWorkshopDependencyChunk,
+	type UnresolvedWorkshopItem,
+	type UnresolvedWorkshopReason,
+	type WorkshopInventoryScanOutcome
+} from './workshop-inventory-expansion';
 
 interface LinuxWorkshopInventoryInput {
 	buildWorkshopMod: (
@@ -40,149 +29,38 @@ interface LinuxWorkshopInventoryInput {
 		steamUGCDetails?: SteamUGCDetails,
 		keepUnknownWorkshopItem?: boolean
 	) => Effect.Effect<ModData | null, unknown, SteamPersonaCache>;
+	getDetailsForWorkshopModList: (
+		workshopIDs: bigint[],
+		keepUnknownWorkshopItem?: (workshopID: bigint) => boolean
+	) => Effect.Effect<ModData[], unknown, SteamPersonaCache>;
 	knownWorkshopMods: Set<bigint>;
+	options?: NuterraSteamCompatibilityOptions;
 	progress: ModInventoryProgress;
 }
 
 interface WorkshopInventoryInput extends LinuxWorkshopInventoryInput {
-	getDetailsForWorkshopModList: (workshopIDs: bigint[]) => Effect.Effect<ModData[], unknown, SteamPersonaCache>;
-	options?: NuterraSteamCompatibilityOptions;
 	platform: NodeJS.Platform;
-	updateModLoadingProgress: (size: number) => void;
 }
 
-interface WorkshopModBuildOutcome {
-	mods: ModData[];
-	unresolvedWorkshopItems: UnresolvedWorkshopItem[];
-}
-
-interface WorkshopDependencyChunkOutcome {
-	missingDependencies: Set<bigint>;
-	unresolvedWorkshopItems: UnresolvedWorkshopItem[];
-}
-
-function createEmptyWorkshopInventoryScanOutcome(): WorkshopInventoryScanOutcome {
-	return {
-		mods: [],
-		stats: {
-			dependencyItems: 0,
-			knownItems: 0,
-			subscribedItems: 0
-		},
-		unresolvedWorkshopItems: []
-	};
-}
-
-function getUnresolvedWorkshopReason(steamUGCDetails: SteamUGCDetails | undefined): UnresolvedWorkshopReason {
-	if (!steamUGCDetails) {
-		return 'metadata-failed';
-	}
-	return steamUGCDetails.tags?.some((tag) => tag.toLowerCase() === 'mods') ? 'hydration-failed' : 'non-mod';
-}
-
-function appendUniqueUnresolvedWorkshopItem(items: UnresolvedWorkshopItem[], item: UnresolvedWorkshopItem) {
-	if (!items.some((current) => current.workshopID === item.workshopID && current.reason === item.reason)) {
-		items.push(item);
+function applyWorkshopInventoryProgressEffect(progress: ModInventoryProgress, effect: WorkshopInventoryProgressEffect) {
+	switch (effect.type) {
+		case 'set-workshop-total':
+			progress.workshopMods = effect.total;
+			break;
+		case 'increment-workshop-total':
+			progress.workshopMods += effect.count;
+			break;
+		case 'increment-loaded-mods':
+			progress.addLoaded(effect.count);
+			break;
 	}
 }
-
-function hasUnresolvedWorkshopItem(items: UnresolvedWorkshopItem[], workshopID: bigint) {
-	return items.some((item) => item.workshopID === workshopID);
-}
-
-function stringifyBigintJson(value: unknown, space?: number): string {
-	return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v), space);
-}
-
-function addResolvedModsToResolver(
-	resolver: WorkshopInventoryResolver,
-	mods: Iterable<ModData>,
-	unresolvedWorkshopItems: UnresolvedWorkshopItem[]
-) {
-	for (const mod of mods) {
-		if (mod.workshopID !== undefined && resolver.workshopMap.has(mod.workshopID)) {
-			appendUniqueUnresolvedWorkshopItem(unresolvedWorkshopItems, {
-				workshopID: mod.workshopID,
-				reason: 'duplicate'
-			});
-			continue;
-		}
-		resolver.addResolvedMod(mod);
-	}
-}
-
-const resolveWorkshopDependencyChunkOutcome = Effect.fnUntraced(function* (
-	workshopMap: Map<bigint, ModData>,
-	knownInvalidMods: Set<bigint>,
-	modList: Set<bigint>,
-	adapters: WorkshopDependencyExpansionAdapters
-): Effect.fn.Return<WorkshopDependencyChunkOutcome, unknown, SteamPersonaCache> {
-	const modChunks = chunkWorkshopIds([...modList]);
-	log.silly(stringifyBigintJson(modChunks, 2));
-
-	const resolver = new WorkshopInventoryResolver(adapters.knownWorkshopMods, workshopMap, knownInvalidMods, adapters.options);
-	const modDependencies: Set<bigint> = new Set();
-	const unresolvedWorkshopItems: UnresolvedWorkshopItem[] = [];
-
-	for (let i = 0; i < modChunks.length; i++) {
-		log.silly(`Processing known mod chunk: ${stringifyBigintJson(modChunks[i], 2)}`);
-
-		const requestedWorkshopIDs = new Set(modChunks[i]);
-		let metadataFailed = false;
-		const modDetails = yield* adapters.getDetailsForWorkshopModList(modChunks[i]).pipe(
-			Effect.catch((error) => {
-				log.error(error instanceof Error ? error : 'Error processing chunk');
-				adapters.updateModLoadingProgress(modChunks[i].length);
-				metadataFailed = true;
-				return Effect.succeed<ModData[]>([]);
-			})
-		);
-		if (metadataFailed) {
-			requestedWorkshopIDs.forEach((workshopID) => {
-				appendUniqueUnresolvedWorkshopItem(unresolvedWorkshopItems, {
-					workshopID,
-					reason: 'metadata-failed'
-				});
-			});
-			continue;
-		}
-		log.silly(`Got mod details: ${stringifyBigintJson(modDetails, 2)}`);
-		modDetails.forEach((mod: ModData) => {
-			log.silly(`Got results for workshop mod ${mod.name} (${mod.uid})`);
-			if (mod.workshopID !== undefined) {
-				requestedWorkshopIDs.delete(mod.workshopID);
-			}
-		});
-		resolver.addResolvedMods(modDetails);
-		requestedWorkshopIDs.forEach((workshopID) => {
-			appendUniqueUnresolvedWorkshopItem(unresolvedWorkshopItems, {
-				workshopID,
-				reason: 'hydration-failed'
-			});
-		});
-
-		resolver.collectMissingDependencies(modDetails).forEach((missingDependency) => modDependencies.add(missingDependency));
-	}
-
-	return {
-		missingDependencies: modDependencies,
-		unresolvedWorkshopItems
-	};
-});
-
-export const resolveWorkshopDependencyChunk = Effect.fnUntraced(function* (
-	workshopMap: Map<bigint, ModData>,
-	knownInvalidMods: Set<bigint>,
-	modList: Set<bigint>,
-	adapters: WorkshopDependencyExpansionAdapters
-): Effect.fn.Return<Set<bigint>, unknown, SteamPersonaCache> {
-	const outcome = yield* resolveWorkshopDependencyChunkOutcome(workshopMap, knownInvalidMods, modList, adapters);
-	return outcome.missingDependencies;
-});
 
 const scanLinuxWorkshopInventory = Effect.fnUntraced(function* ({
 	buildWorkshopMod,
+	getDetailsForWorkshopModList,
 	knownWorkshopMods,
+	options,
 	progress
 }: LinuxWorkshopInventoryInput): Effect.fn.Return<WorkshopInventoryScanOutcome, unknown, SteamPersonaCache> {
 	const allSubscribedItems = yield* Effect.try({
@@ -191,92 +69,25 @@ const scanLinuxWorkshopInventory = Effect.fnUntraced(function* ({
 	});
 	const explicitKnownWorkshopMods = new Set(knownWorkshopMods);
 	const workshopIDs = new Set<bigint>([...allSubscribedItems, ...explicitKnownWorkshopMods]);
-	const outcome = createEmptyWorkshopInventoryScanOutcome();
-	outcome.stats.subscribedItems = allSubscribedItems.length;
-	outcome.stats.knownItems = explicitKnownWorkshopMods.size;
 
 	log.debug(`All subscribed items: [${allSubscribedItems}]`);
-	progress.workshopMods = workshopIDs.size;
 	const workshopDetailsMap = yield* getWorkshopDetailsMap(workshopIDs);
-	const workshopDetails = [...workshopDetailsMap.values()];
 
-	const modsWithDetails = yield* buildWorkshopModBatch(workshopDetails, buildWorkshopMod, (workshopID) =>
-		explicitKnownWorkshopMods.has(workshopID)
-	);
-	const missingDetailMods = yield* Effect.forEach(
-		Array.from(workshopIDs).flatMap((workshopID) =>
-			workshopDetailsMap.has(workshopID)
-				? []
-				: [
-						buildWorkshopMod(workshopID, undefined, explicitKnownWorkshopMods.has(workshopID)).pipe(
-							Effect.map((mod) => {
-								if (!mod) {
-									appendUniqueUnresolvedWorkshopItem(outcome.unresolvedWorkshopItems, {
-										workshopID,
-										reason: 'metadata-failed'
-									});
-								}
-								return mod;
-							}),
-							Effect.catch((error) => {
-								log.error('Failed to process some mod data:');
-								log.error(error);
-								appendUniqueUnresolvedWorkshopItem(outcome.unresolvedWorkshopItems, {
-									workshopID,
-									reason: 'metadata-failed'
-								});
-								return Effect.succeed<ModData | null>(null);
-							})
-						)
-					]
-		),
-		(effect) => effect,
-		{ concurrency: 'unbounded' }
-	);
-	outcome.mods = [...modsWithDetails.mods, ...missingDetailMods.filter((mod): mod is ModData => !!mod)];
-	outcome.unresolvedWorkshopItems.push(...modsWithDetails.unresolvedWorkshopItems);
-	return outcome;
-});
-
-export const buildWorkshopModBatch = Effect.fnUntraced(function* (
-	steamDetails: SteamUGCDetails[],
-	buildWorkshopMod: LinuxWorkshopInventoryInput['buildWorkshopMod'],
-	keepUnknownWorkshopItem: (workshopID: bigint) => boolean = () => false
-): Effect.fn.Return<WorkshopModBuildOutcome, unknown, SteamPersonaCache> {
-	const dependencySnapshots = yield* ingestWorkshopDependencySnapshotBatch(steamDetails);
-	const mods = yield* Effect.forEach(
-		steamDetails,
-		(steamUGCDetails) =>
-			buildWorkshopMod(steamUGCDetails.publishedFileId, steamUGCDetails, keepUnknownWorkshopItem(steamUGCDetails.publishedFileId)).pipe(
-				Effect.map((mod) => {
-					const dependencySnapshot = dependencySnapshots.get(steamUGCDetails.publishedFileId);
-					if (mod && dependencySnapshot) {
-						applyWorkshopDependencySnapshotResult(mod, dependencySnapshot);
-					}
-					return mod;
-				}),
-				Effect.catch((error) => {
-					log.error('Failed to process some mod data:');
-					log.error(error);
-					return Effect.succeed<ModData | null>(null);
-				})
-			),
-		{ concurrency: 'unbounded' }
-	);
-	const unresolvedWorkshopItems = mods.flatMap((mod, index) =>
-		mod
-			? []
-			: [
-					{
-						workshopID: steamDetails[index].publishedFileId,
-						reason: getUnresolvedWorkshopReason(steamDetails[index])
-					} satisfies UnresolvedWorkshopItem
-				]
-	);
-	return {
-		mods: mods.filter((mod): mod is ModData => !!mod),
-		unresolvedWorkshopItems
-	};
+	return yield* scanWorkshopInventoryExpansion({
+		buildWorkshopMod,
+		fetchSubscribedPage: (page) =>
+			Effect.succeed({
+				items: page === 1 ? [...workshopDetailsMap.values()] : [],
+				itemIDs: page === 1 ? workshopIDs : [],
+				numReturned: page === 1 ? allSubscribedItems.length : 0,
+				totalItems: workshopIDs.size
+			}),
+		getDetailsForWorkshopModList,
+		knownWorkshopMods,
+		logDebug: (message) => log.debug(message),
+		onProgressEffect: (effect) => applyWorkshopInventoryProgressEffect(progress, effect),
+		options
+	});
 });
 
 export const buildWorkshopMods = Effect.fnUntraced(function* (
@@ -294,8 +105,7 @@ export const scanWorkshopInventory = Effect.fnUntraced(function* ({
 	knownWorkshopMods,
 	options,
 	platform,
-	progress,
-	updateModLoadingProgress
+	progress
 }: WorkshopInventoryInput): Effect.fn.Return<WorkshopInventoryScanOutcome, unknown, SteamPersonaCache> {
 	if (shouldSkipWorkshopFetch(platform)) {
 		return createEmptyWorkshopInventoryScanOutcome();
@@ -304,17 +114,12 @@ export const scanWorkshopInventory = Effect.fnUntraced(function* ({
 	if (platform === 'linux') {
 		return yield* scanLinuxWorkshopInventory({
 			buildWorkshopMod,
+			getDetailsForWorkshopModList,
 			knownWorkshopMods,
+			options,
 			progress
 		});
 	}
-
-	let numProcessedWorkshop = 0;
-	let pageNum = 1;
-	let lastProcessed = 1;
-	const resolver = new WorkshopInventoryResolver(knownWorkshopMods, new Map(), new Set(), options);
-	const unresolvedWorkshopItems: UnresolvedWorkshopItem[] = [];
-	let dependencyItems = 0;
 
 	if (log.transports.file.level === 'debug' || log.transports.file.level === 'silly') {
 		const allSubscribedItems = yield* Effect.try({
@@ -330,70 +135,15 @@ export const scanWorkshopInventory = Effect.fnUntraced(function* ({
 		log.debug(`All subscribed items: [${allSubscribedItems}]`);
 	}
 
-	while (lastProcessed > 0) {
-		const { items, totalItems, numReturned } = yield* getSteamSubscribedPage(pageNum);
-		progress.workshopMods = totalItems;
-		numProcessedWorkshop += numReturned;
-		lastProcessed = numReturned;
-		log.debug(`Total items: ${totalItems}, Returned by Steam: ${numReturned}, Processed this chunk: ${items.length}`);
-
-		const data = yield* buildWorkshopModBatch(items, buildWorkshopMod);
-		unresolvedWorkshopItems.push(...data.unresolvedWorkshopItems);
-		addResolvedModsToResolver(resolver, data.mods, unresolvedWorkshopItems);
-		pageNum += 1;
-	}
-
-	resolver.queueMissingDependencies(resolver.workshopMap.values());
-
-	if (resolver.workshopMap.size !== numProcessedWorkshop) {
-		log.debug(
-			`Steam returned ${numProcessedWorkshop} subscribed workshop entries, ` +
-				`but loaded ${resolver.workshopMap.size} valid unique mods. ` +
-				'Filtered or duplicate entries are expected to make these counts differ.'
-		);
-	}
-
-	let missingKnownWorkshopMods = resolver.getPendingWorkshopMods();
-
-	while (resolver.pendingWorkshopMods.size > 0) {
-		progress.workshopMods += missingKnownWorkshopMods.size;
-		dependencyItems += missingKnownWorkshopMods.size;
-
-		const dependencyChunkOutcome = yield* resolveWorkshopDependencyChunkOutcome(
-			resolver.workshopMap,
-			resolver.knownInvalidMods,
-			missingKnownWorkshopMods,
-			{
-				getDetailsForWorkshopModList,
-				knownWorkshopMods: resolver.pendingWorkshopMods,
-				options,
-				updateModLoadingProgress
-			}
-		);
-		unresolvedWorkshopItems.push(...dependencyChunkOutcome.unresolvedWorkshopItems);
-		missingKnownWorkshopMods = dependencyChunkOutcome.missingDependencies;
-		resolver.markPendingWorkshopModsInvalid().forEach((workshopID) => {
-			log.error(`Known workshop mod ${workshopID} is invalid`);
-			if (hasUnresolvedWorkshopItem(unresolvedWorkshopItems, workshopID)) {
-				return;
-			}
-			appendUniqueUnresolvedWorkshopItem(unresolvedWorkshopItems, {
-				workshopID,
-				reason: 'hydration-failed'
-			});
-		});
-		resolver.replacePendingWorkshopMods(missingKnownWorkshopMods);
-	}
-
-	return {
-		mods: resolver.getWorkshopMods(),
-		stats: {
-			dependencyItems,
-			knownItems: knownWorkshopMods.size,
-			subscribedItems: numProcessedWorkshop
-		},
-		unresolvedWorkshopItems
-	};
+	return yield* scanWorkshopInventoryExpansion({
+		buildWorkshopMod,
+		fetchSubscribedPage: getSteamSubscribedPage,
+		getDetailsForWorkshopModList,
+		knownWorkshopMods,
+		logDebug: (message) => log.debug(message),
+		onProgressEffect: (effect) => applyWorkshopInventoryProgressEffect(progress, effect),
+		options
+	});
 });
 
 export const fetchWorkshopInventory = Effect.fnUntraced(function* (

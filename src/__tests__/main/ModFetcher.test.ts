@@ -320,6 +320,10 @@ describe('ModFetcher', () => {
 					'11': 'Dependency 11'
 				},
 				steamDependenciesFetchedAt: expect.any(Number)
+			}),
+			expect.objectContaining({
+				workshopID: BigInt(11),
+				name: 'Dependency 11'
 			})
 		]);
 	});
@@ -510,13 +514,12 @@ describe('ModFetcher', () => {
 			Effect.runPromise(
 				resolveWorkshopDependencyChunk(workshopMap as never, new Set(), new Set([parentWorkshopID]), {
 					getDetailsForWorkshopModList,
-					knownWorkshopMods,
-					updateModLoadingProgress: vi.fn()
+					knownWorkshopMods
 				})
 			)
 		).resolves.toEqual(new Set([childWorkshopID]));
 
-		expect(knownWorkshopMods).toEqual(new Set());
+		expect(knownWorkshopMods).toEqual(new Set([parentWorkshopID]));
 		expect(workshopMap.get(parentWorkshopID)).toEqual(expect.objectContaining({ uid: `workshop:${parentWorkshopID}` }));
 	});
 
@@ -641,11 +644,18 @@ describe('ModFetcher', () => {
 						'789': 'Dependency 789'
 					},
 					authors: ['Test Author']
+				}),
+				expect.objectContaining({
+					uid: 'workshop:789',
+					workshopID: BigInt(789),
+					name: 'Dependency 789',
+					id: null
 				})
 			]);
 
 			expect(getSubscribedItems).toHaveBeenCalledTimes(1);
-			expect(getUGCDetails).toHaveBeenCalledTimes(2);
+			expect(getUGCDetails).toHaveBeenCalledTimes(3);
+			expect(getUGCDetails).toHaveBeenNthCalledWith(3, ['789'], expect.any(Function), expect.any(Function));
 			expect(ugcGetUserItems).not.toHaveBeenCalled();
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
