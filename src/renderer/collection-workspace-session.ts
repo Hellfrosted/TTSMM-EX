@@ -672,6 +672,123 @@ function requestLaunchAfterSave(
 	effects.push({ type: 'persist-active-collection-draft' });
 }
 
+function continueDraftLaunchRequest(
+	state: CollectionWorkspaceWorkflowState,
+	effects: CollectionWorkspaceWorkflowEffect[],
+	input: {
+		launchReadiness: LaunchReadiness;
+		modalOpen?: boolean;
+	}
+) {
+	const decision = getCollectionLaunchWorkflowDecision({
+		hasActiveCollection: !!state.draft,
+		launchReadiness: input.launchReadiness,
+		modalOpen: input.modalOpen
+	});
+	if (decision.action === 'none') {
+		return;
+	}
+
+	if (input.launchReadiness.blockers.includes('validation-failed')) {
+		effects.push({ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND });
+		return;
+	}
+
+	effects.push({ type: 'set-launching-game', launchingGame: true });
+
+	if (decision.action === 'launch-current-draft' && state.validationResult) {
+		requestLaunchAfterSave(state, effects, state.validationResult.draftKey);
+		return;
+	}
+
+	effects.push({ type: 'clear-collection-errors' });
+	effects.push({ type: 'validate-active-collection', launchIfValid: true });
+}
+
+function continueDraftLaunchAnywayRequest(
+	state: CollectionWorkspaceWorkflowState,
+	effects: CollectionWorkspaceWorkflowEffect[],
+	input: {
+		launchReadiness: LaunchReadiness;
+	}
+) {
+	const commandState = getCollectionLaunchCommandState({
+		launchReadiness: input.launchReadiness
+	});
+	if (commandState.disabled) {
+		effects.push({ type: 'clear-launching-game' });
+		return;
+	}
+
+	effects.push({ type: 'set-launching-game', launchingGame: true });
+	if (state.hasUnsavedDraft) {
+		requestLaunchAfterSave(state, effects);
+		return;
+	}
+	effects.push({ type: 'launch-current-draft' });
+}
+
+function continueDraftLaunchAfterValidation(
+	state: CollectionWorkspaceWorkflowState,
+	effects: CollectionWorkspaceWorkflowEffect[],
+	input: {
+		modalType?: CollectionManagerModalType;
+		result?: CollectionWorkspaceValidationResult;
+	}
+) {
+	const launchIfValid = state.validationLaunchIfValid;
+	state.validatingDraft = false;
+	state.validationLaunchIfValid = undefined;
+	if (!input.result) {
+		return;
+	}
+	const session = createCollectionWorkspaceSession({
+		activeCollection: state.draft,
+		config: state.config,
+		hasUnsavedDraft: state.hasUnsavedDraft,
+		validationResult: input.result
+	});
+	if (session.validationStatus === 'stale') {
+		return;
+	}
+	state.validationResult = input.result;
+	if (!launchIfValid) {
+		return;
+	}
+	if (input.result.success) {
+		requestLaunchAfterSave(state, effects, input.result.draftKey);
+		return;
+	}
+	if (input.modalType) {
+		effects.push({ type: 'open-validation-modal', modalType: input.modalType });
+	}
+	effects.push({ type: 'clear-launching-game' });
+}
+
+function continueDraftLaunchAfterSave(
+	state: CollectionWorkspaceWorkflowState,
+	effects: CollectionWorkspaceWorkflowEffect[],
+	input: CollectionContentSaveCompletion
+) {
+	if (input.writeAccepted && input.savedCollection) {
+		state.draft = cloneCollection(input.savedCollection);
+		state.hasUnsavedDraft = false;
+	}
+	if (!state.pendingLaunchAfterSaveDraftKey) {
+		return;
+	}
+	if (
+		input.writeAccepted &&
+		input.savedCollection &&
+		getCollectionValidationKey(input.savedCollection, state.config) === state.pendingLaunchAfterSaveDraftKey
+	) {
+		effects.push({ type: 'launch-current-draft' });
+	} else {
+		effects.push({ type: 'clear-launching-game' });
+	}
+	state.pendingLaunchAfterSaveDraftKey = undefined;
+}
+
 export function createCollectionWorkspaceWorkflowState(
 	input: Partial<CollectionWorkspaceWorkflowState> = {}
 ): CollectionWorkspaceWorkflowState {
@@ -717,41 +834,16 @@ export function reduceCollectionWorkspaceWorkflow(
 
 	switch (event.type) {
 		case 'launch-requested': {
-			const decision = getCollectionLaunchWorkflowDecision({
-				hasActiveCollection: !!nextState.draft,
+			continueDraftLaunchRequest(nextState, effects, {
 				launchReadiness: event.launchReadiness,
 				modalOpen: event.modalOpen
 			});
-			if (decision.action === 'none') {
-				break;
-			}
-			if (event.launchReadiness.blockers.includes('validation-failed')) {
-				effects.push({ type: 'open-validation-modal', modalType: CollectionManagerModalType.ERRORS_FOUND });
-				break;
-			}
-			effects.push({ type: 'set-launching-game', launchingGame: true });
-			if (decision.action === 'launch-current-draft' && nextState.validationResult) {
-				requestLaunchAfterSave(nextState, effects, nextState.validationResult.draftKey);
-				break;
-			}
-			effects.push({ type: 'clear-collection-errors' });
-			effects.push({ type: 'validate-active-collection', launchIfValid: true });
 			break;
 		}
 		case 'launch-anyway-requested': {
-			const commandState = getCollectionLaunchCommandState({
+			continueDraftLaunchAnywayRequest(nextState, effects, {
 				launchReadiness: event.launchReadiness
 			});
-			if (commandState.disabled) {
-				effects.push({ type: 'clear-launching-game' });
-				break;
-			}
-			effects.push({ type: 'set-launching-game', launchingGame: true });
-			if (nextState.hasUnsavedDraft) {
-				requestLaunchAfterSave(nextState, effects);
-				break;
-			}
-			effects.push({ type: 'launch-current-draft' });
 			break;
 		}
 		case 'active-draft-edited': {
@@ -809,25 +901,7 @@ export function reduceCollectionWorkspaceWorkflow(
 			break;
 		}
 		case 'collection-content-save-completed': {
-			if (event.writeAccepted && event.savedCollection) {
-				nextState.draft = cloneCollection(event.savedCollection);
-				nextState.hasUnsavedDraft = false;
-			}
-			if (!event.writeAccepted) {
-				nextState.hasUnsavedDraft = nextState.hasUnsavedDraft;
-			}
-			if (nextState.pendingLaunchAfterSaveDraftKey) {
-				if (
-					event.writeAccepted &&
-					event.savedCollection &&
-					getCollectionValidationKey(event.savedCollection, nextState.config) === nextState.pendingLaunchAfterSaveDraftKey
-				) {
-					effects.push({ type: 'launch-current-draft' });
-				} else {
-					effects.push({ type: 'clear-launching-game' });
-				}
-				nextState.pendingLaunchAfterSaveDraftKey = undefined;
-			}
+			continueDraftLaunchAfterSave(nextState, effects, event);
 			break;
 		}
 		case 'collection-lifecycle-result-applied': {
@@ -846,32 +920,7 @@ export function reduceCollectionWorkspaceWorkflow(
 			break;
 		}
 		case 'validation-completed': {
-			const launchIfValid = nextState.validationLaunchIfValid;
-			nextState.validatingDraft = false;
-			nextState.validationLaunchIfValid = undefined;
-			if (!event.result) {
-				break;
-			}
-			const session = createCollectionWorkspaceSession({
-				activeCollection: nextState.draft,
-				config: nextState.config,
-				hasUnsavedDraft: nextState.hasUnsavedDraft,
-				validationResult: event.result
-			});
-			if (session.validationStatus === 'stale') {
-				break;
-			}
-			nextState.validationResult = event.result;
-			if (launchIfValid) {
-				if (event.result.success) {
-					requestLaunchAfterSave(nextState, effects, event.result.draftKey);
-				} else {
-					if (event.modalType) {
-						effects.push({ type: 'open-validation-modal', modalType: event.modalType });
-					}
-					effects.push({ type: 'clear-launching-game' });
-				}
-			}
+			continueDraftLaunchAfterValidation(nextState, effects, event);
 			break;
 		}
 		case 'validation-cancelled': {
