@@ -3,6 +3,7 @@ import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
 import { ModData, ModType } from '../model';
+import { toEffectOperationError } from '../shared/effect-errors';
 import type { ModInventoryProgress } from './mod-inventory-progress';
 import { registerPreviewImage } from './preview-protocol';
 
@@ -129,7 +130,7 @@ export const getModDetailsFromPath = Effect.fnUntraced(function* (
 		catch: (error) => {
 			log.error(`fs.readdir failed on path ${modPath}`);
 			log.error(error);
-			return error;
+			return toEffectOperationError(`read mod directory ${modPath}`, error);
 		}
 	});
 	let validModData = false;

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Effect } from 'effect';
 import log from 'electron-log';
 import type { BlockLookupRecord } from 'shared/block-lookup';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { loadBlockpediaVanillaPreviewAssets } from './block-lookup-blockpedia-previews';
 import {
 	type BlockLookupBundleExtractionOutcome,
@@ -103,7 +104,7 @@ const loadVanillaEnumNames = Effect.fnUntraced(function* (
 					}
 				});
 			}),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('load vanilla enum names', error)
 	});
 });
 

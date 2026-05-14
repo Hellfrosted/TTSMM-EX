@@ -3,6 +3,7 @@ import type { AppConfig } from 'model';
 import api from 'renderer/Api';
 import { setConfigCacheData, writeConfigEffect } from 'renderer/async-cache';
 import { type RendererElectron, runRenderer } from 'renderer/runtime';
+import { toEffectOperationError } from 'shared/effect-errors';
 
 type ConfigCommit = (nextConfig: AppConfig) => void;
 
@@ -27,7 +28,7 @@ export const persistConfigChangeProgram = Effect.fnUntraced(function* (
 	const persistedConfig = yield* writeConfigProgram(nextConfig);
 	yield* Effect.try({
 		try: () => commit(persistedConfig),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('commit persisted config', error)
 	});
 	return true;
 });

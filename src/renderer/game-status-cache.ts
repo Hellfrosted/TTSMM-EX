@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { RendererElectron, runRenderer } from './runtime';
 
 const gameRunningCacheRef = AtomRef.make<boolean | undefined>(undefined);
@@ -21,6 +22,6 @@ const gameRunningEffect = Effect.fnUntraced(function* (): Effect.fn.Return<boole
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.isGameRunning(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read game running status', error)
 	});
 });

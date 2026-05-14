@@ -6,6 +6,7 @@ import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
 import * as NodePath from '@effect/platform-node/NodePath';
 import { Effect, Path as EffectPath, FileSystem, Layer } from 'effect';
 import log from 'electron-log';
+import { toEffectOperationError } from 'shared/effect-errors';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
 
 const EXTRACTOR_SOURCE_BATCH_SIZE = 1;
@@ -108,6 +109,15 @@ function parseExtractorOutput(stdout: string): ExtractorOutput {
 	};
 }
 
+class BlockLookupExtractorUnavailable extends Error {
+	readonly _tag = 'BlockLookupExtractorUnavailable';
+
+	constructor() {
+		super('Block Lookup native extractor is unavailable.');
+		this.name = 'BlockLookupExtractorUnavailable';
+	}
+}
+
 interface BlockLookupBundleExtractionRunOptions extends BlockLookupBundleExtractionOptions {
 	previewMatchNamesFile?: string;
 }
@@ -146,7 +156,7 @@ const runBlockLookupBundleExtractor = Effect.fnUntraced(function* (
 					}
 				);
 			}),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('run block lookup bundle extractor', error)
 	});
 });
 
@@ -198,7 +208,7 @@ export const extractBlockLookupBundleOutcomes = Effect.fnUntraced(function* (
 ): Effect.fn.Return<Map<string, BlockLookupBundleExtractionOutcome>, unknown> {
 	const extractorPath = options.extractorPath === undefined ? findBlockLookupExtractorPath() : options.extractorPath;
 	if (!extractorPath) {
-		return yield* Effect.fail(new Error('Block Lookup native extractor is unavailable.'));
+		return yield* Effect.fail(new BlockLookupExtractorUnavailable());
 	}
 
 	const previewMatchNamesFile = yield* createPreviewMatchNamesFile(options.previewMatchNames);
@@ -214,7 +224,7 @@ export const extractBlockLookupBundleOutcomes = Effect.fnUntraced(function* (
 			}
 			const output = yield* Effect.try({
 				try: () => parseExtractorOutput(stdout),
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('parse block lookup extractor output', error)
 			});
 			outputs.push(output);
 		}

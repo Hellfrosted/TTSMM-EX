@@ -3,6 +3,7 @@ import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import { type AppConfig, hydrateSessionMods } from 'model';
 import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { RendererElectron, runRenderer } from './runtime';
 
 type ModMetadataCacheData = ReturnType<typeof hydrateSessionMods>;
@@ -102,7 +103,7 @@ const readModMetadataEffect = Effect.fnUntraced(function* (
 	const renderer = yield* RendererElectron;
 	const mods = yield* Effect.tryPromise({
 		try: () => renderer.electron.readModMetadata(localDir, [...knownModIds], dependencyGraphOptions),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read mod metadata', error)
 	});
 	return hydrateSessionMods(mods, userOverrides, dependencyGraphOptions);
 });

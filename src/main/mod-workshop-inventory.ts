@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import log from 'electron-log';
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
+import { toEffectOperationError } from '../shared/effect-errors';
 import type { ModInventoryProgress } from './mod-inventory-progress';
 import { chunkWorkshopIds, getWorkshopDetailsMap } from './mod-workshop-metadata';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from './mod-workshop-paging';
@@ -182,7 +183,7 @@ const scanLinuxWorkshopInventory = Effect.fnUntraced(function* ({
 }: LinuxWorkshopInventoryInput): Effect.fn.Return<WorkshopInventoryScanOutcome, unknown, SteamPersonaCache> {
 	const allSubscribedItems = yield* Effect.try({
 		try: () => Steamworks.getSubscribedItems(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read subscribed Workshop items', error)
 	});
 	const explicitKnownWorkshopMods = new Set(knownWorkshopMods);
 	const workshopIDs = new Set<bigint>([...allSubscribedItems, ...explicitKnownWorkshopMods]);
@@ -314,7 +315,7 @@ export const scanWorkshopInventory = Effect.fnUntraced(function* ({
 	if (log.transports.file.level === 'debug' || log.transports.file.level === 'silly') {
 		const allSubscribedItems = yield* Effect.try({
 			try: () => Steamworks.getSubscribedItems(),
-			catch: (error) => error
+			catch: (error) => toEffectOperationError('read subscribed Workshop items for debug logging', error)
 		}).pipe(
 			Effect.catch((error) => {
 				log.debug('Failed to read subscribed Workshop items for debug logging.');

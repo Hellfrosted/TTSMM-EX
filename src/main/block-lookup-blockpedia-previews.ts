@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Effect } from 'effect';
 import log from 'electron-log';
+import { toEffectOperationError } from 'shared/effect-errors';
 import type { BlockLookupBundlePreviewAsset } from './block-lookup-bundle-text-assets';
 
 const BLOCKPEDIA_URL = 'https://terratechgame.com/blockpedia/';
@@ -173,7 +174,7 @@ const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 		if (!fs.existsSync(cachePath)) {
 			const imageResponse = yield* Effect.tryPromise({
 				try: () => fetchImpl(entry.imageUrl),
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('fetch Blockpedia preview image', error)
 			}).pipe(
 				Effect.catch((error) => {
 					log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
@@ -186,7 +187,7 @@ const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 			}
 			const imageBytes = yield* Effect.tryPromise({
 				try: () => imageResponse.arrayBuffer(),
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('read Blockpedia preview image bytes', error)
 			}).pipe(
 				Effect.catch((error) => {
 					log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
@@ -236,7 +237,7 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 
 	const pageResponse = yield* Effect.tryPromise({
 		try: () => fetchImpl(BLOCKPEDIA_URL),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('fetch Blockpedia page', error)
 	}).pipe(
 		Effect.catch((error) => {
 			log.warn('Failed to load Blockpedia vanilla previews.');
@@ -249,7 +250,7 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 	}
 	const pageText = yield* Effect.tryPromise({
 		try: () => pageResponse.text(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read Blockpedia page text', error)
 	}).pipe(
 		Effect.catch((error) => {
 			log.warn('Failed to load Blockpedia vanilla previews.');

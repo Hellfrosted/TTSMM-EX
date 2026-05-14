@@ -1,6 +1,7 @@
 import { Effect, Semaphore } from 'effect';
 import { cloneCollection, type ModCollection, type NotificationProps } from 'model';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
+import { toEffectOperationError } from 'shared/effect-errors';
 import type { CollectionContentSaveCompletion } from './collection-workspace-session';
 import type { NotificationType } from './hooks/collections/useNotifications';
 
@@ -47,7 +48,7 @@ export function createCollectionWriteQueue(): CollectionWriteQueue {
 					semaphore,
 					Effect.tryPromise({
 						try: operation,
-						catch: (error) => error
+						catch: (error) => toEffectOperationError('run queued collection write', error)
 					})
 				)
 			);

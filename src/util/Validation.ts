@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import { AppConfigKeys } from 'model/AppConfig';
 import { RendererElectron, type RendererElectron as RendererElectronService } from 'renderer/runtime';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { PathType } from 'shared/ipc';
 
 export const validateSettingsPath = Effect.fnUntraced(function* (
@@ -17,8 +18,8 @@ export const validateSettingsPath = Effect.fnUntraced(function* (
 				normalizedValue,
 				field === AppConfigKeys.GAME_EXEC && platform !== 'darwin' ? PathType.FILE : PathType.DIRECTORY
 			),
-		catch: (error) => error
-	}).pipe(Effect.catch((error) => Effect.succeed(String(error))));
+		catch: (error) => toEffectOperationError('validate settings path', error)
+	}).pipe(Effect.catch((error) => Effect.succeed(String(error.cause))));
 	if (typeof success === 'string') {
 		return success;
 	}

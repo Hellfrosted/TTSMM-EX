@@ -7,6 +7,16 @@
 			"settings": {
 				"require_config_file": true
 			}
+		},
+		"vtsls": {
+			"initialization_options": {
+				"typescript": {
+					"tsdk": "node_modules/typescript/lib"
+				},
+				"vtsls": {
+					"autoUseWorkspaceTsdk": true
+				}
+			}
 		}
 	},
 	"languages": {

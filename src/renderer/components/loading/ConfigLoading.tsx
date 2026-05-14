@@ -11,6 +11,7 @@ import { describeStartupBootError, resolveStartupNavigation, shouldAutoDiscoverG
 import { useAppStateSelector } from 'renderer/state/app-state';
 import { tryWriteConfig } from 'renderer/util/config-write';
 import { formatErrorMessage } from 'renderer/util/error-message';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { validateSettingsPath } from 'util/Validation';
 import StatusCallout from '../StatusCallout';
 import {
@@ -266,7 +267,7 @@ const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 }): Effect.fn.Return<void> {
 	const result = yield* Effect.tryPromise({
 		try: () => api.resolveStartupCollection({ config }),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('resolve startup collection', error)
 	}).pipe(
 		Effect.catch((error) => {
 			api.logger.error(error);

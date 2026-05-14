@@ -3,6 +3,7 @@ import log from 'electron-log';
 
 import type { AppConfig } from '../model';
 import { normalizeAppConfig } from '../shared/app-config-defaults';
+import { toEffectOperationError } from '../shared/effect-errors';
 import { fileExistsEffect, readJsonFileEffect, writeUtf8FileAtomicEffect } from './storage';
 
 export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
@@ -32,7 +33,7 @@ export const readConfigFileEffect = Effect.fnUntraced(function* (
 		Effect.mapError((error) => {
 			log.error(`Failed to read config file at ${filepath}`);
 			log.error(error.cause);
-			return new Error(`Failed to load config file "${filepath}"`);
+			return toEffectOperationError(`load config file "${filepath}"`, error, `Failed to load config file "${filepath}"`);
 		})
 	);
 });

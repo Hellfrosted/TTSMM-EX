@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ModCollection, ValidChannel } from '../model';
 import { validateCollectionName } from '../shared/collection-name';
+import { toEffectOperationError } from '../shared/effect-errors';
 import { parseStoredModCollectionPayload } from './ipc/collection-validation';
 import {
 	deleteFileEffect,
@@ -80,13 +81,13 @@ export const readCollectionFileEffect = Effect.fnUntraced(function* (
 						mods: [...data.mods]
 					};
 				},
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('parse stored collection payload', error)
 			})
 		),
 		Effect.mapError((error) => {
 			log.error(`Failed to read collection file ${collectionPath}`);
 			log.error(error);
-			return new Error(`Failed to load collection "${collection}"`);
+			return toEffectOperationError(`load collection "${collection}"`, error, `Failed to load collection "${collection}"`);
 		})
 	);
 });

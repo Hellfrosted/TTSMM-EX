@@ -6,6 +6,7 @@ import type { AuthoritativeCollectionState } from 'renderer/authoritative-collec
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import { createCollectionContentSaveRequest } from 'shared/collection-content-save';
 import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { useCacheMutation } from './cache-mutation';
 import { setConfigCacheData } from './config-cache';
 import { RendererElectron, runRenderer } from './runtime';
@@ -56,7 +57,7 @@ const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Retu
 	const renderer = yield* RendererElectron;
 	const collections = yield* Effect.tryPromise({
 		try: () => renderer.electron.readCollectionsList(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read collections list', error)
 	});
 	return collections || [];
 });
@@ -79,7 +80,7 @@ const readCollectionEffect = Effect.fnUntraced(function* (
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.readCollection(collectionName),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError(`read collection "${collectionName}"`, error)
 	});
 });
 
@@ -89,7 +90,7 @@ const updateCollectionEffect = Effect.fnUntraced(function* (
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.updateCollection(createCollectionContentSaveRequest(collection)),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError(`update collection "${collection.name}"`, error)
 	});
 });
 

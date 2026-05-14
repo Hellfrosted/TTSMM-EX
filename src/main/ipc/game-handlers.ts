@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { createModManagerUid, PathType, ValidChannel } from '../../model';
+import { toEffectOperationError } from '../../shared/effect-errors';
 import { TERRATECH_STEAM_APP_ID } from '../../shared/terratech';
 import { expandUserPath } from '../path-utils';
 import { runMain } from '../runtime';
@@ -117,7 +118,7 @@ export function discoverGameExecutablePath({
 const isGameRunning = Effect.fnUntraced(function* (): Effect.fn.Return<boolean> {
 	const psList = yield* Effect.tryPromise({
 		try: () => import('ps-list').then((module) => module.default),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('load ps-list', error)
 	}).pipe(
 		Effect.catch((error) => {
 			log.error('Failed to get game running status. Defaulting to not running');
@@ -130,7 +131,7 @@ const isGameRunning = Effect.fnUntraced(function* (): Effect.fn.Return<boolean> 
 	}
 	const processes = yield* Effect.tryPromise({
 		try: () => psList(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('list processes', error)
 	}).pipe(
 		Effect.catch((error) => {
 			log.error('Failed to get game running status. Defaulting to not running');
@@ -174,7 +175,7 @@ export function launchGameProcess(
 		const launchExternal = openExternal ?? ((url: string) => shell.openExternal(url));
 		return Effect.tryPromise({
 			try: () => launchExternal(steamRunUrl),
-			catch: (error) => error
+			catch: (error) => toEffectOperationError('launch game through Steam protocol', error)
 		}).pipe(
 			Effect.map(() => {
 				if (closeOnLaunch) {
@@ -236,7 +237,7 @@ const selectPath = Effect.fnUntraced(function* (directory: boolean, title: strin
 				title,
 				properties: ['showHiddenFiles', directory ? 'openDirectory' : 'openFile', 'promptToCreate', 'createDirectory']
 			}),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('show select path dialog', error)
 	}).pipe(
 		Effect.catch((error) => {
 			log.error(error);

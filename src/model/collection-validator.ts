@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import type Logger from 'electron-log';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { getWorkshopDependencySnapshotState } from '../shared/workshop-dependency-snapshot';
 import { type CollectionErrors, type ModErrors } from './CollectionValidation';
 import { getModDataId, type ModData, type ModDescriptor, ModType } from './Mod';
@@ -110,7 +111,7 @@ export const validateCollection = Effect.fnUntraced(function* (session: SessionM
 		catch: (error) => {
 			logger?.error('Failed to perform collection validation');
 			logger?.error(error);
-			return error;
+			return toEffectOperationError('validate collection', error);
 		}
 	});
 });

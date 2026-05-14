@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { useCacheMutation } from './cache-mutation';
 import { RendererElectron, runRenderer } from './runtime';
 
@@ -32,11 +33,11 @@ const readBlockLookupBootstrapEffect = Effect.fnUntraced(function* (): Effect.fn
 		[
 			Effect.tryPromise({
 				try: () => renderer.electron.readBlockLookupSettings(),
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('read block lookup settings', error)
 			}),
 			Effect.tryPromise({
 				try: () => renderer.electron.getBlockLookupStats(),
-				catch: (error) => error
+				catch: (error) => toEffectOperationError('read block lookup stats', error)
 			})
 		],
 		{ concurrency: 2 }
@@ -54,7 +55,7 @@ const searchBlockLookupEffect = Effect.fnUntraced(function* (
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.searchBlockLookup(request),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('search block lookup', error)
 	});
 });
 
@@ -82,7 +83,7 @@ const buildBlockLookupIndexEffect = Effect.fnUntraced(function* (request: BlockL
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.buildBlockLookupIndex(request),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('build block lookup index', error)
 	});
 });
 

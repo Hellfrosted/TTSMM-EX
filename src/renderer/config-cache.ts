@@ -2,6 +2,7 @@ import { useAtomRef } from '@effect/atom-react';
 import { Effect } from 'effect';
 import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
 import type { AppConfig } from 'model';
+import { toEffectOperationError } from 'shared/effect-errors';
 import { useCacheMutation } from './cache-mutation';
 import { RendererElectron, runRenderer } from './runtime';
 
@@ -29,7 +30,7 @@ const readConfigEffect = Effect.fnUntraced(function* (): Effect.fn.Return<AppCon
 	const renderer = yield* RendererElectron;
 	return yield* Effect.tryPromise({
 		try: () => renderer.electron.readConfig(),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('read config', error)
 	});
 });
 
@@ -39,10 +40,10 @@ export const writeConfigEffect = Effect.fnUntraced(function* (
 	const renderer = yield* RendererElectron;
 	const persistedConfig = yield* Effect.tryPromise({
 		try: () => renderer.electron.updateConfig(nextConfig),
-		catch: (error) => error
+		catch: (error) => toEffectOperationError('write config', error)
 	});
 	if (!persistedConfig) {
-		return yield* Effect.fail(new Error('Config write was rejected'));
+		return yield* Effect.fail(toEffectOperationError('write config rejected', 'Config write was rejected'));
 	}
 	return persistedConfig;
 });

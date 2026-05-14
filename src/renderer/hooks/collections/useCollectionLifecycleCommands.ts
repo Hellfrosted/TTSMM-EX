@@ -10,6 +10,7 @@ import { applyCollectionContentSaveResult, type CollectionContentSaveCompletion 
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';
 import type { CollectionLifecycleResult } from 'shared/collection-lifecycle';
+import { toEffectOperationError } from 'shared/effect-errors';
 import type { NotificationType } from './useNotifications';
 
 interface UseCollectionLifecycleCommandsOptions {
@@ -124,7 +125,7 @@ export function useCollectionLifecycleCommands({
 							persistCollectionFile: (targetCollection) =>
 								Effect.tryPromise({
 									try: () => persistCollectionFile(targetCollection),
-									catch: (error) => error
+									catch: (error) => toEffectOperationError(`persist collection "${targetCollection.name}"`, error)
 								}),
 							pureSave,
 							showSuccessNotification: options.showSuccessNotification ?? true
