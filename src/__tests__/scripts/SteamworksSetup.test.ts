@@ -9,6 +9,8 @@ const pathsModulePath = '../../../scripts/lib/paths';
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
 const originalArch = Object.getOwnPropertyDescriptor(process, 'arch');
+const releaseAppInstallCommand =
+	'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts --config.virtual-store-dir=.pnpm';
 
 type MockedPaths = {
 	repoRoot: string;
@@ -139,6 +141,16 @@ function createPnpmGreenworksSkeleton(paths: MockedPaths, previewTypeSignature: 
 	fs.symlinkSync(realGreenworksPath, virtualGreenworksPath, 'dir');
 }
 
+function createShallowPnpmGreenworksSkeleton(paths: MockedPaths, previewTypeSignature: string) {
+	const pnpmPackageModulesPath = path.join(paths.releaseAppPath, '.pnpm', 'greenworks@fixture', 'node_modules');
+	const realGreenworksPath = path.join(pnpmPackageModulesPath, 'greenworks');
+	const virtualGreenworksPath = path.join(paths.releaseAppNodeModulesPath, 'greenworks');
+	fs.rmSync(virtualGreenworksPath, { recursive: true, force: true });
+	createGreenworksSkeleton(realGreenworksPath, previewTypeSignature);
+	createNanSkeletonAt(path.join(pnpmPackageModulesPath, 'nan'));
+	fs.symlinkSync(realGreenworksPath, virtualGreenworksPath, 'dir');
+}
+
 afterEach(() => {
 	restoreProcessTarget();
 	vi.restoreAllMocks();
@@ -154,7 +166,7 @@ describe('steamworks setup scripts', () => {
 
 		const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
 		const execSync = vi.fn((command: string, options?: { cwd?: string; env?: NodeJS.ProcessEnv; encoding?: string }) => {
-			if (command === 'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts') {
+			if (command === releaseAppInstallCommand) {
 				createGreenworksSkeleton(greenworksPath, 'char *PreviewTypeToString(EItemPreviewType type) {');
 				createNanSkeleton(paths.releaseAppNodeModulesPath);
 				return Buffer.from('');
@@ -176,9 +188,7 @@ describe('steamworks setup scripts', () => {
 		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
 		setupSteamworksNativeDeps(sdkPath);
 
-		expect(execSync.mock.calls.map(([command]) => command)).toContain(
-			'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts'
-		);
+		expect(execSync.mock.calls.map(([command]) => command)).toContain(releaseAppInstallCommand);
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('ps -ax -o pid= -o command=');
 		expect(execSync.mock.calls.map(([command]) => command)).toContain('pnpm run rebuild:electron');
 		expect(execSync.mock.calls.some(([command]) => command.includes('powershell'))).toBe(false);
@@ -255,6 +265,42 @@ describe('steamworks setup scripts', () => {
 		expect(fs.lstatSync(greenworksPath).isSymbolicLink()).toBe(true);
 		expect(fs.readFileSync(path.join(realNanPath, 'nan_callbacks_12_inl.h'), 'utf8')).toContain(
 			'.As<v8::External>()->Value(v8::kExternalPointerTypeTagDefault))'
+		);
+	});
+
+	it('reinstalls a Windows release app when greenworks is under the nested pnpm store', async () => {
+		const { sdkPath, paths } = createRepoLayout();
+		const greenworksPath = path.join(paths.releaseAppNodeModulesPath, 'greenworks');
+		setProcessTarget('win32', 'x64');
+		fs.rmSync(sdkPath, { recursive: true, force: true });
+		createWindowsSdk(sdkPath);
+		createPnpmGreenworksSkeleton(paths, 'const char *PreviewTypeToString(EItemPreviewType type) {');
+
+		const execSync = vi.fn((command: string) => {
+			if (command.includes('powershell')) {
+				return Buffer.from('');
+			}
+
+			if (command === releaseAppInstallCommand) {
+				fs.mkdirSync(paths.releaseAppNodeModulesPath, { recursive: true });
+				createShallowPnpmGreenworksSkeleton(paths, 'const char *PreviewTypeToString(EItemPreviewType type) {');
+				return Buffer.from('');
+			}
+
+			if (command === 'pnpm run rebuild:electron') {
+				return Buffer.from('');
+			}
+
+			throw new Error(`Unexpected command: ${command}`);
+		});
+
+		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
+		setupSteamworksNativeDeps(sdkPath);
+
+		expect(execSync.mock.calls.map(([command]) => command)).toContain(releaseAppInstallCommand);
+		expect(path.normalize(fs.realpathSync.native(greenworksPath))).toContain(path.normalize(path.join(paths.releaseAppPath, '.pnpm')));
+		expect(path.normalize(fs.realpathSync.native(greenworksPath))).not.toContain(
+			path.normalize(path.join(paths.releaseAppNodeModulesPath, '.pnpm'))
 		);
 	});
 

@@ -11,6 +11,10 @@ const greenworksPackageJsonPath = path.join(greenworksPath, 'package.json');
 const greenworksEntrypointPath = path.join(greenworksPath, 'greenworks.js');
 const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
+const releaseAppPnpmStorePath = path.join(releaseAppPath, '.pnpm');
+const releaseAppNestedPnpmStorePath = path.join(releaseAppNodeModulesPath, '.pnpm');
+const releaseAppInstallCommand =
+	'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts --config.virtual-store-dir=.pnpm';
 const smokeWorkerPath = path.join(repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts');
 const v8ExternalPointerTag = 'v8::kExternalPointerTypeTagDefault';
 
@@ -121,13 +125,31 @@ function pathExistsOrIsDanglingLink(targetPath: string) {
 	}
 }
 
+function normalizePathForPlatform(targetPath: string) {
+	const normalizedPath = path.normalize(targetPath);
+	return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
+}
+
 function ensureGreenworksPresent() {
 	if (fs.existsSync(greenworksPackageJsonPath) && fs.existsSync(greenworksEntrypointPath)) {
+		if (process.platform !== 'win32') {
+			return;
+		}
+
+		const realGreenworksPath = fs.realpathSync.native(greenworksPath);
+		if (!normalizePathForPlatform(realGreenworksPath).startsWith(normalizePathForPlatform(releaseAppNestedPnpmStorePath))) {
+			return;
+		}
+
+		removeIfExists(releaseAppNodeModulesPath);
+		removeIfExists(releaseAppPnpmStorePath);
+		run(releaseAppInstallCommand);
 		return;
 	}
 
 	removeIfExists(releaseAppNodeModulesPath);
-	run('pnpm --dir release/app install --force --ignore-workspace --ignore-scripts');
+	removeIfExists(releaseAppPnpmStorePath);
+	run(releaseAppInstallCommand);
 }
 
 function stageSteamworksSdkCompat(steamworksSdkPath: string) {
