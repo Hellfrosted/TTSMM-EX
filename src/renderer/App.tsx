@@ -358,8 +358,13 @@ export function AppShell() {
 						updateAppState({ sidebarCollapsed: !sidebarCollapsed });
 					}}
 				>
-					<span className="MenuCollapseButtonIcon" key={sidebarCollapsed ? 'collapsed' : 'expanded'} aria-hidden="true">
-						{sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+					<span className="MenuCollapseButtonIcon t-icon-swap" data-state={sidebarCollapsed ? 'collapsed' : 'expanded'} aria-hidden="true">
+						<span className="t-icon" data-icon="collapsed">
+							<PanelLeftOpen size={18} />
+						</span>
+						<span className="t-icon" data-icon="expanded">
+							<PanelLeftClose size={18} />
+						</span>
 					</span>
 				</button>
 			</aside>

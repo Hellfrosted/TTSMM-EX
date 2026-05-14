@@ -213,6 +213,60 @@
 	}
 }
 
+:root {
+	--resize-dur: 300ms;
+	--resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--digit-dur: 500ms;
+	--digit-distance: 8px;
+	--digit-stagger: 70ms;
+	--digit-blur: 2px;
+	--digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+	--digit-dir-x: 0;
+	--digit-dir-y: 1;
+	--badge-slide-dur: 260ms;
+	--badge-pop-dur: 500ms;
+	--badge-pop-close-dur: 180ms;
+	--badge-fade-dur: 400ms;
+	--badge-fade-close-dur: 180ms;
+	--badge-blur: 2px;
+	--badge-offset-x: -8.2px;
+	--badge-offset-y: 12.4px;
+	--badge-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--badge-pop-ease: cubic-bezier(0.34, 1.36, 0.64, 1);
+	--badge-close-ease: cubic-bezier(0.4, 0, 0.2, 1);
+	--text-swap-dur: 200ms;
+	--text-swap-translate-y: 8px;
+	--text-swap-blur: 2px;
+	--text-swap-ease: ease-out;
+	--dropdown-open-dur: 250ms;
+	--dropdown-close-dur: 150ms;
+	--dropdown-pre-scale: 0.97;
+	--dropdown-closing-scale: 0.99;
+	--dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--modal-open-dur: 250ms;
+	--modal-close-dur: 150ms;
+	--modal-scale: 0.96;
+	--modal-scale-close: 0.96;
+	--modal-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--panel-open-dur: 400ms;
+	--panel-close-dur: 350ms;
+	--panel-translate-y: 100px;
+	--panel-blur: 2px;
+	--panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-slide-dur: 200ms;
+	--page-fade-dur: 200ms;
+	--page-slide-distance: 8px;
+	--page-blur: 3px;
+	--page-stagger: 0ms;
+	--page-exit-enabled: 1;
+	--page-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--page-fade-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--icon-swap-dur: 200ms;
+	--icon-swap-blur: 2px;
+	--icon-swap-start-scale: 0.25;
+	--icon-swap-ease: ease-in-out;
+}
+
 html {
 	height: 100vh;
 	width: 100vw;
@@ -334,11 +388,8 @@ textarea {
 }
 
 .MenuCollapseButtonIcon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	animation: appIconSwapIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
-	transform-origin: center;
+	position: relative;
+	display: inline-grid;
 }
 
 .MenuCollapseButton:active .MenuCollapseButtonIcon {
@@ -348,6 +399,35 @@ textarea {
 .MenuCollapseButton svg {
 	width: 18px;
 	height: 18px;
+}
+
+.t-icon-swap {
+	position: relative;
+	display: inline-grid;
+}
+
+.t-icon-swap .t-icon {
+	grid-area: 1 / 1;
+	display: inline-flex;
+	transition:
+		opacity var(--icon-swap-dur) var(--icon-swap-ease),
+		filter var(--icon-swap-dur) var(--icon-swap-ease),
+		transform var(--icon-swap-dur) var(--icon-swap-ease);
+	will-change: opacity, filter, transform;
+}
+
+.t-icon-swap[data-state="collapsed"] .t-icon[data-icon="collapsed"],
+.t-icon-swap[data-state="expanded"] .t-icon[data-icon="expanded"] {
+	opacity: 1;
+	filter: blur(0);
+	transform: scale(1);
+}
+
+.t-icon-swap[data-state="collapsed"] .t-icon[data-icon="expanded"],
+.t-icon-swap[data-state="expanded"] .t-icon[data-icon="collapsed"] {
+	opacity: 0;
+	filter: blur(var(--icon-swap-blur));
+	transform: scale(var(--icon-swap-start-scale));
 }
 
 .MenuCollapseButton:hover {
@@ -385,6 +465,7 @@ textarea {
 }
 
 .AppViewStage {
+	--t-page-from-x: var(--page-slide-distance);
 	position: absolute;
 	inset: 0;
 	display: flex;
@@ -395,23 +476,28 @@ textarea {
 	visibility: hidden;
 	pointer-events: none;
 	contain: layout paint style;
-	transform: translateY(4px) scale(0.998);
-	will-change: opacity, transform;
+	transform: translateX(calc(var(--t-page-from-x, 0px) * var(--page-exit-enabled)));
+	filter: blur(calc(var(--page-blur) * var(--page-exit-enabled)));
 	transition:
-		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
-		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized),
-		visibility 0s linear var(--app-motion-duration-standard);
+		opacity var(--page-fade-dur) var(--page-fade-ease),
+		transform var(--page-slide-dur) var(--page-slide-ease),
+		filter var(--page-slide-dur) var(--page-slide-ease),
+		visibility 0s linear var(--page-fade-dur);
+	will-change: opacity, transform, filter;
+}
+
+.AppViewStage[data-view-stage="collections"],
+.AppViewStage[data-view-stage="loading"] {
+	--t-page-from-x: calc(var(--page-slide-distance) * -1);
 }
 
 .AppViewStage.is-active {
 	opacity: 1;
 	visibility: visible;
 	pointer-events: auto;
-	transform: translateY(0) scale(1);
-	transition:
-		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
-		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized),
-		visibility 0s;
+	transform: translateX(0);
+	filter: blur(0);
+	transition-delay: var(--page-stagger);
 }
 
 .AppViewStage > * {
@@ -827,8 +913,14 @@ textarea {
 	box-shadow:
 		0 0 0 1px color-mix(in oklch, var(--app-color-background, oklch(18% 0.006 67)) 74%, transparent),
 		0 8px 18px color-mix(in oklch, var(--app-color-background, oklch(18% 0.006 67)) 76%, transparent);
-	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
 	transform-origin: top center;
+	transform: scale(1);
+	opacity: 1;
+	pointer-events: auto;
+	transition:
+		transform var(--dropdown-open-dur) var(--dropdown-ease),
+		opacity var(--dropdown-open-dur) var(--dropdown-ease);
+	will-change: transform, opacity;
 }
 
 .MainCollectionHeaderMenuItem {
@@ -1334,24 +1426,52 @@ a:hover {
 }
 
 .ToolbarMenuSurface {
-	animation: appSurfaceMenuIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
 	transform-origin: top right;
+	transform: scale(1);
+	opacity: 1;
+	pointer-events: auto;
+	transition:
+		transform var(--dropdown-open-dur) var(--dropdown-ease),
+		opacity var(--dropdown-open-dur) var(--dropdown-ease);
 	will-change: opacity, transform;
 }
 
 .DesktopDialogOverlay {
-	animation: appDialogOverlayIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+	opacity: 1;
+	transition: opacity var(--modal-open-dur) var(--modal-ease);
+	will-change: opacity;
 }
 
 .DesktopDialogPanel {
-	animation: appDialogPanelIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
 	transform-origin: center;
+	transform: scale(1);
+	opacity: 1;
+	transition:
+		transform var(--modal-open-dur) var(--modal-ease),
+		opacity var(--modal-open-dur) var(--modal-ease);
 	will-change: opacity, transform;
 }
 
 .DesktopDialogPanel > div,
 .DesktopDialogPanel > section {
 	min-width: 0;
+}
+
+@starting-style {
+	.MainCollectionHeaderMenu,
+	.ToolbarMenuSurface {
+		transform: scale(var(--dropdown-pre-scale));
+		opacity: 0;
+	}
+
+	.DesktopDialogOverlay {
+		opacity: 0;
+	}
+
+	.DesktopDialogPanel {
+		transform: scale(var(--modal-scale));
+		opacity: 0;
+	}
 }
 
 .MainFooter {
@@ -1807,7 +1927,15 @@ a:hover {
 
 .BlockLookupVirtualLoading {
 	background: color-mix(in srgb, var(--app-color-background) 68%, transparent);
-	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+	opacity: 1;
+	transition: opacity var(--text-swap-dur) var(--text-swap-ease);
+	will-change: opacity;
+}
+
+@starting-style {
+	.BlockLookupVirtualLoading {
+		opacity: 0;
+	}
 }
 
 .BlockLookupDetailsPane {
@@ -2012,19 +2140,39 @@ a:hover {
 }
 
 .CollectionDetailsOverlayPane {
+	--panel-translate-y: 10px;
 	pointer-events: auto;
-	will-change: opacity, transform;
+	transform: translateY(0);
+	filter: blur(0);
+	opacity: 1;
 	transition:
-		opacity var(--app-motion-duration-standard) var(--app-motion-ease-out),
-		transform var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+		transform var(--panel-open-dur) var(--panel-ease),
+		opacity var(--panel-open-dur) var(--panel-ease),
+		filter var(--panel-open-dur) var(--panel-ease);
+	will-change: transform, opacity, filter;
 }
 
 .CollectionDetailsOverlayPane--side {
-	animation: detailsOverlaySideIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
+	--panel-translate-x: 10px;
+	transform: translateX(0);
 }
 
 .CollectionDetailsOverlayPane--bottom {
-	animation: detailsOverlayBottomIn var(--app-motion-duration-surface) var(--app-motion-ease-emphasized);
+	transform: translateY(0);
+}
+
+@starting-style {
+	.CollectionDetailsOverlayPane--side {
+		transform: translateX(var(--panel-translate-x));
+		opacity: 0;
+		filter: blur(var(--panel-blur));
+	}
+
+	.CollectionDetailsOverlayPane--bottom {
+		transform: translateY(var(--panel-translate-y));
+		opacity: 0;
+		filter: blur(var(--panel-blur));
+	}
 }
 
 .CollectionDetailsOverlayPane > .ModDetailFooter {
@@ -2349,7 +2497,7 @@ a:hover {
 	color: var(--app-color-text);
 }
 
-.ModDetailTabButton.is-active::after {
+.ModDetailTabButton::after {
 	content: "";
 	position: absolute;
 	left: 10px;
@@ -2357,8 +2505,18 @@ a:hover {
 	bottom: -1px;
 	height: 2px;
 	background: var(--app-color-primary);
-	animation: appTabRuleIn var(--app-motion-duration-fast) var(--app-motion-ease-emphasized);
+	opacity: 0;
+	transform: scaleX(0.6);
 	transform-origin: left center;
+	transition:
+		opacity var(--text-swap-dur) var(--text-swap-ease),
+		transform var(--text-swap-dur) var(--text-swap-ease);
+	will-change: opacity, transform;
+}
+
+.ModDetailTabButton.is-active::after {
+	opacity: 1;
+	transform: scaleX(1);
 }
 
 .ModDetailTabsPanel {
@@ -2370,7 +2528,27 @@ a:hover {
 }
 
 .ModDetailTabsPanel {
-	animation: detailTabFade var(--app-motion-duration-fast) var(--app-motion-ease-out);
+	opacity: 1;
+	transform: translateY(0);
+	filter: blur(0);
+	transition:
+		transform var(--text-swap-dur) var(--text-swap-ease),
+		filter var(--text-swap-dur) var(--text-swap-ease),
+		opacity var(--text-swap-dur) var(--text-swap-ease);
+	will-change: transform, filter, opacity;
+}
+
+@starting-style {
+	.ModDetailTabButton.is-active::after {
+		opacity: 0;
+		transform: scaleX(0.6);
+	}
+
+	.ModDetailTabsPanel {
+		opacity: 0;
+		transform: translateY(var(--text-swap-translate-y));
+		filter: blur(var(--text-swap-blur));
+	}
 }
 
 .ModDetailDescriptions {
@@ -2820,8 +2998,21 @@ a:hover {
 		0 8px 18px color-mix(in oklch, var(--app-color-background, oklch(18% 0.006 67)) 76%, transparent);
 	box-sizing: border-box;
 	overflow: hidden;
-	animation: appSurfaceMenuIn var(--app-motion-duration-fast, 160ms) var(--app-motion-ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1));
 	transform-origin: top center;
+	transform: scale(1);
+	opacity: 1;
+	pointer-events: auto;
+	transition:
+		transform var(--dropdown-open-dur) var(--dropdown-ease),
+		opacity var(--dropdown-open-dur) var(--dropdown-ease);
+	will-change: transform, opacity;
+}
+
+@starting-style {
+	.MainCollectionTagFilterMenu {
+		transform: scale(var(--dropdown-pre-scale));
+		opacity: 0;
+	}
 }
 
 .MainCollectionTagFilterMenuHeader {
@@ -2996,18 +3187,27 @@ a:hover {
 	font-weight: var(--app-weight-label);
 	line-height: var(--app-leading-ui);
 	pointer-events: none;
-	animation: appLoadingVeilIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+	opacity: 1;
+	transition: opacity var(--text-swap-dur) var(--text-swap-ease);
+	will-change: opacity;
 }
 
 .CollectionContentStage {
 	transition:
-		opacity var(--app-motion-duration-fast) var(--app-motion-ease-out),
-		visibility 0s linear var(--app-motion-duration-fast);
+		opacity var(--page-fade-dur) var(--page-fade-ease),
+		visibility 0s linear var(--page-fade-dur);
 }
 
 .StartupCard,
 .StartupStatusCard {
-	animation: appSurfaceIn var(--app-motion-duration-standard) var(--app-motion-ease-out);
+	transform: translateY(0);
+	opacity: 1;
+	filter: blur(0);
+	transition:
+		transform var(--panel-open-dur) var(--panel-ease),
+		opacity var(--panel-open-dur) var(--panel-ease),
+		filter var(--panel-open-dur) var(--panel-ease);
+	will-change: transform, opacity, filter;
 }
 
 .StartupEyebrow {
@@ -3046,7 +3246,33 @@ a:hover {
 }
 
 .SettingsView details[open] > div {
-	animation: appDisclosureIn var(--app-motion-duration-fast) var(--app-motion-ease-out);
+	transform: translateY(0);
+	opacity: 1;
+	filter: blur(0);
+	transition:
+		transform var(--panel-open-dur) var(--panel-ease),
+		opacity var(--panel-open-dur) var(--panel-ease),
+		filter var(--panel-open-dur) var(--panel-ease);
+	will-change: transform, opacity, filter;
+}
+
+@starting-style {
+	.MainCollectionVirtualLoading {
+		opacity: 0;
+	}
+
+	.StartupCard,
+	.StartupStatusCard {
+		transform: translateY(var(--panel-translate-y));
+		opacity: 0;
+		filter: blur(var(--panel-blur));
+	}
+
+	.SettingsView details[open] > div {
+		transform: translateY(calc(var(--panel-translate-y) * -0.08));
+		opacity: 0;
+		filter: blur(var(--panel-blur));
+	}
 }
 
 .StatusCalloutTitle {
@@ -3080,8 +3306,11 @@ a:hover {
 	overflow: auto;
 	transition:
 		border-color var(--app-motion-duration-fast) var(--app-motion-ease-out),
-		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out);
-	animation: notificationToastIn var(--app-motion-duration-standard) var(--app-motion-ease-emphasized);
+		box-shadow var(--app-motion-duration-fast) var(--app-motion-ease-out),
+		transform var(--dropdown-open-dur) var(--dropdown-ease),
+		opacity var(--dropdown-open-dur) var(--dropdown-ease);
+	opacity: 1;
+	transform: translate3d(0, 0, 0) scale(1);
 	transform-origin: top right;
 	will-change: opacity, transform;
 	overscroll-behavior: contain;
@@ -3201,7 +3430,18 @@ a:hover {
 
 .NotificationToast[data-state="closing"] {
 	pointer-events: none;
-	animation: notificationToastOut var(--app-motion-duration-fast) var(--app-motion-ease-out) forwards;
+	opacity: 0;
+	transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(var(--dropdown-closing-scale));
+	transition:
+		transform var(--dropdown-close-dur) var(--dropdown-ease),
+		opacity var(--dropdown-close-dur) var(--dropdown-ease);
+}
+
+@starting-style {
+	.NotificationToast {
+		opacity: 0;
+		transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(var(--dropdown-pre-scale));
+	}
 }
 
 .ModDetailFooterHeaderActions {
@@ -3260,92 +3500,6 @@ a:hover {
 	padding: 0 0 0 8px;
 }
 
-@keyframes detailTabFade {
-	from {
-		opacity: 0;
-		transform: translateY(3px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes detailsOverlaySideIn {
-	from {
-		opacity: 0;
-		transform: translateX(10px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
-}
-
-@keyframes detailsOverlayBottomIn {
-	from {
-		opacity: 0;
-		transform: translateY(10px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes appSurfaceIn {
-	from {
-		opacity: 0;
-		transform: translateY(5px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes appSurfaceMenuIn {
-	from {
-		opacity: 0;
-		transform: translateY(-4px) scale(0.985);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-@keyframes appDialogOverlayIn {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
-}
-
-@keyframes appDialogPanelIn {
-	from {
-		opacity: 0;
-		transform: translateY(8px) scale(0.985);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-@keyframes appIconSwapIn {
-	from {
-		opacity: 0.55;
-		transform: translateY(1px) scale(0.94);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
 @keyframes launchReadyPulse {
 	0% {
 		box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-color-primary) 42%, transparent);
@@ -3358,59 +3512,6 @@ a:hover {
 	100% {
 		box-shadow: 0 0 0 0 color-mix(in srgb, var(--app-color-primary) 0%, transparent);
 		transform: translateY(0) scale(1);
-	}
-}
-
-@keyframes appLoadingVeilIn {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
-}
-
-@keyframes appDisclosureIn {
-	from {
-		opacity: 0;
-		transform: translateY(-3px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes appTabRuleIn {
-	from {
-		opacity: 0;
-		transform: scaleX(0.6);
-	}
-	to {
-		opacity: 1;
-		transform: scaleX(1);
-	}
-}
-
-@keyframes notificationToastIn {
-	from {
-		opacity: 0;
-		transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(0.985);
-	}
-	to {
-		opacity: 1;
-		transform: translate3d(0, 0, 0) scale(1);
-	}
-}
-
-@keyframes notificationToastOut {
-	from {
-		opacity: 1;
-		transform: translate3d(0, 0, 0) scale(1);
-	}
-	to {
-		opacity: 0;
-		transform: translate3d(var(--notification-enter-x), var(--notification-enter-y), 0) scale(0.99);
 	}
 }
 

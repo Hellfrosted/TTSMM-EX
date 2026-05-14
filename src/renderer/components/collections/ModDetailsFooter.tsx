@@ -142,7 +142,7 @@ function DetailTabs({ activeKey, items, onChange }: { activeKey: string; items: 
 					</button>
 				))}
 			</div>
-			<div className="ModDetailTabsPanel" role="tabpanel">
+			<div key={activeKey} className="ModDetailTabsPanel" role="tabpanel">
 				{items.find((item) => item.key === activeKey)?.children}
 			</div>
 		</div>

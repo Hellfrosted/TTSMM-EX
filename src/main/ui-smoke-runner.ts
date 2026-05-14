@@ -42,6 +42,12 @@ interface UiSmokeCheckpointMetrics {
 	background: string;
 }
 
+interface UiSmokeInteractionResult {
+	name: string;
+	screenshotPath: string;
+	metrics: Record<string, unknown>;
+}
+
 const CHECKPOINTS: UiSmokeCheckpoint[] = [
 	{ name: 'startup', selector: '.AppRoot' },
 	{ name: 'collections', label: 'Mod Collections', selector: '[data-view-stage="collections"][data-active="true"]' },
@@ -341,6 +347,141 @@ async function captureCheckpoint(window: BrowserWindow, checkpoint: UiSmokeCheck
 	return { ...checkpoint, screenshotPath, metrics };
 }
 
+async function captureInteractionScreenshot(window: BrowserWindow, screenshotDir: string, name: string, metrics: Record<string, unknown>) {
+	const screenshotPath = path.join(screenshotDir, `${name}.png`);
+	showSmokeWindow(window);
+	await delay(150);
+	const image = await window.webContents.capturePage();
+	const png = image.toPNG();
+	fs.writeFileSync(screenshotPath, png);
+	if (!hasVisiblePngContent(png)) {
+		throw new Error(`Renderer interaction ${name} screenshot looked blank: ${screenshotPath}`);
+	}
+	return { name, screenshotPath, metrics };
+}
+
+async function runInteractionChecks(window: BrowserWindow, screenshotDir: string): Promise<UiSmokeInteractionResult[]> {
+	const results: UiSmokeInteractionResult[] = [];
+
+	await clickMenuItem(window, 'Mod Collections');
+	await waitForSelector(window, '[data-view-stage="collections"][data-active="true"]');
+	await delay(250);
+
+	const iconSwapMetrics = (await window.webContents.executeJavaScript(
+		`
+		(async () => {
+			const button = document.querySelector('.MenuCollapseButton');
+			const swap = document.querySelector('.MenuCollapseButtonIcon.t-icon-swap');
+			if (!(button instanceof HTMLButtonElement) || !(swap instanceof HTMLElement)) {
+				return { ok: false, reason: 'missing collapse button or icon swap' };
+			}
+			const beforeState = swap.dataset.state;
+			const beforeExpandedOpacity = getComputedStyle(swap.querySelector('[data-icon="expanded"]')).opacity;
+			const beforeCollapsedOpacity = getComputedStyle(swap.querySelector('[data-icon="collapsed"]')).opacity;
+			button.click();
+			await new Promise((resolve) => setTimeout(resolve, 260));
+			const afterState = swap.dataset.state;
+			const afterExpandedOpacity = getComputedStyle(swap.querySelector('[data-icon="expanded"]')).opacity;
+			const afterCollapsedOpacity = getComputedStyle(swap.querySelector('[data-icon="collapsed"]')).opacity;
+			button.click();
+			await new Promise((resolve) => setTimeout(resolve, 260));
+			return {
+				ok: beforeState !== afterState && afterCollapsedOpacity !== beforeCollapsedOpacity && afterExpandedOpacity !== beforeExpandedOpacity,
+				beforeState,
+				afterState,
+				beforeExpandedOpacity,
+				afterExpandedOpacity,
+				beforeCollapsedOpacity,
+				afterCollapsedOpacity
+			};
+		})()
+		`,
+		true
+	)) as Record<string, unknown>;
+	if (!iconSwapMetrics.ok) {
+		throw new Error(`Sidebar icon swap check failed: ${JSON.stringify(iconSwapMetrics)}`);
+	}
+	results.push(await captureInteractionScreenshot(window, screenshotDir, 'sidebar-icon-swap', iconSwapMetrics));
+
+	const dropdownMetrics = (await window.webContents.executeJavaScript(
+		`
+		(async () => {
+			const buttons = Array.from(document.querySelectorAll('button'));
+			const button = buttons.find((candidate) => candidate.textContent && candidate.textContent.trim() === 'Collection');
+			if (!(button instanceof HTMLButtonElement)) {
+				return { ok: false, reason: 'missing Collection menu button' };
+			}
+			button.click();
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			const menu = document.querySelector('.ToolbarMenuSurface');
+			if (!(menu instanceof HTMLElement)) {
+				return { ok: false, reason: 'missing toolbar menu surface' };
+			}
+			const startStyle = getComputedStyle(menu);
+			const startOpacity = startStyle.opacity;
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			const style = getComputedStyle(menu);
+			return {
+				ok:
+					Number.parseFloat(startOpacity) < 1 &&
+					style.opacity === '1' &&
+					style.pointerEvents === 'auto' &&
+					style.transitionProperty.includes('transform'),
+				startOpacity,
+				opacity: style.opacity,
+				pointerEvents: style.pointerEvents,
+				transformOrigin: style.transformOrigin,
+				transitionProperty: style.transitionProperty,
+				transitionDuration: style.transitionDuration
+			};
+		})()
+		`,
+		true
+	)) as Record<string, unknown>;
+	if (!dropdownMetrics.ok) {
+		throw new Error(`Toolbar dropdown check failed: ${JSON.stringify(dropdownMetrics)}`);
+	}
+	results.push(await captureInteractionScreenshot(window, screenshotDir, 'toolbar-dropdown', dropdownMetrics));
+
+	const dialogMetrics = (await window.webContents.executeJavaScript(
+		`
+		(async () => {
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			const buttons = Array.from(document.querySelectorAll('button'));
+			const button = buttons.find((candidate) => candidate.textContent && candidate.textContent.trim().includes('Table Settings'));
+			if (!(button instanceof HTMLButtonElement)) {
+				return { ok: false, reason: 'missing Table Settings button' };
+			}
+			button.click();
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			const overlay = document.querySelector('.DesktopDialogOverlay');
+			const panel = document.querySelector('.DesktopDialogPanel');
+			if (!(overlay instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+				return { ok: false, reason: 'missing dialog overlay or panel' };
+			}
+			const overlayStyle = getComputedStyle(overlay);
+			const panelStyle = getComputedStyle(panel);
+			return {
+				ok: overlayStyle.opacity !== '0' && panelStyle.opacity !== '0' && panelStyle.transitionProperty.includes('transform'),
+				overlayOpacity: overlayStyle.opacity,
+				panelOpacity: panelStyle.opacity,
+				panelTransformOrigin: panelStyle.transformOrigin,
+				panelTransitionProperty: panelStyle.transitionProperty,
+				panelTransitionDuration: panelStyle.transitionDuration
+			};
+		})()
+		`,
+		true
+	)) as Record<string, unknown>;
+	if (!dialogMetrics.ok) {
+		throw new Error(`Dialog transition check failed: ${JSON.stringify(dialogMetrics)}`);
+	}
+	results.push(await captureInteractionScreenshot(window, screenshotDir, 'collection-name-dialog', dialogMetrics));
+
+	return results;
+}
+
 function writeOutput(outputPath: string, output: unknown) {
 	fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 	fs.writeFileSync(outputPath, JSON.stringify(output, null, 2), 'utf8');
@@ -391,7 +532,8 @@ export async function runUiSmoke(window: BrowserWindow, env: NodeJS.ProcessEnv =
 			// eslint-disable-next-line react-doctor/async-await-in-loop -- screenshots are captured in deterministic checkpoint order.
 			results.push(await captureCheckpoint(window, checkpoint, screenshotDir));
 		}
-		writeOutput(outputPath, { results, consoleMessages, lifecycle, packaged: app.isPackaged });
+		const interactions = await runInteractionChecks(window, screenshotDir);
+		writeOutput(outputPath, { results, interactions, consoleMessages, lifecycle, packaged: app.isPackaged });
 		app.quit();
 	} catch (error) {
 		writeOutput(outputPath, {

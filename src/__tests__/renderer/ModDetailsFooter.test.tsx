@@ -215,6 +215,56 @@ describe('ModDetailsFooter', () => {
 		});
 	});
 
+	it('remounts the tab panel when the active details tab changes', () => {
+		const workshopMod = {
+			uid: 'workshop:42',
+			type: ModType.WORKSHOP,
+			workshopID: BigInt(42),
+			id: 'AnimatedTabMod',
+			name: 'Animated Tab Mod',
+			subscribed: true,
+			installed: true
+		};
+		const mods = new SessionMods('', [workshopMod]);
+		const appState = createAppState({
+			mods,
+			activeCollection: { name: 'default', mods: [workshopMod.uid] }
+		});
+
+		setupDescriptors(mods, appState.config.userOverrides);
+		const [currentRecord] = mods.foundMods;
+		const footerProps = {
+			bigDetails: false,
+			halfLayoutMode: 'bottom' as const,
+			lastValidationStatus: true,
+			appState,
+			currentRecord,
+			setActiveTabKey: vi.fn(),
+			expandFooterCallback: vi.fn(),
+			toggleHalfLayoutCallback: vi.fn(),
+			closeFooterCallback: vi.fn(),
+			enableModCallback: vi.fn(),
+			disableModCallback: vi.fn(),
+			setModSubsetCallback: vi.fn(),
+			openNotification: vi.fn(),
+			validateCollection: vi.fn(),
+			openModal: vi.fn()
+		};
+
+		const { container, rerender } = renderFooter({
+			...footerProps,
+			activeTabKey: 'info'
+		});
+		const infoPanel = container.querySelector('.ModDetailTabsPanel');
+		expect(infoPanel).not.toBeNull();
+
+		rerender(<ModDetailsFooter {...footerProps} activeTabKey="inspect" />);
+
+		const inspectPanel = container.querySelector('.ModDetailTabsPanel');
+		expect(inspectPanel).not.toBeNull();
+		expect(inspectPanel).not.toBe(infoPanel);
+	});
+
 	it('offers a same-tab retry after a workshop dependency lookup failure', async () => {
 		const workshopMod = {
 			uid: 'workshop:77',
