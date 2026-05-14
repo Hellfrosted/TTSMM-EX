@@ -3,6 +3,7 @@ import type { AppConfig, MainColumnTitles, NotificationProps } from 'model';
 import { useCallback } from 'react';
 import api from 'renderer/Api';
 import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
+import type { BlockLookupColumnKey } from 'renderer/block-lookup-table-workspace';
 import { moveBlockLookupColumn, setBlockLookupColumns, setBlockLookupColumnWidth } from 'renderer/block-lookup-view-config-commands';
 import {
 	moveMainCollectionColumn,
@@ -12,7 +13,6 @@ import {
 import { setMainCollectionDetailsOverlaySize } from 'renderer/main-view-config-size';
 import { type RendererElectron, runRenderer } from 'renderer/runtime';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import type { BlockLookupColumnKey } from 'renderer/state/block-lookup-store';
 import { persistConfigChangeProgram } from 'renderer/util/config-write';
 import type { NotificationType } from './hooks/collections/useNotifications';
 

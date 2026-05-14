@@ -10,7 +10,6 @@ import {
 	getBlockLookupColumnWidthVariableName,
 	getBlockLookupTableScrollWidth,
 	getBlockLookupVirtualColumnStyle,
-	getNextBlockLookupSortDirection,
 	getResponsiveBlockLookupColumns,
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
@@ -104,12 +103,6 @@ describe('block-lookup-table-layout', () => {
 		expect(getBlockLookupCellAlignment('blockName')).toBe('left');
 		expect(getBlockLookupCellAlignment('internalName')).toBe('center');
 		expect(getBlockLookupCellAlignment('modTitle')).toBe('center');
-	});
-
-	it('cycles sort direction for table columns', () => {
-		expect(getNextBlockLookupSortDirection('relevance', 'ascend', 'blockName')).toBe('ascend');
-		expect(getNextBlockLookupSortDirection('blockName', 'ascend', 'blockName')).toBe('descend');
-		expect(getNextBlockLookupSortDirection('blockName', 'descend', 'blockName')).toBe('ascend');
 	});
 
 	it('reports keyboard resize previews and completion', () => {

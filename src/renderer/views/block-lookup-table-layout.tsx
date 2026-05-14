@@ -9,8 +9,8 @@ import type {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { type BlockLookupColumnConfig, DEFAULT_BLOCK_LOOKUP_COLUMNS } from 'renderer/block-lookup-column-definitions';
+import type { BlockLookupColumnKey } from 'renderer/block-lookup-table-workspace';
 import { markPerfInteraction } from 'renderer/perf';
-import type { BlockLookupColumnKey, BlockLookupSortDirection, BlockLookupSortKey } from 'renderer/state/block-lookup-store';
 import {
 	getVirtualTableColumnWidthStyle,
 	getVirtualTableColumnWidthVariableName,
@@ -75,17 +75,6 @@ export function setBlockLookupColumnWidthVariable(container: HTMLElement | null,
 
 export function getBlockLookupTableScrollWidth(columns: BlockLookupColumnConfig[]) {
 	return getVirtualTableScrollWidth(columns.map(resolveBlockLookupColumnWidth), BLOCK_LOOKUP_TABLE_PADDING_WIDTH);
-}
-
-export function getNextBlockLookupSortDirection(
-	currentKey: BlockLookupSortKey,
-	currentDirection: BlockLookupSortDirection,
-	nextKey: BlockLookupColumnKey
-) {
-	if (currentKey !== nextKey) {
-		return 'ascend';
-	}
-	return currentDirection === 'ascend' ? 'descend' : 'ascend';
 }
 
 interface BlockLookupHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {

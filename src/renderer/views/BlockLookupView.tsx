@@ -41,6 +41,12 @@ import {
 	setBlockLookupDraftColumnVisibility,
 	setBlockLookupDraftColumnWidth
 } from 'renderer/block-lookup-draft-config';
+import {
+	type BlockLookupColumnKey,
+	createBlockLookupTableWorkspaceState,
+	getBlockLookupKeyboardNavigationIndex,
+	reduceBlockLookupTableWorkspace
+} from 'renderer/block-lookup-table-workspace';
 import { type BlockLookupIndexRunStatus, getBlockLookupRecordKey, sortBlockLookupRecords } from 'renderer/block-lookup-workspace';
 import {
 	DesktopButton as BlockLookupButton,
@@ -51,7 +57,7 @@ import {
 } from 'renderer/components/DesktopControls';
 import { VirtualTableBody, VirtualTableRow } from 'renderer/components/virtual-table-primitives';
 import { markPerfInteraction, measurePerf, PerfProfiler } from 'renderer/perf';
-import { type BlockLookupColumnKey, useBlockLookupStore } from 'renderer/state/block-lookup-store';
+import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { useViewConfigCommands } from 'renderer/view-config-command';
 import { BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT, getVirtualTableRowHeight, VIRTUAL_TABLE_OVERSCAN } from 'renderer/virtual-table-geometry';
@@ -63,7 +69,6 @@ import {
 	getBlockLookupColumnWidthStyle,
 	getBlockLookupTableScrollWidth,
 	getBlockLookupVirtualColumnStyle,
-	getNextBlockLookupSortDirection,
 	getResponsiveBlockLookupColumns,
 	isBlockLookupColumnKey,
 	resolveBlockLookupColumnWidth,
@@ -88,95 +93,6 @@ const blockLookupIndexSourceClassName =
 	'BlockLookupIndexSource grid min-w-0 grid-cols-[minmax(17.5rem,35rem)_auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-2 max-[1320px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:grid-cols-1';
 const BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH = 260;
 const VIRTUAL_SCROLLING_RESET_DELAY_MS = 120;
-
-function clampTableNavigationIndex(value: number, rowCount: number) {
-	return Math.min(Math.max(value, 0), rowCount - 1);
-}
-
-function getBlockLookupKeyboardNavigationIndex(key: string, currentIndex: number | undefined, rowCount: number) {
-	if (rowCount <= 0) {
-		return undefined;
-	}
-	if (key === 'ArrowUp') {
-		return currentIndex === undefined || currentIndex < 0 ? 0 : clampTableNavigationIndex(currentIndex - 1, rowCount);
-	}
-	if (key === 'ArrowDown') {
-		return currentIndex === undefined || currentIndex < 0 ? 0 : clampTableNavigationIndex(currentIndex + 1, rowCount);
-	}
-	if (key === 'Home') {
-		return 0;
-	}
-	if (key === 'End') {
-		return rowCount - 1;
-	}
-	return undefined;
-}
-
-interface BlockLookupViewLocalState {
-	availableTableWidth: number;
-	draftColumnConfig: BlockLookupColumnConfig[];
-	draftSmallRows: boolean;
-	draggingDraftColumnKey?: BlockLookupColumnKey;
-	draggingHeaderColumnKey?: BlockLookupColumnKey;
-	savingTableOptions: boolean;
-	tableOptionsOpen: boolean;
-}
-
-type BlockLookupViewLocalAction =
-	| { type: 'available-table-width-changed'; width: number }
-	| { type: 'table-options-opened'; draft: { columns: BlockLookupColumnConfig[]; smallRows: boolean } }
-	| { type: 'table-options-closed' }
-	| { type: 'saving-table-options-changed'; saving: boolean }
-	| { type: 'draft-small-rows-changed'; smallRows: boolean }
-	| { type: 'draft-column-config-changed'; updater: SetStateAction<BlockLookupColumnConfig[]> }
-	| { type: 'dragging-header-column-changed'; columnKey?: BlockLookupColumnKey }
-	| { type: 'dragging-draft-column-changed'; columnKey?: BlockLookupColumnKey };
-
-function reduceBlockLookupViewLocalState(state: BlockLookupViewLocalState, action: BlockLookupViewLocalAction): BlockLookupViewLocalState {
-	switch (action.type) {
-		case 'available-table-width-changed':
-			return state.availableTableWidth === action.width ? state : { ...state, availableTableWidth: action.width };
-		case 'table-options-opened':
-			return {
-				...state,
-				draftColumnConfig: action.draft.columns,
-				draftSmallRows: action.draft.smallRows,
-				tableOptionsOpen: true
-			};
-		case 'table-options-closed':
-			return {
-				...state,
-				tableOptionsOpen: false
-			};
-		case 'saving-table-options-changed':
-			return {
-				...state,
-				savingTableOptions: action.saving
-			};
-		case 'draft-small-rows-changed':
-			return {
-				...state,
-				draftSmallRows: action.smallRows
-			};
-		case 'draft-column-config-changed': {
-			const nextConfig = typeof action.updater === 'function' ? action.updater(state.draftColumnConfig) : action.updater;
-			return {
-				...state,
-				draftColumnConfig: nextConfig
-			};
-		}
-		case 'dragging-header-column-changed':
-			return {
-				...state,
-				draggingHeaderColumnKey: action.columnKey
-			};
-		case 'dragging-draft-column-changed':
-			return {
-				...state,
-				draggingDraftColumnKey: action.columnKey
-			};
-	}
-}
 
 async function copyToClipboard(text: string) {
 	if (!navigator.clipboard?.writeText) {
@@ -709,15 +625,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	);
 	const columnConfigRef = useRef(columnConfig);
 	const coarsePointer = useCoarsePointer();
-	const [localState, dispatchLocalState] = useReducer(reduceBlockLookupViewLocalState, {
-		availableTableWidth: 0,
-		draftColumnConfig: columnConfig,
-		draftSmallRows: !!blockLookupConfig?.smallRows,
-		draggingDraftColumnKey: undefined,
-		draggingHeaderColumnKey: undefined,
-		savingTableOptions: false,
-		tableOptionsOpen: false
-	});
+	const [localState, dispatchLocalState] = useReducer(
+		reduceBlockLookupTableWorkspace,
+		{ columnConfig, smallRows: blockLookupConfig?.smallRows },
+		createBlockLookupTableWorkspaceState
+	);
 	const {
 		availableTableWidth,
 		draftColumnConfig,
@@ -760,9 +672,8 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		[setDraftColumnConfig]
 	);
 	const sortKey = useBlockLookupStore((state) => state.sortKey);
-	const setSortKey = useBlockLookupStore((state) => state.setSortKey);
 	const sortDirection = useBlockLookupStore((state) => state.sortDirection);
-	const setSortDirection = useBlockLookupStore((state) => state.setSortDirection);
+	const requestSortColumn = useBlockLookupStore((state) => state.requestSortColumn);
 	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const tableScrollRef = useRef<HTMLDivElement | null>(null);
 	const sortedRows = useMemo(() => {
@@ -1221,7 +1132,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 												const resolvedWidth = resolveBlockLookupColumnWidth(blockColumn);
 												const widthStyle = getBlockLookupColumnWidthStyle(blockColumnKey, resolvedWidth);
 												const sorted = sortKey === blockColumnKey;
-												const nextSortDirection = getNextBlockLookupSortDirection(sortKey, sortDirection, blockColumnKey);
+												const nextSortDirection = !sorted || sortDirection === 'descend' ? 'ascend' : 'descend';
 												const canHideColumn = persistedVisibleColumnCount > 1;
 												const modHeaderFilter =
 													blockColumnKey === 'modTitle' ? (
@@ -1345,10 +1256,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 																		column: blockColumnKey,
 																		rows: sortedRows.length
 																	});
-																	setSortDirection((currentDirection) =>
-																		getNextBlockLookupSortDirection(sortKey, currentDirection, blockColumnKey)
-																	);
-																	setSortKey(blockColumnKey);
+																	requestSortColumn(blockColumnKey);
 																}}
 															>
 																<span className="BlockLookupTableHeaderLabel">{blockColumn.title}</span>

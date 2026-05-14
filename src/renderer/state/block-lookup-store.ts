@@ -1,30 +1,26 @@
 import { useAtomRef } from '@effect/atom-react';
 import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
-import type { BlockLookupColumnKey } from 'model';
-
-export type { BlockLookupColumnKey } from 'model';
-export type BlockLookupSortKey = 'relevance' | BlockLookupColumnKey;
-export type BlockLookupSortDirection = 'ascend' | 'descend';
+import type { BlockLookupColumnKey } from 'renderer/block-lookup-table-workspace';
+import {
+	type BlockLookupSortDirection,
+	type BlockLookupSortKey,
+	getNextBlockLookupSortDirection
+} from 'renderer/block-lookup-table-workspace';
 
 interface BlockLookupState {
 	sortKey: BlockLookupSortKey;
 	sortDirection: BlockLookupSortDirection;
-	setSortKey: (sortKey: BlockLookupSortKey) => void;
-	setSortDirection: (
-		nextDirection: BlockLookupSortDirection | ((currentDirection: BlockLookupSortDirection) => BlockLookupSortDirection)
-	) => void;
+	requestSortColumn: (columnKey: BlockLookupColumnKey) => void;
 }
 
 const blockLookupStateRef = AtomRef.make<BlockLookupState>({
 	sortKey: 'relevance',
 	sortDirection: 'ascend',
-	setSortKey: (sortKey) => {
-		blockLookupStateRef.update((state) => ({ ...state, sortKey }));
-	},
-	setSortDirection: (nextDirection) => {
+	requestSortColumn: (columnKey) => {
 		blockLookupStateRef.update((state) => ({
 			...state,
-			sortDirection: typeof nextDirection === 'function' ? nextDirection(state.sortDirection) : nextDirection
+			sortDirection: getNextBlockLookupSortDirection(state.sortKey, state.sortDirection, columnKey),
+			sortKey: columnKey
 		}));
 	}
 });
