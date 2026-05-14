@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import type { AppConfig, PopulationPoolColumnKey } from 'model';
 import { POPULATION_POOL_COLUMN_KEYS } from 'model';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -222,65 +222,69 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 
 	return (
 		<main className="PopulationPoolView">
-			<header className="PopulationPoolHeader">
-				<div>
+			<header className="WorkspaceHeader PopulationPoolHeader">
+				<div className="PopulationPoolTitle">
 					<h1>Population Pool</h1>
 					<p>Scanner-backed TAC population membership and candidates.</p>
 				</div>
-				<DesktopIconButton aria-label="Refresh Population Pool" disabled={loading} onClick={() => void refresh()}>
-					<RefreshCw size={16} />
-				</DesktopIconButton>
-			</header>
 
-			<section className="PopulationPathStatus" aria-label="Population Path Status">
-				{scanResult.pathStatuses.map((status) => (
-					<div key={status.key} className="PopulationPathStatusItem" data-state={status.state}>
-						<strong>{status.label}</strong>
-						<span>{status.message}</span>
-						<code>{status.path || 'Not detected'}</code>
+				<div className="PopulationPoolToolbar">
+					<div className="PopulationPoolSearchControl">
+						<Search className="PopulationPoolSearchIcon" size={16} aria-hidden="true" />
+						<DesktopInput
+							aria-label="Search Population Pool"
+							placeholder="Search tech, source, status, path"
+							type="search"
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+						/>
 					</div>
-				))}
-			</section>
+					<label className="PopulationPoolCompactToggle">
+						<input
+							type="checkbox"
+							checked={!!config.viewConfigs.populationPool?.smallRows}
+							onChange={(event) => updateCompactRows(event.target.checked)}
+						/>
+						<span>Compact rows</span>
+					</label>
+					<DesktopIconButton aria-label="Refresh Population Pool" disabled={loading} onClick={() => void refresh()}>
+						<RefreshCw size={16} aria-hidden="true" />
+					</DesktopIconButton>
+				</div>
 
-			<div className="PopulationPoolToolbar">
-				<DesktopInput
-					aria-label="Search Population Pool"
-					placeholder="Search Population Pool"
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-				/>
-				<label className="PopulationPoolCompactToggle">
-					<input
-						type="checkbox"
-						checked={!!config.viewConfigs.populationPool?.smallRows}
-						onChange={(event) => updateCompactRows(event.target.checked)}
-					/>
-					<span>Compact rows</span>
-				</label>
-			</div>
+				<div className="PopulationPoolFilters" role="group" aria-label="Population Pool source filters">
+					{SOURCE_FILTERS.map((filter) => (
+						<button
+							type="button"
+							key={filter.source}
+							aria-pressed={enabledSources.has(filter.source)}
+							onClick={() =>
+								setEnabledSources((current) => {
+									const next = new Set(current);
+									if (next.has(filter.source)) {
+										next.delete(filter.source);
+									} else {
+										next.add(filter.source);
+									}
+									return next;
+								})
+							}
+						>
+							{filter.label}
+						</button>
+					))}
+				</div>
 
-			<div className="PopulationPoolFilters" role="group" aria-label="Population Pool source filters">
-				{SOURCE_FILTERS.map((filter) => (
-					<button
-						type="button"
-						key={filter.source}
-						aria-pressed={enabledSources.has(filter.source)}
-						onClick={() =>
-							setEnabledSources((current) => {
-								const next = new Set(current);
-								if (next.has(filter.source)) {
-									next.delete(filter.source);
-								} else {
-									next.add(filter.source);
-								}
-								return next;
-							})
-						}
-					>
-						{filter.label}
-					</button>
-				))}
-			</div>
+				<section className="PopulationPathStatus" aria-label="Population Path Status">
+					{scanResult.pathStatuses.map((status) => (
+						<div key={status.key} className="PopulationPathStatusItem" data-state={status.state}>
+							<strong>{status.label}</strong>
+							<span>{status.message}</span>
+							<code>{status.path || 'Not detected'}</code>
+						</div>
+					))}
+				</section>
+			</header>
 
 			<div className="PopulationPoolContent">
 				<section className="PopulationPoolTablePane" aria-label="Population Pool table">

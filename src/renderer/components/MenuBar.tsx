@@ -1,4 +1,4 @@
-import { Grid3X3, Search, Settings, UsersRound } from 'lucide-react';
+import { Grid3X3, Search, Settings } from 'lucide-react';
 import type { AppConfig, AppState } from 'model';
 import { startTransition, useCallback, useEffect, useEffectEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -13,7 +13,22 @@ interface MenuProps {
 
 const navigationItems = [
 	{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
-	{ key: '/population-pool', icon: <UsersRound size={18} />, label: 'Population Pool' },
+	{
+		key: '/population-pool',
+		icon: (
+			<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+				<path
+					fill="none"
+					stroke="currentColor"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					strokeWidth="2"
+					d="M2 15a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3m4-3l1-5h5l3 5m6-3h-7.8"
+				/>
+			</svg>
+		),
+		label: 'Population Pool'
+	},
 	{ key: '/block-lookup', icon: <Search size={18} />, label: 'Block Lookup' },
 	{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
 ];
