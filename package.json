@@ -30,6 +30,7 @@
 		"check:health": "fallow health --score --min-score 70",
 		"check:audit": "fallow audit --gate new-only --summary || true",
 		"check:fallow": "pnpm run check:dead-code && pnpm run check:dupes && pnpm run check:health && pnpm run check:audit",
+		"check:effect": "effect-language-service diagnostics --project tsconfig.json --strict --severity error,warning",
 		"package": "node --import=tsx ./scripts/package.ts",
 		"package:linux": "node --import=tsx ./scripts/package.ts --platform linux",
 		"rebuild:electron": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
@@ -40,7 +41,7 @@
 		"test": "vitest run",
 		"bench:route-switch": "cross-env TTSMM_ROUTE_BENCH=1 vitest run src/__tests__/renderer/route-switch-latency.test.tsx",
 		"typecheck": "tsc -b",
-		"validate": "pnpm run lint && pnpm run check:fallow && pnpm run typecheck && pnpm run test && pnpm run build",
+		"validate": "pnpm run lint && pnpm run check:fallow && pnpm run typecheck && pnpm run check:effect && pnpm run test && pnpm run build",
 		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
 		"version:bump": "node --import=tsx ./scripts/version.ts"
 	},
@@ -144,7 +145,8 @@
 	"homepage": "https://github.com/Hellfrosted/TTSMM-EX#readme",
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
-		"@effect/vitest": "4.0.0-beta.65",
+		"@effect/language-service": "0.86.1",
+		"@effect/vitest": "4.0.0-beta.66",
 		"@electron/rebuild": "^4.0.4",
 		"@tailwindcss/vite": "^4.3.0",
 		"@testing-library/jest-dom": "^6.9.1",
@@ -169,10 +171,10 @@
 		"vitest": "^4.1.6"
 	},
 	"dependencies": {
-		"@effect/atom-react": "4.0.0-beta.65",
-		"@effect/platform-node": "4.0.0-beta.65",
+		"@effect/atom-react": "4.0.0-beta.66",
+		"@effect/platform-node": "4.0.0-beta.66",
 		"@tanstack/react-virtual": "^3.13.24",
-		"effect": "4.0.0-beta.65",
+		"effect": "4.0.0-beta.66",
 		"electron-log": "^5.4.3",
 		"electron-updater": "^6.8.3",
 		"lucide-react": "^1.14.0",
