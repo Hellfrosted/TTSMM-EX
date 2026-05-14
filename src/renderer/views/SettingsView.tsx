@@ -288,7 +288,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 				[
 					getSettingsPathError(AppConfigKeys.LOCAL_DIR, editingConfig.localDir),
 					getSettingsPathError(AppConfigKeys.LOGS_DIR, editingConfig.logsDir),
-					isLinux ? Effect.succeed(undefined) : getSettingsPathError(AppConfigKeys.GAME_EXEC, editingConfig.gameExec)
+					isLinux ? Effect.void : getSettingsPathError(AppConfigKeys.GAME_EXEC, editingConfig.gameExec)
 				],
 				{ concurrency: 3 }
 			)

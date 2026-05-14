@@ -159,7 +159,7 @@ export const fetchWorkshopDependencySnapshot = Effect.fnUntraced(function* (
 		Effect.catch((error) => {
 			log.warn(`Failed to fetch Workshop dependency snapshot for ${workshopID}.`);
 			log.warn(error);
-			return Effect.succeed(undefined);
+			return Effect.void;
 		})
 	);
 

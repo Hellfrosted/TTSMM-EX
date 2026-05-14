@@ -90,6 +90,10 @@ function hasUnresolvedWorkshopItem(items: UnresolvedWorkshopItem[], workshopID: 
 	return items.some((item) => item.workshopID === workshopID);
 }
 
+function stringifyBigintJson(value: unknown, space?: number): string {
+	return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v), space);
+}
+
 function addResolvedModsToResolver(
 	resolver: WorkshopInventoryResolver,
 	mods: Iterable<ModData>,
@@ -114,14 +118,14 @@ const resolveWorkshopDependencyChunkOutcome = Effect.fnUntraced(function* (
 	adapters: WorkshopDependencyExpansionAdapters
 ): Effect.fn.Return<WorkshopDependencyChunkOutcome, unknown, SteamPersonaCache> {
 	const modChunks = chunkWorkshopIds([...modList]);
-	log.silly(JSON.stringify(modChunks, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2));
+	log.silly(stringifyBigintJson(modChunks, 2));
 
 	const resolver = new WorkshopInventoryResolver(adapters.knownWorkshopMods, workshopMap, knownInvalidMods, adapters.options);
 	const modDependencies: Set<bigint> = new Set();
 	const unresolvedWorkshopItems: UnresolvedWorkshopItem[] = [];
 
 	for (let i = 0; i < modChunks.length; i++) {
-		log.silly(`Processing known mod chunk: ${JSON.stringify(modChunks[i], (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
+		log.silly(`Processing known mod chunk: ${stringifyBigintJson(modChunks[i], 2)}`);
 
 		const requestedWorkshopIDs = new Set(modChunks[i]);
 		let metadataFailed = false;
@@ -142,7 +146,7 @@ const resolveWorkshopDependencyChunkOutcome = Effect.fnUntraced(function* (
 			});
 			continue;
 		}
-		log.silly(`Got mod details: ${JSON.stringify(modDetails, (_, v) => (typeof v === 'bigint' ? v.toString() : v), 2)}`);
+		log.silly(`Got mod details: ${stringifyBigintJson(modDetails, 2)}`);
 		modDetails.forEach((mod: ModData) => {
 			log.silly(`Got results for workshop mod ${mod.name} (${mod.uid})`);
 			if (mod.workshopID !== undefined) {

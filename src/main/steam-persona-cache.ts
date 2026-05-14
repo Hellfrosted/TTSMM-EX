@@ -36,6 +36,8 @@ function createSteamPersonaCache(steamworks: SteamPersonaApi) {
 	return Effect.gen(function* () {
 		const pendingLookups = yield* Ref.make(new Map<string, Deferred.Deferred<string>>());
 		const listeningForPersonaChanges = yield* Ref.make(false);
+		const services = yield* Effect.context<never>();
+		const runFork = Effect.runForkWith(services);
 
 		const resolveLookup = (steamID: string, resolvedName: string) =>
 			Ref.modify(pendingLookups, (currentLookups) => {
@@ -56,7 +58,7 @@ function createSteamPersonaCache(steamworks: SteamPersonaApi) {
 					? Effect.sync(() => {
 							steamworks.on(ValidGreenworksChannels.PERSONA_STATE_CHANGE, (steamID: string) => {
 								const resolvedName = tryGetPersonaName(steamworks, steamID) || steamID;
-								Effect.runFork(resolveLookup(steamID, resolvedName));
+								runFork(resolveLookup(steamID, resolvedName));
 							});
 						})
 					: Effect.void
@@ -94,10 +96,10 @@ function createSteamPersonaCache(steamworks: SteamPersonaApi) {
 					try {
 						const requestStarted = steamworks.requestUserInformation(steamID, true);
 						if (!requestStarted) {
-							Effect.runFork(resolveLookup(steamID, tryGetPersonaName(steamworks, steamID) || steamID));
+							runFork(resolveLookup(steamID, tryGetPersonaName(steamworks, steamID) || steamID));
 						}
 					} catch {
-						Effect.runFork(resolveLookup(steamID, steamID));
+						runFork(resolveLookup(steamID, steamID));
 					}
 				});
 			}

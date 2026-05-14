@@ -58,7 +58,7 @@ const validateAppConfig = Effect.fnUntraced(function* (
 	let failed = false;
 	const results = yield* Effect.all(
 		checks.map((check) =>
-			(check.task ?? Effect.succeed<string | undefined>(undefined)).pipe(
+			(check.task ?? Effect.void.pipe(Effect.as<string | undefined>(undefined))).pipe(
 				Effect.map((value) => ({ ok: true as const, value })),
 				Effect.catch(() => Effect.succeed({ ok: false as const }))
 			)
@@ -272,7 +272,7 @@ const resolveConfigLoadingBoot = Effect.fnUntraced(function* ({
 		Effect.catch((error) => {
 			api.logger.error(error);
 			haltBootOnPersistenceFailure(formatErrorMessage(error));
-			return Effect.succeed(undefined);
+			return Effect.void;
 		})
 	);
 	if (!result) {

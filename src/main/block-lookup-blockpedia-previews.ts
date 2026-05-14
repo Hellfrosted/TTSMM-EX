@@ -198,12 +198,21 @@ const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 			if (!imageBytes) {
 				continue;
 			}
-			try {
-				fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-				fs.writeFileSync(cachePath, Buffer.from(imageBytes));
-			} catch (error) {
-				log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
-				log.warn(error);
+			const cached = yield* Effect.try({
+				try: () => {
+					fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+					fs.writeFileSync(cachePath, Buffer.from(imageBytes));
+					return true;
+				},
+				catch: (error) => toEffectOperationError(`cache Blockpedia preview ${entry.imageUrl}`, error)
+			}).pipe(
+				Effect.catch((error) => {
+					log.warn(`Failed to cache Blockpedia preview ${entry.imageUrl}`);
+					log.warn(error);
+					return Effect.succeed(false);
+				})
+			);
+			if (!cached) {
 				continue;
 			}
 		}
@@ -261,20 +270,34 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 	if (pageText === null) {
 		return [];
 	}
-	try {
-		const entries = parseBlockpediaPreviewEntries(pageText);
-		const cachedEntries = yield* downloadBlockpediaPreviewImages(previewCacheDir, entries, fetchImpl);
-		const manifest: BlockpediaPreviewManifest = {
-			entries: cachedEntries,
-			fetchedAt: new Date().toISOString(),
-			sourceUrl: BLOCKPEDIA_URL,
-			version: BLOCKPEDIA_MANIFEST_VERSION
-		};
-		writeManifest(previewCacheDir, manifest);
-		return toPreviewAssets(manifest.entries);
-	} catch (error) {
-		log.warn('Failed to load Blockpedia vanilla previews.');
-		log.warn(error);
-		return [];
-	}
+	const previewAssets = yield* Effect.try({
+		try: () => parseBlockpediaPreviewEntries(pageText),
+		catch: (error) => toEffectOperationError('parse Blockpedia preview entries', error)
+	}).pipe(
+		Effect.flatMap((entries) =>
+			downloadBlockpediaPreviewImages(previewCacheDir, entries, fetchImpl).pipe(
+				Effect.flatMap((cachedEntries) => {
+					return Effect.try({
+						try: () => {
+							const manifest: BlockpediaPreviewManifest = {
+								entries: cachedEntries,
+								fetchedAt: new Date().toISOString(),
+								sourceUrl: BLOCKPEDIA_URL,
+								version: BLOCKPEDIA_MANIFEST_VERSION
+							};
+							writeManifest(previewCacheDir, manifest);
+							return toPreviewAssets(manifest.entries);
+						},
+						catch: (error) => toEffectOperationError('write Blockpedia preview manifest', error)
+					});
+				})
+			)
+		),
+		Effect.catch((error) => {
+			log.warn('Failed to load Blockpedia vanilla previews.');
+			log.warn(error);
+			return Effect.succeed([]);
+		})
+	);
+	return previewAssets;
 });

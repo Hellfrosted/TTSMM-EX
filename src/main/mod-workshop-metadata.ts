@@ -68,13 +68,7 @@ export const populateWorkshopModMetadata = Effect.fnUntraced(function* (
 	potentialMod.preview = steamUGCDetails.previewURL;
 
 	const personaCache = yield* SteamPersonaCache;
-	const author = yield* personaCache.resolve(steamUGCDetails.steamIDOwner).pipe(
-		Effect.catch((error) => {
-			log.warn(`Failed to get username for author ${steamUGCDetails.steamIDOwner}`);
-			log.warn(error);
-			return Effect.succeed(steamUGCDetails.steamIDOwner);
-		})
-	);
+	const author = yield* personaCache.resolve(steamUGCDetails.steamIDOwner);
 	potentialMod.authors = [author];
 });
 

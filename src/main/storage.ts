@@ -66,11 +66,15 @@ export function listDirectoryEffect(filepath: string): Effect.Effect<fs.Dirent[]
 	});
 }
 
+function parseJsonFileContents<T>(fileContents: string): T {
+	return JSON.parse(fileContents) as T;
+}
+
 export function readJsonFileEffect<T>(filepath: string): Effect.Effect<T, MainStorageError> {
 	return Effect.try({
 		try: () => {
 			const fileContents = fs.readFileSync(filepath, 'utf8');
-			return JSON.parse(fileContents) as T;
+			return parseJsonFileContents<T>(fileContents);
 		},
 		catch: (error) => new MainStorageError('read-json-file', filepath, error)
 	});

@@ -152,14 +152,24 @@ const extractLocalVanillaPreviewAssets = Effect.fnUntraced(function* (
 	if (!fs.existsSync(dataRoot)) {
 		return [];
 	}
-	const sourcePaths = [
-		path.join(dataRoot, 'StreamingAssets', 'blocks_shared'),
-		path.join(dataRoot, 'StreamingAssets', 'gamescene'),
-		path.join(dataRoot, 'resources.assets'),
-		...fs
-			.readdirSync(dataRoot, { withFileTypes: true })
-			.flatMap((entry) => (entry.isFile() && /^sharedassets\d+\.assets$/i.test(entry.name) ? [path.join(dataRoot, entry.name)] : []))
-	].filter((sourcePath, index, allSourcePaths) => fs.existsSync(sourcePath) && allSourcePaths.indexOf(sourcePath) === index);
+	const sourcePaths = yield* Effect.try({
+		try: () =>
+			[
+				path.join(dataRoot, 'StreamingAssets', 'blocks_shared'),
+				path.join(dataRoot, 'StreamingAssets', 'gamescene'),
+				path.join(dataRoot, 'resources.assets'),
+				...fs
+					.readdirSync(dataRoot, { withFileTypes: true })
+					.flatMap((entry) => (entry.isFile() && /^sharedassets\d+\.assets$/i.test(entry.name) ? [path.join(dataRoot, entry.name)] : []))
+			].filter((sourcePath, index, allSourcePaths) => fs.existsSync(sourcePath) && allSourcePaths.indexOf(sourcePath) === index),
+		catch: (error) => toEffectOperationError(`discover vanilla block preview sources from ${dataRoot}`, error)
+	}).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to discover vanilla block preview sources from ${dataRoot}`);
+			log.warn(error);
+			return Effect.succeed<string[]>([]);
+		})
+	);
 	if (!sourcePaths.length) {
 		return [];
 	}
@@ -204,35 +214,40 @@ const extractVanillaSourceRecords = Effect.fnUntraced(function* (
 	if (!enumNames) {
 		return [];
 	}
-	try {
-		const exportMap = buildVanillaExportMap(source.sourcePath);
-		const records = enumNames.flatMap((enumName) => {
-			const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
-			if (shouldSkipVanillaBlockIdentifier(enumName) || shouldSkipVanillaBlockIdentifier(displaySource)) {
-				return [];
-			}
-			const block: ExtractedTextBlock = {
-				blockName: humanizeBlockLookupIdentifier(displaySource),
-				blockId: '',
-				internalName: enumName
-			};
-			return [
-				createBlockLookupRecord(source, block, {
-					preferredAlias: enumName,
-					fallbackAlias: enumName
-				})
-			];
-		});
-		if (records.length === 0) {
-			return records;
-		}
-		const previewAssets = yield* extractVanillaPreviewAssets(source.sourcePath, records, options);
-		return assignRenderedBlockPreviewsToRecords(records, previewAssets, options);
-	} catch (error) {
-		log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
-		log.warn(error);
-		return [];
+	const records = yield* Effect.try({
+		try: () => {
+			const exportMap = buildVanillaExportMap(source.sourcePath);
+			return enumNames.flatMap((enumName) => {
+				const displaySource = exportMap.get(normalizedBlockLookupKey(enumName)) || enumName;
+				if (shouldSkipVanillaBlockIdentifier(enumName) || shouldSkipVanillaBlockIdentifier(displaySource)) {
+					return [];
+				}
+				const block: ExtractedTextBlock = {
+					blockName: humanizeBlockLookupIdentifier(displaySource),
+					blockId: '',
+					internalName: enumName
+				};
+				return [
+					createBlockLookupRecord(source, block, {
+						preferredAlias: enumName,
+						fallbackAlias: enumName
+					})
+				];
+			});
+		},
+		catch: (error) => toEffectOperationError(`index vanilla TerraTech blocks from ${source.sourcePath}`, error)
+	}).pipe(
+		Effect.catch((error) => {
+			log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
+			log.warn(error);
+			return Effect.succeed<BlockLookupRecord[]>([]);
+		})
+	);
+	if (records.length === 0) {
+		return records;
 	}
+	const previewAssets = yield* extractVanillaPreviewAssets(source.sourcePath, records, options);
+	return assignRenderedBlockPreviewsToRecords(records, previewAssets, options);
 });
 
 function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupRecord[] {

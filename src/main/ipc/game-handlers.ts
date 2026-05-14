@@ -123,7 +123,7 @@ const isGameRunning = Effect.fnUntraced(function* (): Effect.fn.Return<boolean> 
 		Effect.catch((error) => {
 			log.error('Failed to get game running status. Defaulting to not running');
 			log.error(error);
-			return Effect.succeed(undefined);
+			return Effect.void;
 		})
 	);
 	if (!psList) {
@@ -241,7 +241,7 @@ const selectPath = Effect.fnUntraced(function* (directory: boolean, title: strin
 	}).pipe(
 		Effect.catch((error) => {
 			log.error(error);
-			return Effect.succeed(undefined);
+			return Effect.void;
 		})
 	);
 	if (!result || result.canceled) {

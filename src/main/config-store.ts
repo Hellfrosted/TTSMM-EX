@@ -60,12 +60,16 @@ function createSerializedConfigPayload(normalizedConfig: AppConfig): Record<stri
 	return serializedConfig;
 }
 
+function stringifySerializedConfigPayload(normalizedConfig: AppConfig): string {
+	return JSON.stringify(createSerializedConfigPayload(normalizedConfig), null, 4);
+}
+
 export const writeConfigFileEffect = Effect.fnUntraced(function* (
 	filepath: string,
 	config: AppConfig
 ): Effect.fn.Return<AppConfig | null, Error> {
 	const normalizedConfig = serializeConfig(config);
-	return yield* writeUtf8FileAtomicEffect(filepath, JSON.stringify(createSerializedConfigPayload(normalizedConfig), null, 4)).pipe(
+	return yield* writeUtf8FileAtomicEffect(filepath, stringifySerializedConfigPayload(normalizedConfig)).pipe(
 		Effect.as(normalizedConfig),
 		Effect.catch((error) => {
 			log.error(error.cause);

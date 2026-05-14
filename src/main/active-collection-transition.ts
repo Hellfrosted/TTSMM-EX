@@ -186,7 +186,7 @@ export const deleteActiveCollectionTransition = Effect.fnUntraced(function* (
 
 	let replacement: { collection: ModCollection; createdFallback: boolean } | undefined;
 	replacement = yield* selectReplacementActiveCollection(userDataPath, request.activeCollection.name).pipe(
-		Effect.catch(() => Effect.succeed(undefined))
+		Effect.catch(() => Effect.void.pipe(Effect.as(undefined as { collection: ModCollection; createdFallback: boolean } | undefined)))
 	);
 	if (!replacement) {
 		return yield* restoreDeletedActiveCollection(

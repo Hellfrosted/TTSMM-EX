@@ -134,16 +134,22 @@ export const getModDetailsFromPath = Effect.fnUntraced(function* (
 		}
 	});
 	let validModData = false;
-	try {
-		const stats = fs.statSync(modPath);
-		potentialMod.lastUpdate = stats.mtime;
-		if (!potentialMod.dateAdded) {
-			potentialMod.dateAdded = stats.birthtime;
-		}
-	} catch (e) {
-		log.error(`Failed to get file details for path ${modPath}`);
-		log.error(e);
-	}
+	yield* Effect.try({
+		try: () => {
+			const stats = fs.statSync(modPath);
+			potentialMod.lastUpdate = stats.mtime;
+			if (!potentialMod.dateAdded) {
+				potentialMod.dateAdded = stats.birthtime;
+			}
+		},
+		catch: (error) => toEffectOperationError(`get file details for path ${modPath}`, error)
+	}).pipe(
+		Effect.catch((error) => {
+			log.error(`Failed to get file details for path ${modPath}`);
+			log.error(error);
+			return Effect.void;
+		})
+	);
 	const fileSizes = files.map((file) => {
 		let size = 0;
 		if (file.isFile()) {
@@ -198,12 +204,17 @@ export const scanLocalMods = Effect.fnUntraced(function* (
 ): Effect.fn.Return<ModData[]> {
 	let localModDirs: string[] = [];
 	if (localPath) {
-		try {
-			localModDirs = fs.readdirSync(localPath, { withFileTypes: true }).flatMap((dirent) => (dirent.isDirectory() ? [dirent.name] : []));
-			progress.localMods = localModDirs.length;
-		} catch {
-			log.error(`Failed to read local mods in ${localModDirs}`);
-		}
+		localModDirs = yield* Effect.try({
+			try: () => fs.readdirSync(localPath, { withFileTypes: true }).flatMap((dirent) => (dirent.isDirectory() ? [dirent.name] : [])),
+			catch: (error) => toEffectOperationError(`read local mods in ${localPath}`, error)
+		}).pipe(
+			Effect.catch((error) => {
+				log.error(`Failed to read local mods in ${localPath}`);
+				log.error(error);
+				return Effect.succeed<string[]>([]);
+			})
+		);
+		progress.localMods = localModDirs.length;
 	}
 
 	const modResponses = yield* Effect.forEach(

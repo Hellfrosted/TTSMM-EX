@@ -49,13 +49,7 @@ export function runSteamworksAction(
 			logger.error(error);
 			resume(Effect.succeed(false));
 		}
-	}).pipe(
-		Effect.catch((error) => {
-			logger.error(failureMessage);
-			logger.error(error);
-			return Effect.succeed(false);
-		})
-	);
+	});
 }
 
 export function applyWorkshopRuntimeState(mod: ModData, options: WorkshopRuntimeStateOptions = {}): { installedPath?: string } {
