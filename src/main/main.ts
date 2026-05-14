@@ -6,6 +6,7 @@ import { registerCollectionHandlers } from './ipc/collection-handlers';
 import { registerConfigHandlers } from './ipc/config-handlers';
 import { registerGameHandlers } from './ipc/game-handlers';
 import { registerModHandlers } from './ipc/mod-handlers';
+import { registerPopulationPoolHandlers } from './ipc/population-pool-handlers';
 import { registerPreviewProtocol } from './preview-protocol';
 import { SteamworksRuntime } from './steamworks-runtime';
 import { isUiSmokeRun, runUiSmoke } from './ui-smoke-runner';
@@ -95,6 +96,9 @@ app.on('window-all-closed', () => {
 
 registerConfigHandlers(ipcMain, isDevelopment);
 registerBlockLookupHandlers(ipcMain, {
+	getUserDataPath: () => app.getPath('userData')
+});
+registerPopulationPoolHandlers(ipcMain, {
 	getUserDataPath: () => app.getPath('userData')
 });
 registerCollectionHandlers(ipcMain);

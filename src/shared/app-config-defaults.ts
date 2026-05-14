@@ -5,6 +5,7 @@ import { DEFAULT_COLLECTIONS_PATH, getStoredViewPath } from 'shared/app-route-po
 import { normalizeBlockLookupViewConfig } from 'shared/block-lookup-view-config';
 import { LogLevel } from 'shared/ipc';
 import { normalizeMainCollectionConfig } from 'shared/main-collection-view-config';
+import { normalizePopulationPoolViewConfig } from 'shared/population-pool-view-config';
 
 export const DEFAULT_WORKSHOP_ID = BigInt(2790161231);
 
@@ -114,9 +115,14 @@ function normalizeViewConfigs(value: unknown): AppConfig['viewConfigs'] {
 		viewConfigs.blockLookup && typeof viewConfigs.blockLookup === 'object' && !Array.isArray(viewConfigs.blockLookup)
 			? normalizeBlockLookupViewConfig(viewConfigs.blockLookup)
 			: undefined;
+	const populationPoolConfig =
+		viewConfigs.populationPool && typeof viewConfigs.populationPool === 'object' && !Array.isArray(viewConfigs.populationPool)
+			? normalizePopulationPoolViewConfig(viewConfigs.populationPool)
+			: undefined;
 	return {
 		...(mainConfig && Object.keys(mainConfig).length > 0 ? { main: mainConfig } : {}),
-		...(blockLookupConfig && Object.keys(blockLookupConfig).length > 0 ? { blockLookup: blockLookupConfig } : {})
+		...(blockLookupConfig && Object.keys(blockLookupConfig).length > 0 ? { blockLookup: blockLookupConfig } : {}),
+		...(populationPoolConfig && Object.keys(populationPoolConfig).length > 0 ? { populationPool: populationPoolConfig } : {})
 	} as AppConfig['viewConfigs'];
 }
 

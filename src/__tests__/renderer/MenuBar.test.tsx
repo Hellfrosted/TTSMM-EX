@@ -42,6 +42,10 @@ function getBlockLookupMenuItem(container: HTMLElement) {
 	return container.querySelector('li[data-menu-id$="/block-lookup"] button') as HTMLElement;
 }
 
+function getPopulationPoolMenuItem(container: HTMLElement) {
+	return container.querySelector('li[data-menu-id$="/population-pool"] button') as HTMLElement;
+}
+
 function getHarness(container: HTMLElement) {
 	return within(container);
 }
@@ -79,7 +83,7 @@ describe('MenuBar', () => {
 		expect(appState.updateState).not.toHaveBeenCalled();
 	}, 10000);
 
-	it('navigates to the block lookup workspace from the sidebar', async () => {
+	it('navigates to the Population Pool workspace from the sidebar', async () => {
 		const appState = createAppState({
 			config: {
 				...createAppState().config,
@@ -95,11 +99,11 @@ describe('MenuBar', () => {
 			</MemoryRouter>
 		);
 
-		fireEvent.click(getBlockLookupMenuItem(view.container));
+		fireEvent.click(getPopulationPoolMenuItem(view.container));
 		const harness = getHarness(view.container);
 
 		await waitFor(() => {
-			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
+			expect(harness.getByTestId('location')).toHaveTextContent('/population-pool');
 		});
 
 		expect(window.electron.updateConfig).not.toHaveBeenCalled();
@@ -125,17 +129,19 @@ describe('MenuBar', () => {
 
 		fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
 		await waitFor(() => {
-			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
+			expect(harness.getByTestId('location')).toHaveTextContent('/population-pool');
+			expect(getPopulationPoolMenuItem(view.container)).toHaveAttribute('aria-current', 'page');
 		});
 
 		fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
 		await waitFor(() => {
-			expect(harness.getByTestId('location')).toHaveTextContent('/settings');
+			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
+			expect(getBlockLookupMenuItem(view.container)).toHaveAttribute('aria-current', 'page');
 		});
 
 		fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true, shiftKey: true });
 		await waitFor(() => {
-			expect(harness.getByTestId('location')).toHaveTextContent('/block-lookup');
+			expect(harness.getByTestId('location')).toHaveTextContent('/population-pool');
 		});
 		expect(window.electron.updateConfig).not.toHaveBeenCalled();
 		expect(appState.config.currentPath).toBe('/collections/main');

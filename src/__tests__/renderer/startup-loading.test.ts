@@ -10,12 +10,13 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
 }
 
 describe('startup-loading', () => {
-	it('normalizes unsupported startup routes to the collection workspace', () => {
+	it('normalizes unsupported startup routes and restores supported workspaces', () => {
 		expect(getStartupRestorablePath(undefined)).toBe('/collections/main');
 		expect(getStartupRestorablePath('collections/main')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/collections')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/settings')).toBe('/collections/main');
-		expect(getStartupRestorablePath('/block-lookup')).toBe('/collections/main');
+		expect(getStartupRestorablePath('/block-lookup')).toBe('/block-lookup');
+		expect(getStartupRestorablePath('/population-pool')).toBe('/population-pool');
 		expect(getStartupRestorablePath('/loading/config')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/loading/steamworks')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/collections/main')).toBe('/collections/main');

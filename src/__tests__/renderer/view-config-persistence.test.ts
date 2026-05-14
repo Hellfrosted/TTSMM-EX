@@ -5,7 +5,9 @@ import {
 	BlockLookupColumnTitles,
 	type BlockLookupViewConfig,
 	type MainCollectionConfig,
-	MainColumnTitles
+	MainColumnTitles,
+	POPULATION_POOL_COLUMN_KEYS,
+	type PopulationPoolViewConfig
 } from '../../model';
 import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
 import { DEFAULT_BLOCK_LOOKUP_COLUMNS } from '../../renderer/block-lookup-column-definitions';
@@ -20,6 +22,7 @@ import { moveMainCollectionColumn } from '../../renderer/main-view-config-column
 import { setMainCollectionDetailsOverlaySize } from '../../renderer/main-view-config-size';
 import { normalizeBlockLookupViewConfig } from '../../shared/block-lookup-view-config';
 import { normalizeMainCollectionConfig } from '../../shared/main-collection-view-config';
+import { normalizePopulationPoolViewConfig } from '../../shared/population-pool-view-config';
 
 describe('view-config-persistence', () => {
 	it('normalizes main collection config by dropping unknown columns and clamping widths', () => {
@@ -279,5 +282,34 @@ describe('view-config-persistence', () => {
 		expect(setBlockLookupDraftColumnWidth(columns, 'blockName', undefined).find((column) => column.key === 'blockName')).not.toHaveProperty(
 			'width'
 		);
+	});
+
+	it('normalizes Population Pool config from persisted values', () => {
+		const config = {
+			smallRows: true,
+			columnActiveConfig: {
+				name: false,
+				Legacy: false
+			},
+			columnWidthConfig: {
+				name: 10,
+				path: 100,
+				Legacy: 999
+			},
+			columnOrder: ['Legacy', 'path', 'name', 'name', 'status']
+		} as unknown as PopulationPoolViewConfig;
+
+		expect(POPULATION_POOL_COLUMN_KEYS).toEqual(['name', 'source', 'status', 'compatibility', 'path']);
+		expect(normalizePopulationPoolViewConfig(config)).toEqual({
+			smallRows: true,
+			columnActiveConfig: {
+				name: false
+			},
+			columnWidthConfig: {
+				name: 160,
+				path: 220
+			},
+			columnOrder: ['path', 'name', 'status']
+		});
 	});
 });

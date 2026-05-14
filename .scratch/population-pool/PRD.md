@@ -1,6 +1,6 @@
 # Population Pool PRD
 
-Status: prototype-learnings-captured
+Status: implementation-slices-completed
 Owner: product
 Last updated: 2026-05-07
 
@@ -14,7 +14,7 @@ The feature is intentionally pool-first. The primary list shows **Active Populat
 
 The prototype validated a single production direction: a table-first **Population Pool** workspace using the same dense desktop language as Mod Collections and Block Lookup. The real feature should use scanner-backed data only. Sample Techs, fake source rows, UI variants, and local-only mutations should not remain in production.
 
-The current production slice is the **Population Pool Scanner**: route, sidebar placement, staged workspace mounting, Variant A table layout, source filters, inspector, real scan results for active RawTech files, disabled RawTech files, saved snapshots, subscribed Steam Workshop Techs, and stored Workshop requests. Stable file operations remain a later slice and must stay disabled until real write IPC exists.
+The initial production slice was the **Population Pool Scanner**: route, sidebar placement, staged workspace mounting, Variant A table layout, source filters, inspector, real scan results for active RawTech files, disabled RawTech files, saved snapshots, subscribed Steam Workshop Techs, and stored Workshop requests. Later slices added guarded stable file operations and Workshop Population Request persistence.
 
 ## Current Backlog State
 
@@ -26,11 +26,8 @@ Done:
 
 Outstanding:
 
-- Population Pool production code has not started in the current tree.
-- Slice 1, **Population Pool Scanner**, is the next implementation slice.
-- Slices 2 through 7 remain backlog work after the scanner slice.
-- Stable file operations remain out of scope until real write IPC and running-game confirmation are implemented.
-- The **Open Questions** section remains active and should be resolved during or before the affected implementation slices.
+- Broader UI smoke coverage can be added once the workspace receives visual QA.
+- Manual path override UX remains outside this pass; existing configured paths are reported as manually set when present.
 
 ## Problem
 
@@ -301,13 +298,13 @@ The feature is complete when:
 - Workshop request persistence tests that verify user-data storage and no writes to the TAC local population folder.
 - Accessibility checks for headings, tab semantics, keyboard navigation, focus visibility, non-color-only status, and disabled actions.
 
-## Open Questions
+## Resolved Questions
 
-1. Where should disabled RawTech files live relative to the TAC local population folder?
-2. What exact compatibility check defines a **TAC-Compatible Population Entry**?
-3. How should duplicate names or duplicate source files be resolved when adding or restoring entries?
-4. What process signal should the running-game write guard use for TerraTech on Windows and Proton?
-5. Should manual path overrides be stored globally, per profile, or as Population Pool-only preferences?
+1. Disabled RawTech files live in a TTSMM-EX-managed `.ttsmm-ex-disabled` sibling folder next to TACtical_AI's active `eLocal` folder.
+2. A **TAC-Compatible Population Entry** is a readable `.rawtech` file with non-empty TAC RawTech content; JSON files must parse to an object or array.
+3. Duplicate filenames are preserved by appending a timestamp suffix before the extension during disable, restore, and stable add.
+4. Population Pool reuses the existing running-game IPC guard before stable file writes.
+5. Dedicated manual path override UX is deferred; configured source paths are surfaced independently in Population Path Status.
 
 ## Documentation Notes
 

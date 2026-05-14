@@ -19,6 +19,200 @@
 	--app-weight-heading: 700;
 }
 
+.PopulationPoolView {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	height: 100%;
+	min-height: 0;
+	padding: 18px;
+	color: var(--app-color-text-base);
+	background: var(--app-color-bg);
+}
+
+.PopulationPoolHeader,
+.PopulationPoolToolbar,
+.PopulationPoolFilters,
+.PopulationPoolContent,
+.PopulationPathStatus {
+	display: flex;
+	gap: 10px;
+	min-width: 0;
+}
+
+.PopulationPoolHeader {
+	align-items: center;
+	justify-content: space-between;
+}
+
+.PopulationPoolHeader h1,
+.PopulationPoolInspector h2 {
+	margin: 0;
+	font-size: 18px;
+	letter-spacing: 0;
+}
+
+.PopulationPoolHeader p,
+.PopulationPoolInspector p,
+.PopulationPoolEmptyState,
+.PopulationPoolWarning,
+.PopulationPoolError {
+	margin: 4px 0 0;
+	color: var(--app-color-text-muted);
+}
+
+.PopulationPathStatus {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.PopulationPathStatusItem,
+.PopulationPoolInspector,
+.PopulationPoolTablePane {
+	border: 1px solid var(--app-color-border);
+	background: var(--app-color-surface);
+}
+
+.PopulationPathStatusItem {
+	display: grid;
+	gap: 4px;
+	min-width: 0;
+	padding: 10px;
+}
+
+.PopulationPathStatusItem code,
+.PopulationPoolInspector code,
+.PopulationPoolTable td {
+	overflow-wrap: anywhere;
+}
+
+.PopulationPoolToolbar {
+	align-items: center;
+}
+
+.PopulationPoolToolbar .DesktopInput {
+	max-width: 360px;
+}
+
+.PopulationPoolCompactToggle,
+.PopulationPoolColumnControls label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--app-color-text-muted);
+}
+
+.PopulationPoolFilters {
+	flex-wrap: wrap;
+}
+
+.PopulationPoolFilters button {
+	min-height: 28px;
+	border: 1px solid var(--app-color-border);
+	border-radius: 4px;
+	background: var(--app-color-surface);
+	color: var(--app-color-text-muted);
+}
+
+.PopulationPoolFilters button[aria-pressed="true"] {
+	background: var(--app-color-surface-elevated);
+	color: var(--app-color-text-base);
+}
+
+.PopulationPoolContent {
+	flex: 1;
+	min-height: 0;
+}
+
+.PopulationPoolTablePane {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	overflow: auto;
+}
+
+.PopulationPoolColumnControls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	padding: 8px;
+	border-bottom: 1px solid var(--app-color-border);
+}
+
+.PopulationPoolColumnControls input[type="number"] {
+	width: 74px;
+}
+
+.PopulationPoolTable {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.PopulationPoolTable th,
+.PopulationPoolTable td {
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--app-color-border);
+	text-align: left;
+	vertical-align: top;
+}
+
+.PopulationPoolTable[data-compact="true"] th,
+.PopulationPoolTable[data-compact="true"] td {
+	padding-block: 5px;
+}
+
+.PopulationPoolTable tbody tr {
+	cursor: pointer;
+}
+
+.PopulationPoolTable tbody tr[data-selected="true"] {
+	background: color-mix(in srgb, var(--app-color-text-base) 7%, transparent);
+}
+
+.PopulationPoolInspector {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	width: min(360px, 34vw);
+	min-width: 280px;
+	padding: 12px;
+	overflow: auto;
+}
+
+.PopulationPoolInspector img {
+	width: 100%;
+	max-height: 180px;
+	object-fit: contain;
+	background: var(--app-color-bg);
+}
+
+.PopulationPoolInspectorActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.PopulationPoolError {
+	color: var(--app-color-danger-text);
+}
+
+@media (max-width: 900px) {
+	.PopulationPathStatus,
+	.PopulationPoolContent {
+		grid-template-columns: 1fr;
+		flex-direction: column;
+	}
+
+	.PopulationPoolInspector {
+		width: 100%;
+		min-width: 0;
+	}
+}
+
 html {
 	height: 100vh;
 	width: 100vw;

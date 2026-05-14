@@ -4,6 +4,7 @@ import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
 	createCollectionStageAppState,
+	createPopulationPoolStageAppState,
 	createSettingsStageAppState,
 	getAppRouteKind
 } from '../../renderer/app-view-model';
@@ -43,6 +44,7 @@ describe('app-view-model', () => {
 	it('classifies only app route prefixes as staged routes', () => {
 		expect(getAppRouteKind('/loading/steamworks')).toBe('loading');
 		expect(getAppRouteKind('/settings')).toBe('settings');
+		expect(getAppRouteKind('/population-pool')).toBe('population-pool');
 		expect(getAppRouteKind('/block-lookup')).toBe('block-lookup');
 		expect(getAppRouteKind('/collections/loading-history')).toBe('collections');
 	});
@@ -65,6 +67,22 @@ describe('app-view-model', () => {
 			showSettings: true,
 			showCollections: false
 		});
+
+		expect(
+			createAppShellViewModel({
+				activeCollection: undefined,
+				configErrorCount: 0,
+				launchingGame: false,
+				loadingMods: false,
+				madeConfigEdits: false,
+				pathname: '/population-pool',
+				savingConfig: false
+			})
+		).toMatchObject({
+			isPopulationPoolRoute: true,
+			showPopulationPool: true,
+			showCollections: false
+		});
 	});
 
 	it('creates route app states with narrow field sets', () => {
@@ -85,6 +103,10 @@ describe('app-view-model', () => {
 		expect(createBlockLookupStageAppState(state)).toEqual({
 			config: state.config,
 			mods: state.mods,
+			updateState: state.updateState
+		});
+		expect(createPopulationPoolStageAppState(state)).toEqual({
+			config: state.config,
 			updateState: state.updateState
 		});
 	});

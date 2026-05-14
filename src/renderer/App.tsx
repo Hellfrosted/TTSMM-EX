@@ -20,6 +20,7 @@ import {
 	createAppShellViewModel,
 	createBlockLookupStageAppState,
 	createCollectionStageAppState,
+	createPopulationPoolStageAppState,
 	createSettingsStageAppState,
 	getAppRouteKind
 } from './app-view-model';
@@ -31,6 +32,7 @@ import { appCssVariables } from './theme';
 const loadCollectionView = () => import('./views/CollectionView');
 const loadSettingsView = () => import('./views/SettingsView');
 const loadBlockLookupView = () => import('./views/BlockLookupView');
+const loadPopulationPoolView = () => import('./views/PopulationPoolView');
 const loadMenuBar = () => import('./components/MenuBar');
 
 const CollectionViewLazy = lazy(async () => {
@@ -48,6 +50,11 @@ const BlockLookupViewLazy = lazy(async () => {
 	return { default: module.BlockLookupView };
 });
 
+const PopulationPoolViewLazy = lazy(async () => {
+	const module = await loadPopulationPoolView();
+	return { default: module.PopulationPoolView };
+});
+
 const MenuBarLazy = lazy(async () => {
 	const module = await loadMenuBar();
 	return { default: module.default };
@@ -61,7 +68,7 @@ export function resetInitialSteamworksVerificationForTests() {
 
 interface AppViewStageProps extends PropsWithChildren {
 	active: boolean;
-	name: 'loading' | 'collections' | 'settings' | 'block-lookup';
+	name: 'loading' | 'collections' | 'population-pool' | 'settings' | 'block-lookup';
 	overflow?: 'auto' | 'hidden';
 }
 
@@ -169,23 +176,45 @@ const BlockLookupStageView = memo(function BlockLookupStageView() {
 	return <BlockLookupViewLazy appState={appState} />;
 });
 
+const PopulationPoolStageView = memo(function PopulationPoolStageView() {
+	const config = useAppStateSelector((state) => state.config);
+	const updateState = useAppStateSelector((state) => state.updateState);
+	const appState = useMemo(
+		() =>
+			createPopulationPoolStageAppState({
+				config,
+				updateState
+			}),
+		[config, updateState]
+	);
+	return <PopulationPoolViewLazy appState={appState} />;
+});
+
 function LoadingStageOutlet() {
 	return <Outlet />;
 }
 
 function preloadWorkspaceRoutes() {
 	void loadSettingsView();
+	void loadPopulationPoolView();
 	void loadBlockLookupView();
 }
 
 function getWorkspaceStageKey(pathname: string): keyof AppShellMountedStages {
 	const routeKind = getAppRouteKind(pathname);
-	return routeKind === 'settings' ? 'settings' : routeKind === 'block-lookup' ? 'blockLookup' : 'collections';
+	return routeKind === 'settings'
+		? 'settings'
+		: routeKind === 'block-lookup'
+			? 'blockLookup'
+			: routeKind === 'population-pool'
+				? 'populationPool'
+				: 'collections';
 }
 
 interface AppShellMountedStages {
 	blockLookup: boolean;
 	collections: boolean;
+	populationPool: boolean;
 	settings: boolean;
 }
 
@@ -224,6 +253,7 @@ export function AppShell() {
 	const [mountedStages, setMountedStages] = useState<AppShellMountedStages>({
 		blockLookup: initialRouteKind === 'block-lookup',
 		collections: initialRouteKind === 'collections',
+		populationPool: initialRouteKind === 'population-pool',
 		settings: initialRouteKind === 'settings'
 	});
 	const effectivePathname = previewPathname ?? currentPathname;
@@ -367,6 +397,20 @@ export function AppShell() {
 							}
 						>
 							<BlockLookupStageView />
+						</Suspense>
+					</AppViewStage>
+				) : null}
+				{mountedStages.populationPool ? (
+					<AppViewStage active={appShell.showPopulationPool} name="population-pool">
+						<Suspense
+							fallback={
+								<ViewStageLoadingFallback
+									title="Loading Population Pool"
+									detail="Scanning TAC population entries, saved Tech candidates, and Workshop requests."
+								/>
+							}
+						>
+							<PopulationPoolStageView />
 						</Suspense>
 					</AppViewStage>
 				) : null}

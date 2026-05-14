@@ -62,14 +62,23 @@ export function createBlockLookupStageAppState(state: Pick<AppState, 'config' | 
 	};
 }
 
+export function createPopulationPoolStageAppState(state: Pick<AppState, 'config' | 'updateState'>) {
+	return {
+		config: state.config,
+		updateState: state.updateState
+	};
+}
+
 export function createAppShellViewModel(inputs: AppShellInputs) {
 	const routeKind = getAppRouteKind(inputs.pathname);
 	const isLoadingRoute = routeKind === 'loading';
 	const isSettingsRoute = routeKind === 'settings';
 	const isBlockLookupRoute = routeKind === 'block-lookup';
-	const showCollections = !isLoadingRoute && !isSettingsRoute && !isBlockLookupRoute;
+	const isPopulationPoolRoute = routeKind === 'population-pool';
+	const showCollections = !isLoadingRoute && !isSettingsRoute && !isBlockLookupRoute && !isPopulationPoolRoute;
 	const showSettings = !isLoadingRoute && isSettingsRoute;
 	const showBlockLookup = !isLoadingRoute && isBlockLookupRoute;
+	const showPopulationPool = !isLoadingRoute && isPopulationPoolRoute;
 
 	return {
 		disableNavigation:
@@ -77,9 +86,11 @@ export function createAppShellViewModel(inputs: AppShellInputs) {
 		hasCollectionWorkspace: showCollections || !!inputs.activeCollection || !!inputs.loadingMods,
 		isBlockLookupRoute,
 		isLoadingRoute,
+		isPopulationPoolRoute,
 		isSettingsRoute,
 		showBlockLookup,
 		showCollections,
+		showPopulationPool,
 		showSettings
 	};
 }

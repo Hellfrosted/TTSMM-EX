@@ -4,6 +4,7 @@ import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { registerConfigHandlers } from '../../main/ipc/config-handlers';
 import { registerGameHandlers } from '../../main/ipc/game-handlers';
 import { registerModHandlers } from '../../main/ipc/mod-handlers';
+import { registerPopulationPoolHandlers } from '../../main/ipc/population-pool-handlers';
 import { ValidChannel } from '../../shared/ipc';
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from '../../shared/ipc-contract';
 import { createTempDir } from './test-utils';
@@ -25,6 +26,7 @@ function registerAllMainHandlers() {
 
 	registerConfigHandlers(ipcMain as never, true, userDataPathProvider);
 	registerBlockLookupHandlers(ipcMain as never, userDataPathProvider);
+	registerPopulationPoolHandlers(ipcMain as never, userDataPathProvider);
 	registerCollectionHandlers(ipcMain as never, userDataPathProvider);
 	registerGameHandlers(ipcMain as never);
 	registerModHandlers(
@@ -49,10 +51,13 @@ describe('ipc contract', () => {
 			updateConfig: ValidChannel.UPDATE_CONFIG
 		});
 		expect(Object.keys(ipcInvokeChannels).sort()).toEqual([
+			'addStablePopulationEntry',
 			'autoDetectBlockLookupWorkshopRoot',
 			'buildBlockLookupIndex',
 			'createCollectionLifecycle',
+			'createWorkshopPopulationRequest',
 			'deleteCollectionLifecycle',
+			'disablePopulationEntry',
 			'discoverGameExecutable',
 			'downloadMod',
 			'duplicateCollectionLifecycle',
@@ -69,7 +74,9 @@ describe('ipc contract', () => {
 			'readModMetadata',
 			'renameCollectionLifecycle',
 			'resolveStartupCollection',
+			'restorePopulationEntry',
 			'saveBlockLookupSettings',
+			'scanPopulationPool',
 			'searchBlockLookup',
 			'selectPath',
 			'steamworksInited',

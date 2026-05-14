@@ -17,7 +17,10 @@ type IpcSubscriptionMethod =
 
 export const ipcInvokeChannels = {
 	autoDetectBlockLookupWorkshopRoot: ValidChannel.BLOCK_LOOKUP_AUTODETECT_WORKSHOP_ROOT,
+	addStablePopulationEntry: ValidChannel.POPULATION_POOL_STABLE_ADD,
 	buildBlockLookupIndex: ValidChannel.BLOCK_LOOKUP_BUILD_INDEX,
+	createWorkshopPopulationRequest: ValidChannel.POPULATION_POOL_CREATE_WORKSHOP_REQUEST,
+	disablePopulationEntry: ValidChannel.POPULATION_POOL_DISABLE,
 	discoverGameExecutable: ValidChannel.DISCOVER_GAME_EXEC,
 	downloadMod: ValidChannel.DOWNLOAD_MOD,
 	fetchWorkshopDependencies: ValidChannel.FETCH_WORKSHOP_DEPENDENCIES,
@@ -37,12 +40,14 @@ export const ipcInvokeChannels = {
 	duplicateCollectionLifecycle: ValidChannel.DUPLICATE_COLLECTION_LIFECYCLE,
 	renameCollectionLifecycle: ValidChannel.RENAME_COLLECTION_LIFECYCLE,
 	saveBlockLookupSettings: ValidChannel.BLOCK_LOOKUP_SAVE_SETTINGS,
+	scanPopulationPool: ValidChannel.POPULATION_POOL_SCAN,
 	searchBlockLookup: ValidChannel.BLOCK_LOOKUP_SEARCH,
 	selectPath: ValidChannel.SELECT_PATH,
 	steamworksInited: ValidChannel.STEAMWORKS_INITED,
 	subscribeMod: ValidChannel.SUBSCRIBE_MOD,
 	switchCollectionLifecycle: ValidChannel.SWITCH_COLLECTION_LIFECYCLE,
 	unsubscribeMod: ValidChannel.UNSUBSCRIBE_MOD,
+	restorePopulationEntry: ValidChannel.POPULATION_POOL_RESTORE,
 	updateCollection: ValidChannel.UPDATE_COLLECTION,
 	updateConfig: ValidChannel.UPDATE_CONFIG
 } satisfies Record<IpcInvokeMethod, ValidChannel>;

@@ -12,4 +12,5 @@ export * from './ModCollection';
 export * from './mod-dependency-projection';
 export * from './mod-dependency-target';
 export * from './nuterrasteam-compatibility';
+export * from './PopulationPoolView';
 export * from './SessionMods';

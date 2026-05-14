@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 describe('AppRoutes', () => {
-	it('recovers invalid top-level paths to the main collection workspace', async () => {
+	it('keeps Population Pool as a valid top-level workspace route', async () => {
 		render(
 			<MemoryRouter initialEntries={['/population-pool']}>
 				<AppRoutes />
@@ -33,7 +33,7 @@ describe('AppRoutes', () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByTestId('pathname')).toHaveTextContent('/collections/main');
+			expect(screen.getByTestId('pathname')).toHaveTextContent('/population-pool');
 		});
 	});
 });

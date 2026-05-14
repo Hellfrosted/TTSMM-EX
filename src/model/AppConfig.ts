@@ -3,6 +3,7 @@ import { BlockLookupViewConfig } from './BlockLookupView';
 import { ModErrorType } from './CollectionValidation';
 import { MainCollectionConfig } from './MainCollectionView';
 import { ModDataOverride } from './Mod';
+import { PopulationPoolViewConfig } from './PopulationPoolView';
 
 export enum AppConfigKeys {
 	LOCAL_DIR = 'localDir',
@@ -46,6 +47,7 @@ export interface AppConfig {
 	viewConfigs: {
 		main?: MainCollectionConfig;
 		blockLookup?: BlockLookupViewConfig;
+		populationPool?: PopulationPoolViewConfig;
 	};
 
 	ignoredValidationErrors: Map<ModErrorType, { [uid: string]: string[] }>;

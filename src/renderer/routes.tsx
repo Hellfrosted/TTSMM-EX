@@ -31,6 +31,7 @@ export function AppRoutes() {
 		<Routes>
 			<Route path="/" element={<App />}>
 				<Route path="settings" element={<StageRoutePlaceholder />} />
+				<Route path="population-pool" element={<StageRoutePlaceholder />} />
 				<Route path="block-lookup" element={<StageRoutePlaceholder />} />
 				{/* Paths that indicate the application is processing request to load something from disk */}
 				<Route path="loading" element={<LoadingView />}>

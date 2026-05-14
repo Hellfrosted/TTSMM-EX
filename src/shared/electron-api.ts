@@ -22,6 +22,13 @@ import type {
 } from './collection-lifecycle';
 import type { LogLevel, PathType, ProgressUpdatePayload, SteamworksStatus } from './ipc';
 import type { ModContextMenuRequest } from './mod-context-menu';
+import type {
+	PopulationPoolCreateWorkshopRequest,
+	PopulationPoolFileOperationRequest,
+	PopulationPoolFileOperationResult,
+	PopulationPoolScanRequest,
+	PopulationPoolScanResult
+} from './population-pool';
 import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from './startup-collection-resolution';
 import type { WorkshopDependencyRefreshResult } from './workshop-dependency-snapshot';
 
@@ -80,6 +87,11 @@ export interface ElectronApi {
 	searchBlockLookup: (request: BlockLookupSearchRequest) => Promise<BlockLookupSearchResult>;
 	getBlockLookupStats: () => Promise<BlockLookupIndexStats | null>;
 	autoDetectBlockLookupWorkshopRoot: (request: BlockLookupBuildRequest) => Promise<string | null>;
+	scanPopulationPool: (request: PopulationPoolScanRequest) => Promise<PopulationPoolScanResult>;
+	disablePopulationEntry: (request: PopulationPoolFileOperationRequest) => Promise<PopulationPoolFileOperationResult>;
+	restorePopulationEntry: (request: PopulationPoolFileOperationRequest) => Promise<PopulationPoolFileOperationResult>;
+	addStablePopulationEntry: (request: PopulationPoolFileOperationRequest) => Promise<PopulationPoolFileOperationResult>;
+	createWorkshopPopulationRequest: (request: PopulationPoolCreateWorkshopRequest) => Promise<PopulationPoolScanResult>;
 	launchGame: (gameExec: string, workshopID: string | bigint | null, closeOnLaunch: boolean, args: string[]) => Promise<boolean>;
 	isGameRunning: () => Promise<boolean>;
 	readModMetadata: (
