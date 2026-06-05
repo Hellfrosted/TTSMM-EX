@@ -9,8 +9,7 @@ const pathsModulePath = '../../../scripts/lib/paths';
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
 const originalArch = Object.getOwnPropertyDescriptor(process, 'arch');
-const releaseAppInstallCommand =
-	'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts --config.virtual-store-dir=.pnpm';
+const releaseAppInstallCommand = 'pnpm --dir release/app install --force --ignore-scripts --config.virtual-store-dir=.pnpm';
 
 type MockedPaths = {
 	repoRoot: string;

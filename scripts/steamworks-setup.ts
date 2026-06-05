@@ -13,8 +13,7 @@ const greenworksBindingGypPath = path.join(greenworksPath, 'binding.gyp');
 const greenworksWorkshopWorkersPath = path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc');
 const releaseAppPnpmStorePath = path.join(releaseAppPath, '.pnpm');
 const releaseAppNestedPnpmStorePath = path.join(releaseAppNodeModulesPath, '.pnpm');
-const releaseAppInstallCommand =
-	'pnpm --dir release/app install --force --ignore-workspace --ignore-scripts --config.virtual-store-dir=.pnpm';
+const releaseAppInstallCommand = 'pnpm --dir release/app install --force --ignore-scripts --config.virtual-store-dir=.pnpm';
 const smokeWorkerPath = path.join(repoRoot, 'scripts', '.tmp', 'ttsmm-steamworks-smoke-worker.ts');
 const v8ExternalPointerTag = 'v8::kExternalPointerTypeTagDefault';
 

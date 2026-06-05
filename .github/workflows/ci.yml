@@ -146,11 +146,11 @@ jobs:
 
       - name: Install app runtime dependencies
         if: runner.os != 'Windows'
-        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts
+        run: pnpm --dir release/app install --frozen-lockfile --prefer-offline --ignore-scripts
 
       - name: Install app runtime dependencies
         if: runner.os == 'Windows'
-        run: pnpm --dir release/app install --ignore-workspace --frozen-lockfile --prefer-offline --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
+        run: pnpm --dir release/app install --frozen-lockfile --prefer-offline --ignore-scripts --store-dir "$env:PNPM_STORE_DIR"
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable

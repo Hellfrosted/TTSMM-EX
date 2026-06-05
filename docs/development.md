@@ -6,7 +6,7 @@ Use this page for details that are useful during source builds, validation, pack
 
 ## Source Build Requirements
 
-- Node `>=24 <26`
+- Node `>=24.15 <26`
 - pnpm `>=11 <12`
 - Rust toolchain with `cargo` for source builds that build or package Block Lookup bundle extraction
 - Steam desktop client
@@ -58,7 +58,7 @@ This repository assumes Steamworks is available for source builds. Steam must be
 
 The root package builds and bundles renderer code. Electron main/preload builds externalize dependencies that are listed in `release/app/package.json`, so every production main-process runtime dependency that is not bundled must also be present in `release/app/package.json` and `release/app/pnpm-lock.yaml`.
 
-When adding an Effect package for Electron main-process runtime code, keep the beta package set aligned with the root `effect` version. The current `@effect/platform-node` runtime entry uses `4.0.0-beta.64`; the release app lock pins `@effect/platform-node-shared` to the same beta set through pnpm overrides.
+When adding an Effect package for Electron main-process runtime code, keep the beta package set aligned with the root `effect` version. The current `@effect/platform-node` runtime entry uses `4.0.0-beta.74`; `release/app/pnpm-workspace.yaml` pins `@effect/platform-node-shared` to the same beta set through pnpm overrides.
 
 Windows packaging:
 

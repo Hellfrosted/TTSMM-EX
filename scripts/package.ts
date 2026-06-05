@@ -12,6 +12,7 @@ type PublishMode = 'never' | 'onTagOrDraft';
 const builderCliPath = path.join(repoRoot, 'node_modules', 'electron-builder', 'cli.js');
 const releaseAppPath = path.join(repoRoot, 'release', 'app');
 const packageAppPath = path.join(repoRoot, 'release', 'package-app');
+const releaseAppWorkspacePath = path.join(releaseAppPath, 'pnpm-workspace.yaml');
 const releaseAppGreenworksPath = path.join(releaseAppPath, 'node_modules', 'greenworks');
 const supportedPublishModes = new Set<PublishMode>(['never', 'onTagOrDraft']);
 const supportedLinuxTargets = new Set(['deb', 'pacman']);
@@ -69,7 +70,7 @@ const ensureReleaseAppDependencies = () => {
 		return;
 	}
 
-	runPackageManager(['--dir', 'release/app', 'install', '--ignore-workspace', '--ignore-scripts']);
+	runPackageManager(['--dir', 'release/app', 'install', '--ignore-scripts']);
 };
 
 const assertSteamworksNativeDepsReady = () => {
@@ -100,9 +101,10 @@ const stagePackageApp = () => {
 	removeIfExists(packageAppPath);
 	copyFile(path.join(releaseAppPath, 'package.json'), path.join(packageAppPath, 'package.json'));
 	copyFile(path.join(releaseAppPath, 'pnpm-lock.yaml'), path.join(packageAppPath, 'pnpm-lock.yaml'));
+	copyFile(releaseAppWorkspacePath, path.join(packageAppPath, 'pnpm-workspace.yaml'));
 	linkDirectory(path.join(releaseAppPath, 'dist'), path.join(packageAppPath, 'dist'));
 	fs.cpSync(path.join(releaseAppPath, 'bin'), path.join(packageAppPath, 'bin'), { recursive: true });
-	runPackageManager(['--dir', 'release/package-app', 'install', '--prod', '--ignore-workspace', '--ignore-scripts']);
+	runPackageManager(['--dir', 'release/package-app', 'install', '--prod', '--ignore-scripts']);
 	copyGreenworksRuntime(path.join(sourceNodeModulesPath, 'greenworks'), path.join(targetNodeModulesPath, 'greenworks'));
 	sanitizePackageAppLock();
 };

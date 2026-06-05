@@ -29,6 +29,7 @@ release/*
 release/app/*
 !release/app/package.json
 !release/app/pnpm-lock.yaml
+!release/app/pnpm-workspace.yaml
 output/
 .erb/dll
 .erb/.tmp
