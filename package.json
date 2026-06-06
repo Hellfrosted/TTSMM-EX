@@ -6,7 +6,7 @@
 	"version": "2.1.0",
 	"private": true,
 	"type": "commonjs",
-	"packageManager": "pnpm@11.1.1",
+	"packageManager": "pnpm@11.5.2",
 	"workspaces": [
 		"release/app",
 		"release/package-app"
