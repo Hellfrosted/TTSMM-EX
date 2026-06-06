@@ -9,3 +9,6 @@ allowBuilds:
   esbuild: true
   fallow: true
   msgpackr-extract: true
+
+minimumReleaseAgeExclude:
+  - '@types/react@19.2.17'
