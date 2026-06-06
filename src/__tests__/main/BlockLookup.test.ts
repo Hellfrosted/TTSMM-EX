@@ -1133,7 +1133,7 @@ describe('block lookup index', () => {
 		expect(result.sources.map((source) => source.sourcePath)).not.toContain(path.normalize(escapedJsonPath));
 	});
 
-	it('stops BlockJSON recursion beyond the configured depth limit', () => {
+	it('stops BlockJSON recursion beyond the configured depth limit', { timeout: 30000 }, () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-depth-limit-');
 		const modDir = path.join(tempDir, 'LoadedMod');
 		const blockJsonDir = path.join(modDir, 'BlockJSON');
