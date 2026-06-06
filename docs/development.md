@@ -1,6 +1,6 @@
 # Development Notes
 
-Last reviewed: 2026-05-13
+Last reviewed: 2026-06-06
 
 Use this page for details that are useful during source builds, validation, packaging, and maintenance but too bulky for the root README.
 
@@ -24,13 +24,13 @@ Linux notes:
 - Steam must be running and signed in before launching the app.
 - TerraTech should be installed in that same Steam library if you want the app to find the game install and scan Workshop content.
 - Linux launches TerraTech through Steam; the `TerraTech Executable` setting is unused there.
-- Linux builds need a Linux dependency install; a Windows `node_modules` tree mounted into WSL is not enough.
+- Linux builds need a Linux dependency install.
 - Source builds that rebuild Block Lookup extraction need `cargo` available on `PATH`.
 - Older Debian/Ubuntu releases may provide `libasound2` instead of `libasound2t64`.
 
-## WSL Commands
+## Source Commands
 
-Set `STEAMWORKS_SDK_PATH`, or create a repo-local `.steamworks-sdk-path` file that points at the extracted Steamworks `sdk` directory. From WSL in the shared Windows checkout, run source setup with pnpm directly:
+Set `STEAMWORKS_SDK_PATH`, or create a repo-local `.steamworks-sdk-path` file that points at the extracted Steamworks `sdk` directory. Run source setup with pnpm directly:
 
 ```bash
 pnpm install

@@ -45,19 +45,15 @@ privacy:
     - "**/*.key"
 
 commands:
-  wsl:
-    install: auto
-    check: auto
-    test: auto
   windows:
     install: auto
     check: auto
     test: auto
 
 hooks:
-  enabled: true
-  auto_push: true
-  auto_merge: true
+  enabled: false
+  auto_push: false
+  auto_merge: false
   merge_mode: ff-only
   run_checks_after_hook_merge: false
   fail_commit_on_sync_failure: false
