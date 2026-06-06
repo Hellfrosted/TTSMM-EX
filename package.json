@@ -7,6 +7,10 @@
 	"private": true,
 	"type": "commonjs",
 	"packageManager": "pnpm@11.1.1",
+	"workspaces": [
+		"release/app",
+		"release/package-app"
+	],
 	"files": [
 		"release/app/package.json",
 		"release/app/pnpm-lock.yaml",
@@ -26,10 +30,10 @@
 		"format": "biome format . --write",
 		"lint": "biome check .",
 		"lint:fix": "biome check . --write --unsafe",
-		"check:dead-code": "fallow dead-code --fail-on-issues",
-		"check:dupes": "fallow dupes --threshold 50 --top 25 --summary",
-		"check:health": "fallow health --score --min-score 70",
-		"check:audit": "fallow audit --gate new-only --summary || true",
+		"check:dead-code": "node --import=tsx ./scripts/run-fallow.ts dead-code --fail-on-issues",
+		"check:dupes": "node --import=tsx ./scripts/run-fallow.ts dupes --threshold 50 --top 25 --summary",
+		"check:health": "node --import=tsx ./scripts/run-fallow.ts health --score --min-score 70",
+		"check:audit": "node --import=tsx ./scripts/run-fallow.ts audit --gate new-only --summary || true",
 		"check:fallow": "pnpm run check:dead-code && pnpm run check:dupes && pnpm run check:health && pnpm run check:audit",
 		"check:effect": "effect-language-service diagnostics --project tsconfig.json --strict --severity error,warning",
 		"package": "node --import=tsx ./scripts/package.ts",
