@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Install Electron binary
-        run: pnpm exec install-electron
+        run: pnpm run ensure:electron
 
       - name: Lint
         run: pnpm run lint
@@ -142,7 +142,7 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline --store-dir "$env:PNPM_STORE_DIR"
 
       - name: Install Electron binary
-        run: pnpm exec install-electron
+        run: pnpm run ensure:electron
 
       - name: Install app runtime dependencies
         if: runner.os != 'Windows'

@@ -25,6 +25,7 @@
 		"build:block-lookup": "node --import=tsx ./scripts/build-block-lookup-extractor.ts",
 		"postinstall": "node --import=tsx ./scripts/postinstall.ts",
 		"prepare": "husky",
+		"ensure:electron": "node --import=tsx ./scripts/ensure-electron-binary.ts",
 		"setup:steamworks": "node --import=tsx ./scripts/setup-steamworks.ts",
 		"check:staged": "nano-staged",
 		"format": "biome format . --write",
@@ -46,7 +47,7 @@
 		"test": "vitest run",
 		"bench:route-switch": "cross-env TTSMM_ROUTE_BENCH=1 vitest run src/__tests__/renderer/route-switch-latency.test.tsx",
 		"typecheck": "tsc -b",
-		"validate": "pnpm run lint && pnpm run check:fallow && pnpm run typecheck && pnpm run check:effect && pnpm run test && pnpm run build",
+		"validate": "pnpm run lint && pnpm run check:fallow && pnpm run typecheck && pnpm run check:effect && pnpm run ensure:electron && pnpm run test && pnpm run build",
 		"publish": "node --import=tsx ./scripts/package.ts --publish onTagOrDraft",
 		"version:bump": "node --import=tsx ./scripts/version.ts"
 	},
@@ -151,7 +152,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.15",
 		"@effect/language-service": "0.86.2",
-		"@effect/vitest": "4.0.0-beta.74",
+		"@effect/vitest": "4.0.0-beta.78",
 		"@electron/rebuild": "^4.0.4",
 		"@tailwindcss/vite": "^4.3.0",
 		"@testing-library/jest-dom": "^6.9.1",
@@ -176,10 +177,10 @@
 		"vitest": "^4.1.6"
 	},
 	"dependencies": {
-		"@effect/atom-react": "4.0.0-beta.74",
-		"@effect/platform-node": "4.0.0-beta.74",
+		"@effect/atom-react": "4.0.0-beta.78",
+		"@effect/platform-node": "4.0.0-beta.78",
 		"@tanstack/react-virtual": "^3.13.24",
-		"effect": "4.0.0-beta.74",
+		"effect": "4.0.0-beta.78",
 		"electron-log": "^5.4.3",
 		"electron-updater": "^6.8.3",
 		"lucide-react": "^1.14.0",
