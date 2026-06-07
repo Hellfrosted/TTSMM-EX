@@ -1,11 +1,19 @@
 import type { BlockLookupIndexSource, BlockLookupIndexStats, BlockLookupRecord, PersistedBlockLookupIndex } from 'shared/block-lookup';
 import type { BlockLookupSourceRecord } from './block-lookup-source-discovery';
 
-interface BlockLookupIndexTask {
+interface ChangedBlockLookupIndexTask {
 	source: BlockLookupSourceRecord;
 	existingSource?: BlockLookupIndexSource;
-	reusedRecords?: BlockLookupRecord[];
+	reusedRecords?: undefined;
 }
+
+interface ReusedBlockLookupIndexTask {
+	source: BlockLookupSourceRecord;
+	existingSource: BlockLookupIndexSource;
+	reusedRecords: BlockLookupRecord[];
+}
+
+type BlockLookupIndexTask = ChangedBlockLookupIndexTask | ReusedBlockLookupIndexTask;
 
 interface BlockLookupIndexPlan {
 	removed: number;
@@ -62,11 +70,14 @@ export function createBlockLookupIndexPlan(
 	const tasks = sources.map((source) => {
 		const existingSource = existingSourceMap.get(source.sourcePath);
 		const unchanged = !forceRebuild && existingSource?.size === source.size && existingSource.mtimeMs === source.mtimeMs;
-		return {
-			source,
-			existingSource,
-			reusedRecords: unchanged ? existingRecordsBySource.get(source.sourcePath) || [] : undefined
-		};
+		if (unchanged) {
+			return {
+				source,
+				existingSource,
+				reusedRecords: existingRecordsBySource.get(source.sourcePath) || []
+			};
+		}
+		return existingSource ? { source, existingSource } : { source };
 	});
 	const seenSourcePaths = new Set(sources.map((source) => source.sourcePath));
 	const removed = existingIndex.sources.filter((source) => !seenSourcePaths.has(source.sourcePath)).length;
