@@ -9,12 +9,12 @@ import {
 } from 'model';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
+import { createCollectionValidationRunOutcome } from 'renderer/collection-validation-outcome';
 import { renderValidationErrors, summarizeValidationIssues, type ValidationIssueSummary } from 'renderer/collection-validation-run';
 import {
 	type CollectionValidationRunOutcome,
 	type CollectionWorkspaceValidationResult,
-	createCollectionWorkspaceValidationResult,
-	getCollectionValidationCompletionDecision
+	createCollectionWorkspaceValidationResult
 } from 'renderer/collection-workspace-session';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import type { NotificationType } from './useNotifications';
@@ -142,15 +142,12 @@ export function useCollectionValidation({ activeCollectionDraft, appState, openN
 				activeCollection: request.collection,
 				config: request.config
 			};
-			const preRenderDecision = getCollectionValidationCompletionDecision({
+			const preRenderOutcome = createCollectionValidationRunOutcome({
 				...preRenderWorkspace,
 				validationResult: pendingValidationResult
 			});
-			if (preRenderDecision.action === 'discard-stale-result') {
-				return {
-					type: 'discarded-stale-result',
-					validationResult: pendingValidationResult
-				};
+			if (preRenderOutcome.type === 'discarded-stale-result') {
+				return preRenderOutcome;
 			}
 
 			const renderedErrors = renderCollectionErrors(errors, launchIfValid, request.config, request.mods);
@@ -168,34 +165,24 @@ export function useCollectionValidation({ activeCollectionDraft, appState, openN
 					type: 'discarded-stale-result'
 				};
 			}
-			const completionDecision = getCollectionValidationCompletionDecision({
+			const completionOutcome = createCollectionValidationRunOutcome({
 				...preRenderWorkspace,
+				modalType: renderedErrors.modalType,
 				validationResult
 			});
 
-			if (completionDecision.action === 'discard-stale-result') {
-				return {
-					type: 'discarded-stale-result',
-					validationResult
-				};
+			if (completionOutcome.type === 'discarded-stale-result') {
+				return completionOutcome;
 			}
 
-			if (completionDecision.action === 'record-failed-result') {
-				setValidationResult(validationResult);
+			if (completionOutcome.type === 'recorded-failed-result') {
+				setValidationResult(completionOutcome.validationResult);
 				logValidationIssues(renderedErrors.summary);
-				return {
-					type: 'recorded-failed-result',
-					modalType: renderedErrors.modalType,
-					validationResult
-				};
+				return completionOutcome;
 			}
 
-			setValidationResult(validationResult);
-
-			return {
-				type: 'recorded-current-result',
-				validationResult
-			};
+			setValidationResult(completionOutcome.validationResult);
+			return completionOutcome;
 		},
 		[logValidationIssues, renderCollectionErrors]
 	);

@@ -11,7 +11,7 @@ import {
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceWorkflowState,
 	reduceCollectionWorkspaceWorkflow
-} from './collection-workspace-session';
+} from './collection-workspace-workflow';
 
 export interface ActiveCollectionDraftDriverFacts {
 	gameRunning: boolean;
@@ -108,10 +108,10 @@ export function createActiveCollectionDraftDriver({
 }: ActiveCollectionDraftDriverOptions): ActiveCollectionDraftDriver {
 	let disposed = false;
 	let validationRequestId = 0;
-	let runtimeFacts = initialFacts;
 	let workflowState = createCollectionWorkspaceWorkflowState({
 		config: initial.config,
-		draft: initial.draft
+		draft: initial.draft,
+		runtimeFacts: initialFacts
 	});
 	const listeners = new Set<() => void>();
 
@@ -123,11 +123,8 @@ export function createActiveCollectionDraftDriver({
 		return createCollectionWorkspaceSession({
 			activeCollection: workflowState.draft,
 			config: workflowState.config,
-			gameRunning: runtimeFacts.gameRunning || runtimeFacts.overrideGameRunning,
 			hasUnsavedDraft: workflowState.hasUnsavedDraft,
-			launchingGame: runtimeFacts.launchingGame,
-			loadingMods: runtimeFacts.loadingMods,
-			savingDraft: runtimeFacts.savingDraft,
+			runtimeFacts: workflowState.runtimeFacts,
 			validatingDraft: workflowState.validatingDraft,
 			validationResult: workflowState.validationResult
 		});
@@ -247,19 +244,17 @@ export function createActiveCollectionDraftDriver({
 				applyWorkflowEvent({ type: 'active-draft-edited', edit: event.edit });
 				break;
 			case 'runtime-facts-changed':
-				runtimeFacts = event.facts;
-				emit();
+				applyWorkflowEvent({ type: 'runtime-facts-changed', facts: event.facts });
 				break;
 			case 'has-unsaved-draft-changed':
 				applyWorkflowEvent({ type: 'has-unsaved-draft-changed', hasUnsavedDraft: event.hasUnsavedDraft });
 				break;
 			case 'launch-anyway-requested':
-				applyWorkflowEvent({ type: 'launch-anyway-requested', launchReadiness: getSnapshot().launchReadiness });
+				applyWorkflowEvent({ type: 'launch-anyway-requested' });
 				break;
 			case 'launch-requested':
 				applyWorkflowEvent({
 					type: 'launch-requested',
-					launchReadiness: getSnapshot().launchReadiness,
 					modalOpen: event.modalOpen
 				});
 				break;
