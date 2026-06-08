@@ -13,23 +13,18 @@ function normalizePath(currentPath: string | undefined): string {
 
 export function getAppRouteKind(pathname: string | undefined): AppRouteKind {
 	const normalizedPath = normalizePath(pathname);
-	if (normalizedPath === '/loading' || normalizedPath.startsWith('/loading/')) {
-		return 'loading';
+	switch (normalizedPath[1]) {
+		case 'l':
+			return normalizedPath === '/loading' || normalizedPath.startsWith('/loading/') ? 'loading' : 'collections';
+		case 's':
+			return normalizedPath === '/settings' || normalizedPath.startsWith('/settings/') ? 'settings' : 'collections';
+		case 'b':
+			return normalizedPath === '/block-lookup' || normalizedPath.startsWith('/block-lookup/') ? 'block-lookup' : 'collections';
+		case 'p':
+			return normalizedPath === '/population-pool' || normalizedPath.startsWith('/population-pool/') ? 'population-pool' : 'collections';
+		default:
+			return 'collections';
 	}
-
-	if (normalizedPath === '/settings' || normalizedPath.startsWith('/settings/')) {
-		return 'settings';
-	}
-
-	if (normalizedPath === '/block-lookup' || normalizedPath.startsWith('/block-lookup/')) {
-		return 'block-lookup';
-	}
-
-	if (normalizedPath === '/population-pool' || normalizedPath.startsWith('/population-pool/')) {
-		return 'population-pool';
-	}
-
-	return 'collections';
 }
 
 export function getStoredViewPath(currentPath: string | undefined): StoredViewPath {

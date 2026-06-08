@@ -75,10 +75,10 @@ export function createAppShellViewModel(inputs: AppShellInputs) {
 	const isSettingsRoute = routeKind === 'settings';
 	const isBlockLookupRoute = routeKind === 'block-lookup';
 	const isPopulationPoolRoute = routeKind === 'population-pool';
-	const showCollections = !isLoadingRoute && !isSettingsRoute && !isBlockLookupRoute && !isPopulationPoolRoute;
-	const showSettings = !isLoadingRoute && isSettingsRoute;
-	const showBlockLookup = !isLoadingRoute && isBlockLookupRoute;
-	const showPopulationPool = !isLoadingRoute && isPopulationPoolRoute;
+	const showCollections = routeKind === 'collections';
+	const showSettings = isSettingsRoute;
+	const showBlockLookup = isBlockLookupRoute;
+	const showPopulationPool = isPopulationPoolRoute;
 
 	return {
 		disableNavigation:
