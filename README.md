@@ -1,5 +1,7 @@
 # TerraTech Steam Mod Manager EX
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/Hellfrosted/TTSMM-EX?utm_source=badge)
+
 TerraTech Steam Mod Manager EX is a desktop app for managing TerraTech mods from Steam Workshop and local mod folders.
 
 TTSMM-EX is a fork of [`FLSoz/terratech-steam-mod-loader`](https://github.com/FLSoz/terratech-steam-mod-loader). It uses its own app identity and data folder, so it can be installed alongside the upstream app.

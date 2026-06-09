@@ -6,6 +6,7 @@
 		"scripts/electron-rebuild.ts",
 		"scripts/link-modules.ts",
 		"scripts/vite-dev.ts",
+		"src/__benchmarks__/**/*.ts",
 		"src/__tests__/**/*.{ts,tsx}",
 		"src/main/main.ts",
 		"src/main/preload.ts",
