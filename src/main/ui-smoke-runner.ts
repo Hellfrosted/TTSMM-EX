@@ -12,6 +12,7 @@ import {
 	UI_SMOKE_SCREENSHOT_DIR_PLAIN_ARG
 } from 'shared/ui-smoke';
 import zlib from 'zlib';
+import { isDialogTransitionRenderable, isRetriableCapturePageError, isToolbarDropdownRenderable } from './ui-smoke-policy';
 
 interface UiSmokeCheckpoint {
 	name: string;
@@ -295,6 +296,21 @@ async function waitForSelector(window: BrowserWindow, selector: string, timeoutM
 	throw new Error(`Timed out waiting for selector: ${selector}. Diagnostics: ${JSON.stringify(diagnostics)}`);
 }
 
+async function waitForNoSelector(window: BrowserWindow, selector: string, timeoutMs = 3000) {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		const found = (await window.webContents.executeJavaScript(
+			`Boolean(document.querySelector(${JSON.stringify(selector)}))`,
+			true
+		)) as boolean;
+		if (!found) {
+			return;
+		}
+		await delay(100);
+	}
+	throw new Error(`Timed out waiting for selector to disappear: ${selector}`);
+}
+
 async function clickMenuItem(window: BrowserWindow, label: string) {
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < 30000) {
@@ -335,29 +351,104 @@ async function captureCheckpoint(window: BrowserWindow, checkpoint: UiSmokeCheck
 	await waitForSelector(window, checkpoint.selector);
 	const metrics = await waitForRenderableCheckpoint(window, checkpoint);
 
-	const screenshotPath = path.join(screenshotDir, `${checkpoint.name}.png`);
-	showSmokeWindow(window);
-	await delay(150);
-	const image = await window.webContents.capturePage();
-	const png = image.toPNG();
-	fs.writeFileSync(screenshotPath, png);
-	if (!hasVisiblePngContent(png)) {
-		throw new Error(`Renderer checkpoint ${checkpoint.name} screenshot looked blank: ${screenshotPath}`);
-	}
+	const screenshotPath = await captureVisibleScreenshot(
+		window,
+		screenshotDir,
+		checkpoint.name,
+		`Renderer checkpoint ${checkpoint.name} screenshot looked blank`
+	);
 	return { ...checkpoint, screenshotPath, metrics };
 }
 
 async function captureInteractionScreenshot(window: BrowserWindow, screenshotDir: string, name: string, metrics: Record<string, unknown>) {
+	const screenshotPath = await captureVisibleScreenshot(
+		window,
+		screenshotDir,
+		name,
+		`Renderer interaction ${name} screenshot looked blank`
+	);
+	return { name, screenshotPath, metrics };
+}
+
+async function captureVisibleScreenshot(window: BrowserWindow, screenshotDir: string, name: string, blankMessage: string) {
 	const screenshotPath = path.join(screenshotDir, `${name}.png`);
 	showSmokeWindow(window);
 	await delay(150);
-	const image = await window.webContents.capturePage();
-	const png = image.toPNG();
+	const png = await capturePagePng(window);
 	fs.writeFileSync(screenshotPath, png);
 	if (!hasVisiblePngContent(png)) {
-		throw new Error(`Renderer interaction ${name} screenshot looked blank: ${screenshotPath}`);
+		throw new Error(`${blankMessage}: ${screenshotPath}`);
 	}
-	return { name, screenshotPath, metrics };
+	return screenshotPath;
+}
+
+async function capturePagePng(window: BrowserWindow, attempts = 3): Promise<Buffer> {
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		try {
+			const image = await window.webContents.capturePage();
+			return image.toPNG();
+		} catch (error) {
+			if (attempt === attempts || !isRetriableCapturePageError(error)) {
+				throw error;
+			}
+			await delay(200);
+		}
+	}
+	throw new Error('UI smoke screenshot capture exhausted retries.');
+}
+
+async function closeToolbarMenus(window: BrowserWindow) {
+	await window.webContents.executeJavaScript(
+		`
+		(() => {
+			if (!document.querySelector('.ToolbarMenuSurface')) {
+				return;
+			}
+			const target = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+			target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+			document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: 1, clientY: 1 }));
+		})()
+		`,
+		true
+	);
+	await waitForNoSelector(window, '.ToolbarMenuSurface');
+}
+
+async function collectDialogMetrics(window: BrowserWindow) {
+	return (await window.webContents.executeJavaScript(
+		`
+		(() => {
+			const overlay = document.querySelector('.DesktopDialogOverlay');
+			const panel = document.querySelector('.DesktopDialogPanel');
+			if (!(overlay instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
+				return { ok: false, reason: 'missing dialog overlay or panel' };
+			}
+			const overlayStyle = getComputedStyle(overlay);
+			const panelStyle = getComputedStyle(panel);
+			return {
+				overlayOpacity: overlayStyle.opacity,
+				panelOpacity: panelStyle.opacity,
+				panelTransformOrigin: panelStyle.transformOrigin,
+				panelTransitionProperty: panelStyle.transitionProperty,
+				panelTransitionDuration: panelStyle.transitionDuration
+			};
+		})()
+		`,
+		true
+	)) as Record<string, unknown>;
+}
+
+async function waitForDialogMetrics(window: BrowserWindow, timeoutMs = 3000) {
+	const startedAt = Date.now();
+	let metrics: Record<string, unknown> | undefined;
+	while (Date.now() - startedAt < timeoutMs) {
+		metrics = await collectDialogMetrics(window);
+		if (isDialogTransitionRenderable(metrics)) {
+			return metrics;
+		}
+		await delay(100);
+	}
+	return metrics ?? (await collectDialogMetrics(window));
 }
 
 async function runInteractionChecks(window: BrowserWindow, screenshotDir: string): Promise<UiSmokeInteractionResult[]> {
@@ -422,11 +513,6 @@ async function runInteractionChecks(window: BrowserWindow, screenshotDir: string
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			const style = getComputedStyle(menu);
 			return {
-				ok:
-					Number.parseFloat(startOpacity) < 1 &&
-					style.opacity === '1' &&
-					style.pointerEvents === 'auto' &&
-					style.transitionProperty.includes('transform'),
 				startOpacity,
 				opacity: style.opacity,
 				pointerEvents: style.pointerEvents,
@@ -438,43 +524,42 @@ async function runInteractionChecks(window: BrowserWindow, screenshotDir: string
 		`,
 		true
 	)) as Record<string, unknown>;
-	if (!dropdownMetrics.ok) {
+	if (!isToolbarDropdownRenderable(dropdownMetrics)) {
 		throw new Error(`Toolbar dropdown check failed: ${JSON.stringify(dropdownMetrics)}`);
 	}
 	results.push(await captureInteractionScreenshot(window, screenshotDir, 'toolbar-dropdown', dropdownMetrics));
+	await closeToolbarMenus(window);
 
-	const dialogMetrics = (await window.webContents.executeJavaScript(
+	const dialogOpenRequest = (await window.webContents.executeJavaScript(
 		`
-		(async () => {
-			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-			const buttons = Array.from(document.querySelectorAll('button'));
-			const button = buttons.find((candidate) => candidate.textContent && candidate.textContent.trim().includes('Table Settings'));
+		(() => {
+			const activeCollectionStage = document.querySelector('[data-view-stage="collections"][data-active="true"]');
+			const buttons = Array.from((activeCollectionStage || document).querySelectorAll('button'));
+			const button = buttons.find((candidate) => candidate.getAttribute('aria-label') === 'Table Settings');
 			if (!(button instanceof HTMLButtonElement)) {
-				return { ok: false, reason: 'missing Table Settings button' };
+				return {
+					ok: false,
+					reason: 'missing active Table Settings button',
+					activeCollectionStage: Boolean(activeCollectionStage),
+					buttonLabels: buttons.map((candidate) => candidate.getAttribute('aria-label') || candidate.textContent?.trim()).filter(Boolean).slice(0, 20)
+				};
+			}
+			if (button.disabled) {
+				return { ok: false, reason: 'disabled Table Settings button' };
 			}
 			button.click();
-			await new Promise((resolve) => setTimeout(resolve, 300));
-			const overlay = document.querySelector('.DesktopDialogOverlay');
-			const panel = document.querySelector('.DesktopDialogPanel');
-			if (!(overlay instanceof HTMLElement) || !(panel instanceof HTMLElement)) {
-				return { ok: false, reason: 'missing dialog overlay or panel' };
-			}
-			const overlayStyle = getComputedStyle(overlay);
-			const panelStyle = getComputedStyle(panel);
-			return {
-				ok: overlayStyle.opacity !== '0' && panelStyle.opacity !== '0' && panelStyle.transitionProperty.includes('transform'),
-				overlayOpacity: overlayStyle.opacity,
-				panelOpacity: panelStyle.opacity,
-				panelTransformOrigin: panelStyle.transformOrigin,
-				panelTransitionProperty: panelStyle.transitionProperty,
-				panelTransitionDuration: panelStyle.transitionDuration
-			};
+			return { ok: true };
 		})()
 		`,
 		true
 	)) as Record<string, unknown>;
-	if (!dialogMetrics.ok) {
+	if (!dialogOpenRequest.ok) {
+		throw new Error(`Dialog open check failed: ${JSON.stringify(dialogOpenRequest)}`);
+	}
+	await waitForSelector(window, '.DesktopDialogOverlay');
+	await waitForSelector(window, '.DesktopDialogPanel');
+	const dialogMetrics = await waitForDialogMetrics(window);
+	if (!isDialogTransitionRenderable(dialogMetrics)) {
 		throw new Error(`Dialog transition check failed: ${JSON.stringify(dialogMetrics)}`);
 	}
 	results.push(await captureInteractionScreenshot(window, screenshotDir, 'collection-name-dialog', dialogMetrics));
