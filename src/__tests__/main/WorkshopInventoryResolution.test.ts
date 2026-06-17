@@ -45,15 +45,36 @@ describe('WorkshopInventoryExpansion', () => {
 		]);
 	});
 
-	vitestIt('moves unresolved pending workshop ids to invalid before replacing the next pass', () => {
-		const invalidDependency = BigInt(4);
-		const nextDependency = BigInt(5);
-		const resolver = new WorkshopInventoryExpansion(new Set([invalidDependency]));
+	vitestIt('completes dependency queue passes with terminal unresolved emissions', () => {
+		const unresolvedDependency = BigInt(4);
+		const alreadyReportedDependency = BigInt(5);
+		const nextDependency = BigInt(6);
+		const resolvedDependency = BigInt(7);
+		const resolver = new WorkshopInventoryExpansion(new Set([unresolvedDependency, alreadyReportedDependency, resolvedDependency]));
 
-		expect(resolver.markPendingWorkshopModsInvalid()).toEqual(new Set([invalidDependency]));
-		resolver.replacePendingWorkshopMods([invalidDependency, nextDependency]);
+		resolver.recordUnresolvedWorkshopItem({
+			workshopID: alreadyReportedDependency,
+			reason: 'metadata-failed'
+		});
+		resolver.addResolvedMod({
+			uid: `workshop:${resolvedDependency}`,
+			id: 'ResolvedDependency',
+			type: ModType.WORKSHOP,
+			workshopID: resolvedDependency
+		});
+		const emittedItems = resolver.completeDependencyQueuePass([
+			unresolvedDependency,
+			alreadyReportedDependency,
+			nextDependency,
+			resolvedDependency
+		]);
 
-		expect(resolver.getKnownInvalidWorkshopMods()).toEqual(new Set([invalidDependency]));
+		expect(emittedItems).toEqual([{ workshopID: unresolvedDependency, reason: 'hydration-failed' }]);
+		expect(resolver.getUnresolvedWorkshopItems()).toEqual([
+			{ workshopID: alreadyReportedDependency, reason: 'metadata-failed' },
+			{ workshopID: unresolvedDependency, reason: 'hydration-failed' }
+		]);
+		expect(resolver.getKnownInvalidWorkshopMods()).toEqual(new Set([unresolvedDependency, alreadyReportedDependency]));
 		expect(resolver.getPendingWorkshopMods()).toEqual(new Set([nextDependency]));
 	});
 

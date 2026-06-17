@@ -10,7 +10,6 @@ import type {
 	WorkshopInventoryDependencyExpansionOptions,
 	WorkshopInventoryResolvedRecord
 } from './workshop-inventory-types';
-import { hasUnresolvedWorkshopItem } from './workshop-inventory-unresolved-policy';
 
 export const resolveWorkshopDependencyChunkOutcome = Effect.fnUntraced(function* (
 	workshopMap: Map<bigint, ModData>,
@@ -112,16 +111,7 @@ export const expandPendingWorkshopDependencies = Effect.fnUntraced(function* (
 		expansion.addUnresolvedWorkshopItems(dependencyChunkOutcome.unresolvedWorkshopItems);
 		expansion.addResolvedRecords(dependencyChunkOutcome.resolvedRecords);
 		missingKnownWorkshopMods = dependencyChunkOutcome.missingDependencies;
-		expansion.markPendingWorkshopModsInvalid().forEach((workshopID) => {
-			if (hasUnresolvedWorkshopItem(expansion.getUnresolvedWorkshopItems(), workshopID)) {
-				return;
-			}
-			expansion.recordUnresolvedWorkshopItem({
-				workshopID,
-				reason: 'hydration-failed'
-			});
-		});
-		expansion.replacePendingWorkshopMods(missingKnownWorkshopMods);
+		expansion.completeDependencyQueuePass(missingKnownWorkshopMods);
 	}
 
 	return dependencyItems;

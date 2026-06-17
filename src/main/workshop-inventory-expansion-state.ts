@@ -1,5 +1,6 @@
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
 import { collectMissingWorkshopDependencies } from './mod-workshop-dependencies';
+import { WorkshopDependencyQueueState } from './workshop-dependency-queue-state';
 import { shouldPreferWorkshopInventoryRecord } from './workshop-inventory-source-policy';
 import type {
 	UnresolvedWorkshopItem,
@@ -15,9 +16,7 @@ export class WorkshopInventoryExpansion {
 
 	private readonly unresolvedWorkshopItems: UnresolvedWorkshopItem[];
 
-	private readonly pendingWorkshopMods: Set<bigint>;
-
-	private readonly knownInvalidMods: Set<bigint>;
+	private readonly dependencyQueue: WorkshopDependencyQueueState;
 
 	readonly options: NuterraSteamCompatibilityOptions;
 
@@ -28,8 +27,7 @@ export class WorkshopInventoryExpansion {
 		options: NuterraSteamCompatibilityOptions = {},
 		unresolvedWorkshopItems: UnresolvedWorkshopItem[] = []
 	) {
-		this.pendingWorkshopMods = new Set(pendingWorkshopMods);
-		this.knownInvalidMods = new Set(knownInvalidMods);
+		this.dependencyQueue = new WorkshopDependencyQueueState(pendingWorkshopMods, knownInvalidMods);
 		this.options = options;
 		this.unresolvedWorkshopItems = [...unresolvedWorkshopItems];
 		this.recordsByWorkshopID = new Map(
@@ -52,8 +50,7 @@ export class WorkshopInventoryExpansion {
 
 		const candidate = { mod, source };
 		const current = this.recordsByWorkshopID.get(workshopID);
-		this.pendingWorkshopMods.delete(workshopID);
-		this.knownInvalidMods.delete(workshopID);
+		this.dependencyQueue.deleteResolvedWorkshopID(workshopID);
 
 		if (!current) {
 			this.recordsByWorkshopID.set(workshopID, candidate);
@@ -154,50 +151,39 @@ export class WorkshopInventoryExpansion {
 	}
 
 	collectMissingDependencies(mods: Iterable<ModData>): Set<bigint> {
-		return collectMissingWorkshopDependencies(mods, this.getResolvedWorkshopModMap(), this.knownInvalidMods, this.options);
+		return collectMissingWorkshopDependencies(
+			mods,
+			this.getResolvedWorkshopModMap(),
+			this.dependencyQueue.getKnownInvalidWorkshopMods(),
+			this.options
+		);
 	}
 
 	queueMissingDependencies(mods: Iterable<ModData>): Set<bigint> {
 		const missingDependencies = this.collectMissingDependencies(mods);
-		missingDependencies.forEach((workshopID) => {
-			this.pendingWorkshopMods.add(workshopID);
-		});
-		return missingDependencies;
+		return this.dependencyQueue.queueWorkshopIDs(missingDependencies);
 	}
 
 	getPendingWorkshopMods(): Set<bigint> {
-		return new Set(this.pendingWorkshopMods);
+		return this.dependencyQueue.getPendingWorkshopMods();
 	}
 
 	hasPendingWorkshopMods(): boolean {
-		return this.pendingWorkshopMods.size > 0;
+		return this.dependencyQueue.hasPendingWorkshopMods();
 	}
 
 	getKnownInvalidWorkshopMods(): Set<bigint> {
-		return new Set(this.knownInvalidMods);
+		return this.dependencyQueue.getKnownInvalidWorkshopMods();
 	}
 
 	getResolvedWorkshopModCount(): number {
 		return this.recordsByWorkshopID.size;
 	}
 
-	markPendingWorkshopModsInvalid(): Set<bigint> {
-		const invalidWorkshopMods = this.getPendingWorkshopMods();
-		invalidWorkshopMods.forEach((workshopID) => {
-			this.knownInvalidMods.add(workshopID);
-		});
-		this.pendingWorkshopMods.clear();
-		return invalidWorkshopMods;
-	}
-
-	replacePendingWorkshopMods(workshopIDs: Iterable<bigint>) {
-		this.pendingWorkshopMods.clear();
-		const workshopMap = this.getResolvedWorkshopModMap();
-		for (const workshopID of workshopIDs) {
-			if (!workshopMap.has(workshopID) && !this.knownInvalidMods.has(workshopID)) {
-				this.pendingWorkshopMods.add(workshopID);
-			}
-		}
+	completeDependencyQueuePass(workshopIDs: Iterable<bigint>): UnresolvedWorkshopItem[] {
+		const emittedItems = this.dependencyQueue.completePass(workshopIDs, this.getResolvedWorkshopModMap(), this.unresolvedWorkshopItems);
+		this.addUnresolvedWorkshopItems(emittedItems);
+		return emittedItems;
 	}
 
 	getWorkshopMods(): ModData[] {

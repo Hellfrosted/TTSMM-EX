@@ -14,6 +14,6 @@ export function appendUniqueUnresolvedWorkshopItem(items: UnresolvedWorkshopItem
 	}
 }
 
-export function hasUnresolvedWorkshopItem(items: UnresolvedWorkshopItem[], workshopID: bigint) {
+export function hasUnresolvedWorkshopItem(items: readonly UnresolvedWorkshopItem[], workshopID: bigint) {
 	return items.some((item) => item.workshopID === workshopID);
 }
