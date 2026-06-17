@@ -10,6 +10,7 @@
 		"includes": [
 			"**/*.{cjs,css,js,jsx,json,jsonc,mjs,ts,tsx}",
 			"!.codex/**",
+			"!.codex-worktrees/**",
 			"!.omo/**",
 			"!assets/**",
 			"!coverage/**",
