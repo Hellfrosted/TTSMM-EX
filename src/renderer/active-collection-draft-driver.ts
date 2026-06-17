@@ -1,5 +1,6 @@
 import { CollectionManagerModalType, type ModCollection } from 'model';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { createActiveCollectionDraftValidationCoordinator } from './active-collection-draft-validation-coordinator';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
@@ -107,7 +108,6 @@ export function createActiveCollectionDraftDriver({
 	initial
 }: ActiveCollectionDraftDriverOptions): ActiveCollectionDraftDriver {
 	let disposed = false;
-	let validationRequestId = 0;
 	let workflowState = createCollectionWorkspaceWorkflowState({
 		config: initial.config,
 		draft: initial.draft,
@@ -140,44 +140,11 @@ export function createActiveCollectionDraftDriver({
 		transition.effects.forEach(runEffect);
 	};
 
-	const applyValidationRunOutcome = (outcome: CollectionValidationRunOutcome) => {
-		if (outcome.type === 'validation-run-failed' || outcome.type === 'missing-active-collection') {
-			applyWorkflowEvent({ type: 'validation-failed-to-run' });
-			return;
-		}
-		if (outcome.type === 'cancelled') {
-			applyWorkflowEvent({ type: 'validation-cancelled' });
-			return;
-		}
-		if ('validationResult' in outcome) {
-			applyWorkflowEvent({
-				type: 'validation-completed',
-				result: outcome.validationResult,
-				modalType: outcome.type === 'recorded-failed-result' ? outcome.modalType : undefined
-			});
-		}
-	};
-
-	const validateActiveCollection = (launchIfValid: boolean, options?: { config?: CollectionWorkspaceAppState['config'] }) => {
-		const requestId = validationRequestId + 1;
-		const draft = workflowState.draft;
-		validationRequestId = requestId;
-		applyWorkflowEvent({ type: 'validation-started', launchIfValid });
-		void adapters
-			.validateDraft(draft, launchIfValid, options)
-			.then((outcome) => {
-				if (disposed || requestId !== validationRequestId) {
-					return;
-				}
-				applyValidationRunOutcome(outcome);
-			})
-			.catch(() => {
-				if (disposed || requestId !== validationRequestId) {
-					return;
-				}
-				applyValidationRunOutcome({ type: 'validation-run-failed' });
-			});
-	};
+	const validationCoordinator = createActiveCollectionDraftValidationCoordinator({
+		applyWorkflowEvent,
+		cancelValidation: adapters.cancelValidation,
+		validateDraft: adapters.validateDraft
+	});
 
 	function runEffect(effect: CollectionWorkspaceWorkflowEffect) {
 		if (disposed) {
@@ -188,14 +155,13 @@ export function createActiveCollectionDraftDriver({
 				adapters.openModal(CollectionManagerModalType.DESELECTING_MOD_MANAGER);
 				break;
 			case 'cancel-validation':
-				validationRequestId += 1;
-				adapters.cancelValidation();
+				validationCoordinator.cancel();
 				break;
 			case 'recalculate-mod-data':
 				adapters.recalculateModData();
 				break;
 			case 'validate-active-collection':
-				validateActiveCollection(effect.launchIfValid);
+				validationCoordinator.validate(workflowState.draft, effect.launchIfValid);
 				break;
 			case 'persist-active-collection-draft':
 				if (workflowState.draft) {
@@ -266,7 +232,7 @@ export function createActiveCollectionDraftDriver({
 				break;
 			case 'validate-requested':
 				adapters.clearCollectionErrors();
-				validateActiveCollection(false, event.options);
+				validationCoordinator.validate(workflowState.draft, false, event.options);
 				break;
 		}
 	};
@@ -275,8 +241,7 @@ export function createActiveCollectionDraftDriver({
 		dispatch,
 		dispose: () => {
 			disposed = true;
-			validationRequestId += 1;
-			adapters.cancelValidation();
+			validationCoordinator.dispose();
 			listeners.clear();
 		},
 		getSnapshot,
