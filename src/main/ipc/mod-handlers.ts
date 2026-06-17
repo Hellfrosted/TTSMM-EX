@@ -4,17 +4,17 @@ import log from 'electron-log';
 import type { SteamworksStatus } from 'shared/ipc';
 import { getWorkshopDependencySnapshotMetadataUpdate, type WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 
-import { createModUid, ModData, ModType, parseWorkshopModUid, SessionMods, ValidChannel } from '../../model';
+import { createModUid, ModData, ModType, SessionMods, ValidChannel } from '../../model';
 import { cloneModData } from '../../model/SessionMods';
 import { openExternalUrl } from '../external-links';
 import { getModDetailsFromPath } from '../mod-fetcher';
 import { scanModInventoryProgram } from '../mod-inventory-scan';
-import { expandUserPath } from '../path-utils';
 import { runMain } from '../runtime';
 import Steamworks from '../steamworks';
 import { refreshWorkshopMetadata, runSteamworksAction } from '../workshop-actions';
 import { fetchWorkshopDependencySnapshot } from '../workshop-dependencies';
 import { registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
+import { normalizeReadModMetadataRequest } from './mod-metadata-request';
 import { parseModContextMenuPayload, parseReadModMetadataPayload, parseWorkshopIdPayload } from './mod-validation';
 
 interface MainWindowProvider {
@@ -106,29 +106,19 @@ export function createReadModMetadataHandler(
 			allKnownMods,
 			options?.treatNuterraSteamBetaAsEquivalent
 		);
-		const resolvedLocalDir = expandUserPath(validatedPayload.localDir) ?? undefined;
-
-		const knownWorkshopMods: bigint[] = [];
-		validatedPayload.allKnownMods.forEach((uid: string) => {
-			log.debug(`Found known mod ${uid}`);
-			const workshopID = parseWorkshopModUid(uid);
-			if (workshopID !== null) {
-				log.debug(`Found workshop mod ${workshopID.toString()}`);
-				knownWorkshopMods.push(workshopID);
-			}
-		});
+		const scanRequest = normalizeReadModMetadataRequest(validatedPayload);
 
 		try {
 			const modsList = await runMain(
 				scanInventory({
-					knownWorkshopMods,
-					localPath: resolvedLocalDir,
+					knownWorkshopMods: scanRequest.knownWorkshopMods,
+					localPath: scanRequest.localPath,
 					progressSender: event.sender,
-					treatNuterraSteamBetaAsEquivalent: validatedPayload.treatNuterraSteamBetaAsEquivalent
+					treatNuterraSteamBetaAsEquivalent: scanRequest.treatNuterraSteamBetaAsEquivalent
 				})
 			);
 			contextMenuRecords?.replace(modsList);
-			return new SessionMods(resolvedLocalDir, modsList);
+			return new SessionMods(scanRequest.localPath, modsList);
 		} catch (error) {
 			log.error('Failed to get mod info:');
 			log.error(error);

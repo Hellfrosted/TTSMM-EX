@@ -17,6 +17,12 @@ const modContextMenuRequestSchema = Schema.Struct({
 	uid: Schema.String.check(Schema.isMinLength(1))
 });
 
+export interface ReadModMetadataPayload {
+	readonly localDir?: string;
+	readonly allKnownMods: readonly string[];
+	readonly treatNuterraSteamBetaAsEquivalent?: boolean;
+}
+
 export function parseWorkshopIdPayload(channel: ValidChannel, payload: unknown): bigint {
 	return parseEffectIpcPayload(channel, workshopIdSchema, payload);
 }
@@ -26,7 +32,7 @@ export function parseReadModMetadataPayload(
 	localDir: unknown,
 	allKnownMods: unknown,
 	treatNuterraSteamBetaAsEquivalent?: unknown
-): { localDir?: string; allKnownMods: string[]; treatNuterraSteamBetaAsEquivalent?: boolean } {
+): ReadModMetadataPayload {
 	return parseEffectIpcPayload(
 		channel,
 		readModMetadataPayloadSchema,
@@ -36,7 +42,7 @@ export function parseReadModMetadataPayload(
 			treatNuterraSteamBetaAsEquivalent
 		},
 		{ onExcessProperty: 'ignore' }
-	) as { localDir?: string; allKnownMods: string[]; treatNuterraSteamBetaAsEquivalent?: boolean };
+	) as ReadModMetadataPayload;
 }
 
 export function parseModContextMenuPayload(channel: ValidChannel, payload: unknown): ModContextMenuRequest {
