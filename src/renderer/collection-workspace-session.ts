@@ -14,12 +14,10 @@ export {
 	getCollectionLaunchCommandState,
 	getCollectionLaunchRequestDecision,
 	getCollectionLaunchWorkflowDecision,
-	type LaunchReadiness,
 	type LaunchReadinessBlocker
 } from './collection-workspace-runtime';
 export type {
 	CollectionWorkspaceSession,
-	CollectionWorkspaceSessionInput,
 	CollectionWorkspaceValidationResult
 } from './collection-workspace-session-policy';
 export {
