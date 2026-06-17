@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { readBlockLookupIndex, searchBlockLookupIndex } from '../../main/block-lookup';
-import { searchBlockLookupRecords } from '../../main/block-lookup-search';
+import { createWarmBlockLookupSearchIndex, searchWarmBlockLookupRecordMatches } from '../../main/block-lookup-search';
+import { searchBlockLookupRecords } from '../../main/block-lookup-search-projection';
 import { BLOCK_LOOKUP_INDEX_VERSION, type BlockLookupSearchRow } from '../../shared/block-lookup';
 import { createTempDir } from './test-utils';
 
@@ -83,36 +84,41 @@ describe('block lookup search adapter', () => {
 	});
 
 	it('projects persisted rendered preview paths into search row image urls', () => {
-		const result = searchBlockLookupRecords(
-			{
-				version: BLOCK_LOOKUP_INDEX_VERSION,
-				builtAt: '2026-04-26T00:00:00.000Z',
-				renderedPreviewsEnabled: true,
-				sources: [],
-				records: [
-					{
-						blockId: 'alpha',
-						blockName: 'Alpha Cab',
-						fallbackAlias: 'Alpha_Cab(Core)',
-						fallbackSpawnCommand: 'SpawnBlock Alpha_Cab(Core)',
-						internalName: 'AlphaCab',
-						modTitle: 'Core',
-						preferredAlias: 'Alpha_Cab(Core)',
-						renderedPreview: {
-							cacheRelativePath: 'bundle/alpha-cab.png',
-							height: 64,
-							width: 96
-						},
-						sourceKind: 'json',
-						sourcePath: path.normalize('/mods/alpha.json'),
-						spawnCommand: 'SpawnBlock Alpha_Cab(Core)',
-						workshopId: 'core'
-					}
-				]
-			},
-			'alpha'
-		);
+		const index = {
+			version: BLOCK_LOOKUP_INDEX_VERSION,
+			builtAt: '2026-04-26T00:00:00.000Z',
+			renderedPreviewsEnabled: true,
+			sources: [],
+			records: [
+				{
+					blockId: 'alpha',
+					blockName: 'Alpha Cab',
+					fallbackAlias: 'Alpha_Cab(Core)',
+					fallbackSpawnCommand: 'SpawnBlock Alpha_Cab(Core)',
+					internalName: 'AlphaCab',
+					modTitle: 'Core',
+					preferredAlias: 'Alpha_Cab(Core)',
+					renderedPreview: {
+						cacheRelativePath: 'bundle/alpha-cab.png',
+						height: 64,
+						width: 96
+					},
+					sourceKind: 'json' as const,
+					sourcePath: path.normalize('/mods/alpha.json'),
+					spawnCommand: 'SpawnBlock Alpha_Cab(Core)',
+					workshopId: 'core'
+				}
+			]
+		};
 
+		const searchResult = searchWarmBlockLookupRecordMatches(createWarmBlockLookupSearchIndex(index), 'alpha');
+		const result = searchBlockLookupRecords(index, 'alpha');
+
+		expect(searchResult.records[0].renderedPreview).toEqual({
+			cacheRelativePath: 'bundle/alpha-cab.png',
+			height: 64,
+			width: 96
+		});
 		expect(result.rows[0].renderedPreview).toEqual({
 			height: 64,
 			imageUrl: 'image://block-preview/bundle/alpha-cab.png',

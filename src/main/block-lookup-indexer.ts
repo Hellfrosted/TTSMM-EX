@@ -15,7 +15,8 @@ import {
 	readBlockLookupSettings,
 	writeBlockLookupSettings
 } from './block-lookup';
-import { createWarmBlockLookupSearchIndex, searchWarmBlockLookupRecords, type WarmBlockLookupSearchIndex } from './block-lookup-search';
+import { createWarmBlockLookupSearchIndex, type WarmBlockLookupSearchIndex } from './block-lookup-search';
+import { searchWarmBlockLookupRecords } from './block-lookup-search-projection';
 import { autoDetectBlockLookupWorkshopRootEffect } from './block-lookup-source-discovery';
 
 interface BlockLookupIndexerAdapters {

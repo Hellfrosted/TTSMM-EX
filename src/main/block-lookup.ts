@@ -14,7 +14,7 @@ import {
 } from 'shared/block-lookup';
 import { createBlockLookupIndexBuild, createBlockLookupIndexProgress } from './block-lookup-index-build';
 import { createBlockLookupIndexStats } from './block-lookup-index-planner';
-import { searchBlockLookupRecords } from './block-lookup-search';
+import { searchBlockLookupRecords } from './block-lookup-search-projection';
 import { normalizeWorkshopRoot } from './block-lookup-source-discovery';
 import { getBlockLookupPreviewCachePath } from './preview-protocol';
 import { fileExistsEffect, readJsonFileEffect, writeUtf8FileAtomicEffect } from './storage';
