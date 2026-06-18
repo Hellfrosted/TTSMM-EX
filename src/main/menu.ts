@@ -174,8 +174,8 @@ export default class MenuBuilder {
 					label: 'Check for updates',
 					click: async (menuItem) => {
 						try {
-							const { default: checkForUpdates } = await import('./updater');
-							checkForUpdates(menuItem);
+							const { checkForMenuUpdates } = await import('./updater');
+							checkForMenuUpdates(menuItem);
 						} catch (e) {
 							log.error(e);
 						}

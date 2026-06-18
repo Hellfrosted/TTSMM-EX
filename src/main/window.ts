@@ -264,7 +264,7 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		ensureSteamAppIdFile();
 		onDidFinishLoad();
 		if (!isDevelopment && process.env.TTSMM_EX_DISABLE_AUTO_UPDATES !== '1') {
-			void import('electron-updater').then(({ autoUpdater }) => autoUpdater.checkForUpdates()).catch(log.error);
+			void import('./updater').then(({ checkForStartupUpdates }) => checkForStartupUpdates()).catch(log.error);
 		}
 	});
 
