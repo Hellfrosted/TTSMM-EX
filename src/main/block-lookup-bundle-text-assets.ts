@@ -2,9 +2,7 @@ import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem';
-import * as NodePath from '@effect/platform-node/NodePath';
-import { Effect, Path as EffectPath, FileSystem, Layer } from 'effect';
+import { Effect } from 'effect';
 import log from 'electron-log';
 import { toEffectOperationError } from 'shared/effect-errors';
 import type { BlockLookupTextAsset } from './block-lookup-nuterra-text';
@@ -160,8 +158,6 @@ const runBlockLookupBundleExtractor = Effect.fnUntraced(function* (
 	});
 });
 
-const BlockLookupPlatformNodeIoLayer = Layer.merge(NodeFileSystem.layer, NodePath.layer);
-
 function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | undefined) {
 	const uniqueNames = [
 		...new Set(
@@ -174,24 +170,27 @@ function createPreviewMatchNamesFile(previewMatchNames: readonly string[] | unde
 	if (!uniqueNames.length) {
 		return Effect.succeed(null);
 	}
-	return Effect.gen(function* () {
-		const fileSystem = yield* FileSystem.FileSystem;
-		const platformPath = yield* EffectPath.Path;
-		const directory = yield* fileSystem.makeTempDirectory({
-			directory: os.tmpdir(),
-			prefix: 'ttsmm-block-lookup-preview-match-'
-		});
-		const filePath = platformPath.join(directory, 'names.txt');
-		yield* fileSystem.writeFileString(filePath, uniqueNames.join('\n'));
-		return { directory, filePath };
-	}).pipe(Effect.provide(BlockLookupPlatformNodeIoLayer));
+	return Effect.tryPromise({
+		try: async () => {
+			const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ttsmm-block-lookup-preview-match-'));
+			const filePath = path.join(directory, 'names.txt');
+			try {
+				await fs.promises.writeFile(filePath, uniqueNames.join('\n'), 'utf8');
+			} catch (error) {
+				await fs.promises.rm(directory, { force: true, recursive: true }).catch(() => undefined);
+				throw error;
+			}
+			return { directory, filePath };
+		},
+		catch: (error) => toEffectOperationError('create block lookup preview match names file', error)
+	});
 }
 
 function removePreviewMatchNamesDirectory(directory: string) {
-	return Effect.gen(function* () {
-		const fileSystem = yield* FileSystem.FileSystem;
-		yield* fileSystem.remove(directory, { force: true, recursive: true });
-	}).pipe(Effect.provide(BlockLookupPlatformNodeIoLayer), Effect.ignore);
+	return Effect.tryPromise({
+		try: () => fs.promises.rm(directory, { force: true, recursive: true }),
+		catch: (error) => toEffectOperationError('remove block lookup preview match names directory', error)
+	}).pipe(Effect.ignore);
 }
 
 function createExtractorSourceBatches(sourcePaths: readonly string[]): string[][] {

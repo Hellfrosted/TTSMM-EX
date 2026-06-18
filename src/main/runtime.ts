@@ -1,10 +1,9 @@
 import { Effect, Layer, ManagedRuntime } from 'effect';
 
 import { type ModInventoryScanner, ModInventoryScannerLive } from './mod-inventory-scan';
-import { MainPlatformNodeProofLayer } from './platform-node-proof';
 import { type SteamPersonaCache, SteamPersonaCacheLive } from './steam-persona-cache';
 
-export const MainRuntimeLayer = Layer.mergeAll(ModInventoryScannerLive, SteamPersonaCacheLive, MainPlatformNodeProofLayer);
+export const MainRuntimeLayer = Layer.mergeAll(ModInventoryScannerLive, SteamPersonaCacheLive);
 
 const MainRuntime = ManagedRuntime.make(MainRuntimeLayer);
 
