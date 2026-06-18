@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import readline from 'node:readline';
-import { pathToFileURL } from 'node:url';
+import { isExecutedDirectly } from './lib/is-main';
 import { repoRoot } from './lib/paths';
 
 const fallowExecutablePath = path.join(repoRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'fallow.cmd' : 'fallow');
@@ -53,15 +53,7 @@ export function runFallowCli(args: readonly string[]) {
 	});
 }
 
-function isExecutedDirectly() {
-	if (!process.argv[1]) {
-		return false;
-	}
-
-	return pathToFileURL(process.argv[1]).href === import.meta.url;
-}
-
-if (isExecutedDirectly()) {
+if (isExecutedDirectly(import.meta.url)) {
 	void runFallowCli(process.argv.slice(2)).then((exitCode) => {
 		process.exit(exitCode);
 	});

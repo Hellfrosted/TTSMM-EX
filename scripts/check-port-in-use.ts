@@ -1,6 +1,6 @@
 import net from 'node:net';
 import os from 'node:os';
-import { pathToFileURL } from 'node:url';
+import { isExecutedDirectly } from './lib/is-main';
 import { terminalStyle } from './lib/terminal-style';
 
 interface PortCheckOptions {
@@ -76,15 +76,7 @@ export async function runCheckPortInUseCli(options: PortCheckOptions = {}) {
 	}
 }
 
-function isExecutedDirectly() {
-	if (!process.argv[1]) {
-		return false;
-	}
-
-	return pathToFileURL(process.argv[1]).href === import.meta.url;
-}
-
-if (isExecutedDirectly()) {
+if (isExecutedDirectly(import.meta.url)) {
 	void runCheckPortInUseCli().then((exitCode) => {
 		process.exit(exitCode);
 	});

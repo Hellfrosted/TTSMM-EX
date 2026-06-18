@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isExecutedDirectly } from './lib/is-main';
 import { repoRoot } from './lib/paths';
 
 type DownloadArtifact = (options: {
@@ -130,15 +130,7 @@ export async function runEnsureElectronBinaryCli() {
 	}
 }
 
-function isExecutedDirectly() {
-	if (!process.argv[1]) {
-		return false;
-	}
-
-	return pathToFileURL(process.argv[1]).href === import.meta.url;
-}
-
-if (isExecutedDirectly()) {
+if (isExecutedDirectly(import.meta.url)) {
 	void runEnsureElectronBinaryCli().then((exitCode) => {
 		process.exit(exitCode);
 	});

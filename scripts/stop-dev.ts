@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import psList, { type ProcessDescriptor } from 'ps-list';
+import { isExecutedDirectly } from './lib/is-main';
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -94,15 +95,7 @@ export async function stopDevServer(processes?: ProcessDescriptor[]) {
 	return devProcesses.map((processInfo) => processInfo.pid);
 }
 
-function isExecutedDirectly() {
-	if (!process.argv[1]) {
-		return false;
-	}
-
-	return fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
-}
-
-if (isExecutedDirectly()) {
+if (isExecutedDirectly(import.meta.url)) {
 	void stopDevServer()
 		.then((pids) => {
 			if (pids.length === 0) {

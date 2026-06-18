@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isExecutedDirectly } from './lib/is-main';
 import { repoRoot } from './lib/paths';
 import { terminalStyle } from './lib/terminal-style';
 
@@ -64,14 +64,6 @@ export function runNativeDependencyCheckCli(options: NativeDepCheckOptions = {})
 	}
 }
 
-function isExecutedDirectly() {
-	if (!process.argv[1]) {
-		return false;
-	}
-
-	return pathToFileURL(process.argv[1]).href === import.meta.url;
-}
-
-if (isExecutedDirectly()) {
+if (isExecutedDirectly(import.meta.url)) {
 	process.exit(runNativeDependencyCheckCli());
 }
