@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import type { AppConfig } from 'model';
 import api from 'renderer/Api';
-import { setConfigCacheData, writeConfigEffect } from 'renderer/async-cache';
+import { setConfigCacheData, writeConfigEffect } from 'renderer/config-cache';
 import { type RendererElectron, runRenderer } from 'renderer/runtime';
 import { toEffectOperationError } from 'shared/effect-errors';
 

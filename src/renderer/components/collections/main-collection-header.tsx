@@ -14,6 +14,7 @@ import type {
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
+import { focusMenuItem, handleMenuKeyboardNavigation } from 'renderer/menu-keyboard';
 import { markPerfInteraction } from 'renderer/perf';
 import type { MainSortState } from 'renderer/state/main-collection-table-store';
 import { getResolvedMainColumnMinWidth } from 'shared/main-collection-view-config';
@@ -174,7 +175,7 @@ export function ResizableHeaderCell({
 		}
 
 		const focusFirstMenuItem = window.requestAnimationFrame(() => {
-			menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+			focusMenuItem(menuRef.current, 'first');
 		});
 		const closeMenu = (restoreFocus = true) => {
 			setMenuPosition(null);
@@ -193,48 +194,14 @@ export function ResizableHeaderCell({
 		const closeMenuFromPointer = () => {
 			closeMenu(false);
 		};
-		const focusMenuItem = (direction: 1 | -1 | 'first' | 'last') => {
-			const menuItems = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-			if (menuItems.length === 0) {
-				return;
-			}
-			const activeIndex = menuItems.findIndex((item) => item === document.activeElement);
-			if (direction === 'first') {
-				menuItems[0].focus();
-				return;
-			}
-			if (direction === 'last') {
-				menuItems[menuItems.length - 1].focus();
-				return;
-			}
-			const nextIndex = activeIndex < 0 ? 0 : (activeIndex + direction + menuItems.length) % menuItems.length;
-			menuItems[nextIndex].focus();
-		};
 		const closeMenuOnEscape = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				closeMenu();
-				return;
-			}
-			if (!menuRef.current?.contains(document.activeElement)) {
-				return;
-			}
-			if (event.key === 'ArrowDown') {
-				event.preventDefault();
-				focusMenuItem(1);
-			} else if (event.key === 'ArrowUp') {
-				event.preventDefault();
-				focusMenuItem(-1);
-			} else if (event.key === 'Home') {
-				event.preventDefault();
-				focusMenuItem('first');
-			} else if (event.key === 'End') {
-				event.preventDefault();
-				focusMenuItem('last');
-			} else if (event.key === 'Tab') {
-				setMenuPosition(null);
-				menuOpenerRef.current = null;
-			}
+			handleMenuKeyboardNavigation(event, {
+				closeMenu,
+				closeMenuOnTab: () => {
+					closeMenu(false);
+				},
+				menu: menuRef.current
+			});
 		};
 
 		window.addEventListener('click', closeMenuFromPointer);

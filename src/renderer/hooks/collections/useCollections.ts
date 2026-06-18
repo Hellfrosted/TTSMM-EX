@@ -2,7 +2,7 @@ import type { NotificationProps } from 'model';
 import { cloneCollection, createModManagerUid, ModCollection, type ModData } from 'model';
 import { useCallback, useMemo, useState } from 'react';
 import api from 'renderer/Api';
-import { useUpdateCollectionMutation } from 'renderer/async-cache';
+import { useUpdateCollectionMutation } from 'renderer/collection-cache';
 import { createCollectionWriteQueue } from 'renderer/collection-content-save';
 import {
 	type CollectionContentSaveCompletion,

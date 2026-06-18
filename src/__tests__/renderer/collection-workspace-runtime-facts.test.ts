@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { ModCollection } from '../../model';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import {
-	type CollectionWorkspaceValidationResult,
-	createCollectionWorkspaceValidationResult
-} from '../../renderer/collection-workspace-session';
-import {
 	type ActiveCollectionDraftRuntimeFacts,
+	type CollectionWorkspaceValidationResult,
+	createCollectionWorkspaceValidationResult,
 	createCollectionWorkspaceWorkflowState,
 	reduceCollectionWorkspaceWorkflow
-} from '../../renderer/collection-workspace-workflow';
+} from '../../renderer/collection-workspace-session';
 
 const summary = {
 	affectedMods: 0,

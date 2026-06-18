@@ -7,7 +7,7 @@ import {
 	invalidateBlockLookupSearchQueries,
 	setBlockLookupBootstrapQueryData,
 	useBuildBlockLookupIndexMutation
-} from 'renderer/async-cache';
+} from 'renderer/block-lookup-cache';
 import {
 	collectBlockLookupModSources,
 	createBlockLookupBootstrapCacheProjection,

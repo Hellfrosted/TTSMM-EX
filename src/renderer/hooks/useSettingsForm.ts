@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Path, PathValue } from 'react-hook-form';
 import { useForm, useFormState, useWatch } from 'react-hook-form';
 import api from 'renderer/Api';
-import { useWriteConfigMutation } from 'renderer/async-cache';
+import { useWriteConfigMutation } from 'renderer/config-cache';
 import { type EditingConfig, type LogConfig, settingsFormResolver } from 'renderer/settings-validation';
 import { formatErrorMessage } from 'renderer/util/error-message';
 

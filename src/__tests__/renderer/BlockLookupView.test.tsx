@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
-import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/async-cache';
+import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/block-lookup-cache';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
@@ -84,6 +84,64 @@ function renderBlockLookupView(configOverrides: Parameters<typeof createAppState
 	};
 }
 
+function createSelectionRecords() {
+	return [
+		TEST_RECORD,
+		createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
+		createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
+	];
+}
+
+function mockBlockLookupRecords(
+	records: BlockLookupRecord[],
+	options: { settings?: typeof TEST_BLOCK_LOOKUP_SETTINGS; stats?: typeof TEST_STATS } = {}
+) {
+	const stats = options.stats ?? { ...TEST_STATS, blocks: records.length };
+	vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(options.settings ?? TEST_BLOCK_LOOKUP_SETTINGS);
+	vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(stats);
+	vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats });
+}
+
+function mockClipboardWrite() {
+	const writeText = vi.fn().mockResolvedValue(undefined);
+	Object.defineProperty(window.navigator, 'clipboard', {
+		configurable: true,
+		value: { writeText }
+	});
+	return writeText;
+}
+
+function getBlockLookupRow(name: string) {
+	const [cell] = screen.getAllByText(name);
+	expect(cell).toBeDefined();
+	const row = cell?.closest('tr');
+	expect(row).not.toBeNull();
+	return row as HTMLTableRowElement;
+}
+
+function expectBlockLookupColumnOrderSaved(appState: ReturnType<typeof createAppState>, columnOrder: string[]) {
+	const blockLookupConfig = expect.objectContaining({
+		columnOrder,
+		columnWidthConfig: undefined
+	});
+	expect(window.electron.updateConfig).toHaveBeenCalledWith(
+		expect.objectContaining({
+			viewConfigs: expect.objectContaining({
+				blockLookup: blockLookupConfig
+			})
+		})
+	);
+	expect(appState.updateState).toHaveBeenCalledWith(
+		expect.objectContaining({
+			config: expect.objectContaining({
+				viewConfigs: expect.objectContaining({
+					blockLookup: blockLookupConfig
+				})
+			})
+		})
+	);
+}
+
 afterEach(() => {
 	cleanup();
 	setBlockLookupBootstrapCacheData(undefined);
@@ -111,14 +169,8 @@ describe('BlockLookupView', () => {
 	});
 
 	it('searches indexed block aliases and copies the selected command', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
@@ -133,12 +185,10 @@ describe('BlockLookupView', () => {
 	});
 
 	it('asks for a rebuild when rendered previews are enabled against an index without preview support', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			...TEST_BLOCK_LOOKUP_SETTINGS,
-			renderedPreviewsEnabled: true
+		mockBlockLookupRecords([TEST_RECORD], {
+			settings: { ...TEST_BLOCK_LOOKUP_SETTINGS, renderedPreviewsEnabled: true },
+			stats: TEST_STATS
 		});
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
 		renderBlockLookupView();
 
@@ -148,13 +198,11 @@ describe('BlockLookupView', () => {
 	});
 
 	it('saves the rendered preview toggle immediately', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 		vi.mocked(window.electron.saveBlockLookupSettings).mockResolvedValue({
 			...TEST_BLOCK_LOOKUP_SETTINGS,
 			renderedPreviewsEnabled: true
 		});
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
 
 		renderBlockLookupView();
 
@@ -180,12 +228,10 @@ describe('BlockLookupView', () => {
 			}
 		};
 		const previewStats = { ...TEST_STATS, renderedPreviewsEnabled: true, renderedPreviews: 1, unavailablePreviews: 0 };
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue({
-			...TEST_BLOCK_LOOKUP_SETTINGS,
-			renderedPreviewsEnabled: true
+		mockBlockLookupRecords([previewRecord], {
+			settings: { ...TEST_BLOCK_LOOKUP_SETTINGS, renderedPreviewsEnabled: true },
+			stats: previewStats
 		});
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(previewStats);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [previewRecord], stats: previewStats });
 
 		renderBlockLookupView();
 
@@ -206,25 +252,17 @@ describe('BlockLookupView', () => {
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords(records);
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
 		expect(screen.queryByRole('img', { name: /Block preview/ })).not.toBeInTheDocument();
-		const betaCell = screen.getAllByText('Beta Shield')[0];
-		const betaRow = betaCell.closest('tr');
-		expect(betaRow).not.toBeNull();
-		betaRow!.focus();
+		const betaRow = getBlockLookupRow('Beta Shield');
+		betaRow.focus();
 		expect(betaRow).toHaveFocus();
-		fireEvent.keyDown(betaRow!, { key: 'Enter' });
+		fireEvent.keyDown(betaRow, { key: 'Enter' });
 
 		expect(betaRow).toHaveAttribute('aria-selected', 'true');
 		expect(screen.getAllByText('SpawnBlock Beta_Shield(Test_Blocks)').length).toBeGreaterThan(0);
@@ -236,33 +274,19 @@ describe('BlockLookupView', () => {
 	});
 
 	it('moves block lookup selection with arrows and extends ranges with Shift+Arrow', async () => {
-		const records = [
-			TEST_RECORD,
-			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
-			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
-		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords(createSelectionRecords());
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Gamma Wheel');
-		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
-		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
-		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		const alphaRow = getBlockLookupRow('Alpha Cannon');
+		const betaRow = getBlockLookupRow('Beta Shield');
+		const gammaRow = getBlockLookupRow('Gamma Wheel');
 		const scrollPane = document.querySelector('.BlockLookupVirtualScroll') as HTMLDivElement;
-		expect(alphaRow).not.toBeNull();
-		expect(betaRow).not.toBeNull();
-		expect(gammaRow).not.toBeNull();
 
-		alphaRow!.focus();
-		fireEvent.keyDown(alphaRow!, { key: 'ArrowDown' });
+		alphaRow.focus();
+		fireEvent.keyDown(alphaRow, { key: 'ArrowDown' });
 
 		expect(scrollPane).toHaveFocus();
 		expect(alphaRow).toHaveAttribute('aria-selected', 'false');
@@ -280,28 +304,18 @@ describe('BlockLookupView', () => {
 	});
 
 	it('keeps block lookup keyboard focus stable across Home and End navigation', async () => {
-		const records = [
-			TEST_RECORD,
-			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
-			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
-		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		mockBlockLookupRecords(createSelectionRecords());
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Gamma Wheel');
-		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
-		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
-		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
+		const alphaRow = getBlockLookupRow('Alpha Cannon');
+		const betaRow = getBlockLookupRow('Beta Shield');
+		const gammaRow = getBlockLookupRow('Gamma Wheel');
 		const scrollPane = document.querySelector('.BlockLookupVirtualScroll') as HTMLDivElement;
-		expect(alphaRow).not.toBeNull();
-		expect(betaRow).not.toBeNull();
-		expect(gammaRow).not.toBeNull();
 
-		betaRow!.focus();
-		fireEvent.keyDown(betaRow!, { key: 'End' });
+		betaRow.focus();
+		fireEvent.keyDown(betaRow, { key: 'End' });
 
 		expect(scrollPane).toHaveFocus();
 		expect(gammaRow).toHaveAttribute('aria-selected', 'true');
@@ -313,32 +327,18 @@ describe('BlockLookupView', () => {
 	});
 
 	it('copies selected block lookup rows with Ctrl+C in visible table order', async () => {
-		const records = [
-			TEST_RECORD,
-			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
-			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
-		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords(createSelectionRecords());
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Gamma Wheel');
-		const alphaRow = screen.getAllByText('Alpha Cannon')[0].closest('tr');
-		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
-		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
-		expect(alphaRow).not.toBeNull();
-		expect(betaRow).not.toBeNull();
-		expect(gammaRow).not.toBeNull();
+		const alphaRow = getBlockLookupRow('Alpha Cannon');
+		const betaRow = getBlockLookupRow('Beta Shield');
+		const gammaRow = getBlockLookupRow('Gamma Wheel');
 
-		fireEvent.click(gammaRow!, { ctrlKey: true });
-		fireEvent.keyDown(gammaRow!, { key: 'c', ctrlKey: true });
+		fireEvent.click(gammaRow, { ctrlKey: true });
+		fireEvent.keyDown(gammaRow, { key: 'c', ctrlKey: true });
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)\nSpawnBlock Gamma_Wheel(Test_Blocks)');
@@ -349,29 +349,16 @@ describe('BlockLookupView', () => {
 	});
 
 	it('selects a block lookup row range with Shift+click', async () => {
-		const records = [
-			TEST_RECORD,
-			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
-			createBlockLookupRecord(3, { blockName: 'Gamma Wheel', spawnCommand: 'SpawnBlock Gamma_Wheel(Test_Blocks)' })
-		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords(createSelectionRecords());
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Gamma Wheel');
-		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
-		const gammaRow = screen.getAllByText('Gamma Wheel')[0].closest('tr');
-		expect(betaRow).not.toBeNull();
-		expect(gammaRow).not.toBeNull();
+		const betaRow = getBlockLookupRow('Beta Shield');
+		const gammaRow = getBlockLookupRow('Gamma Wheel');
 
-		fireEvent.click(gammaRow!, { shiftKey: true });
+		fireEvent.click(gammaRow, { shiftKey: true });
 		fireEvent.click(screen.getByRole('button', { name: /Copy Selected/ }));
 
 		await waitFor(() => {
@@ -388,23 +375,16 @@ describe('BlockLookupView', () => {
 			TEST_RECORD,
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(window.navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText }
-		});
+		mockBlockLookupRecords(records);
+		const writeText = mockClipboardWrite();
 
 		renderBlockLookupView();
 
 		await screen.findAllByText('Beta Shield');
-		const betaRow = screen.getAllByText('Beta Shield')[0].closest('tr');
-		expect(betaRow).not.toBeNull();
+		const betaRow = getBlockLookupRow('Beta Shield');
 
-		fireEvent.keyDown(betaRow!, { key: 'a', ctrlKey: true });
-		fireEvent.keyDown(betaRow!, { key: 'c', ctrlKey: true });
+		fireEvent.keyDown(betaRow, { key: 'a', ctrlKey: true });
+		fireEvent.keyDown(betaRow, { key: 'c', ctrlKey: true });
 
 		await waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith('SpawnBlock Alpha_Cannon(Test_Blocks)\nSpawnBlock Beta_Shield(Test_Blocks)');
@@ -420,9 +400,7 @@ describe('BlockLookupView', () => {
 				spawnCommand: 'SpawnBlock Beta_Shield(Beta_Pack)'
 			})
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		mockBlockLookupRecords(records);
 
 		renderBlockLookupView();
 
@@ -443,9 +421,7 @@ describe('BlockLookupView', () => {
 	});
 
 	it('resizes block lookup columns from the header edge', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 
 		const { appState } = renderBlockLookupView();
 
@@ -600,9 +576,7 @@ describe('BlockLookupView', () => {
 
 	it('shows block lookup results without paginating the virtual table', async () => {
 		const records = Array.from({ length: 125 }, (_value, index) => createBlockLookupRecord(index + 1));
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		mockBlockLookupRecords(records);
 		renderBlockLookupView();
 
 		expect((await screen.findAllByText('Block 001')).length).toBeGreaterThan(0);
@@ -632,9 +606,7 @@ describe('BlockLookupView', () => {
 	});
 
 	it('uses fixed row geometry for virtualized block rows', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 
 		renderBlockLookupView();
 
@@ -652,9 +624,7 @@ describe('BlockLookupView', () => {
 			'matchMedia',
 			vi.fn(() => mediaQuery)
 		);
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(TEST_STATS);
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 
 		renderBlockLookupView({
 			config: {
@@ -677,9 +647,7 @@ describe('BlockLookupView', () => {
 			createBlockLookupRecord(2, { blockName: 'Beta Shield', spawnCommand: 'SpawnBlock Beta_Shield(Test_Blocks)' }),
 			createBlockLookupRecord(1, { blockName: 'Alpha Cannon', spawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)', internalName: '' })
 		];
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: records.length });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: records, stats: { ...TEST_STATS, blocks: records.length } });
+		mockBlockLookupRecords(records);
 
 		const { appState } = renderBlockLookupView();
 
@@ -719,35 +687,12 @@ describe('BlockLookupView', () => {
 		fireEvent.drop(blockHeader as Element, { dataTransfer: tableHeaderDrag });
 
 		await waitFor(() => {
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(
-				expect.objectContaining({
-					viewConfigs: expect.objectContaining({
-						blockLookup: expect.objectContaining({
-							columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
-							columnWidthConfig: undefined
-						})
-					})
-				})
-			);
-			expect(appState.updateState).toHaveBeenCalledWith(
-				expect.objectContaining({
-					config: expect.objectContaining({
-						viewConfigs: expect.objectContaining({
-							blockLookup: expect.objectContaining({
-								columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
-								columnWidthConfig: undefined
-							})
-						})
-					})
-				})
-			);
+			expectBlockLookupColumnOrderSaved(appState, ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle']);
 		});
 	});
 
 	it('reorders table settings rows by drag and drop', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 
 		const { appState } = renderBlockLookupView();
 
@@ -766,35 +711,12 @@ describe('BlockLookupView', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Save Table Settings' }));
 
 		await waitFor(() => {
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(
-				expect.objectContaining({
-					viewConfigs: expect.objectContaining({
-						blockLookup: expect.objectContaining({
-							columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
-							columnWidthConfig: undefined
-						})
-					})
-				})
-			);
-			expect(appState.updateState).toHaveBeenCalledWith(
-				expect.objectContaining({
-					config: expect.objectContaining({
-						viewConfigs: expect.objectContaining({
-							blockLookup: expect.objectContaining({
-								columnOrder: ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle'],
-								columnWidthConfig: undefined
-							})
-						})
-					})
-				})
-			);
+			expectBlockLookupColumnOrderSaved(appState, ['preview', 'spawnCommand', 'blockName', 'internalName', 'modTitle']);
 		});
 	});
 
 	it('reorders table settings rows from keyboard-accessible move controls', async () => {
-		vi.mocked(window.electron.readBlockLookupSettings).mockResolvedValue(TEST_BLOCK_LOOKUP_SETTINGS);
-		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue({ ...TEST_STATS, blocks: 1 });
-		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [TEST_RECORD], stats: TEST_STATS });
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 
 		const { appState } = renderBlockLookupView();
 
@@ -805,28 +727,7 @@ describe('BlockLookupView', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Save Table Settings' }));
 
 		await waitFor(() => {
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(
-				expect.objectContaining({
-					viewConfigs: expect.objectContaining({
-						blockLookup: expect.objectContaining({
-							columnOrder: ['preview', 'blockName', 'internalName', 'spawnCommand', 'modTitle'],
-							columnWidthConfig: undefined
-						})
-					})
-				})
-			);
-			expect(appState.updateState).toHaveBeenCalledWith(
-				expect.objectContaining({
-					config: expect.objectContaining({
-						viewConfigs: expect.objectContaining({
-							blockLookup: expect.objectContaining({
-								columnOrder: ['preview', 'blockName', 'internalName', 'spawnCommand', 'modTitle'],
-								columnWidthConfig: undefined
-							})
-						})
-					})
-				})
-			);
+			expectBlockLookupColumnOrderSaved(appState, ['preview', 'blockName', 'internalName', 'spawnCommand', 'modTitle']);
 		});
 	});
 });

@@ -22,33 +22,42 @@ async function findCollectionNameInput() {
 	return screen.findByRole('textbox', { name: 'New collection name' }, { timeout: 10000 });
 }
 
+type ToolbarProps = React.ComponentProps<typeof CollectionManagementToolbar>;
+
+function renderToolbar(props: Partial<ToolbarProps> = {}, collectionMods: string[] = []) {
+	const defaultCollection = { name: 'default', mods: collectionMods };
+	const appState = createAppState({
+		allCollections: new Map([['default', defaultCollection]]),
+		allCollectionNames: new Set(['default']),
+		activeCollection: defaultCollection
+	});
+
+	renderInAppRoot(
+		<CollectionManagementToolbar
+			appState={appState}
+			madeEdits={false}
+			searchString=""
+			openModal={vi.fn()}
+			saveCollectionCallback={vi.fn()}
+			changeActiveCollectionCallback={vi.fn()}
+			onReloadModListCallback={vi.fn()}
+			openViewSettingsCallback={vi.fn()}
+			onSearchCallback={vi.fn()}
+			onSearchChangeCallback={vi.fn()}
+			newCollectionCallback={vi.fn()}
+			duplicateCollectionCallback={vi.fn()}
+			renameCollectionCallback={vi.fn()}
+			openNotification={vi.fn()}
+			{...props}
+		/>
+	);
+
+	return { appState, defaultCollection };
+}
+
 describe('CollectionManagementToolbar', () => {
 	it('opens the collection rename modal when the toolbar action is clicked', async () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar();
 
 		await clickCollectionMenuAction('Rename collection');
 
@@ -58,31 +67,7 @@ describe('CollectionManagementToolbar', () => {
 	}, 20000);
 
 	it('prefills the duplicate collection modal with a readable copy name', async () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar();
 
 		await clickCollectionMenuAction('Duplicate collection');
 
@@ -92,12 +77,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('copies the active collection JSON to the clipboard and reports success', async () => {
-		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
 		const openNotification = vi.fn();
 		const writeText = vi.fn().mockResolvedValue(undefined);
 		Object.defineProperty(window.navigator, 'clipboard', {
@@ -105,24 +84,7 @@ describe('CollectionManagementToolbar', () => {
 			value: { writeText }
 		});
 
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={openNotification}
-			/>
-		);
+		const { defaultCollection } = renderToolbar({ openNotification }, ['workshop:1']);
 
 		await clickCollectionMenuAction('Copy JSON export');
 
@@ -139,31 +101,7 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('supports keyboard navigation inside the collection action menu', async () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar();
 
 		await clickToolbarAction('Collection actions');
 		const renameItem = await screen.findByRole('menuitem', { name: 'Rename collection' });
@@ -183,12 +121,6 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('reports a clipboard error instead of claiming success when export copying fails', async () => {
-		const defaultCollection = { name: 'default', mods: ['workshop:1'] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
 		const openNotification = vi.fn();
 		const writeText = vi.fn().mockRejectedValue(new Error('clipboard blocked'));
 		Object.defineProperty(window.navigator, 'clipboard', {
@@ -196,24 +128,7 @@ describe('CollectionManagementToolbar', () => {
 			value: { writeText }
 		});
 
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={openNotification}
-			/>
-		);
+		renderToolbar({ openNotification }, ['workshop:1']);
 
 		await clickCollectionMenuAction('Copy JSON export');
 
@@ -229,32 +144,9 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('opens table settings directly from the toolbar', async () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
 		const openViewSettingsCallback = vi.fn();
 
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={openViewSettingsCallback}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar({ openViewSettingsCallback });
 
 		expect(screen.queryByRole('button', { name: 'Table' })).not.toBeInTheDocument();
 		fireEvent.click(screen.getByRole('button', { name: 'Table Settings' }));
@@ -263,62 +155,13 @@ describe('CollectionManagementToolbar', () => {
 	});
 
 	it('labels the mod search field for assistive technologies', () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar();
 
 		expect(screen.getByLabelText('Search mods by name, ID, author, or tag')).toBeInTheDocument();
 	});
 
 	it('announces launch-ready validation state without expanding the toolbar label', () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
-		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				launchReady
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
+		renderToolbar({ launchReady: true });
 
 		const readyButton = screen.getByRole('button', { name: 'Collection Ready' });
 		expect(readyButton).toHaveTextContent(/^Ready$/);
@@ -331,66 +174,20 @@ describe('CollectionManagementToolbar', () => {
 		['warnings' as const, 'CollectionValidateButton--warnings'],
 		['blocked' as const, 'CollectionValidateButton--blocked']
 	])('uses the %s validation tone on the validate button', (currentValidationOutcome, expectedClassName) => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
+		renderToolbar({
+			currentValidationOutcome,
+			currentValidationStatus: currentValidationOutcome === undefined ? undefined : currentValidationOutcome === 'valid'
 		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				currentValidationOutcome={currentValidationOutcome}
-				currentValidationStatus={currentValidationOutcome === undefined ? undefined : currentValidationOutcome === 'valid'}
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
 
 		expect(screen.getByRole('button', { name: 'Validate Collection' })).toHaveClass(expectedClassName);
 	});
 
 	it('shows a blue game-running launch state while the game is already running', () => {
-		const defaultCollection = { name: 'default', mods: [] };
-		const appState = createAppState({
-			allCollections: new Map([['default', defaultCollection]]),
-			allCollectionNames: new Set(['default']),
-			activeCollection: defaultCollection
+		renderToolbar({
+			gameRunning: true,
+			launchGameDisabled: true,
+			launchGameDisabledReason: 'Game already running'
 		});
-
-		renderInAppRoot(
-			<CollectionManagementToolbar
-				appState={appState}
-				gameRunning
-				launchGameDisabled
-				launchGameDisabledReason="Game already running"
-				madeEdits={false}
-				searchString=""
-				openModal={vi.fn()}
-				saveCollectionCallback={vi.fn()}
-				changeActiveCollectionCallback={vi.fn()}
-				onReloadModListCallback={vi.fn()}
-				openViewSettingsCallback={vi.fn()}
-				onSearchCallback={vi.fn()}
-				onSearchChangeCallback={vi.fn()}
-				newCollectionCallback={vi.fn()}
-				duplicateCollectionCallback={vi.fn()}
-				renameCollectionCallback={vi.fn()}
-				openNotification={vi.fn()}
-			/>
-		);
 
 		const launchButton = screen.getByRole('button', { name: 'Game Running' });
 		expect(launchButton).toBeDisabled();

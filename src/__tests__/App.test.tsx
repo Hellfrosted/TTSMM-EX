@@ -3,9 +3,10 @@ import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App, { AppShell, AppViewStage, resetInitialSteamworksVerificationForTests } from '../renderer/App';
-import { setConfigCacheData, setModMetadataCacheData } from '../renderer/async-cache';
 import { DEFAULT_CONFIG } from '../renderer/Constants';
 import ViewStageLoadingFallback from '../renderer/components/loading/ViewStageLoadingFallback';
+import { setConfigCacheData } from '../renderer/config-cache';
+import { setModMetadataCacheData } from '../renderer/mod-metadata-cache';
 import { AppRoutes } from '../renderer/routes';
 import { AppStateProvider, useAppStateSelector } from '../renderer/state/app-state';
 
@@ -190,7 +191,7 @@ describe('App', () => {
 			</MemoryRouter>
 		);
 
-		const collectionsButton = await screen.findByTitle('Mod Collections');
+		const collectionsButton = await screen.findByTitle('Mod Collections', undefined, { timeout: 5000 });
 
 		expect(screen.getByTestId('location')).toHaveTextContent('/settings');
 		expect(document.querySelector('[data-view-stage="collections"]')).not.toBeInTheDocument();

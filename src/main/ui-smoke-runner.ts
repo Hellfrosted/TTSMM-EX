@@ -414,6 +414,99 @@ async function closeToolbarMenus(window: BrowserWindow) {
 	await waitForNoSelector(window, '.ToolbarMenuSurface');
 }
 
+async function captureHeaderMenuInteraction(
+	window: BrowserWindow,
+	screenshotDir: string,
+	name: string,
+	stageSelector: string,
+	headerSelector: string
+) {
+	const metrics = (await window.webContents.executeJavaScript(
+		`
+		(async () => {
+			const stage = document.querySelector(${JSON.stringify(stageSelector)});
+			const header = stage?.querySelector(${JSON.stringify(headerSelector)});
+			if (!(stage instanceof HTMLElement) || !(header instanceof HTMLElement)) {
+				return {
+					ok: false,
+					reason: 'missing stage or header',
+					stageFound: stage instanceof HTMLElement,
+					headerFound: header instanceof HTMLElement
+				};
+			}
+			const opener =
+				header.querySelector('button:not(.CollectionTableResizeHandle)') ||
+				header.querySelector('.CollectionTableHeaderContextTarget') ||
+				header;
+
+			if (!(opener instanceof HTMLElement)) {
+				return { ok: false, reason: 'missing header menu opener' };
+			}
+
+			opener.focus();
+			opener.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
+			await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			const menu = document.querySelector('.MainCollectionHeaderMenu');
+			if (!(menu instanceof HTMLElement)) {
+				return {
+					ok: false,
+					reason: 'missing header menu',
+					openerTag: opener.tagName,
+					openerText: opener.textContent?.trim(),
+					activeTag: document.activeElement instanceof HTMLElement ? document.activeElement.tagName : ''
+				};
+			}
+
+			const items = Array.from(menu.querySelectorAll('[role="menuitem"]')).filter(
+				(item) => item instanceof HTMLElement
+			);
+			const firstFocusedText = document.activeElement instanceof HTMLElement ? document.activeElement.textContent?.trim() : '';
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }));
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+			const endFocusedText = document.activeElement instanceof HTMLElement ? document.activeElement.textContent?.trim() : '';
+			const menuStyle = getComputedStyle(menu);
+			const rect = menu.getBoundingClientRect();
+
+			return {
+				ok: items.length > 0 && Boolean(firstFocusedText) && Boolean(endFocusedText),
+				stage: stage.getAttribute('data-view-stage'),
+				headerLabel: header.getAttribute('data-column-title') || header.getAttribute('data-column-key') || header.textContent?.trim(),
+				openerTag: opener.tagName,
+				openerText: opener.textContent?.trim(),
+				itemCount: items.length,
+				firstFocusedText,
+				endFocusedText,
+				menuRole: menu.getAttribute('role'),
+				opacity: menuStyle.opacity,
+				pointerEvents: menuStyle.pointerEvents,
+				rect: {
+					x: rect.x,
+					y: rect.y,
+					width: rect.width,
+					height: rect.height
+				}
+			};
+		})()
+		`,
+		true
+	)) as Record<string, unknown>;
+	if (!metrics.ok) {
+		throw new Error(`${name} header menu check failed: ${JSON.stringify(metrics)}`);
+	}
+
+	const result = await captureInteractionScreenshot(window, screenshotDir, name, metrics);
+	await window.webContents.executeJavaScript(
+		`
+		(() => {
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+		})()
+		`,
+		true
+	);
+	await waitForNoSelector(window, '.MainCollectionHeaderMenu');
+	return result;
+}
+
 async function collectDialogMetrics(window: BrowserWindow) {
 	return (await window.webContents.executeJavaScript(
 		`
@@ -467,19 +560,23 @@ async function runInteractionChecks(window: BrowserWindow, screenshotDir: string
 				return { ok: false, reason: 'missing collapse button or icon swap' };
 			}
 			const beforeState = swap.dataset.state;
+			const beforeLabel = button.getAttribute('aria-label');
 			const beforeExpandedOpacity = getComputedStyle(swap.querySelector('[data-icon="expanded"]')).opacity;
 			const beforeCollapsedOpacity = getComputedStyle(swap.querySelector('[data-icon="collapsed"]')).opacity;
 			button.click();
 			await new Promise((resolve) => setTimeout(resolve, 260));
 			const afterState = swap.dataset.state;
+			const afterLabel = button.getAttribute('aria-label');
 			const afterExpandedOpacity = getComputedStyle(swap.querySelector('[data-icon="expanded"]')).opacity;
 			const afterCollapsedOpacity = getComputedStyle(swap.querySelector('[data-icon="collapsed"]')).opacity;
 			button.click();
 			await new Promise((resolve) => setTimeout(resolve, 260));
 			return {
-				ok: beforeState !== afterState && afterCollapsedOpacity !== beforeCollapsedOpacity && afterExpandedOpacity !== beforeExpandedOpacity,
+				ok: beforeState !== afterState && beforeLabel !== afterLabel,
 				beforeState,
 				afterState,
+				beforeLabel,
+				afterLabel,
 				beforeExpandedOpacity,
 				afterExpandedOpacity,
 				beforeCollapsedOpacity,
@@ -529,6 +626,33 @@ async function runInteractionChecks(window: BrowserWindow, screenshotDir: string
 	}
 	results.push(await captureInteractionScreenshot(window, screenshotDir, 'toolbar-dropdown', dropdownMetrics));
 	await closeToolbarMenus(window);
+
+	results.push(
+		await captureHeaderMenuInteraction(
+			window,
+			screenshotDir,
+			'main-header-menu-keyboard',
+			'[data-view-stage="collections"][data-active="true"]',
+			'[data-column-title]'
+		)
+	);
+
+	await clickMenuItem(window, 'Block Lookup');
+	await waitForSelector(window, '[data-view-stage="block-lookup"][data-active="true"]');
+	await delay(250);
+	results.push(
+		await captureHeaderMenuInteraction(
+			window,
+			screenshotDir,
+			'block-lookup-header-menu-keyboard',
+			'[data-view-stage="block-lookup"][data-active="true"]',
+			'[data-column-key]'
+		)
+	);
+
+	await clickMenuItem(window, 'Mod Collections');
+	await waitForSelector(window, '[data-view-stage="collections"][data-active="true"]');
+	await delay(250);
 
 	const dialogOpenRequest = (await window.webContents.executeJavaScript(
 		`

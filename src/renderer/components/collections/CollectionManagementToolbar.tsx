@@ -22,6 +22,7 @@ import { lazy, memo, Suspense, useEffect, useId, useReducer, useRef, useState } 
 import type { CollectionNamingModalType } from 'renderer/collection-form-validation';
 import { DesktopButton, DesktopIconButton, DesktopInput, DesktopSelect } from 'renderer/components/DesktopControls';
 import { desktopControlFocusClassName, joinClassNames } from 'renderer/components/desktop-control-classes';
+import { focusMenuItem, handleMenuKeyboardNavigation } from 'renderer/menu-keyboard';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 
 const CollectionNamingModalLazy = lazy(() => import('./CollectionNamingModal'));
@@ -201,32 +202,11 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 			return undefined;
 		}
 
-		const getMenuItems = () => [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
 		const focusMenuButton = () => {
 			rootRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
 		};
-		const focusMenuItem = (direction: 1 | -1 | 'first' | 'last') => {
-			const menuItems = getMenuItems();
-			if (menuItems.length === 0) {
-				return;
-			}
-
-			if (direction === 'first') {
-				menuItems[0].focus();
-				return;
-			}
-
-			if (direction === 'last') {
-				menuItems[menuItems.length - 1].focus();
-				return;
-			}
-
-			const activeIndex = menuItems.findIndex((item) => item === document.activeElement);
-			const nextIndex = activeIndex < 0 ? 0 : (activeIndex + direction + menuItems.length) % menuItems.length;
-			menuItems[nextIndex].focus();
-		};
 		const focusFirstMenuItem = window.requestAnimationFrame(() => {
-			focusMenuItem('first');
+			focusMenuItem(menuRef.current, 'first');
 		});
 		const closeOnOutsideClick = (event: MouseEvent) => {
 			const target = event.target;
@@ -236,32 +216,16 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 			dispatchOpen(false);
 		};
 		const handleMenuKeyboard = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				dispatchOpen(false);
-				focusMenuButton();
-				return;
-			}
-
-			if (!menuRef.current?.contains(document.activeElement)) {
-				return;
-			}
-
-			if (event.key === 'ArrowDown') {
-				event.preventDefault();
-				focusMenuItem(1);
-			} else if (event.key === 'ArrowUp') {
-				event.preventDefault();
-				focusMenuItem(-1);
-			} else if (event.key === 'Home') {
-				event.preventDefault();
-				focusMenuItem('first');
-			} else if (event.key === 'End') {
-				event.preventDefault();
-				focusMenuItem('last');
-			} else if (event.key === 'Tab') {
-				dispatchOpen(false);
-			}
+			handleMenuKeyboardNavigation(event, {
+				closeMenu: () => {
+					dispatchOpen(false);
+					focusMenuButton();
+				},
+				closeMenuOnTab: () => {
+					dispatchOpen(false);
+				},
+				menu: menuRef.current
+			});
 		};
 
 		window.addEventListener('mousedown', closeOnOutsideClick);

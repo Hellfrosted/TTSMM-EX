@@ -1,6 +1,5 @@
 import { CollectionManagerModalType, type ModCollection } from 'model';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
-import { createActiveCollectionDraftValidationCoordinator } from './active-collection-draft-validation-coordinator';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
@@ -12,7 +11,7 @@ import {
 	createCollectionWorkspaceSession,
 	createCollectionWorkspaceWorkflowState,
 	reduceCollectionWorkspaceWorkflow
-} from './collection-workspace-workflow';
+} from './collection-workspace-session';
 
 export interface ActiveCollectionDraftDriverFacts {
 	gameRunning: boolean;
@@ -94,6 +93,32 @@ interface ActiveCollectionDraftDriverOptions {
 	};
 }
 
+function workflowEventFromValidationOutcome(outcome: CollectionValidationRunOutcome): CollectionWorkspaceWorkflowEvent {
+	switch (outcome.type) {
+		case 'validation-run-failed':
+		case 'missing-active-collection':
+			return { type: 'validation-failed-to-run' };
+		case 'cancelled':
+			return { type: 'validation-cancelled' };
+		case 'discarded-stale-result':
+			return {
+				type: 'validation-completed',
+				result: outcome.validationResult
+			};
+		case 'recorded-current-result':
+			return {
+				type: 'validation-completed',
+				result: outcome.validationResult
+			};
+		case 'recorded-failed-result':
+			return {
+				type: 'validation-completed',
+				result: outcome.validationResult,
+				modalType: outcome.modalType
+			};
+	}
+}
+
 export interface ActiveCollectionDraftDriver {
 	dispatch(event: ActiveCollectionDraftDriverEvent): void;
 	dispose(): void;
@@ -140,11 +165,41 @@ export function createActiveCollectionDraftDriver({
 		transition.effects.forEach(runEffect);
 	};
 
-	const validationCoordinator = createActiveCollectionDraftValidationCoordinator({
-		applyWorkflowEvent,
-		cancelValidation: adapters.cancelValidation,
-		validateDraft: adapters.validateDraft
-	});
+	let validationRequestId = 0;
+	const isCurrentValidationRequest = (requestId: number) => !disposed && requestId === validationRequestId;
+	const invalidateCurrentValidationRequest = () => {
+		validationRequestId += 1;
+	};
+	const applyAcceptedValidationOutcome = (requestId: number, outcome: CollectionValidationRunOutcome) => {
+		if (!isCurrentValidationRequest(requestId)) {
+			return;
+		}
+		applyWorkflowEvent(workflowEventFromValidationOutcome(outcome));
+	};
+	const cancelValidation = () => {
+		invalidateCurrentValidationRequest();
+		adapters.cancelValidation();
+	};
+	const validateActiveDraft = (
+		draft: ModCollection | undefined,
+		launchIfValid: boolean,
+		options?: { config?: CollectionWorkspaceAppState['config'] }
+	) => {
+		if (disposed) {
+			return;
+		}
+		const requestId = validationRequestId + 1;
+		validationRequestId = requestId;
+		applyWorkflowEvent({ type: 'validation-started', launchIfValid });
+		void adapters
+			.validateDraft(draft, launchIfValid, options)
+			.then((outcome) => {
+				applyAcceptedValidationOutcome(requestId, outcome);
+			})
+			.catch(() => {
+				applyAcceptedValidationOutcome(requestId, { type: 'validation-run-failed' });
+			});
+	};
 
 	function runEffect(effect: CollectionWorkspaceWorkflowEffect) {
 		if (disposed) {
@@ -155,13 +210,13 @@ export function createActiveCollectionDraftDriver({
 				adapters.openModal(CollectionManagerModalType.DESELECTING_MOD_MANAGER);
 				break;
 			case 'cancel-validation':
-				validationCoordinator.cancel();
+				cancelValidation();
 				break;
 			case 'recalculate-mod-data':
 				adapters.recalculateModData();
 				break;
 			case 'validate-active-collection':
-				validationCoordinator.validate(workflowState.draft, effect.launchIfValid);
+				validateActiveDraft(workflowState.draft, effect.launchIfValid);
 				break;
 			case 'persist-active-collection-draft':
 				if (workflowState.draft) {
@@ -232,7 +287,7 @@ export function createActiveCollectionDraftDriver({
 				break;
 			case 'validate-requested':
 				adapters.clearCollectionErrors();
-				validationCoordinator.validate(workflowState.draft, false, event.options);
+				validateActiveDraft(workflowState.draft, false, event.options);
 				break;
 		}
 	};
@@ -241,7 +296,8 @@ export function createActiveCollectionDraftDriver({
 		dispatch,
 		dispose: () => {
 			disposed = true;
-			validationCoordinator.dispose();
+			invalidateCurrentValidationRequest();
+			adapters.cancelValidation();
 			listeners.clear();
 		},
 		getSnapshot,

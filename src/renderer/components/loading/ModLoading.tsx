@@ -2,7 +2,7 @@ import type { AppConfig } from 'model/AppConfig';
 import type { SessionMods } from 'model/SessionMods';
 import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
-import { createModMetadataScanRequest, readModMetadataCache } from 'renderer/async-cache';
+import { createModMetadataScanRequest, readModMetadataCache } from 'renderer/mod-metadata-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { formatErrorMessage } from 'renderer/util/error-message';
 import { ProgressTypes } from 'shared/ipc';

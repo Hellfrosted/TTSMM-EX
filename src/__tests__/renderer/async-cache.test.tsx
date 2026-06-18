@@ -2,30 +2,26 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type AppConfig, SessionMods } from '../../model';
 import {
-	applyCollectionLifecycleResultToCache,
-	createModMetadataScanRequest,
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
 	getBlockLookupBootstrapCacheData,
-	readCollectionCache,
-	readCollectionsListCache,
-	readConfigCache,
-	readGameRunningCache,
-	readModMetadataCache,
 	setBlockLookupBootstrapCacheData,
 	setBlockLookupSearchCacheData,
+	useBuildBlockLookupIndexMutation
+} from '../../renderer/block-lookup-cache';
+import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import {
+	applyCollectionLifecycleResultToCache,
+	readCollectionCache,
+	readCollectionsListCache,
 	setCollectionCacheData,
-	setConfigCacheData,
-	setGameRunningCacheData,
-	setModMetadataCacheData,
-	useBuildBlockLookupIndexMutation,
 	useCollectionCacheValue,
 	useCollectionsListCacheValue,
-	useConfigCacheValue,
-	useUpdateCollectionMutation,
-	useWriteConfigMutation
-} from '../../renderer/async-cache';
-import { DEFAULT_CONFIG } from '../../renderer/Constants';
+	useUpdateCollectionMutation
+} from '../../renderer/collection-cache';
+import { readConfigCache, setConfigCacheData, useConfigCacheValue, useWriteConfigMutation } from '../../renderer/config-cache';
+import { readGameRunningCache, setGameRunningCacheData } from '../../renderer/game-status-cache';
+import { createModMetadataScanRequest, readModMetadataCache, setModMetadataCacheData } from '../../renderer/mod-metadata-cache';
 import { persistConfigChange, writeConfig } from '../../renderer/util/config-write';
 import type { ElectronApi } from '../../shared/electron-api';
 

@@ -17,6 +17,38 @@ vi.mock('model', async (importOriginal) => {
 	};
 });
 
+type TestAppState = ReturnType<typeof createAppState>;
+type ValidationOptions = Parameters<typeof useCollectionValidation>[0];
+type WorkspaceValidationStatus = ReturnType<typeof createCollectionWorkspaceSession>['validationStatus'];
+
+function renderValidationHook(appState: TestAppState, options: Partial<ValidationOptions> = {}) {
+	return renderHook(() =>
+		useCollectionValidation({
+			appState,
+			openNotification: vi.fn(),
+			setModalType: vi.fn(),
+			persistCollection: vi.fn(async () => true),
+			...options
+		})
+	);
+}
+
+function expectWorkspaceValidationStatus(
+	appState: TestAppState,
+	validationResult: ReturnType<typeof useCollectionValidation>['validationResult'],
+	expectedStatus: WorkspaceValidationStatus,
+	config = appState.config
+) {
+	expect(
+		createCollectionWorkspaceSession({
+			activeCollection: appState.activeCollection,
+			config,
+			hasUnsavedDraft: false,
+			validationResult
+		}).validationStatus
+	).toBe(expectedStatus);
+}
+
 describe('useCollectionValidation', () => {
 	beforeEach(async () => {
 		const actual = await vi.importActual<typeof import('../../model')>('model');
@@ -36,28 +68,14 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result, rerender } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result, rerender } = renderValidationHook(appState);
 
 		await act(async () => {
 			await result.current.validateActiveCollection(false);
 		});
 
 		expect(result.current.lastValidationStatus).toBe(true);
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('passed');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'passed');
 
 		act(() => {
 			appState.activeCollection = { name: 'alt', mods: ['local:b'] };
@@ -65,14 +83,7 @@ describe('useCollectionValidation', () => {
 		rerender();
 
 		expect(result.current.lastValidationStatus).toBe(true);
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('stale');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'stale');
 	});
 
 	it('treats a validated empty collection as current', async () => {
@@ -85,28 +96,14 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result } = renderValidationHook(appState);
 
 		await act(async () => {
 			await result.current.validateActiveCollection(false);
 		});
 
 		expect(result.current.lastValidationStatus).toBe(true);
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('passed');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'passed');
 	});
 
 	it('does not treat validation as current after config changes that affect descriptor resolution', async () => {
@@ -120,27 +117,13 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result, rerender } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result, rerender } = renderValidationHook(appState);
 
 		await act(async () => {
 			await result.current.validateActiveCollection(false);
 		});
 
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('passed');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'passed');
 
 		act(() => {
 			appState.config = {
@@ -150,14 +133,7 @@ describe('useCollectionValidation', () => {
 		});
 		rerender();
 
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('stale');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'stale');
 	});
 
 	it('records launch-triggered validation without persisting the validated collection', async () => {
@@ -172,14 +148,7 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection
-			})
-		);
+		const { result } = renderValidationHook(appState, { persistCollection });
 
 		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
 		await act(async () => {
@@ -207,14 +176,7 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection
-			})
-		);
+		const { result } = renderValidationHook(appState, { persistCollection });
 
 		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
 		await act(async () => {
@@ -225,14 +187,7 @@ describe('useCollectionValidation', () => {
 			throw new Error(`Expected recorded-current-result validation outcome, received ${outcome?.type}`);
 		}
 		expect(persistCollection).not.toHaveBeenCalled();
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: appState.config,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('passed');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'passed');
 	});
 
 	it('validates the supplied Active Collection Draft instead of app state activeCollection', async () => {
@@ -248,15 +203,10 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				activeCollectionDraft: { name: 'default', mods: ['local:b'] },
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection
-			})
-		);
+		const { result } = renderValidationHook(appState, {
+			activeCollectionDraft: { name: 'default', mods: ['local:b'] },
+			persistCollection
+		});
 
 		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
 		await act(async () => {
@@ -284,15 +234,7 @@ describe('useCollectionValidation', () => {
 
 		setupDescriptors(mods, appState.config.userOverrides);
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				activeCollectionDraft: appState.activeCollection,
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result } = renderValidationHook(appState, { activeCollectionDraft: appState.activeCollection });
 
 		let outcome: Awaited<ReturnType<typeof result.current.validateActiveCollection>> | undefined;
 		await act(async () => {
@@ -340,14 +282,7 @@ describe('useCollectionValidation', () => {
 			throw new Error('Expected a dependency key for the validation override test');
 		}
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result } = renderValidationHook(appState);
 		const nextConfig = {
 			...appState.config,
 			ignoredValidationErrors: new Map([
@@ -367,14 +302,7 @@ describe('useCollectionValidation', () => {
 
 		expect(result.current.lastValidationStatus).toBe(true);
 		expect(appState.mods.modIdToModDataMap.get(currentMod.uid)?.errors?.missingDependencies).toBeUndefined();
-		expect(
-			createCollectionWorkspaceSession({
-				activeCollection: appState.activeCollection,
-				config: nextConfig,
-				hasUnsavedDraft: false,
-				validationResult: result.current.validationResult
-			}).validationStatus
-		).toBe('passed');
+		expectWorkspaceValidationStatus(appState, result.current.validationResult, 'passed', nextConfig);
 	});
 
 	it('interrupts an in-flight validation Effect before starting the next validation', async () => {
@@ -403,14 +331,7 @@ describe('useCollectionValidation', () => {
 			)
 			.mockImplementationOnce(() => Effect.succeed({}));
 
-		const { result } = renderHook(() =>
-			useCollectionValidation({
-				appState,
-				openNotification: vi.fn(),
-				setModalType: vi.fn(),
-				persistCollection: vi.fn(async () => true)
-			})
-		);
+		const { result } = renderValidationHook(appState);
 
 		act(() => {
 			void result.current.validateActiveCollection(false);

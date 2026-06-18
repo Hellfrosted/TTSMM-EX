@@ -26,7 +26,6 @@ import {
 } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
-import { EffectAtomRendererProof } from './effect-atom-renderer-proof';
 import { appCssVariables } from './theme';
 
 const loadCollectionView = () => import('./views/CollectionView');
@@ -437,7 +436,6 @@ export default function App() {
 		<div className="AppRoot" style={{ ...appCssVariables, width: '100%', height: '100%' }}>
 			<AppStateProvider navigate={navigateApp}>
 				<AppShell />
-				<EffectAtomRendererProof />
 				<NotificationViewport />
 			</AppStateProvider>
 		</div>

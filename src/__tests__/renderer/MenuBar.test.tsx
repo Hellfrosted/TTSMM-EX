@@ -50,29 +50,44 @@ function getHarness(container: HTMLElement) {
 	return within(container);
 }
 
+function renderMenuBar({
+	currentPath = '/collections/main',
+	disableNavigation,
+	onWorkspacePreview
+}: {
+	currentPath?: string;
+	disableNavigation?: boolean;
+	onWorkspacePreview?: (path: string) => void;
+} = {}) {
+	const appState = createAppState({
+		config: {
+			...createAppState().config,
+			currentPath
+		}
+	});
+	const view = render(
+		<MemoryRouter initialEntries={[currentPath]}>
+			<Routes>
+				<Route
+					path="*"
+					element={<MenuBarHarness appState={appState} disableNavigation={disableNavigation} onWorkspacePreview={onWorkspacePreview} />}
+				/>
+			</Routes>
+		</MemoryRouter>
+	);
+
+	return { appState, harness: getHarness(view.container), view };
+}
+
 afterEach(() => {
 	cleanup();
 });
 
 describe('MenuBar', () => {
 	it('navigates without persisting the selected workspace into config', async () => {
-		const appState = createAppState({
-			config: {
-				...createAppState().config,
-				currentPath: '/collections/main'
-			}
-		});
-
-		const view = render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		const { appState, harness, view } = renderMenuBar();
 
 		fireEvent.click(getSettingsMenuItem(view.container));
-		const harness = getHarness(view.container);
 
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/settings');
@@ -84,23 +99,9 @@ describe('MenuBar', () => {
 	}, 10000);
 
 	it('navigates to the Population Pool workspace from the sidebar', async () => {
-		const appState = createAppState({
-			config: {
-				...createAppState().config,
-				currentPath: '/collections/main'
-			}
-		});
-
-		const view = render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		const { appState, harness, view } = renderMenuBar();
 
 		fireEvent.click(getPopulationPoolMenuItem(view.container));
-		const harness = getHarness(view.container);
 
 		await waitFor(() => {
 			expect(harness.getByTestId('location')).toHaveTextContent('/population-pool');
@@ -111,21 +112,7 @@ describe('MenuBar', () => {
 	}, 10000);
 
 	it('cycles primary workspaces forward with Ctrl+Tab and backward with Ctrl+Shift+Tab', async () => {
-		const appState = createAppState({
-			config: {
-				...createAppState().config,
-				currentPath: '/collections/main'
-			}
-		});
-
-		const view = render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} />} />
-				</Routes>
-			</MemoryRouter>
-		);
-		const harness = getHarness(view.container);
+		const { appState, harness, view } = renderMenuBar();
 
 		fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
 		await waitFor(() => {
@@ -148,21 +135,7 @@ describe('MenuBar', () => {
 	}, 10000);
 
 	it('does not cycle workspaces with Ctrl+Tab while navigation is disabled', async () => {
-		const appState = createAppState({
-			config: {
-				...createAppState().config,
-				currentPath: '/collections/main'
-			}
-		});
-
-		const view = render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} disableNavigation />} />
-				</Routes>
-			</MemoryRouter>
-		);
-		const harness = getHarness(view.container);
+		const { harness } = renderMenuBar({ disableNavigation: true });
 
 		fireEvent.keyDown(window, { key: 'Tab', ctrlKey: true });
 		await new Promise((resolve) => {
@@ -174,22 +147,8 @@ describe('MenuBar', () => {
 	}, 10000);
 
 	it('previews workspace navigation without starting a mod reload on ordinary collection entry', async () => {
-		const appState = createAppState({
-			config: {
-				...createAppState().config,
-				currentPath: '/settings'
-			}
-		});
 		const onWorkspacePreview = vi.fn();
-
-		const view = render(
-			<MemoryRouter initialEntries={['/settings']}>
-				<Routes>
-					<Route path="*" element={<MenuBarHarness appState={appState} onWorkspacePreview={onWorkspacePreview} />} />
-				</Routes>
-			</MemoryRouter>
-		);
-		const harness = getHarness(view.container);
+		const { appState, harness, view } = renderMenuBar({ currentPath: '/settings', onWorkspacePreview });
 
 		fireEvent.click(getBlockLookupMenuItem(view.container));
 		expect(onWorkspacePreview).toHaveBeenLastCalledWith('/block-lookup');

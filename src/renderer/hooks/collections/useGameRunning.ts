@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
-import { readGameRunningCache } from 'renderer/async-cache';
+import { readGameRunningCache } from 'renderer/game-status-cache';
 
 const GAME_RUNNING_POLL_INTERVAL_MS = 5000;
 

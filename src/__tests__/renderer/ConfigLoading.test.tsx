@@ -3,9 +3,9 @@ import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppConfig, ModCollection } from '../../model';
-import { readConfigCache, setConfigCacheData } from '../../renderer/async-cache';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
 import ConfigLoading from '../../renderer/components/loading/ConfigLoading';
+import { readConfigCache, setConfigCacheData } from '../../renderer/config-cache';
 import { AppStateProvider, useAppStateSelector } from '../../renderer/state/app-state';
 import { createTestConfig } from './test-utils';
 
@@ -54,6 +54,31 @@ function startupSuccess(config: AppConfig, activeCollection: ModCollection, coll
 	};
 }
 
+function mockWindowsUserDataPath() {
+	vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+}
+
+function mockWindowsConfigRead(config: AppConfig | null = createTestConfig()) {
+	mockWindowsUserDataPath();
+	vi.mocked(window.electron.readConfig).mockResolvedValueOnce(config);
+}
+
+function mockStartupSuccess(activeCollection: ModCollection, collections?: ModCollection[]) {
+	vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
+		startupSuccess(config, activeCollection, collections)
+	);
+}
+
+function renderConfigLoading() {
+	return render(
+		<MemoryRouter initialEntries={['/loading/config']}>
+			<Routes>
+				<Route path="*" element={<ConfigLoadingAppHarness />} />
+			</Routes>
+		</MemoryRouter>
+	);
+}
+
 describe('ConfigLoading', () => {
 	beforeEach(() => {
 		setConfigCacheData(undefined);
@@ -64,19 +89,10 @@ describe('ConfigLoading', () => {
 	});
 
 	it('loads config and collections through the provider-owned boot flow', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'default', mods: [] })
-		);
+		mockWindowsConfigRead();
+		mockStartupSuccess({ name: 'default', mods: [] });
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(window.electron.resolveStartupCollection).toHaveBeenCalledWith({
@@ -88,20 +104,11 @@ describe('ConfigLoading', () => {
 
 	it('auto-discovers and persists the TerraTech executable on first launch', async () => {
 		const discoveredExecutable = 'D:\\SteamLibrary\\steamapps\\common\\TerraTech\\TerraTechWin64.exe';
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(null);
+		mockWindowsConfigRead(null);
 		vi.mocked(window.electron.discoverGameExecutable).mockResolvedValueOnce(discoveredExecutable);
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'default', mods: [] })
-		);
+		mockStartupSuccess({ name: 'default', mods: [] });
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ gameExec: discoveredExecutable }));
@@ -115,21 +122,12 @@ describe('ConfigLoading', () => {
 
 	it('does not keep an auto-discovered executable in memory when persisting it fails', async () => {
 		const discoveredExecutable = 'D:\\SteamLibrary\\steamapps\\common\\TerraTech\\TerraTechWin64.exe';
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(null);
+		mockWindowsConfigRead(null);
 		vi.mocked(window.electron.discoverGameExecutable).mockResolvedValueOnce(discoveredExecutable);
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'default', mods: [] })
-		);
+		mockStartupSuccess({ name: 'default', mods: [] });
 		vi.mocked(window.electron.updateConfig).mockResolvedValueOnce(null);
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(window.electron.updateConfig).toHaveBeenCalledTimes(1);
@@ -142,13 +140,7 @@ describe('ConfigLoading', () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: '' }));
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
@@ -164,13 +156,7 @@ describe('ConfigLoading', () => {
 		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('/home/tester/.config/TerraTech Steam Mod Manager EX');
 		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: 'C:\\Missing\\TerraTechWin64.exe' }));
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
@@ -182,17 +168,10 @@ describe('ConfigLoading', () => {
 	});
 
 	it('routes invalid configs to settings without kicking off mod loading', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ gameExec: 'C:\\Missing\\TerraTechWin64.exe' }));
+		mockWindowsConfigRead(createTestConfig({ gameExec: 'C:\\Missing\\TerraTechWin64.exe' }));
 		vi.mocked(window.electron.pathExists).mockResolvedValue(false);
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/settings');
@@ -206,16 +185,9 @@ describe('ConfigLoading', () => {
 		'/settings',
 		'/block-lookup'
 	])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ currentPath }));
+		mockWindowsConfigRead(createTestConfig({ currentPath }));
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
@@ -223,19 +195,10 @@ describe('ConfigLoading', () => {
 	});
 
 	it('caches the normalized startup route after applying authoritative collection state', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig({ currentPath: '/settings' }));
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'default', mods: [] })
-		);
+		mockWindowsConfigRead(createTestConfig({ currentPath: '/settings' }));
+		mockStartupSuccess({ name: 'default', mods: [] });
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('location').at(-1)).toHaveTextContent('/collections/main');
@@ -246,22 +209,13 @@ describe('ConfigLoading', () => {
 	});
 
 	it('keeps the discovered active collection in config during boot fallback selection', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'alpha', mods: [] }, [
-				{ name: 'alpha', mods: [] },
-				{ name: 'zeta', mods: [] }
-			])
-		);
+		mockWindowsConfigRead();
+		mockStartupSuccess({ name: 'alpha', mods: [] }, [
+			{ name: 'alpha', mods: [] },
+			{ name: 'zeta', mods: [] }
+		]);
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByTestId('active-collection').at(-1)).toHaveTextContent('alpha');
@@ -271,22 +225,13 @@ describe('ConfigLoading', () => {
 	});
 
 	it('applies collections returned by Startup Collection Resolution', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
-		vi.mocked(window.electron.resolveStartupCollection).mockImplementationOnce(async ({ config }) =>
-			startupSuccess(config, { name: 'alpha', mods: ['local:a'] }, [
-				{ name: 'alpha', mods: ['local:a'] },
-				{ name: 'zeta', mods: [] }
-			])
-		);
+		mockWindowsConfigRead();
+		mockStartupSuccess({ name: 'alpha', mods: ['local:a'] }, [
+			{ name: 'alpha', mods: ['local:a'] },
+			{ name: 'zeta', mods: [] }
+		]);
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(window.electron.resolveStartupCollection).toHaveBeenCalledOnce();
@@ -298,21 +243,14 @@ describe('ConfigLoading', () => {
 	});
 
 	it('halts boot when persisting a repaired active collection fails', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
+		mockWindowsConfigRead();
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'config-write-failed',
 			message: 'Failed to persist repaired active collection alpha'
 		});
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByText('TTSMM-EX could not save which collection should open.').length).toBeGreaterThan(0);
@@ -324,21 +262,14 @@ describe('ConfigLoading', () => {
 	});
 
 	it('halts boot when persisting the default collection fails', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
+		mockWindowsConfigRead();
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'collection-write-failed',
 			message: 'Failed to persist the default collection during boot'
 		});
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByText('TTSMM-EX could not create the default collection it needs to start.').length).toBeGreaterThan(0);
@@ -350,21 +281,14 @@ describe('ConfigLoading', () => {
 	});
 
 	it('halts boot and surfaces a collection load error instead of creating a fallback collection', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
-		vi.mocked(window.electron.readConfig).mockResolvedValueOnce(createTestConfig());
+		mockWindowsConfigRead();
 		vi.mocked(window.electron.resolveStartupCollection).mockResolvedValueOnce({
 			ok: false,
 			code: 'collection-read-failed',
 			message: 'Failed to load collection "broken"'
 		});
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByText('One of your saved collections could not be opened.').length).toBeGreaterThan(0);
@@ -376,18 +300,12 @@ describe('ConfigLoading', () => {
 	});
 
 	it('halts boot and surfaces a config load error instead of treating it as first launch', async () => {
-		vi.mocked(window.electron.getUserDataPath).mockResolvedValueOnce('C:\\Users\\tester\\AppData\\Roaming\\ttsmm');
+		mockWindowsUserDataPath();
 		vi.mocked(window.electron.readConfig).mockRejectedValueOnce(
 			new Error('Failed to load config file "C:\\Users\\tester\\AppData\\Roaming\\ttsmm\\config.json"')
 		);
 
-		render(
-			<MemoryRouter initialEntries={['/loading/config']}>
-				<Routes>
-					<Route path="*" element={<ConfigLoadingAppHarness />} />
-				</Routes>
-			</MemoryRouter>
-		);
+		renderConfigLoading();
 
 		await waitFor(() => {
 			expect(screen.getAllByText('TTSMM-EX could not read your saved settings.').length).toBeGreaterThan(0);
