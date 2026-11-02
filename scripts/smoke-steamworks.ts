@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import electronPath from 'electron';
-import { repoRoot } from './lib/paths';
+import { releaseAppNodeModulesPath, repoRoot } from './lib/paths';
 
 const electronBinary = electronPath as unknown as string;
 const outputPath = path.join(os.tmpdir(), 'ttsmm-steamworks-smoke-output.json');
@@ -110,6 +110,7 @@ try {
 		cwd: repoRoot,
 		env: {
 			...process.env,
+			NODE_PATH: [releaseAppNodeModulesPath, process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
 			NODE_OPTIONS: '--import=tsx'
 		},
 		stdio: 'pipe',
@@ -122,7 +123,7 @@ try {
 	}
 
 	if (!fs.existsSync(outputPath)) {
-		throw new Error(`Steamworks smoke test did not produce output. stderr: ${result.stderr || '<empty>'}`);
+		throw new Error(`Steamworks smoke test did not produce output (exit code ${result.status}). stderr: ${result.stderr || '<empty>'}`);
 	}
 
 	const output = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as {
