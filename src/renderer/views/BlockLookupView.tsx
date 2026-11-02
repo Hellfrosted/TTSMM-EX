@@ -22,30 +22,20 @@ import {
 	type MouseEvent,
 	memo,
 	type ReactNode,
-	type SetStateAction,
 	useCallback,
 	useEffect,
 	useMemo,
-	useReducer,
 	useRef,
 	useState
 } from 'react';
 import { createPortal } from 'react-dom';
-import { getConfiguredBlockLookupColumns } from 'renderer/block-lookup-column-config';
-import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
 import {
-	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
 	moveBlockLookupColumnByKey,
 	setBlockLookupDraftColumnVisibility,
 	setBlockLookupDraftColumnWidth
 } from 'renderer/block-lookup-draft-config';
-import {
-	type BlockLookupColumnKey,
-	createBlockLookupTableWorkspaceState,
-	getBlockLookupKeyboardNavigationIndex,
-	reduceBlockLookupTableWorkspace
-} from 'renderer/block-lookup-table-workspace';
+import { type BlockLookupColumnKey, getBlockLookupKeyboardNavigationIndex } from 'renderer/block-lookup-table-workspace';
 import { type BlockLookupIndexRunStatus, getBlockLookupRecordKey, sortBlockLookupRecords } from 'renderer/block-lookup-workspace';
 import {
 	DesktopButton as BlockLookupButton,
@@ -59,7 +49,6 @@ import { useColumnFilterMenu } from 'renderer/hooks/use-column-filter-menu';
 import { markPerfInteraction, measurePerf, PerfProfiler } from 'renderer/perf';
 import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
-import { useViewConfigCommands } from 'renderer/view-config-command';
 import { BLOCK_LOOKUP_VIRTUAL_ROW_HEIGHT, getVirtualTableRowHeight, VIRTUAL_TABLE_OVERSCAN } from 'renderer/virtual-table-geometry';
 import type { BlockLookupIndexStats, BlockLookupSearchRow } from 'shared/block-lookup';
 import {
@@ -74,6 +63,7 @@ import {
 	resolveBlockLookupColumnWidth,
 	setBlockLookupColumnWidthVariable
 } from './block-lookup-table-layout';
+import { useBlockLookupTableSettings } from './use-block-lookup-table-settings';
 import { useBlockLookupWorkflow } from './use-block-lookup-workflow';
 
 type BlockLookupViewAppState = Pick<AppState, 'config' | 'mods' | 'updateState'>;
@@ -542,14 +532,29 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		stats,
 		workshopRoot
 	} = useBlockLookupWorkflow({ appState });
-	const { config: appConfig, updateState } = appState;
 	const {
-		saveBlockLookupColumns,
-		setBlockLookupColumnOrder,
-		setBlockLookupColumnWidth: persistBlockLookupColumnWidth
-	} = useViewConfigCommands({ config: appConfig, openNotification, updateState });
-	const blockLookupConfig = appConfig.viewConfigs.blockLookup;
-	const columnConfig = useMemo(() => getConfiguredBlockLookupColumns(blockLookupConfig), [blockLookupConfig]);
+		blockLookupConfig,
+		columnConfig,
+		availableTableWidth,
+		draftColumnConfig,
+		draftSmallRows,
+		draggingDraftColumnKey,
+		draggingHeaderColumnKey,
+		savingTableOptions,
+		tableOptionsOpen,
+		setDraftColumnConfig,
+		setDraftSmallRows,
+		closeTableOptions,
+		setDraggingHeaderColumnKey,
+		setDraggingDraftColumnKey,
+		moveDraftColumn,
+		tablePaneRef,
+		openTableOptions,
+		saveTableOptions,
+		persistColumnOrder,
+		persistColumnWidth,
+		persistColumnVisibility
+	} = useBlockLookupTableSettings(appState, openNotification);
 	const renderedPreviewSurfacesEnabled = renderedPreviewsEnabled && stats?.renderedPreviewsEnabled === true;
 	const renderedPreviewRebuildRequired = renderedPreviewsEnabled && stats?.renderedPreviewsEnabled !== true;
 	const renderedPreviewUnavailable =
@@ -558,58 +563,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		() => (renderedPreviewSurfacesEnabled ? columnConfig : columnConfig.filter((column) => column.key !== 'preview')),
 		[columnConfig, renderedPreviewSurfacesEnabled]
 	);
-	const columnConfigRef = useRef(columnConfig);
 	const coarsePointer = useCoarsePointer();
-	const [localState, dispatchLocalState] = useReducer(
-		reduceBlockLookupTableWorkspace,
-		{ columnConfig, smallRows: blockLookupConfig?.smallRows },
-		createBlockLookupTableWorkspaceState
-	);
-	const {
-		availableTableWidth,
-		draftColumnConfig,
-		draftSmallRows,
-		draggingDraftColumnKey,
-		draggingHeaderColumnKey,
-		savingTableOptions,
-		tableOptionsOpen
-	} = localState;
 	const [detailsPaneOpen, setDetailsPaneOpen] = useState(false);
-	const setDraftColumnConfig = useCallback((updater: SetStateAction<BlockLookupColumnConfig[]>) => {
-		dispatchLocalState({ type: 'draft-column-config-changed', updater });
-	}, []);
-	const setDraftSmallRows = useCallback((smallRows: boolean) => {
-		dispatchLocalState({ type: 'draft-small-rows-changed', smallRows });
-	}, []);
-	const setTableOptionsOpen = useCallback((open: boolean) => {
-		if (!open) {
-			dispatchLocalState({ type: 'table-options-closed' });
-		}
-	}, []);
-	const setDraggingHeaderColumnKey = useCallback((columnKey?: BlockLookupColumnKey) => {
-		dispatchLocalState({ type: 'dragging-header-column-changed', columnKey });
-	}, []);
-	const setDraggingDraftColumnKey = useCallback((columnKey?: BlockLookupColumnKey) => {
-		dispatchLocalState({ type: 'dragging-draft-column-changed', columnKey });
-	}, []);
-	const moveDraftColumn = useCallback(
-		(columnKey: BlockLookupColumnKey, direction: -1 | 1) => {
-			setDraftColumnConfig((currentColumns) => {
-				const currentIndex = currentColumns.findIndex((column) => column.key === columnKey);
-				const nextIndex = currentIndex + direction;
-				if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentColumns.length) {
-					return currentColumns;
-				}
-
-				return moveBlockLookupColumnByKey(currentColumns, columnKey, currentColumns[nextIndex].key);
-			});
-		},
-		[setDraftColumnConfig]
-	);
 	const sortKey = useBlockLookupStore((state) => state.sortKey);
 	const sortDirection = useBlockLookupStore((state) => state.sortDirection);
 	const requestSortColumn = useBlockLookupStore((state) => state.requestSortColumn);
-	const tablePaneRef = useRef<HTMLDivElement | null>(null);
 	const tableScrollRef = useRef<HTMLDivElement | null>(null);
 	const sortedRows = useMemo(() => {
 		return measurePerf('blockLookup.table.sortRows', () => sortBlockLookupRecords(rows, sortKey, sortDirection), {
@@ -638,42 +596,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 	useEffect(() => {
 		syncSelectionCopyOrder(sortedRowKeys);
 	}, [sortedRowKeys, syncSelectionCopyOrder]);
-
-	useEffect(() => {
-		columnConfigRef.current = columnConfig;
-	}, [columnConfig]);
-
-	useEffect(() => {
-		const tablePane = tablePaneRef.current;
-		if (!tablePane) {
-			return;
-		}
-
-		const syncWidth = (nextWidth: number) => {
-			const roundedWidth = Math.round(nextWidth);
-			dispatchLocalState({ type: 'available-table-width-changed', width: roundedWidth });
-		};
-
-		syncWidth(tablePane.clientWidth);
-
-		if (typeof ResizeObserver === 'undefined') {
-			const handleWindowResize = () => {
-				syncWidth(tablePane.clientWidth);
-			};
-			window.addEventListener('resize', handleWindowResize);
-			return () => {
-				window.removeEventListener('resize', handleWindowResize);
-			};
-		}
-
-		const resizeObserver = new ResizeObserver((entries) => {
-			syncWidth(entries[0]?.contentRect.width ?? tablePane.clientWidth);
-		});
-		resizeObserver.observe(tablePane);
-		return () => {
-			resizeObserver.disconnect();
-		};
-	}, []);
 
 	const handleCopySelected = useCallback(async () => {
 		if (selectedRecordsInCopyOrder.length === 0) {
@@ -725,44 +647,6 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		[requestBlockLookupRowSelection, sortedRowKeys]
 	);
 
-	const openTableOptions = useCallback(() => {
-		const draft = createBlockLookupTableOptionsDraft(blockLookupConfig);
-		dispatchLocalState({ type: 'table-options-opened', draft });
-	}, [blockLookupConfig]);
-
-	const saveTableOptions = useCallback(async () => {
-		dispatchLocalState({ type: 'saving-table-options-changed', saving: true });
-		try {
-			const persisted = await saveBlockLookupColumns(draftColumnConfig, draftSmallRows);
-			if (persisted) {
-				dispatchLocalState({ type: 'table-options-closed' });
-			}
-		} finally {
-			dispatchLocalState({ type: 'saving-table-options-changed', saving: false });
-		}
-	}, [draftColumnConfig, draftSmallRows, saveBlockLookupColumns]);
-
-	const persistColumnOrder = useCallback(
-		async (fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) => {
-			await setBlockLookupColumnOrder(columnConfig, fromKey, toKey);
-		},
-		[columnConfig, setBlockLookupColumnOrder]
-	);
-	const persistColumnWidth = useCallback(
-		async (columnKey: BlockLookupColumnKey, width: number) => {
-			return persistBlockLookupColumnWidth(columnConfig, columnKey, width);
-		},
-		[columnConfig, persistBlockLookupColumnWidth]
-	);
-	const persistColumnVisibility = useCallback(
-		async (columnKey: BlockLookupColumnKey, visible: boolean) => {
-			const nextColumns = columnConfigRef.current.map((column) => (column.key === columnKey ? { ...column, visible } : column));
-			columnConfigRef.current = nextColumns;
-			await saveBlockLookupColumns(nextColumns, !!blockLookupConfig?.smallRows);
-		},
-		[blockLookupConfig?.smallRows, saveBlockLookupColumns]
-	);
-
 	const visibleColumns = useMemo(
 		() => getResponsiveBlockLookupColumns(tableColumnConfig, availableTableWidth),
 		[availableTableWidth, tableColumnConfig]
@@ -781,7 +665,7 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 		visibleColumns.forEach((column) => {
 			setBlockLookupColumnWidthVariable(tablePaneRef.current, column.key, resolveBlockLookupColumnWidth(column));
 		});
-	}, [visibleColumns]);
+	}, [tablePaneRef, visibleColumns]);
 
 	const tableScrollX = useMemo(() => {
 		return Math.max(getBlockLookupTableScrollWidth(visibleColumns), availableTableWidth);
@@ -1374,14 +1258,14 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 				{tableOptionsOpen ? (
 					<BlockLookupTableOptionsModal
 						onCancel={() => {
-							setTableOptionsOpen(false);
+							closeTableOptions();
 						}}
 						footer={
 							<>
 								<BlockLookupButton
 									disabled={savingTableOptions}
 									onClick={() => {
-										setTableOptionsOpen(false);
+										closeTableOptions();
 									}}
 								>
 									Cancel

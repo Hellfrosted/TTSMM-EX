@@ -17,7 +17,7 @@ The changes remove render-phase writes to live refs, stabilize settings row iden
 | Complexity, `SteamworksVerification.tsx` | Observation after refactor: verification, retry and delayed navigation now live behind a hook; the remaining report counts the screen's status presentation branches. The existing verification tests pass. |
 | Render-time ref, `useCollectionWorkspaceSession.ts:49` | Rejected: this is guarded lazy initialization of the driver, an explicitly supported React ref initialization pattern. Other render-time ref updates were moved to commit-time effects. |
 | Parent data, `useSettingsForm.ts` | Observation: the form publishes dirty state to shared application state used by the shell for navigation and unsaved-change handling. Removing the effect requires changing that ownership. |
-| Complexity, `BlockLookupView.tsx` | Open: the view hook combines table interaction, persistence, virtualization and rendering. |
+| Complexity, `BlockLookupView.tsx` | Partially addressed: table settings now own column drafts, persistence, drag state and width observation. The view still combines selection, keyboard navigation, virtualization and rendering; keyboard navigation must use the same sorted keys and virtualizer as the rendered rows. Fallow still reports inherited controller complexity and a keyboard/virtualization duplication with the collection table. Further extraction needs a smaller interface that preserves those relationships without introducing new gate findings. |
 | Parent data, `CollectionView.tsx:78` | Rejected: the child owns a ResizeObserver subscription; the rule guidance identifies external subscriptions as an exception. |
 | Parent live state, `CollectionView.tsx:78` | Rejected for the same ResizeObserver ownership. |
 | Parent callback in effect, `CollectionView.tsx:78` | Rejected for the same ResizeObserver ownership. An attempted rewrite was reverted after it introduced a new complexity finding. |
@@ -27,4 +27,4 @@ The changes remove render-phase writes to live refs, stabilize settings row iden
 | Enum lookup, `app-config-defaults.ts:47` | Observation: `ModErrorType` contains three values; no performance evidence justifies a separate set. |
 | Enum lookup, `app-config-defaults.ts:96` | Observation: `NLogLevel` contains seven values; no performance evidence justifies a separate set. |
 
-The open complexity items remain work to be designed and validated; this document does not claim the full audit is complete.
+The remaining complexity items need further design and validation; this document does not claim the full audit is complete.
