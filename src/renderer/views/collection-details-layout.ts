@@ -16,7 +16,7 @@ interface DetailsLayoutInput {
 	bigDetails: boolean;
 }
 
-function clampSize(size: number, min: number, max: number) {
+export function clampDetailsOverlaySize(size: number, min: number, max: number) {
 	return Math.min(Math.max(min, max), Math.max(min, Math.round(size)));
 }
 
@@ -39,7 +39,7 @@ export function getDetailsLayout({
 		Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, Math.min(Math.round(contentSize.width * 0.38), 680))
 	);
 	const width = draftSize?.layout === 'side' ? draftSize.size : (configuredWidth ?? automaticWidth);
-	const sideDetailsWidth = showSideBySideDetails ? clampSize(width, MAIN_DETAILS_OVERLAY_MIN_WIDTH, maxSideDetailsWidth) : 0;
+	const sideDetailsWidth = showSideBySideDetails ? clampDetailsOverlaySize(width, MAIN_DETAILS_OVERLAY_MIN_WIDTH, maxSideDetailsWidth) : 0;
 	const maxBottomDetailsHeight = Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT);
 	const automaticHeight = Math.min(
 		Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, Math.round(contentSize.height * 0.36)),
@@ -47,6 +47,8 @@ export function getDetailsLayout({
 	);
 	const height = draftSize?.layout === 'bottom' ? draftSize.size : (configuredHeight ?? automaticHeight);
 	const bottomDetailsHeight =
-		detailsOpen && !bigDetails && !showSideBySideDetails ? clampSize(height, MAIN_DETAILS_OVERLAY_MIN_HEIGHT, maxBottomDetailsHeight) : 0;
+		detailsOpen && !bigDetails && !showSideBySideDetails
+			? clampDetailsOverlaySize(height, MAIN_DETAILS_OVERLAY_MIN_HEIGHT, maxBottomDetailsHeight)
+			: 0;
 	return { halfDetailsLayout, showSideBySideDetails, sideDetailsWidth, bottomDetailsHeight, maxSideDetailsWidth, maxBottomDetailsHeight };
 }

@@ -26,7 +26,7 @@ import { useNotifications } from '../hooks/collections/useNotifications';
 import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
 import { markPerfInteraction, PerfProfiler } from '../perf';
 import { useViewConfigCommands } from '../view-config-command';
-import { getDetailsLayout, type HalfDetailsLayout } from './collection-details-layout';
+import { clampDetailsOverlaySize, getDetailsLayout, type HalfDetailsLayout } from './collection-details-layout';
 import { useCollectionRowFilters } from './use-collection-row-filters';
 import { useCollectionWorkspace } from './use-collection-workspace';
 
@@ -146,10 +146,6 @@ const collectionOverlayPaneBottomClassName =
 const DETAIL_OVERLAY_KEYBOARD_STEP = 10;
 const DETAIL_OVERLAY_KEYBOARD_LARGE_STEP = 40;
 const DETAIL_OVERLAY_KEYBOARD_PERSIST_DELAY_MS = 180;
-
-function clampDetailsOverlaySize(size: number, minSize: number, maxSize: number) {
-	return Math.min(Math.max(minSize, maxSize), Math.max(minSize, Math.round(size)));
-}
 
 function preferredHalfDetailsLayoutReducer(_currentLayout: HalfDetailsLayout | undefined, nextLayout: HalfDetailsLayout) {
 	return nextLayout;
