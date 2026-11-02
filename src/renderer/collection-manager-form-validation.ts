@@ -22,7 +22,7 @@ function isMainColumnTitle(column: string): column is MainColumnTitles {
 const mainCollectionTableSettingsSchema = Schema.Struct({
 	smallRows: Schema.Boolean,
 	columnActiveConfig: Schema.Record(Schema.String, Schema.Boolean),
-	columnWidthConfig: Schema.Record(Schema.String, Schema.optional(Schema.Number))
+	columnWidthConfig: Schema.Record(Schema.String, Schema.UndefinedOr(Schema.Number))
 });
 
 const modOverrideFormSchema = Schema.Struct({

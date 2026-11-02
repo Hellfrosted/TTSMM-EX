@@ -1,5 +1,5 @@
 import { useAtomRef } from '@effect/atom-react';
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import type { BlockLookupColumnKey } from 'renderer/block-lookup-table-workspace';
 import {
 	type BlockLookupSortDirection,

@@ -10,7 +10,7 @@ function getErrorMessage(error: unknown) {
 }
 
 interface ParseEffectIpcPayloadOptions {
-	readonly onExcessProperty?: 'error' | 'ignore' | 'preserve';
+	readonly onExcessProperty?: 'error' | 'ignore';
 }
 
 export function parseEffectIpcPayload<S extends Schema.Decoder<unknown, never>>(
@@ -23,7 +23,7 @@ export function parseEffectIpcPayload<S extends Schema.Decoder<unknown, never>>(
 		const decodeOptions =
 			options.onExcessProperty === 'ignore'
 				? undefined
-				: options.onExcessProperty === 'preserve' || options.onExcessProperty === 'error'
+				: options.onExcessProperty === 'error'
 					? {
 							onExcessProperty: options.onExcessProperty
 						}

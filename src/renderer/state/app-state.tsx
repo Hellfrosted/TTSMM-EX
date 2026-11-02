@@ -1,4 +1,4 @@
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import type { AppState, AppStateUpdate } from 'model/AppState';
 import type { ModCollection } from 'model/ModCollection';
 import { SessionMods } from 'model/SessionMods';

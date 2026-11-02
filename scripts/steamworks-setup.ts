@@ -248,6 +248,7 @@ function patchGreenworksNanForV8ExternalPointerTags() {
 	});
 
 	replaceRequiredFileContent(nanImplementationPath, (source) => {
+		if (source.includes('v8::kExternalPointerTypeTagDefault')) return source;
 		const patchedFactorySource = replaceKnownSource(
 			source,
 			nanImplementationPath,
@@ -263,7 +264,14 @@ function patchGreenworksNanForV8ExternalPointerTags() {
 	});
 
 	replaceRequiredFileContent(nanCallbacksPath, (source) =>
-		replaceKnownSource(source, nanCallbacksPath, '.As<v8::External>()->Value())', `.As<v8::External>()->Value(${v8ExternalPointerTag}))`)
+		source.includes('v8::kExternalPointerTypeTagDefault')
+			? source
+			: replaceKnownSource(
+					source,
+					nanCallbacksPath,
+					'.As<v8::External>()->Value())',
+					`.As<v8::External>()->Value(${v8ExternalPointerTag}))`
+				)
 	);
 }
 

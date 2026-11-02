@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import { type AppConfig, hydrateSessionMods } from 'model';
 import { createModManagerUid, type ModDataOverride } from 'model/Mod';
 import type { ModCollection } from 'model/ModCollection';

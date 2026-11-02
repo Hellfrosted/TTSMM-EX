@@ -91,10 +91,7 @@ function attachWatcher(name: 'main' | 'preload', watcher: Watcher) {
 }
 
 function closeWatcher(watcher: Watcher) {
-	return new Promise<void>((resolve) => {
-		watcher.close();
-		resolve();
-	});
+	return watcher.close();
 }
 
 async function shutdown() {

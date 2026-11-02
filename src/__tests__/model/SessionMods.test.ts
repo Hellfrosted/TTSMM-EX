@@ -16,33 +16,32 @@ describe('session mod descriptors', () => {
 			dependencyName: 'NuterraSteam',
 			explicitDependency: 'NuterraSteam (Beta)'
 		}
-	])('treats $dependencyName and $explicitDependency as the same dependency target', ({
-		dependencyId,
-		dependencyName,
-		explicitDependency
-	}) => {
-		const dependency = {
-			uid: `${ModType.WORKSHOP}:1`,
-			type: ModType.WORKSHOP,
-			workshopID: BigInt(1),
-			id: dependencyId,
-			name: dependencyName
-		};
-		const dependent = {
-			uid: `${ModType.LOCAL}:dependent-mod`,
-			type: ModType.LOCAL,
-			id: 'DependentMod',
-			explicitIDDependencies: [explicitDependency]
-		};
-		const session = new SessionMods('', [dependency, dependent]);
+	])(
+		'treats $dependencyName and $explicitDependency as the same dependency target',
+		({ dependencyId, dependencyName, explicitDependency }) => {
+			const dependency = {
+				uid: `${ModType.WORKSHOP}:1`,
+				type: ModType.WORKSHOP,
+				workshopID: BigInt(1),
+				id: dependencyId,
+				name: dependencyName
+			};
+			const dependent = {
+				uid: `${ModType.LOCAL}:dependent-mod`,
+				type: ModType.LOCAL,
+				id: 'DependentMod',
+				explicitIDDependencies: [explicitDependency]
+			};
+			const session = new SessionMods('', [dependency, dependent]);
 
-		setupDescriptors(session, new Map());
+			setupDescriptors(session, new Map());
 
-		const dependencyDescriptor = getDescriptor(session, dependency);
-		expect(dependencyDescriptor).toBeDefined();
-		expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
-		expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
-	});
+			const dependencyDescriptor = getDescriptor(session, dependency);
+			expect(dependencyDescriptor).toBeDefined();
+			expect(getDependencies(session, dependent)).toEqual([dependencyDescriptor]);
+			expect(getDependents(session, dependency)).toEqual([getDescriptor(session, dependent)]);
+		}
+	);
 
 	it('matches workshop dependency names for Nuterra variants', async () => {
 		const dependency = {

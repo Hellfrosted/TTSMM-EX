@@ -1,6 +1,6 @@
 import { useAtomRef } from '@effect/atom-react';
 import { Effect } from 'effect';
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import type { ModCollection } from 'model/ModCollection';
 import type { AuthoritativeCollectionState } from 'renderer/authoritative-collection-state';
 import type { CollectionContentSaveResult } from 'shared/collection-content-save';

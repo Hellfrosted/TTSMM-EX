@@ -63,7 +63,6 @@ function cloneConfigWithPopulationPool(config: AppConfig, update: NonNullable<Ap
 	};
 }
 
-// fallow-ignore-next-line unused-export
 export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	const { config, updateState } = appState;
 	const [scanResult, setScanResult] = useState(DEFAULT_SCAN_RESULT);

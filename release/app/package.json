@@ -1,6 +1,6 @@
 {
   "name": "terratech-steam-mod-manager-ex",
-  "packageManager": "pnpm@11.0.6",
+  "packageManager": "pnpm@11.5.2",
   "productName": "TTSMM-EX",
   "description": "Mod loader for TerraTech that handles Steam Workshop mod configurations",
   "version": "2.1.0",
@@ -17,8 +17,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "effect": "4.0.0-beta.78",
-    "fast-check": "4.7.0",
+    "effect": "4.1.1",
+    "fast-check": "4.10.2",
     "greenworks": "github:FLSoz/greenworks",
     "ps-list": "^9.0.0"
   }
