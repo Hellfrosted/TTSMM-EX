@@ -1,74 +1,43 @@
 import { Effect } from 'effect';
 import type { ModData } from '../model';
-import { chunkWorkshopIds } from './mod-workshop-metadata';
 import type { SteamPersonaCache } from './steam-persona-cache';
 import { WorkshopInventoryExpansion } from './workshop-inventory-expansion-state';
-import { getWorkshopInventorySourceForKnownItem } from './workshop-inventory-source-policy';
 import type {
-	WorkshopDependencyChunkOutcome,
+	WorkshopDependencyEffect,
 	WorkshopDependencyExpansionAdapters,
-	WorkshopInventoryDependencyExpansionOptions,
-	WorkshopInventoryResolvedRecord
+	WorkshopInventoryDependencyExpansionOptions
 } from './workshop-inventory-types';
 
-export const resolveWorkshopDependencyChunkOutcome = Effect.fnUntraced(function* (
-	workshopMap: Map<bigint, ModData>,
-	knownInvalidMods: Set<bigint>,
-	modList: Set<bigint>,
-	adapters: WorkshopDependencyExpansionAdapters
-): Effect.fn.Return<WorkshopDependencyChunkOutcome, unknown, SteamPersonaCache> {
-	const modChunks = chunkWorkshopIds([...modList]);
-
-	const expansion = new WorkshopInventoryExpansion(modList, workshopMap, knownInvalidMods, adapters.options);
-	const modDependencies: Set<bigint> = new Set();
-	const resolvedRecords: WorkshopInventoryResolvedRecord[] = [];
-
-	for (let i = 0; i < modChunks.length; i++) {
-		const requestedWorkshopIDs = new Set(modChunks[i]);
-		let metadataFailed = false;
-		const modDetails = yield* adapters
-			.getDetailsForWorkshopModList(
-				modChunks[i],
-				(workshopID) => adapters.keepUnknownWorkshopItem?.(workshopID) ?? adapters.knownWorkshopMods.has(workshopID)
-			)
-			.pipe(
-				Effect.catch(() => {
-					adapters.onProgressEffect?.({ type: 'increment-loaded-mods', count: modChunks[i].length });
-					metadataFailed = true;
-					return Effect.succeed<ModData[]>([]);
-				})
-			);
-		if (metadataFailed) {
-			expansion.recordMetadataFailures(requestedWorkshopIDs);
-			continue;
+const runDependencyExpansion = Effect.fnUntraced(function* (
+	expansion: WorkshopInventoryExpansion,
+	adapters: WorkshopDependencyExpansionAdapters,
+	onProgressEffect: WorkshopInventoryDependencyExpansionOptions['onProgressEffect'],
+	onePass = false
+): Effect.fn.Return<number, unknown, SteamPersonaCache> {
+	let effects: WorkshopDependencyEffect[] = expansion.startDependencyExpansion();
+	let passes = 0;
+	while (effects.length > 0) {
+		const effect = effects.shift()!;
+		if (effect.type === 'dependency-expansion-complete') return effect.dependencyItems;
+		if (effect.type === 'increment-workshop-total') {
+			if (onePass && passes++ > 0) return 0;
+			if (!onePass) onProgressEffect?.(effect);
+		} else if (effect.type === 'increment-loaded-mods' || effect.type === 'set-workshop-total') {
+			onProgressEffect?.(effect);
+		} else if (effect.type === 'fetch-dependency-chunk') {
+			const observation = yield* adapters
+				.getDetailsForWorkshopModList(
+					effect.workshopIDs,
+					(workshopID) => adapters.keepUnknownWorkshopItem?.(workshopID) ?? adapters.knownWorkshopMods.has(workshopID)
+				)
+				.pipe(
+					Effect.map((mods) => ({ type: 'success' as const, mods })),
+					Effect.catch(() => Effect.succeed({ type: 'metadata-failed' as const }))
+				);
+			effects.push(...expansion.observeDependencyChunk(observation, adapters.knownWorkshopMods));
 		}
-		const chunkResolvedRecords: WorkshopInventoryResolvedRecord[] = [];
-		modDetails.forEach((mod: ModData) => {
-			if (mod.workshopID !== undefined) {
-				requestedWorkshopIDs.delete(mod.workshopID);
-				chunkResolvedRecords.push({
-					mod,
-					source: getWorkshopInventorySourceForKnownItem(mod.workshopID, adapters.knownWorkshopMods, 'dependency')
-				});
-			}
-		});
-		resolvedRecords.push(...chunkResolvedRecords);
-		expansion.addResolvedRecords(chunkResolvedRecords);
-		for (const workshopID of requestedWorkshopIDs) {
-			expansion.recordUnresolvedWorkshopItem({
-				workshopID,
-				reason: 'hydration-failed'
-			});
-		}
-
-		expansion.collectMissingDependencies(modDetails).forEach((missingDependency) => modDependencies.add(missingDependency));
 	}
-
-	return {
-		missingDependencies: modDependencies,
-		resolvedRecords,
-		unresolvedWorkshopItems: expansion.getUnresolvedWorkshopItems()
-	};
+	throw new Error('Dependency expansion ended without a completion effect');
 });
 
 export const resolveWorkshopDependencyChunk = Effect.fnUntraced(function* (
@@ -77,42 +46,16 @@ export const resolveWorkshopDependencyChunk = Effect.fnUntraced(function* (
 	modList: Set<bigint>,
 	adapters: WorkshopDependencyExpansionAdapters
 ): Effect.fn.Return<Set<bigint>, unknown, SteamPersonaCache> {
-	const outcome = yield* resolveWorkshopDependencyChunkOutcome(workshopMap, knownInvalidMods, modList, adapters);
 	const expansion = new WorkshopInventoryExpansion(modList, workshopMap, knownInvalidMods, adapters.options);
-	expansion.addResolvedRecords(outcome.resolvedRecords);
+	yield* runDependencyExpansion(expansion, adapters, adapters.onProgressEffect, true);
 	workshopMap.clear();
-	expansion.getResolvedWorkshopModMap().forEach((mod, workshopID) => {
-		workshopMap.set(workshopID, mod);
-	});
-	return outcome.missingDependencies;
+	expansion.getResolvedWorkshopModMap().forEach((mod, workshopID) => workshopMap.set(workshopID, mod));
+	return expansion.getPendingWorkshopMods();
 });
 
 export const expandPendingWorkshopDependencies = Effect.fnUntraced(function* (
 	expansion: WorkshopInventoryExpansion,
 	{ adapters, onProgressEffect }: WorkshopInventoryDependencyExpansionOptions
 ): Effect.fn.Return<number, unknown, SteamPersonaCache> {
-	let dependencyItems = 0;
-	let missingKnownWorkshopMods = expansion.getPendingWorkshopMods();
-
-	while (expansion.hasPendingWorkshopMods()) {
-		onProgressEffect?.({ type: 'increment-workshop-total', count: missingKnownWorkshopMods.size });
-		dependencyItems += missingKnownWorkshopMods.size;
-
-		const dependencyWorkshopMap = expansion.getResolvedWorkshopModMap();
-		const dependencyChunkOutcome = yield* resolveWorkshopDependencyChunkOutcome(
-			dependencyWorkshopMap,
-			expansion.getKnownInvalidWorkshopMods(),
-			missingKnownWorkshopMods,
-			{
-				...adapters,
-				onProgressEffect
-			}
-		);
-		expansion.addUnresolvedWorkshopItems(dependencyChunkOutcome.unresolvedWorkshopItems);
-		expansion.addResolvedRecords(dependencyChunkOutcome.resolvedRecords);
-		missingKnownWorkshopMods = dependencyChunkOutcome.missingDependencies;
-		expansion.completeDependencyQueuePass(missingKnownWorkshopMods);
-	}
-
-	return dependencyItems;
+	return yield* runDependencyExpansion(expansion, adapters, onProgressEffect);
 });

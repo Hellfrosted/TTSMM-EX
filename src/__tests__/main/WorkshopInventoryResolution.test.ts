@@ -334,6 +334,62 @@ describe('WorkshopInventoryExpansion', () => {
 		})
 	);
 
+	vitestIt('turns chunk observations into failure, duplicate, progress, and completion effects', () => {
+		const first = BigInt(90);
+		const missing = BigInt(91);
+		const expansion = new WorkshopInventoryExpansion(new Set([first, missing]));
+		expect(expansion.startDependencyExpansion()).toEqual([
+			{ type: 'increment-workshop-total', count: 2 },
+			{ type: 'fetch-dependency-chunk', workshopIDs: [first, missing] }
+		]);
+		const mod: ModData = { uid: `workshop:${first}`, id: 'Installed', type: ModType.WORKSHOP, workshopID: first };
+		expect(expansion.observeDependencyChunk({ type: 'success', mods: [mod, mod] }, new Set())).toEqual([
+			{ type: 'dependency-expansion-complete', dependencyItems: 2 }
+		]);
+		expect(expansion.getUnresolvedWorkshopItems()).toEqual([
+			{ workshopID: first, reason: 'duplicate' },
+			{ workshopID: missing, reason: 'hydration-failed' }
+		]);
+		expect(expansion.getWorkshopMods()).toEqual([mod]);
+	});
+
+	it.effect('finishes each chunk before scheduling filtered discoveries in the next pass', () =>
+		Effect.gen(function* () {
+			const initial = Array.from({ length: 51 }, (_, index) => BigInt(index + 100));
+			const laterID = initial[50];
+			const newID = BigInt(999);
+			const expansion = new WorkshopInventoryExpansion(new Set(initial));
+			const calls: bigint[][] = [];
+			const progress: WorkshopInventoryProgressEffect[] = [];
+			const count = yield* expandPendingWorkshopDependencies(expansion, {
+				adapters: {
+					knownWorkshopMods: new Set(),
+					getDetailsForWorkshopModList: (ids) => {
+						calls.push(ids);
+						return Effect.succeed(
+							ids.map((workshopID) => ({
+								uid: `workshop:${workshopID}`,
+								id: 'Mod',
+								type: ModType.WORKSHOP,
+								workshopID,
+								steamDependencies: workshopID === initial[0] ? [laterID, newID] : undefined
+							}))
+						);
+					}
+				},
+				onProgressEffect: (effect) => progress.push(effect)
+			});
+			expect(calls).toEqual([initial.slice(0, 50), [laterID], [newID]]);
+			expect(progress).toEqual([
+				{ type: 'increment-workshop-total', count: 51 },
+				{ type: 'increment-workshop-total', count: 1 }
+			]);
+			expect(count).toBe(52);
+			expect(expansion.getPendingWorkshopMods().size).toBe(0);
+			expect(expansion.getWorkshopMods()).toHaveLength(52);
+		})
+	);
+
 	it.effect('keeps explicit known source precedence when known mods expand through dependency resolution', () =>
 		Effect.gen(function* () {
 			const knownWorkshopID = BigInt(24);
