@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import codspeedPlugin from '@codspeed/vitest-plugin';
 import { defineConfig } from 'vitest/config';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,7 +17,6 @@ const alias = {
 };
 
 export default defineConfig({
-	plugins: [codspeedPlugin()],
 	resolve: {
 		alias
 	},

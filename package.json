@@ -155,7 +155,6 @@
 	"homepage": "https://github.com/Hellfrosted/TTSMM-EX#readme",
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.4",
-		"@codspeed/vitest-plugin": "^6.1.0",
 		"@effect/tsgo": "^0.63.0",
 		"@effect/vitest": "4.1.1",
 		"@electron/rebuild": "^4.2.1",
