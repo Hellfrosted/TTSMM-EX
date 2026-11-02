@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import ts from 'typescript';
+import ts from 'typescript-legacy';
 import { describe, expect, it } from 'vitest';
 
 const rendererRoot = path.join(process.cwd(), 'src', 'renderer');

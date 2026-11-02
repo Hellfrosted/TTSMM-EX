@@ -22,6 +22,6 @@
 		"allowJs": true,
 		"skipLibCheck": true,
 		"ignoreDeprecations": "5.0",
-		"plugins": [{ "name": "@effect/language-service" }]
+		"plugins": [{ "name": "@effect/language-service", "allowedUnstableApis": ["effect/reactivity/AtomRef", "@effect/atom-react/Hooks"] }]
 	}
 }

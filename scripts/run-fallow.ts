@@ -4,7 +4,7 @@ import readline from 'node:readline';
 import { isExecutedDirectly } from './lib/is-main';
 import { repoRoot } from './lib/paths';
 
-const fallowExecutablePath = path.join(repoRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'fallow.cmd' : 'fallow');
+const fallowExecutablePath = path.join(repoRoot, 'node_modules', 'fallow', 'bin', 'fallow');
 const skippedPackageJsonEntryPointWarningFragment =
 	'WARN Skipped 5 package.json entry points outside project root or containing parent directory traversal';
 const skippedPackageJsonEntryPointWarningEntries = [
@@ -22,7 +22,7 @@ export function shouldSuppressFallowStderrLine(line: string) {
 
 export function runFallowCli(args: readonly string[]) {
 	return new Promise<number>((resolve, reject) => {
-		const child = spawn(fallowExecutablePath, args, {
+		const child = spawn(process.execPath, [fallowExecutablePath, ...args], {
 			cwd: repoRoot,
 			env: process.env,
 			stdio: ['inherit', 'pipe', 'pipe']

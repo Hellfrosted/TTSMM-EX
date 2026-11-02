@@ -179,20 +179,18 @@ describe('ConfigLoading', () => {
 		});
 	});
 
-	it.each([
-		'collections/main',
-		'/collections',
-		'/settings',
-		'/block-lookup'
-	])('normalizes saved route "%s" to collections during boot', async (currentPath) => {
-		mockWindowsConfigRead(createTestConfig({ currentPath }));
+	it.each(['collections/main', '/collections', '/settings', '/block-lookup'])(
+		'normalizes saved route "%s" to collections during boot',
+		async (currentPath) => {
+			mockWindowsConfigRead(createTestConfig({ currentPath }));
 
-		renderConfigLoading();
+			renderConfigLoading();
 
-		await waitFor(() => {
-			expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
-		});
-	});
+			await waitFor(() => {
+				expect(screen.getAllByTestId('location').some((element) => element.textContent === '/collections/main')).toBe(true);
+			});
+		}
+	);
 
 	it('caches the normalized startup route after applying authoritative collection state', async () => {
 		mockWindowsConfigRead(createTestConfig({ currentPath: '/settings' }));

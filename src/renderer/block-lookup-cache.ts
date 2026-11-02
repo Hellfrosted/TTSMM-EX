@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import type { BlockLookupBuildRequest, BlockLookupIndexStats, BlockLookupSearchRequest, BlockLookupSettings } from 'shared/block-lookup';
 import { toEffectOperationError } from 'shared/effect-errors';
 import { useCacheMutation } from './cache-mutation';
