@@ -78,6 +78,7 @@ function getValidationConfigKey(config: AppConfig) {
 
 	return JSON.stringify({
 		workshopID: config.workshopID.toString(),
+		treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent,
 		ignoredValidationErrors,
 		userOverrides
 	});
@@ -88,7 +89,7 @@ export function getCollectionValidationKey(collection: ModCollection | undefined
 		return undefined;
 	}
 
-	return `${Array.from(collection.mods).sort().join('\u0000')}\u0001${getValidationConfigKey(config)}`;
+	return `${collection.name}\u0001${Array.from(collection.mods).sort().join('\u0000')}\u0001${getValidationConfigKey(config)}`;
 }
 
 export function summarizeValidationIssues(errors: CollectionErrors): ValidationIssueSummary {

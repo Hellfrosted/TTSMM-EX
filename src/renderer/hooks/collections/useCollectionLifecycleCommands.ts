@@ -17,6 +17,7 @@ interface UseCollectionLifecycleCommandsOptions {
 	activeCollectionDraft?: ModCollection;
 	appState: CollectionWorkspaceAppState;
 	madeEdits: boolean;
+	getDraftGeneration?: () => number;
 	onCollectionContentSaveCompleted?: (completion: CollectionContentSaveCompletion) => void;
 	onCollectionLifecycleResultApplied?: (result: Extract<CollectionLifecycleResult, { ok: true }>) => void;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
@@ -35,6 +36,7 @@ export function useCollectionLifecycleCommands({
 	activeCollectionDraft,
 	appState,
 	madeEdits,
+	getDraftGeneration,
 	onCollectionContentSaveCompleted,
 	onCollectionLifecycleResultApplied,
 	openNotification,
@@ -115,6 +117,7 @@ export function useCollectionLifecycleCommands({
 	const saveCollection = useCallback(
 		async (collection: ModCollection, pureSave: boolean, options: CollectionContentSaveCommandOptions = {}) => {
 			let writeAccepted = false;
+			const draftGeneration = getDraftGeneration?.();
 			await runQueuedCollectionWrite(async () => {
 				setSavingCollection(true);
 				try {
@@ -132,23 +135,24 @@ export function useCollectionLifecycleCommands({
 						})
 					);
 					writeAccepted = saveOutcome.writeAccepted;
-					if (writeAccepted) {
-						updateState(getCollectionContentSaveStateUpdate(appState, saveOutcome.targetCollection));
-					}
 					if (saveOutcome.notification) {
 						openNotification(saveOutcome.notification.props, saveOutcome.notification.type);
 					}
 					if (onCollectionContentSaveCompleted) {
 						onCollectionContentSaveCompleted({
 							...saveOutcome.completion,
+							draftGeneration,
 							savedCollection: saveOutcome.writeAccepted ? saveOutcome.targetCollection : undefined
 						});
+					}
+					if (writeAccepted && (draftGeneration === undefined || draftGeneration === getDraftGeneration?.())) {
+						updateState(getCollectionContentSaveStateUpdate(appState, saveOutcome.targetCollection));
 					}
 					const completionState = applyCollectionContentSaveResult({
 						hasUnsavedDraft: madeEdits,
 						...saveOutcome.completion
 					});
-					if (completionState.hasUnsavedDraft !== madeEdits) {
+					if (!onCollectionContentSaveCompleted && completionState.hasUnsavedDraft !== madeEdits) {
 						setMadeEdits(completionState.hasUnsavedDraft);
 					}
 				} catch (error) {
@@ -161,6 +165,7 @@ export function useCollectionLifecycleCommands({
 		},
 		[
 			appState,
+			getDraftGeneration,
 			madeEdits,
 			onCollectionContentSaveCompleted,
 			openNotification,

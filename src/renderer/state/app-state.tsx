@@ -169,6 +169,10 @@ export function AppStateProvider({ children, navigate }: PropsWithChildren<{ nav
 	return <AppStateStoreContext.Provider value={store}>{children}</AppStateStoreContext.Provider>;
 }
 
+export function useOptionalAppStateStore() {
+	return use(AppStateStoreContext);
+}
+
 function useAppStateStore() {
 	const store = use(AppStateStoreContext);
 	if (!store) {

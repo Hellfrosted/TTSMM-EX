@@ -265,6 +265,118 @@ describe('active-collection-draft-driver', () => {
 		expect(driver.getSnapshot().launchReadiness.blockers).not.toContain('game-running');
 	});
 
+	it('cancels launch intent when the draft is edited during save', async () => {
+		const draft = collection(['local:a']);
+		const { adapters, driver } = createDriverHarness({ draft });
+		driver.dispatch({ type: 'launch-requested' });
+		await flushPromises();
+		expect(adapters.persistDraft).toHaveBeenCalled();
+
+		driver.dispatch({ type: 'active-draft-edited', edit: { blockedModManagerDeselect: false, nextDraft: collection(['local:b']) } });
+		driver.dispatch({
+			type: 'collection-content-save-completed',
+			completion: { pureSave: false, writeAccepted: true, savedCollection: draft }
+		});
+
+		expect(adapters.clearLaunchState).toHaveBeenCalled();
+		expect(adapters.launchDraft).not.toHaveBeenCalled();
+		expect(driver.getSnapshot().draft).toEqual(collection(['local:b']));
+		expect(driver.getSnapshot().hasUnsavedDraft).toBe(true);
+	});
+
+	it('rejects a completion after inventory changes and keeps the last result stale', async () => {
+		const draft = collection(['local:a']);
+		let finish: ((value: CollectionValidationRunOutcome) => void) | undefined;
+		const { driver, adapters } = createDriverHarness({ draft });
+		driver.dispatch({ type: 'validate-requested' });
+		await flushPromises();
+		expect(driver.getSnapshot().validationStatus).toBe('passed');
+		vi.mocked(adapters.validateDraft).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		driver.dispatch({ type: 'validate-requested' });
+		driver.dispatch({ type: 'inventory-changed' });
+		finish?.({ type: 'recorded-current-result', validationResult: validationResult(draft, false) });
+		await flushPromises();
+		expect(driver.getSnapshot().validationStatus).toBe('stale');
+		expect(driver.getSnapshot().validationResult?.success).toBe(true);
+		expect(adapters.cancelValidation).toHaveBeenCalled();
+	});
+
+	it('does not launch after inventory changes during save', async () => {
+		const draft = collection(['local:a']);
+		const { driver, adapters } = createDriverHarness({ draft });
+		driver.dispatch({ type: 'launch-requested' });
+		await flushPromises();
+		driver.dispatch({ type: 'inventory-changed' });
+		driver.dispatch({
+			type: 'collection-content-save-completed',
+			completion: { pureSave: false, savedCollection: draft, writeAccepted: true }
+		});
+		expect(adapters.clearLaunchState).toHaveBeenCalled();
+		expect(adapters.launchDraft).not.toHaveBeenCalled();
+	});
+
+	it('ignores an older save after a lifecycle replacement', async () => {
+		const oldDraft = collection(['local:a']);
+		const replacement = { name: 'other', mods: ['local:b'] };
+		const { driver, adapters } = createDriverHarness({ draft: oldDraft });
+		driver.dispatch({ type: 'launch-requested' });
+		await flushPromises();
+		const draftGeneration = driver.getWorkflowState().draftGeneration;
+		driver.dispatch({ type: 'collection-lifecycle-result-applied', config: DEFAULT_CONFIG, currentDraft: replacement });
+		driver.dispatch({
+			type: 'collection-content-save-completed',
+			completion: { draftGeneration, pureSave: false, savedCollection: oldDraft, writeAccepted: true }
+		});
+		expect(driver.getSnapshot().draft).toEqual(replacement);
+		expect(driver.getSnapshot().hasUnsavedDraft).toBe(false);
+		expect(adapters.launchDraft).not.toHaveBeenCalled();
+	});
+
+	it('rejects a late result after accepted lifecycle replacement even for the same draft', async () => {
+		const draft = collection(['local:a']);
+		let finish: ((value: CollectionValidationRunOutcome) => void) | undefined;
+		const { driver, adapters } = createDriverHarness({
+			draft,
+			validateDraft: () =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		});
+		driver.dispatch({ type: 'launch-requested' });
+		driver.dispatch({ type: 'collection-lifecycle-result-applied', config: DEFAULT_CONFIG, currentDraft: draft });
+		finish?.({ type: 'recorded-current-result', validationResult: validationResult(draft) });
+		await flushPromises();
+		expect(driver.getSnapshot().validationStatus).toBe('none');
+		expect(adapters.clearLaunchState).toHaveBeenCalled();
+		expect(adapters.persistDraft).not.toHaveBeenCalled();
+	});
+
+	it.each([true, false])('accepts an override only when its config is accepted before completion (%s)', async (acceptFirst) => {
+		const draft = collection(['local:a']);
+		const config = { ...DEFAULT_CONFIG, userOverrides: new Map([['local:a', { id: 'changed' }]]) };
+		let finish: ((value: CollectionValidationRunOutcome) => void) | undefined;
+		const { driver } = createDriverHarness({
+			draft,
+			validateDraft: () =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		});
+		driver.dispatch({ type: 'validate-requested', options: { config } });
+		const result = createCollectionWorkspaceValidationResult({ collection: draft, config, success: true });
+		if (!result) throw new Error('Expected result');
+		if (acceptFirst) driver.dispatch({ type: 'active-draft-changed', config, currentDraft: draft });
+		finish?.({ type: 'recorded-current-result', validationResult: result });
+		await flushPromises();
+		if (!acceptFirst) driver.dispatch({ type: 'active-draft-changed', config, currentDraft: draft });
+		expect(driver.getSnapshot().validationStatus).toBe(acceptFirst ? 'passed' : 'none');
+	});
+
 	it('cancels validation and ignores late completion after dispose', async () => {
 		const draft = collection(['local:a']);
 		let completeValidation: ((outcome: CollectionValidationRunOutcome) => void) | undefined;
