@@ -226,6 +226,29 @@ describe('useCollections', () => {
 		expect(appState.activeCollection).toEqual(altCollection);
 	});
 
+	it('does not persist a queued save after its draft generation changes', async () => {
+		const draft = { name: 'default', mods: ['local:original'] };
+		const firstSave = createDeferred<CollectionContentSaveResult>();
+		const appState = createAppState({ activeCollection: draft, allCollections: new Map([[draft.name, draft]]) });
+		let generation = 0;
+		vi.mocked(window.electron.updateCollection).mockReturnValueOnce(firstSave.promise);
+		const { result } = renderCollectionsHook(appState, { getDraftGeneration: () => generation });
+		let first!: Promise<boolean>;
+		let second!: Promise<boolean>;
+		await act(async () => {
+			first = result.current.saveCollection(draft, true);
+			second = result.current.saveCollection(draft, true);
+		});
+		await waitFor(() => expect(window.electron.updateCollection).toHaveBeenCalledTimes(1));
+		generation += 1;
+		await act(async () => {
+			firstSave.resolve({ ok: true, collection: draft });
+			await first;
+			expect(await second).toBe(false);
+		});
+		expect(window.electron.updateCollection).toHaveBeenCalledTimes(1);
+	});
+
 	it('notifies when creating a collection fails to write the new collection', async () => {
 		const defaultCollection = { name: 'default', mods: [] };
 		const appState = createAppState({

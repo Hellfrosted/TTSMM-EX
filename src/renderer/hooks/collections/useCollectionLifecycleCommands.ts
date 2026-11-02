@@ -119,6 +119,7 @@ export function useCollectionLifecycleCommands({
 			let writeAccepted = false;
 			const draftGeneration = getDraftGeneration?.();
 			await runQueuedCollectionWrite(async () => {
+				if (draftGeneration !== undefined && draftGeneration !== getDraftGeneration?.()) return;
 				setSavingCollection(true);
 				try {
 					const saveOutcome = await Effect.runPromise(

@@ -411,6 +411,18 @@ describe('active-collection-draft-driver', () => {
 		expect(driver.getSnapshot().validationStatus).toBe('none');
 	});
 
+	it('retains a fresh accepted result when a rerun fails without an input change', async () => {
+		const draft = collection(['local:a']);
+		const { driver, adapters } = createDriverHarness({ draft });
+		driver.dispatch({ type: 'validate-requested' });
+		await flushPromises();
+		vi.mocked(adapters.validateDraft).mockRejectedValueOnce(new Error('failed'));
+		driver.dispatch({ type: 'validate-requested' });
+		await flushPromises();
+		expect(driver.getSnapshot().validationStatus).toBe('passed');
+		expect(driver.getSnapshot().validationResult?.success).toBe(true);
+	});
+
 	it('clears validating state when the validation adapter rejects', async () => {
 		const validateDraft = vi.fn(async (): Promise<CollectionValidationRunOutcome> => {
 			throw new Error('validation adapter failed');
