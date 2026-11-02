@@ -5,7 +5,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use image::{DynamicImage, ImageOutputFormat, Rgba, RgbaImage};
+use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
 use io_unity::classes::mesh::{Mesh, MeshObject};
 use io_unity::classes::texture2d::{Texture2D, Texture2DObject};
 use io_unity::classes::ClassIDType;
@@ -431,12 +431,14 @@ fn extract_preview_asset(
     let thumbnail = image
         .rotate180()
         .thumbnail(MAX_PREVIEW_DIMENSION, MAX_PREVIEW_DIMENSION);
+    let rgba = thumbnail.to_rgba8();
+    let thumbnail = DynamicImage::ImageRgba8(RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw()).context("invalid thumbnail dimensions")?);
     if is_flat_preview_image(&thumbnail) {
         anyhow::bail!("Texture2D preview {asset_name} decoded to a flat image");
     }
     let mut png = Cursor::new(Vec::new());
     thumbnail
-        .write_to(&mut png, ImageOutputFormat::Png)
+        .write_to(&mut png, ImageFormat::Png)
         .with_context(|| format!("encode Texture2D preview {asset_name}"))?;
     let png = png.into_inner();
     let cache_relative_path = format!(
@@ -491,7 +493,7 @@ fn extract_mesh_triangles_preview_asset(
     let height = rendered.height();
     let mut png = Cursor::new(Vec::new());
     rendered
-        .write_to(&mut png, ImageOutputFormat::Png)
+        .write_to(&mut png, ImageFormat::Png)
         .with_context(|| format!("encode Mesh preview {asset_name}"))?;
     let png = png.into_inner();
     let cache_relative_path = format!(

@@ -175,7 +175,11 @@ function patchGreenworksWorkshopWorkerSource() {
 	const source = fs.readFileSync(greenworksWorkshopWorkersPath, 'utf8');
 	const patchedSource = source
 		.replace('const const char *PreviewTypeToString(EItemPreviewType type) {', 'const char *PreviewTypeToString(EItemPreviewType type) {')
-		.replace(/(^|\n)char \*PreviewTypeToString\(EItemPreviewType type\) \{/, '$1const char *PreviewTypeToString(EItemPreviewType type) {');
+		.replace(/(^|\n)char \*PreviewTypeToString\(EItemPreviewType type\) \{/, '$1const char *PreviewTypeToString(EItemPreviewType type) {')
+		.replace('EItemPreviewType *previewType;', 'EItemPreviewType previewType = EItemPreviewType::k_EItemPreviewType_Image;')
+		.replace('nullptr, 0, previewType))', 'nullptr, 0, &previewType))')
+		.replace('previewTypes[j] = *previewType;', 'previewTypes[j] = previewType;')
+		.replace('            delete previewType;\n', '');
 
 	if (patchedSource !== source) {
 		fs.writeFileSync(greenworksWorkshopWorkersPath, patchedSource);
@@ -248,6 +252,7 @@ function patchGreenworksNanForV8ExternalPointerTags() {
 	});
 
 	replaceRequiredFileContent(nanImplementationPath, (source) => {
+		if (source.includes('v8::kExternalPointerTypeTagDefault')) return source;
 		const patchedFactorySource = replaceKnownSource(
 			source,
 			nanImplementationPath,
@@ -263,7 +268,14 @@ function patchGreenworksNanForV8ExternalPointerTags() {
 	});
 
 	replaceRequiredFileContent(nanCallbacksPath, (source) =>
-		replaceKnownSource(source, nanCallbacksPath, '.As<v8::External>()->Value())', `.As<v8::External>()->Value(${v8ExternalPointerTag}))`)
+		source.includes('v8::kExternalPointerTypeTagDefault')
+			? source
+			: replaceKnownSource(
+					source,
+					nanCallbacksPath,
+					'.As<v8::External>()->Value())',
+					`.As<v8::External>()->Value(${v8ExternalPointerTag}))`
+				)
 	);
 }
 

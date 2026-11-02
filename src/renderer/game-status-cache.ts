@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import * as AtomRef from 'effect/unstable/reactivity/AtomRef';
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import { toEffectOperationError } from 'shared/effect-errors';
 import { RendererElectron, runRenderer } from './runtime';
 

@@ -45,28 +45,26 @@ export function useCollectionWorkspaceSession({
 	const updateStateRef = useRef(updateState);
 
 	const driverRef = useRef<ActiveCollectionDraftDriver | undefined>(undefined);
-	if (!driverRef.current) {
-		driverRef.current = createActiveCollectionDraftDriver({
-			initial: { config, draft: activeCollection },
-			initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
-			adapters: {
-				cancelValidation: () => validationRef.current?.cancelValidation(),
-				clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
-				clearLaunchState: () => {
-					updateStateRef.current({ launchingGame: false });
-					onLaunchStateClearedRef.current?.();
-				},
-				launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
-				openModal: (modalType) => setModalTypeRef.current(modalType),
-				persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
-				recalculateModData: () => collectionsRef.current?.recalculateModData(),
-				setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
-				validateDraft: (draft, launchIfValid, options) =>
-					validationRef.current?.validateActiveCollection(launchIfValid, { ...options, collection: draft }) ??
-					Promise.resolve({ type: 'cancelled' as const })
-			}
-		});
-	}
+	driverRef.current ??= createActiveCollectionDraftDriver({
+		initial: { config, draft: activeCollection },
+		initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
+		adapters: {
+			cancelValidation: () => validationRef.current?.cancelValidation(),
+			clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
+			clearLaunchState: () => {
+				updateStateRef.current({ launchingGame: false });
+				onLaunchStateClearedRef.current?.();
+			},
+			launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
+			openModal: (modalType) => setModalTypeRef.current(modalType),
+			persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
+			recalculateModData: () => collectionsRef.current?.recalculateModData(),
+			setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
+			validateDraft: (draft, launchIfValid, options) =>
+				validationRef.current?.validateActiveCollection(launchIfValid, { ...options, collection: draft }) ??
+				Promise.resolve({ type: 'cancelled' as const })
+		}
+	});
 	const driver = driverRef.current;
 	const [collectionWorkspaceSession, setCollectionWorkspaceSession] = useState(() => driver.getSnapshot());
 

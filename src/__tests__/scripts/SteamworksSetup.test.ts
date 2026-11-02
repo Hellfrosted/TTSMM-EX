@@ -74,7 +74,10 @@ function createGreenworksSkeleton(greenworksPath: string, previewTypeSignature: 
 			''
 		].join('\n')
 	);
-	fs.writeFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), `${previewTypeSignature}\n\treturn nullptr;\n}\n`);
+	fs.writeFileSync(
+		path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'),
+		`${previewTypeSignature}\n\treturn nullptr;\n}\nEItemPreviewType *previewType;\nGetQueryUGCAdditionalPreview(nullptr, 0, previewType))\npreviewTypes[j] = *previewType;\n            delete previewType;\n`
+	);
 }
 
 function createNanSkeletonAt(nanPath: string) {
@@ -196,6 +199,11 @@ describe('steamworks setup scripts', () => {
 		expect(fs.readFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), 'utf8')).toContain(
 			'const char *PreviewTypeToString(EItemPreviewType type) {'
 		);
+		const workshopSource = fs.readFileSync(path.join(greenworksPath, 'src', 'greenworks_workshop_workers.cc'), 'utf8');
+		expect(workshopSource).toContain('EItemPreviewType previewType = EItemPreviewType::k_EItemPreviewType_Image;');
+		expect(workshopSource).toContain('nullptr, 0, &previewType))');
+		expect(workshopSource).toContain('previewTypes[j] = previewType;');
+		expect(workshopSource).not.toContain('delete previewType;');
 		expect(fs.readFileSync(path.join(paths.releaseAppNodeModulesPath, 'nan', 'nan_implementation_12_inl.h'), 'utf8')).toContain(
 			'v8::External::New(v8::Isolate::GetCurrent(), value, v8::kExternalPointerTypeTagDefault)'
 		);

@@ -1,4 +1,4 @@
-import { bench, describe } from 'vitest';
+import { test } from 'vitest';
 import { collectionNamesEqual, isValidCollectionName, validateCollectionName } from '../shared/collection-name';
 import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber, normalizedOrder } from '../shared/view-config';
 import { getWorkshopDependencySnapshotState, WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS } from '../shared/workshop-dependency-snapshot';
@@ -24,24 +24,24 @@ const collectionNames = [
 	'nul.json'
 ];
 
-describe('collection-name', () => {
-	bench('validateCollectionName over a mixed batch', () => {
+test('collection-name', async ({ bench }) => {
+	await bench('validateCollectionName over a mixed batch', () => {
 		for (const name of collectionNames) {
 			validateCollectionName(name);
 		}
-	});
+	}).run();
 
-	bench('isValidCollectionName over a mixed batch', () => {
+	await bench('isValidCollectionName over a mixed batch', () => {
 		for (const name of collectionNames) {
 			isValidCollectionName(name);
 		}
-	});
+	}).run();
 
-	bench('collectionNamesEqual case-insensitive comparison', () => {
+	await bench('collectionNamesEqual case-insensitive comparison', () => {
 		for (let index = 0; index < collectionNames.length - 1; index += 1) {
 			collectionNamesEqual(collectionNames[index], collectionNames[index + 1]);
 		}
-	});
+	}).run();
 });
 
 const defaultOrder = ['type', 'name', 'authors', 'state', 'id', 'size', 'lastUpdate', 'dateAdded', 'tags'] as const;
@@ -58,22 +58,22 @@ const widthRecord: Record<string, unknown> = {
 };
 const validKeys = new Set<string>(defaultOrder);
 
-describe('view-config', () => {
-	bench('compactConfiguredOrder dedupes and filters', () => {
+test('view-config', async ({ bench }) => {
+	await bench('compactConfiguredOrder dedupes and filters', () => {
 		compactConfiguredOrder(configuredOrder, defaultOrder);
-	});
+	}).run();
 
-	bench('normalizedOrder fills in missing columns', () => {
+	await bench('normalizedOrder fills in missing columns', () => {
 		normalizedOrder(configuredOrder, defaultOrder);
-	});
+	}).run();
 
-	bench('compactRecord prunes invalid entries', () => {
+	await bench('compactRecord prunes invalid entries', () => {
 		compactRecord(widthRecord, validKeys, isFiniteNumber);
-	});
+	}).run();
 
-	bench('defaultEquivalentOrder comparison', () => {
+	await bench('defaultEquivalentOrder comparison', () => {
 		defaultEquivalentOrder([...defaultOrder], defaultOrder);
-	});
+	}).run();
 });
 
 const now = new Date('2026-05-04T12:00:00Z').getTime();
@@ -90,14 +90,14 @@ const snapshotInputs = [
 	{ steamDependencies: largeDependencies, steamDependenciesFetchedAt: staleFetchedAt }
 ];
 
-describe('workshop-dependency-snapshot', () => {
-	bench('getWorkshopDependencySnapshotState across snapshot kinds', () => {
+test('workshop-dependency-snapshot', async ({ bench }) => {
+	await bench('getWorkshopDependencySnapshotState across snapshot kinds', () => {
 		for (const input of snapshotInputs) {
 			getWorkshopDependencySnapshotState(input, now);
 		}
-	});
+	}).run();
 
-	bench('getWorkshopDependencySnapshotState on a large known snapshot', () => {
+	await bench('getWorkshopDependencySnapshotState on a large known snapshot', () => {
 		getWorkshopDependencySnapshotState({ steamDependencies: largeDependencies, steamDependenciesFetchedAt: freshFetchedAt }, now);
-	});
+	}).run();
 });
