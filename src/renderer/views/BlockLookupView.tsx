@@ -185,12 +185,9 @@ function BlockLookupModHeaderFilter({
 	const selectedModSet = new Set(selectedMods);
 	const disabled = selectedMods.length === 0 && availableMods.length === 0;
 
-	const toggleMod = useCallback(
-		(mod: string) => {
-			onSelectedModsChange(selectedModSet.has(mod) ? selectedMods.filter((selectedMod) => selectedMod !== mod) : [...selectedMods, mod]);
-		},
-		[onSelectedModsChange, selectedModSet, selectedMods]
-	);
+	const toggleMod = (mod: string) => {
+		onSelectedModsChange(selectedModSet.has(mod) ? selectedMods.filter((selectedMod) => selectedMod !== mod) : [...selectedMods, mod]);
+	};
 
 	return (
 		<>

@@ -1,5 +1,5 @@
 import type { AppState } from 'model';
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import {
 	fetchBlockLookupBootstrap,
@@ -51,7 +51,9 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const searchRequestIdRef = useRef(0);
 	const skippedInitialSearchEffectRef = useRef(false);
 	const queryRef = useRef(query);
-	queryRef.current = query;
+	useLayoutEffect(() => {
+		queryRef.current = query;
+	}, [query]);
 	const modSources = useMemo(() => collectBlockLookupModSources({ mods }), [mods]);
 
 	const buildRequest = useCallback(

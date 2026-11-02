@@ -89,7 +89,7 @@ function reduceSteamworksVerificationState(
 	}
 }
 
-export default function SteamworksVerification() {
+function useSteamworksVerification() {
 	const config = useAppStateSelector((state) => state.config);
 	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
 	const navigate = useAppStateSelector((state) => state.navigate);
@@ -198,6 +198,11 @@ export default function SteamworksVerification() {
 			});
 	}
 
+	return { error, status, verifying, verify };
+}
+
+export default function SteamworksVerification() {
+	const { error, status, verifying, verify } = useSteamworksVerification();
 	const describedReadiness = status ? describeSteamworksReadiness(status.readiness.kind) : undefined;
 	const hasVerificationProblem = !verifying && (Boolean(error) || (status ? !status.inited : false));
 	const statusLabel = verifying

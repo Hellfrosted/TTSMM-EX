@@ -2,7 +2,7 @@ import type { AppState } from 'model';
 import { AppConfig, AppConfigKeys, NLogLevel, SettingsViewModalType } from 'model';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Path, PathValue } from 'react-hook-form';
-import { useForm, useFormState, useWatch } from 'react-hook-form';
+import { useFieldArray, useForm, useFormState, useWatch } from 'react-hook-form';
 import api from 'renderer/Api';
 import { useWriteConfigMutation } from 'renderer/config-cache';
 import { type EditingConfig, type LogConfig, settingsFormResolver } from 'renderer/settings-validation';
@@ -74,6 +74,14 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		resolver: settingsFormResolver
 	});
 	const watchedEditingConfig = useWatch({ control: form.control });
+	const {
+		fields: logConfigFields,
+		append: appendLogConfig,
+		remove: removeLogConfigField
+	} = useFieldArray({
+		control: form.control,
+		name: 'editingLogConfig'
+	});
 	const { isDirty } = useFormState({ control: form.control });
 	const editingConfig = useMemo(
 		() =>
@@ -106,45 +114,27 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 	const updateLogConfig = useCallback(
 		(index: number, updates: Partial<LogConfig>) => {
-			const currentEditingConfig = form.getValues();
-			form.setValue(
-				'editingLogConfig',
-				currentEditingConfig.editingLogConfig.map((logConfig, currentIndex) => {
-					if (currentIndex !== index) {
-						return logConfig;
-					}
-
-					return {
-						...logConfig,
-						...updates
-					};
-				}),
-				{ shouldDirty: true, shouldValidate: false }
-			);
+			if (updates.loggerID !== undefined) {
+				form.setValue(`editingLogConfig.${index}.loggerID`, updates.loggerID, { shouldDirty: true });
+			}
+			if (updates.level !== undefined) {
+				form.setValue(`editingLogConfig.${index}.level`, updates.level, { shouldDirty: true });
+			}
 		},
 		[form]
 	);
 
 	const addLogConfig = useCallback(() => {
-		const currentEditingConfig = form.getValues();
-		form.setValue('editingLogConfig', [...currentEditingConfig.editingLogConfig, { loggerID: '', level: NLogLevel.ERROR }], {
-			shouldDirty: true,
-			shouldValidate: false
-		});
+		appendLogConfig({ loggerID: '', level: NLogLevel.ERROR });
 		setUiState((current) => ({ ...current, modalType: SettingsViewModalType.NONE, editingContextIndex: undefined }));
-	}, [form]);
+	}, [appendLogConfig]);
 
 	const removeLogConfig = useCallback(
 		(index: number) => {
-			const currentEditingConfig = form.getValues();
-			form.setValue(
-				'editingLogConfig',
-				currentEditingConfig.editingLogConfig.filter((_, currentIndex) => currentIndex !== index),
-				{ shouldDirty: true, shouldValidate: false }
-			);
+			removeLogConfigField(index);
 			setUiState((current) => ({ ...current, modalType: SettingsViewModalType.NONE, editingContextIndex: undefined }));
 		},
-		[form]
+		[removeLogConfigField]
 	);
 
 	const selectPath = useCallback(
@@ -265,6 +255,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 	return {
 		form,
+		logConfigFields,
 		editingConfig,
 		selectingDirectory,
 		selectingPathTarget,

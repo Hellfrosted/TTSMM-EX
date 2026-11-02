@@ -39,6 +39,7 @@ interface SettingsViewProps {
 type SettingsConfigErrors = Record<string, string>;
 
 const MAX_WORKSHOP_ID_DIGITS = 20;
+const EMPTY_CONFIG_ERRORS: SettingsConfigErrors = {};
 
 interface SettingsFieldProps {
 	id: string;
@@ -182,10 +183,11 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 	const [loggingOverridesOpen, setLoggingOverridesOpen] = useState(false);
 	const loggerIdInputRef = useRef<HTMLInputElement>(null);
 	const workshopIdInputRef = useRef<HTMLInputElement>(null);
-	const configErrors = appConfigErrors || {};
+	const configErrors = appConfigErrors || EMPTY_CONFIG_ERRORS;
 	const {
 		editingConfig,
 		form,
+		logConfigFields,
 		selectingDirectory,
 		selectingPathTarget,
 		modalType,
@@ -408,6 +410,7 @@ function useSettingsViewController({ appState }: SettingsViewProps) {
 		isLinux,
 		loggerIdInputRef,
 		loggingOverridesOpen,
+		logConfigFields,
 		madeConfigEdits,
 		modalType,
 		openLogEditModal,
@@ -444,6 +447,7 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 		isLinux,
 		loggerIdInputRef,
 		loggingOverridesOpen,
+		logConfigFields,
 		madeConfigEdits,
 		modalType,
 		openLogEditModal,
@@ -819,11 +823,12 @@ function renderSettingsViewContent(controller: SettingsViewController) {
 										Logging Overrides
 									</summary>
 									<div className="pt-3">
-										{editingConfig.editingLogConfig.map((config, index) => {
+										{logConfigFields.map((field, index) => {
+											const config = editingConfig.editingLogConfig[index] ?? field;
 											const id = `editingLogConfig.${index}.loggerID`;
 
 											return (
-												<SettingsField id={id} key={id} label={`Override ${index + 1}`} error={configErrors?.[id]}>
+												<SettingsField id={id} key={field.id} label={`Override ${index + 1}`} error={configErrors?.[id]}>
 													<div className="flex w-full flex-wrap gap-2">
 														<SettingsSelect
 															id={`${id}.level`}

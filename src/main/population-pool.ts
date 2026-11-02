@@ -335,12 +335,23 @@ export async function scanPopulationPool(userDataPath: string, request: Populati
 }
 
 function createUniqueDestination(folderPath: string, fileName: string) {
+	if (fileName === '.' || fileName === '..' || /[\\/]/.test(fileName)) {
+		throw new Error('Population Entry filename must not contain a path.');
+	}
 	const parsed = path.parse(fileName);
 	const directPath = path.join(folderPath, fileName);
 	if (!fs.existsSync(directPath)) {
 		return directPath;
 	}
 	return path.join(folderPath, `${parsed.name}-${new Date().toISOString().replace(/[:.]/g, '-')}${parsed.ext}`);
+}
+
+function assertPopulationEntrySource(filePath: string, folderPath: string, nested: boolean) {
+	const parent = path.dirname(fs.realpathSync(filePath));
+	const expectedParent = fs.realpathSync(folderPath);
+	if ((nested ? path.dirname(parent) : parent) !== expectedParent || !fs.lstatSync(filePath).isFile()) {
+		throw new Error('Population Entry is outside its expected folder.');
+	}
 }
 
 function assertWriteGuardConfirmed(request: PopulationPoolFileOperationRequest) {
@@ -365,6 +376,7 @@ export async function disablePopulationEntry(
 	if (!isDirectory(tacPath)) {
 		throw new Error('Missing TAC Local Population Folder.');
 	}
+	assertPopulationEntrySource(request.row.path, tacPath, false);
 	const disabledPath = getDisabledPopulationPath(tacPath);
 	fs.mkdirSync(disabledPath, { recursive: true });
 	fs.renameSync(request.row.path, createUniqueDestination(disabledPath, request.row.fileName));
@@ -386,6 +398,7 @@ export async function restorePopulationEntry(
 	if (!isDirectory(tacPath)) {
 		throw new Error('Missing TAC Local Population Folder.');
 	}
+	assertPopulationEntrySource(request.row.path, getDisabledPopulationPath(tacPath), false);
 	fs.renameSync(request.row.path, createUniqueDestination(tacPath, request.row.fileName));
 	return {
 		...(await scanPopulationPool(userDataPath, getPostOperationScanRequest(request))),
@@ -398,12 +411,16 @@ export async function addStablePopulationEntry(
 	request: PopulationPoolFileOperationRequest
 ): Promise<PopulationPoolFileOperationResult> {
 	assertWriteGuardConfirmed(request);
-	if (!request.row.path || !isReadableTacCompatibleRawTech(request.row.path)) {
+	if (!request.row.path || request.row.source !== 'saved-candidate') {
 		throw new Error('Stable add requires TAC-Compatible Population Entry data.');
 	}
 	const tacPath = getTacLocalPopulationPath(request.localDir);
 	if (!isDirectory(tacPath)) {
 		throw new Error('Missing TAC Local Population Folder.');
+	}
+	assertPopulationEntrySource(request.row.path, getSavedTechSnapshotPath(request.localDir), true);
+	if (!isReadableTacCompatibleRawTech(request.row.path)) {
+		throw new Error('Stable add requires TAC-Compatible Population Entry data.');
 	}
 	const fileName = request.row.fileName || path.basename(request.row.path);
 	fs.copyFileSync(request.row.path, createUniqueDestination(tacPath, fileName));

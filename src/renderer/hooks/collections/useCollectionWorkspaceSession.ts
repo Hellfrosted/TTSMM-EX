@@ -1,5 +1,5 @@
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import { type ActiveCollectionDraftDriver, createActiveCollectionDraftDriver } from 'renderer/active-collection-draft-driver';
 import { getCollectionModDataList } from 'renderer/collection-mod-list';
@@ -43,11 +43,6 @@ export function useCollectionWorkspaceSession({
 	const onLaunchStateClearedRef = useRef(onLaunchStateCleared);
 	const setModalTypeRef = useRef(setModalType);
 	const updateStateRef = useRef(updateState);
-	launchModsRef.current = launchMods;
-	modsRef.current = mods;
-	onLaunchStateClearedRef.current = onLaunchStateCleared;
-	setModalTypeRef.current = setModalType;
-	updateStateRef.current = updateState;
 
 	const driverRef = useRef<ActiveCollectionDraftDriver | undefined>(undefined);
 	if (!driverRef.current) {
@@ -130,14 +125,21 @@ export function useCollectionWorkspaceSession({
 		onCollectionLifecycleResultApplied,
 		onActiveDraftEdited: applyActiveDraftEdit
 	});
-	collectionsRef.current = collections;
 
 	const validation = useCollectionValidation({
 		activeCollectionDraft: collectionWorkspaceSession.draft,
 		appState,
 		openNotification
 	});
-	validationRef.current = validation;
+	useLayoutEffect(() => {
+		launchModsRef.current = launchMods;
+		modsRef.current = mods;
+		onLaunchStateClearedRef.current = onLaunchStateCleared;
+		setModalTypeRef.current = setModalType;
+		updateStateRef.current = updateState;
+		collectionsRef.current = collections;
+		validationRef.current = validation;
+	}, [collections, launchMods, mods, onLaunchStateCleared, setModalType, updateState, validation]);
 
 	useEffect(() => {
 		driver.dispatch({

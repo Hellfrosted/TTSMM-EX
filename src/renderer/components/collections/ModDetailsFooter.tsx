@@ -15,7 +15,7 @@ import {
 	ModType,
 	NotificationProps
 } from 'model';
-import { type CSSProperties, type Key, memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { type CSSProperties, type Key, memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -24,6 +24,7 @@ import { persistConfigChange } from 'renderer/util/config-write';
 import { WorkshopDescription } from 'renderer/util/workshop-description';
 import { getWorkshopDependencySnapshotState, type WorkshopDependencySnapshotState } from 'shared/workshop-dependency-snapshot';
 import { formatDateStr } from 'util/Date';
+import { DetailCollapse } from './mod-details-collapse';
 import { DetailCheckbox, type DetailColumn, type DetailRowSelection, ModDetailsDependenciesPane } from './mod-details-dependencies';
 import { DetailIconButton, ModDetailsFooterHeader, ModDetailsPreview } from './mod-details-presentation';
 import { ModTypeIcon } from './mod-type-presentation';
@@ -32,12 +33,6 @@ interface DetailDescriptionItem {
 	label: ReactNode;
 	children: ReactNode;
 	span?: number;
-}
-
-interface DetailCollapseItem {
-	key: string;
-	label: ReactNode;
-	children: ReactNode;
 }
 
 interface DetailTabItem {
@@ -75,50 +70,6 @@ function DetailDescriptions({ column = 1, items }: { column?: number; items: Det
 					<div className="ModDetailDescriptionsValue">{item.children}</div>
 				</div>
 			))}
-		</div>
-	);
-}
-
-function DetailCollapse({
-	className = '',
-	defaultActiveKey,
-	items
-}: {
-	className?: string;
-	defaultActiveKey?: string[];
-	items: DetailCollapseItem[];
-}) {
-	const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(defaultActiveKey || []));
-
-	return (
-		<div className={`ModDetailCollapse${className ? ` ${className}` : ''}`}>
-			{items.map((item) => {
-				const open = openKeys.has(item.key);
-				return (
-					<section key={item.key} className="ModDetailCollapseItem">
-						<button
-							type="button"
-							className="ModDetailCollapseHeader"
-							aria-expanded={open}
-							onClick={() => {
-								setOpenKeys((currentKeys) => {
-									const nextKeys = new Set(currentKeys);
-									if (nextKeys.has(item.key)) {
-										nextKeys.delete(item.key);
-									} else {
-										nextKeys.add(item.key);
-									}
-									return nextKeys;
-								});
-							}}
-						>
-							<span aria-hidden="true">{open ? '▾' : '▸'}</span>
-							<span>{item.label}</span>
-						</button>
-						{open ? <div className="ModDetailCollapsePanel">{item.children}</div> : null}
-					</section>
-				);
-			})}
 		</div>
 	);
 }
@@ -671,17 +622,18 @@ function useModDetailsFooterContent({
 				checkStrictly: false,
 				onChange: (selectedRowKeys: Key[]) => {
 					const changes: { [uid: string]: boolean } = {};
+					const selectedKeys = new Set(selectedRowKeys);
 					data.forEach((record) => {
 						if (record.type === ModType.DESCRIPTOR) {
 							if (record.children) {
 								record.children.forEach((childData) => {
-									changes[childData.uid] = selectedRowKeys.includes(childData.uid);
+									changes[childData.uid] = selectedKeys.has(childData.uid);
 								});
 							} else {
-								changes[record.uid] = selectedRowKeys.includes(record.uid);
+								changes[record.uid] = selectedKeys.has(record.uid);
 							}
 						} else {
-							changes[record.uid] = selectedRowKeys.includes(record.uid);
+							changes[record.uid] = selectedKeys.has(record.uid);
 						}
 					});
 					setModSubsetCallback(changes);

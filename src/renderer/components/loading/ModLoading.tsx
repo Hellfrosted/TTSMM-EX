@@ -1,6 +1,6 @@
 import type { AppConfig } from 'model/AppConfig';
 import type { SessionMods } from 'model/SessionMods';
-import { useEffect, useEffectEvent, useReducer, useRef } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import { createModMetadataScanRequest, readModMetadataCache } from 'renderer/mod-metadata-cache';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -72,7 +72,6 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	const { loadError, progress, progressMessage, retryCount } = state;
 	const loadRequestIdRef = useRef(0);
 	const userOverridesRef = useRef(config.userOverrides);
-	userOverridesRef.current = config.userOverrides;
 	const metadataScanRequest = createModMetadataScanRequest({
 		allCollections,
 		workshopID: config.workshopID,
@@ -81,7 +80,10 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	});
 	const { metadataScanKey } = metadataScanRequest;
 	const metadataScanRequestRef = useRef(metadataScanRequest);
-	metadataScanRequestRef.current = metadataScanRequest;
+	useLayoutEffect(() => {
+		userOverridesRef.current = config.userOverrides;
+		metadataScanRequestRef.current = metadataScanRequest;
+	});
 	const commitModLoad = useEffectEvent((mods: SessionMods) => {
 		updateAppState({
 			mods,

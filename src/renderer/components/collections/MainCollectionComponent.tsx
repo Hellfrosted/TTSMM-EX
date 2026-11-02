@@ -18,7 +18,7 @@ import {
 	ModType
 } from 'model';
 import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext } from 'react-router-dom';
 import api from 'renderer/Api';
@@ -368,15 +368,12 @@ function TagsHeaderFilter({
 	const disabled = !onSelectedTagsChange || (selectedTags.length === 0 && availableTags.length === 0);
 	const activeLabel = selectedTags.length > 0 ? `${selectedTags.length}` : undefined;
 
-	const toggleTag = useCallback(
-		(tag: string) => {
-			if (!onSelectedTagsChange) {
-				return;
-			}
-			onSelectedTagsChange(selectedTagSet.has(tag) ? selectedTags.filter((selectedTag) => selectedTag !== tag) : [...selectedTags, tag]);
-		},
-		[onSelectedTagsChange, selectedTagSet, selectedTags]
-	);
+	const toggleTag = (tag: string) => {
+		if (!onSelectedTagsChange) {
+			return;
+		}
+		onSelectedTagsChange(selectedTagSet.has(tag) ? selectedTags.filter((selectedTag) => selectedTag !== tag) : [...selectedTags, tag]);
+	};
 
 	return (
 		<>
@@ -884,7 +881,6 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 	const columnActiveConfig = mainConfig?.columnActiveConfig;
 	const columnWidthConfig = mainConfig?.columnWidthConfig;
 	const deferredRows = useDeferredValue(filteredRows);
-	const configuredColumnWidths = columnWidthConfig || {};
 	const [{ autoColumnWidths, availableTableWidth }, dispatchMainTableMeasurement] = useReducer(mainTableMeasurementReducer, {
 		autoColumnWidths: {},
 		availableTableWidth: 0
@@ -960,7 +956,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 
 	useEffect(() => {
 		const tableRoot = tableRootRef.current;
-		const missingColumnTitles = measuredColumnTitles.filter((columnTitle) => configuredColumnWidths[columnTitle] === undefined);
+		const missingColumnTitles = measuredColumnTitles.filter((columnTitle) => columnWidthConfig?.[columnTitle] === undefined);
 		const shouldAutoMeasureColumns = deferredRows.length > 0 && deferredRows.length <= COLUMN_AUTO_MEASURE_MAX_ROWS;
 		let cancelled = false;
 
@@ -1039,7 +1035,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 			cancelled = true;
 			window.clearTimeout(timeout);
 		};
-	}, [activeColumnTitles, configuredColumnWidths, deferredRows.length, measuredColumnTitles, measurementCacheKey, sampledRows]);
+	}, [activeColumnTitles, columnWidthConfig, deferredRows.length, measuredColumnTitles, measurementCacheKey, sampledRows]);
 
 	const columnSchemaProps = useMemo<MainCollectionSchemaProps>(
 		() => ({
@@ -1255,8 +1251,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 
 		scrollParent.focus({ preventScroll: true });
 	}, []);
-	const focusScrollPaneAfterRowScrollRef = useRef(focusScrollPaneAfterRowScroll);
-	focusScrollPaneAfterRowScrollRef.current = focusScrollPaneAfterRowScroll;
+	const focusScrollPaneFromEffect = useEffectEvent(focusScrollPaneAfterRowScroll);
 	useEffect(() => {
 		const scrollParent = scrollParentRef.current;
 		if (!scrollParent) {
@@ -1264,7 +1259,7 @@ function useMainCollectionTableController(props: CollectionViewProps) {
 		}
 
 		const handleScroll = () => {
-			focusScrollPaneAfterRowScrollRef.current();
+			focusScrollPaneFromEffect();
 		};
 		scrollParent.addEventListener('scroll', handleScroll, { passive: true });
 		return () => {

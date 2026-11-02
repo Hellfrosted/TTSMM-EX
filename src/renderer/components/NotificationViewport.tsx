@@ -1,5 +1,5 @@
 import { CircleAlert, CircleCheck, Info, type LucideIcon, TriangleAlert, X } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import {
 	APP_NOTIFICATION_EVENT,
 	type AppNotification,
@@ -117,7 +117,9 @@ export function NotificationViewport() {
 	const closingIdsRef = useRef(new Set<string>());
 	const closeTimersRef = useRef(new Map<string, number>());
 	const dismissTimersRef = useRef(new Map<string, number>());
-	notificationsRef.current = notifications;
+	useLayoutEffect(() => {
+		notificationsRef.current = notifications;
+	}, [notifications]);
 
 	const clearCloseState = useCallback((id: string) => {
 		const timeoutId = closeTimersRef.current.get(id);
@@ -163,6 +165,7 @@ export function NotificationViewport() {
 		const handleNotification = (event: Event) => {
 			const notificationEvent = event as AppNotificationEvent;
 			clearCloseState(notificationEvent.detail.id);
+			clearDismissTimer(notificationEvent.detail.id);
 			dispatchNotifications({ type: 'add', notification: notificationEvent.detail });
 		};
 
@@ -170,7 +173,7 @@ export function NotificationViewport() {
 		return () => {
 			window.removeEventListener(APP_NOTIFICATION_EVENT, handleNotification);
 		};
-	}, [clearCloseState]);
+	}, [clearCloseState, clearDismissTimer]);
 
 	useEffect(() => {
 		return () => {

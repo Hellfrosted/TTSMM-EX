@@ -1,0 +1,30 @@
+# React Doctor audit
+
+Baseline: React Doctor 0.9.21, full project scan at `827212f`, 379 files, 51 diagnostics (17 errors and 34 warnings). The latest full scan after this work reports 20 diagnostics. Counts are scanner output; they do not establish that each remaining report is a defect.
+
+The changes remove render-phase writes to live refs, stabilize settings row identity, guard numeric input and file operations, consolidate duplicate mod-detail collapses, and fix keyboard access and labels in Population Pool. The renderer URL now reports malformed development configuration explicitly. The scan's timer-cleanup report led to a separate fix for replacement notifications retaining their previous timeout.
+
+| Remaining diagnostic | Disposition and evidence |
+| --- | --- |
+| Preview match lookup, `block-lookup-rendered-preview-assignment.ts:93` | Observation: the two variant groups contain at most four tokens, so there is no evidence that another set allocation improves performance. |
+| Path traversal, `population-pool.ts:346` | Rejected after fix: the reported `parsed` value comes from a filename that now rejects path separators; source paths are checked against the scanned folders. Tests cover traversal and legitimate file operations. |
+| Sequential awaits, `ui-smoke-runner.ts:359` | Rejected: the screenshot checkpoint must be present before its dimensions can be measured. These operations share a window and cannot safely be treated as independent. |
+| Native dialog preference, `DesktopControls.tsx:312` | Rejected as a focus-trap defect: the existing dialog traps Tab, handles Escape, hides siblings and restores focus; `DesktopDialog.test.tsx` covers those behaviors. Migrating to native dialog remains a separate design choice. |
+| Timer cleanup, `NotificationViewport.tsx:192` | Rejected: a separate unmount effect clears both timer maps. `NotificationViewport.test.tsx` verifies unmount cleanup. |
+| Complexity, `CollectionManagementToolbar.tsx` | Observation after refactor: validation presentation uses a single outcome mapping, and pulse lifecycle is isolated in a hook. The remaining report counts the toolbar's conditional props and labels; the toolbar tests pass. |
+| Complexity, `CollectionManagerModal.tsx` | Observation after review: its switch selects distinct dialog types and owns the two associated forms. The identical warning and error dialog branches now share one case; splitting the remaining switch would expose its form and save state across more interfaces without a demonstrated behavior benefit. |
+| Complexity, `mod-details-dependencies.tsx` DetailTable | Observation after review: selection and rendering are local to the same table. A row extraction required seven props and did not improve the diagnostic, so it was reverted. |
+| Complexity, `SteamworksVerification.tsx` | Observation after refactor: verification, retry and delayed navigation now live behind a hook; the remaining report counts the screen's status presentation branches. The existing verification tests pass. |
+| Render-time ref, `useCollectionWorkspaceSession.ts:49` | Rejected: this is guarded lazy initialization of the driver, an explicitly supported React ref initialization pattern. Other render-time ref updates were moved to commit-time effects. |
+| Parent data, `useSettingsForm.ts` | Observation: the form publishes dirty state to shared application state used by the shell for navigation and unsaved-change handling. Removing the effect requires changing that ownership. |
+| Complexity, `BlockLookupView.tsx` | Open: the view hook combines table interaction, persistence, virtualization and rendering. |
+| Parent data, `CollectionView.tsx:78` | Rejected: the child owns a ResizeObserver subscription; the rule guidance identifies external subscriptions as an exception. |
+| Parent live state, `CollectionView.tsx:78` | Rejected for the same ResizeObserver ownership. |
+| Parent callback in effect, `CollectionView.tsx:78` | Rejected for the same ResizeObserver ownership. An attempted rewrite was reverted after it introduced a new complexity finding. |
+| Complexity, `CollectionView.tsx` | Open: the view controller combines collection workflow and details layout. Extracting overlay layout into a focused hook passed the existing view tests, but Fallow classified both the new hook and the reduced controller as new complexity findings; the experiment was reverted. |
+| State adjustment, `CollectionView.tsx:281` | Observation: the effect clears the optimistic overlay size only after the persisted size matches it; deleting it would retain stale local state. |
+| State adjustment, `SettingsView.tsx:210` | Observation: the effect opens logging overrides when a configuration with overrides is loaded or added. |
+| Enum lookup, `app-config-defaults.ts:47` | Observation: `ModErrorType` contains three values; no performance evidence justifies a separate set. |
+| Enum lookup, `app-config-defaults.ts:96` | Observation: `NLogLevel` contains seven values; no performance evidence justifies a separate set. |
+
+The open complexity items remain work to be designed and validated; this document does not claim the full audit is complete.

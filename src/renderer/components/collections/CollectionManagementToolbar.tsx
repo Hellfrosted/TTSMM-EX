@@ -41,6 +41,11 @@ const toolbarMenuItemClassName = joinClassNames(
 	'flex min-h-control w-full cursor-pointer items-center gap-2 rounded-sm border-0 bg-transparent px-2.5 text-left font-[650] text-text transition-[background-color,color,opacity] duration-140 ease-out enabled:hover:bg-[color-mix(in_srgb,var(--app-color-text-base)_4%,transparent)] disabled:cursor-not-allowed disabled:opacity-55 motion-reduce:transition-none',
 	desktopControlFocusClassName
 );
+const validationPresentation = {
+	valid: { icon: CheckCircle, tone: 'CollectionValidateButton--valid' },
+	warnings: { icon: TriangleAlert, tone: 'CollectionValidateButton--warnings' },
+	blocked: { icon: XCircle, tone: 'CollectionValidateButton--blocked' }
+} satisfies Record<CollectionValidationOutcome, { icon: typeof CheckCircle; tone: string }>;
 
 interface CollectionManagementToolbarProps {
 	madeEdits: boolean;
@@ -277,6 +282,37 @@ function ToolbarMenu({ actions, disabled, label }: { actions: ToolbarMenuAction[
 	);
 }
 
+function useValidationPulse(
+	launchReady: boolean | undefined,
+	validatingCollection: boolean | undefined,
+	validateCollection: (() => void) | undefined
+) {
+	const [launchReadyPulse, dispatchLaunchReadyPulse] = useReducer((_current: boolean, next: boolean) => next, false);
+	const validationRequestedRef = useRef(false);
+	const wasValidatingCollectionRef = useRef(!!validatingCollection);
+	useEffect(() => {
+		const wasValidatingCollection = wasValidatingCollectionRef.current;
+		wasValidatingCollectionRef.current = !!validatingCollection;
+		if (!wasValidatingCollection || validatingCollection) return;
+		const shouldPulse = validationRequestedRef.current && !!launchReady;
+		validationRequestedRef.current = false;
+		if (!shouldPulse) {
+			dispatchLaunchReadyPulse(false);
+			return;
+		}
+		dispatchLaunchReadyPulse(true);
+		const timeoutId = window.setTimeout(() => dispatchLaunchReadyPulse(false), 620);
+		return () => window.clearTimeout(timeoutId);
+	}, [launchReady, validatingCollection]);
+	return {
+		launchReadyPulse,
+		requestValidation: () => {
+			validationRequestedRef.current = true;
+			validateCollection?.();
+		}
+	};
+}
+
 function PrimaryCollectionControls({
 	currentValidationOutcome,
 	currentValidationStatus,
@@ -306,55 +342,21 @@ function PrimaryCollectionControls({
 > & {
 	disabledFeatures: boolean;
 }) {
-	const validateIcon =
-		currentValidationOutcome === 'valid' ? (
-			<CheckCircle size={16} aria-hidden="true" />
-		) : currentValidationOutcome === 'warnings' ? (
-			<TriangleAlert size={16} aria-hidden="true" />
-		) : currentValidationOutcome === 'blocked' || currentValidationStatus === false ? (
-			<XCircle size={16} aria-hidden="true" />
-		) : (
-			<RefreshCw className={validatingCollection ? 'animate-[spin_900ms_linear_infinite]' : undefined} size={16} aria-hidden="true" />
-		);
-	const validateToneClassName =
-		currentValidationOutcome === 'valid'
-			? 'CollectionValidateButton--valid'
-			: currentValidationOutcome === 'warnings'
-				? 'CollectionValidateButton--warnings'
-				: currentValidationOutcome === 'blocked'
-					? 'CollectionValidateButton--blocked'
-					: 'CollectionValidateButton--neutral';
-	const [launchReadyPulse, dispatchLaunchReadyPulse] = useReducer((_current: boolean, next: boolean) => next, false);
-	const validationRequestedRef = useRef(false);
-	const wasValidatingCollectionRef = useRef(!!validatingCollection);
+	const presentation = currentValidationOutcome ? validationPresentation[currentValidationOutcome] : undefined;
+	const ValidationIcon = presentation?.icon ?? (currentValidationStatus === false ? XCircle : RefreshCw);
+	const validateIcon = (
+		<ValidationIcon
+			className={ValidationIcon === RefreshCw && validatingCollection ? 'animate-[spin_900ms_linear_infinite]' : undefined}
+			size={16}
+			aria-hidden="true"
+		/>
+	);
+	const validateToneClassName = presentation?.tone ?? 'CollectionValidateButton--neutral';
+	const { launchReadyPulse, requestValidation } = useValidationPulse(launchReady, validatingCollection, validateCollectionCallback);
 	const validateLabel = launchReady ? 'Collection Ready' : 'Validate Collection';
 	const readyTitle = launchReady ? 'Collection is validated and ready to launch' : 'Validate collection';
 	const launchButtonLabel = gameRunning ? 'Game Running' : 'Launch Game';
 	const launchButtonTitle = gameRunning ? 'Game is running' : launchGameDisabledReason || 'Launch game';
-
-	useEffect(() => {
-		const wasValidatingCollection = wasValidatingCollectionRef.current;
-		wasValidatingCollectionRef.current = !!validatingCollection;
-		if (!wasValidatingCollection || validatingCollection) {
-			return undefined;
-		}
-
-		const shouldPulse = validationRequestedRef.current && !!launchReady;
-		validationRequestedRef.current = false;
-		if (!shouldPulse) {
-			dispatchLaunchReadyPulse(false);
-			return undefined;
-		}
-
-		dispatchLaunchReadyPulse(true);
-		const timeoutId = window.setTimeout(() => {
-			dispatchLaunchReadyPulse(false);
-		}, 620);
-
-		return () => {
-			window.clearTimeout(timeoutId);
-		};
-	}, [launchReady, validatingCollection]);
 
 	return (
 		<div className={toolbarActionGridClassName} role="group" aria-label="Primary collection actions">
@@ -363,10 +365,7 @@ function PrimaryCollectionControls({
 				title={readyTitle}
 				className={joinClassNames('CollectionToolbarGridButton CollectionValidateButton', validateToneClassName)}
 				icon={validateIcon}
-				onClick={() => {
-					validationRequestedRef.current = true;
-					validateCollectionCallback?.();
-				}}
+				onClick={requestValidation}
 				disabled={disabledFeatures || validatingCollection || launchingGame || !validateCollectionCallback}
 			>
 				{launchReady ? 'Ready' : 'Validate'}
