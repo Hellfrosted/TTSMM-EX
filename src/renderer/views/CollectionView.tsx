@@ -19,7 +19,6 @@ import {
 import { useOutletContext } from 'react-router-dom';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../collection-mod-display';
-import { filterCollectionRowsByTags, getCollectionRowFilterTags } from '../collection-mod-row-filter';
 import { getCollectionLaunchCommandState } from '../collection-workspace-session';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
@@ -27,6 +26,8 @@ import { useNotifications } from '../hooks/collections/useNotifications';
 import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
 import { markPerfInteraction, PerfProfiler } from '../perf';
 import { useViewConfigCommands } from '../view-config-command';
+import { clampDetailsOverlaySize, getDetailsLayout, type HalfDetailsLayout } from './collection-details-layout';
+import { useCollectionRowFilters } from './use-collection-row-filters';
 import { useCollectionWorkspace } from './use-collection-workspace';
 
 const loadModDetailsFooter = () => import('../components/collections/ModDetailsFooter');
@@ -142,17 +143,9 @@ const collectionOverlayPaneSideClassName =
 const collectionOverlayPaneBottomClassName =
 	'CollectionDetailsOverlayPane--bottom bottom-0 left-0 right-0 h-(--collection-details-overlay-size) border-t border-[color-mix(in_srgb,var(--app-color-text-base)_14%,transparent)]';
 
-type HalfDetailsLayout = 'bottom' | 'side';
-const MIN_SIDE_BY_SIDE_WIDTH = 1120;
-const MIN_COLLECTION_TABLE_WIDTH = 640;
-const MIN_COLLECTION_TABLE_HEIGHT = 320;
 const DETAIL_OVERLAY_KEYBOARD_STEP = 10;
 const DETAIL_OVERLAY_KEYBOARD_LARGE_STEP = 40;
 const DETAIL_OVERLAY_KEYBOARD_PERSIST_DELAY_MS = 180;
-
-function clampDetailsOverlaySize(size: number, minSize: number, maxSize: number) {
-	return Math.min(Math.max(minSize, maxSize), Math.max(minSize, Math.round(size)));
-}
 
 function preferredHalfDetailsLayoutReducer(_currentLayout: HalfDetailsLayout | undefined, nextLayout: HalfDetailsLayout) {
 	return nextLayout;
@@ -166,7 +159,6 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const { openNotification } = useNotifications();
 	const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 	const [preferredHalfDetailsLayout, setPreferredHalfDetailsLayout] = useReducer(preferredHalfDetailsLayoutReducer, undefined);
-	const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
 	const guidedFixActive = false;
 	const { config, loadingMods, mods, updateState } = appState;
 
@@ -225,33 +217,8 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const currentView = CollectionViewType.MAIN;
 
 	const rows = useMemo(() => projectCollectionRowsWithErrors(baseRows, currentCollectionErrors), [baseRows, currentCollectionErrors]);
-	const availableFilterTags = useMemo(() => {
-		const tags = new Set<string>();
-		baseRows.forEach((row) => {
-			getCollectionRowFilterTags(row).forEach((tag) => tags.add(tag));
-		});
-		return Array.from(tags).sort((left, right) => left.localeCompare(right));
-	}, [baseRows]);
-	useEffect(() => {
-		if (selectedFilterTags.length === 0) {
-			return;
-		}
-
-		const availableTagSet = new Set(availableFilterTags);
-		setSelectedFilterTags((currentTags) => {
-			const retainedTags = currentTags.filter((tag) => availableTagSet.has(tag));
-			return retainedTags.length === currentTags.length ? currentTags : retainedTags;
-		});
-	}, [availableFilterTags, selectedFilterTags.length]);
-	const visibleRows = useMemo(
-		() => filterCollectionRowsByTags(filteredRows || rows, selectedFilterTags),
-		[filteredRows, rows, selectedFilterTags]
-	);
-	const visibleSelectedCount = useMemo(() => {
-		const selectedModIds = new Set(activeCollection?.mods ?? []);
-		return visibleRows.reduce((count, row) => count + (selectedModIds.has(row.uid) ? 1 : 0), 0);
-	}, [activeCollection?.mods, visibleRows]);
-	const activeFilterCount = selectedFilterTags.length + (searchString.trim().length > 0 ? 1 : 0);
+	const { availableFilterTags, selectedFilterTags, setSelectedFilterTags, visibleRows, visibleSelectedCount, activeFilterCount } =
+		useCollectionRowFilters({ baseRows, rows, filteredRows, selectedModIds: activeCollection?.mods, searchString });
 	const displayedCurrentRecord = getDisplayedCollectionRecord(mods, currentRecord, currentCollectionErrors);
 	const currentViewConfig = config.viewConfigs?.[currentView];
 	const tableCollection = useMemo(
@@ -281,11 +248,16 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 			setDraftDetailsOverlaySize(null);
 		}
 	}, [currentViewConfig?.detailsOverlayHeight, currentViewConfig?.detailsOverlayWidth, draftDetailsOverlaySize]);
-	const sideBySideEligible = contentSize.width >= MIN_SIDE_BY_SIDE_WIDTH;
-	const automaticHalfDetailsLayout: HalfDetailsLayout =
-		sideBySideEligible && contentSize.width > contentSize.height * 1.45 ? 'side' : 'bottom';
-	const halfDetailsLayout =
-		preferredHalfDetailsLayout === 'side' && !sideBySideEligible ? 'bottom' : preferredHalfDetailsLayout || automaticHalfDetailsLayout;
+	const detailsLayout = getDetailsLayout({
+		contentSize,
+		preferredLayout: preferredHalfDetailsLayout,
+		draftSize: draftDetailsOverlaySize,
+		configuredWidth: currentViewConfig?.detailsOverlayWidth,
+		configuredHeight: currentViewConfig?.detailsOverlayHeight,
+		detailsOpen: !!displayedCurrentRecord,
+		bigDetails
+	});
+	const { halfDetailsLayout } = detailsLayout;
 	const handleEnableMod = useCallback(
 		(id: string) => {
 			toggleMod(true, id);
@@ -437,39 +409,14 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 			hasUnsavedDraft,
 			rows,
 			selectedFilterTags,
+			setSelectedFilterTags,
 			setEnabledMods,
 			tableCollection,
 			visibleRows
 		]
 	);
 
-	const showSideBySideDetails =
-		currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && !bigDetails && halfDetailsLayout === 'side';
-	const maxSideDetailsWidth = Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, contentSize.width - MIN_COLLECTION_TABLE_WIDTH);
-	const automaticSideDetailsWidth = Math.min(
-		maxSideDetailsWidth,
-		Math.max(MAIN_DETAILS_OVERLAY_MIN_WIDTH, Math.min(Math.round(contentSize.width * 0.38), 680))
-	);
-	const configuredSideDetailsWidth =
-		draftDetailsOverlaySize?.layout === 'side'
-			? draftDetailsOverlaySize.size
-			: (currentViewConfig?.detailsOverlayWidth ?? automaticSideDetailsWidth);
-	const sideDetailsWidth = showSideBySideDetails
-		? clampDetailsOverlaySize(configuredSideDetailsWidth, MAIN_DETAILS_OVERLAY_MIN_WIDTH, maxSideDetailsWidth)
-		: 0;
-	const maxBottomDetailsHeight = Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, contentSize.height - MIN_COLLECTION_TABLE_HEIGHT);
-	const automaticBottomDetailsHeight = Math.min(
-		Math.max(MAIN_DETAILS_OVERLAY_MIN_HEIGHT, Math.round(contentSize.height * 0.36)),
-		maxBottomDetailsHeight
-	);
-	const configuredBottomDetailsHeight =
-		draftDetailsOverlaySize?.layout === 'bottom'
-			? draftDetailsOverlaySize.size
-			: (currentViewConfig?.detailsOverlayHeight ?? automaticBottomDetailsHeight);
-	const bottomDetailsHeight =
-		currentView === CollectionViewType.MAIN && displayedCurrentRecord && !bigDetails && !showSideBySideDetails
-			? clampDetailsOverlaySize(configuredBottomDetailsHeight, MAIN_DETAILS_OVERLAY_MIN_HEIGHT, maxBottomDetailsHeight)
-			: 0;
+	const { showSideBySideDetails, sideDetailsWidth, bottomDetailsHeight, maxSideDetailsWidth, maxBottomDetailsHeight } = detailsLayout;
 	const showExpandedDetails = currentView === CollectionViewType.MAIN && !!displayedCurrentRecord && bigDetails;
 	const showExpandedDetailsSurface = showExpandedDetails && !appState.loadingMods;
 	const shouldRenderExpandedDetailsSurface = !!displayedCurrentRecord && (showExpandedDetailsSurface || prewarmAlternateDetails);
