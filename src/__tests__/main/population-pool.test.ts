@@ -125,6 +125,48 @@ describe('population pool scanner', () => {
 		);
 	});
 
+	it('rejects paths and filenames outside the scanned population folders', async () => {
+		const localDir = path.join(tempDir, 'local');
+		const activePath = writeRawTech(localDir, 'Allowed.rawtech');
+		const outsidePath = path.join(tempDir, 'Outside.rawtech');
+		fs.writeFileSync(outsidePath, '{"blocks":[]}');
+		const activeRow = (await scanPopulationPool(tempDir, { localDir })).rows.find((row) => row.path === activePath)!;
+		await expect(
+			disablePopulationEntry(tempDir, {
+				row: { ...activeRow, path: outsidePath },
+				localDir,
+				confirmedWhileGameRunning: true
+			})
+		).rejects.toThrow('outside its expected folder');
+		await expect(
+			disablePopulationEntry(tempDir, {
+				row: { ...activeRow, fileName: '../Outside.rawtech' },
+				localDir,
+				confirmedWhileGameRunning: true
+			})
+		).rejects.toThrow('filename must not contain a path');
+		expect(fs.existsSync(activePath)).toBe(true);
+		expect(fs.existsSync(outsidePath)).toBe(true);
+		await expect(
+			addStablePopulationEntry(tempDir, {
+				row: { ...activeRow, source: 'saved-candidate', path: outsidePath },
+				localDir,
+				confirmedWhileGameRunning: true
+			})
+		).rejects.toThrow();
+	});
+
+	it('adds a scanned saved snapshot to the active population folder', async () => {
+		const localDir = path.join(tempDir, 'local');
+		writeRawTech(localDir, 'Existing.rawtech');
+		const snapshotDir = path.join(localDir, 'Snapshots', 'Candidate');
+		fs.mkdirSync(snapshotDir, { recursive: true });
+		fs.writeFileSync(path.join(snapshotDir, 'Candidate.rawtech'), '{"blocks":[]}');
+		const savedRow = (await scanPopulationPool(tempDir, { localDir })).rows.find((row) => row.source === 'saved-candidate')!;
+		const result = await addStablePopulationEntry(tempDir, { row: savedRow, localDir, confirmedWhileGameRunning: true });
+		expect(result.rows.some((row) => row.source === 'active' && row.name === 'Candidate')).toBe(true);
+	});
+
 	it('reports blocked stable operations when the TAC Local Population Folder is missing', async () => {
 		const sourcePath = path.join(tempDir, 'Candidate.rawtech');
 		fs.writeFileSync(sourcePath, '{"blocks":[]}');

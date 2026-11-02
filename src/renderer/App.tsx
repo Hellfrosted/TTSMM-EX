@@ -246,8 +246,6 @@ export function AppShell() {
 	const activeCollection = useAppStateSelector((state) => state.activeCollection);
 	const loadingMods = useAppStateSelector((state) => state.loadingMods);
 	const initializedConfigs = useAppStateSelector((state) => state.initializedConfigs);
-	const initializedConfigsRef = useRef(initializedConfigs);
-	initializedConfigsRef.current = initializedConfigs;
 	const initialRouteKind = getAppRouteKind(currentPathname);
 	const [mountedStages, setMountedStages] = useState<AppShellMountedStages>({
 		blockLookup: initialRouteKind === 'block-lookup',
@@ -269,7 +267,7 @@ export function AppShell() {
 		navigateApp('/loading/steamworks');
 	});
 	const navigateToInitialSteamworks = useEffectEvent(() => {
-		if (!initialSteamworksVerificationRequested && !initializedConfigsRef.current) {
+		if (!initialSteamworksVerificationRequested && !initializedConfigs) {
 			initialSteamworksVerificationRequested = true;
 			navigateToSteamworks();
 		}

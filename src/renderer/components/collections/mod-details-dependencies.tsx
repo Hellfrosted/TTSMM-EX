@@ -1,7 +1,8 @@
 import { DisplayModData, getModDataDisplayName } from 'model';
 import type { Key, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import StatusCallout from '../StatusCallout';
+import { DetailCollapse } from './mod-details-collapse';
 
 type DetailCellRenderer = {
 	render(value: DisplayModData[keyof DisplayModData] | undefined, record: DisplayModData, rowIndex: number): ReactNode;
@@ -24,12 +25,6 @@ export interface DetailRowSelection {
 	onSelect?: (record: DisplayModData, selected: boolean) => void;
 	onSelectAll?: () => void;
 	onSelectNone?: () => void;
-}
-
-interface DependencyCollapseItem {
-	key: string;
-	label: ReactNode;
-	children: ReactNode;
 }
 
 interface ModDetailsDependenciesPaneProps {
@@ -114,50 +109,6 @@ function getRecordSelectionKeys(record: DisplayModData, rowSelection?: DetailRow
 	}
 
 	return [record.uid];
-}
-
-function DependencyCollapse({
-	className = '',
-	defaultActiveKey,
-	items
-}: {
-	className?: string;
-	defaultActiveKey?: string[];
-	items: DependencyCollapseItem[];
-}) {
-	const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(defaultActiveKey || []));
-
-	return (
-		<div className={`ModDetailCollapse${className ? ` ${className}` : ''}`}>
-			{items.map((item) => {
-				const open = openKeys.has(item.key);
-				return (
-					<section key={item.key} className="ModDetailCollapseItem">
-						<button
-							type="button"
-							className="ModDetailCollapseHeader"
-							aria-expanded={open}
-							onClick={() => {
-								setOpenKeys((currentKeys) => {
-									const nextKeys = new Set(currentKeys);
-									if (nextKeys.has(item.key)) {
-										nextKeys.delete(item.key);
-									} else {
-										nextKeys.add(item.key);
-									}
-									return nextKeys;
-								});
-							}}
-						>
-							<span aria-hidden="true">{open ? '▾' : '▸'}</span>
-							<span>{item.label}</span>
-						</button>
-						{open ? <div className="ModDetailCollapsePanel">{item.children}</div> : null}
-					</section>
-				);
-			})}
-		</div>
-	);
 }
 
 function DetailTable({
@@ -333,7 +284,7 @@ export function ModDetailsDependenciesPane({
 					<DependencyActionButton onClick={onRetryDependencyLookup}>Check again</DependencyActionButton>
 				</div>
 			) : null}
-			<DependencyCollapse
+			<DetailCollapse
 				className="ModDetailDependencies"
 				defaultActiveKey={['required']}
 				items={[

@@ -515,9 +515,10 @@ function createBlockLookupSelectionState(
 	const nextSelectionAnchorRowKey =
 		selectionAnchorRowKey && visibleRowKeySet.has(selectionAnchorRowKey) ? selectionAnchorRowKey : nextSelectedRowKey;
 	const selectedRowKeySet = new Set(nextSelectedRowKeys);
+	const orderedRowKeySet = new Set(orderedRowKeys);
 	const selectedRowKeysInCopyOrder = [
 		...orderedRowKeys.filter((key) => selectedRowKeySet.has(key)),
-		...nextSelectedRowKeys.filter((key) => !orderedRowKeys.includes(key))
+		...nextSelectedRowKeys.filter((key) => !orderedRowKeySet.has(key))
 	];
 
 	return {

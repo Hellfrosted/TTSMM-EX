@@ -52,6 +52,11 @@ interface UiSmokeInteractionResult {
 const CHECKPOINTS: UiSmokeCheckpoint[] = [
 	{ name: 'startup', selector: '.AppRoot' },
 	{ name: 'collections', label: 'Mod Collections', selector: '[data-view-stage="collections"][data-active="true"]' },
+	{
+		name: 'population-pool',
+		label: 'Population Pool',
+		selector: '[data-view-stage="population-pool"][data-active="true"] .PopulationPoolView'
+	},
 	{ name: 'block-lookup', label: 'Block Lookup', selector: '[data-view-stage="block-lookup"][data-active="true"], .BlockLookupViewLayout' },
 	{ name: 'settings', label: 'Settings', selector: '[data-view-stage="settings"][data-active="true"], .SettingsView' }
 ];

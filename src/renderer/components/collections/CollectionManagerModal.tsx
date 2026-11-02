@@ -503,20 +503,10 @@ function CollectionManagerModal({
 			);
 		}
 		case CollectionManagerModalType.ERRORS_FOUND:
-			return (
-				<ValidationLaunchDialog
-					blocking
-					closeModal={closeLaunchWarning}
-					launchAnyway={launchAnyway}
-					launchGameWithErrors={launchGameWithErrors}
-					onReviewIssues={closeLaunchWarning}
-					validationIssueSummaries={validationIssueSummaries}
-				/>
-			);
 		case CollectionManagerModalType.WARNINGS_FOUND:
 			return (
 				<ValidationLaunchDialog
-					blocking={false}
+					blocking={modalType === CollectionManagerModalType.ERRORS_FOUND}
 					closeModal={closeLaunchWarning}
 					launchAnyway={launchAnyway}
 					launchGameWithErrors={launchGameWithErrors}

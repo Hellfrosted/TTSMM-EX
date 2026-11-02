@@ -1,5 +1,5 @@
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import { type ActiveCollectionDraftDriver, createActiveCollectionDraftDriver } from 'renderer/active-collection-draft-driver';
 import { getCollectionModDataList } from 'renderer/collection-mod-list';
@@ -43,35 +43,28 @@ export function useCollectionWorkspaceSession({
 	const onLaunchStateClearedRef = useRef(onLaunchStateCleared);
 	const setModalTypeRef = useRef(setModalType);
 	const updateStateRef = useRef(updateState);
-	launchModsRef.current = launchMods;
-	modsRef.current = mods;
-	onLaunchStateClearedRef.current = onLaunchStateCleared;
-	setModalTypeRef.current = setModalType;
-	updateStateRef.current = updateState;
 
 	const driverRef = useRef<ActiveCollectionDraftDriver | undefined>(undefined);
-	if (!driverRef.current) {
-		driverRef.current = createActiveCollectionDraftDriver({
-			initial: { config, draft: activeCollection },
-			initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
-			adapters: {
-				cancelValidation: () => validationRef.current?.cancelValidation(),
-				clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
-				clearLaunchState: () => {
-					updateStateRef.current({ launchingGame: false });
-					onLaunchStateClearedRef.current?.();
-				},
-				launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
-				openModal: (modalType) => setModalTypeRef.current(modalType),
-				persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
-				recalculateModData: () => collectionsRef.current?.recalculateModData(),
-				setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
-				validateDraft: (draft, launchIfValid, options) =>
-					validationRef.current?.validateActiveCollection(launchIfValid, { ...options, collection: draft }) ??
-					Promise.resolve({ type: 'cancelled' as const })
-			}
-		});
-	}
+	driverRef.current ??= createActiveCollectionDraftDriver({
+		initial: { config, draft: activeCollection },
+		initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
+		adapters: {
+			cancelValidation: () => validationRef.current?.cancelValidation(),
+			clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
+			clearLaunchState: () => {
+				updateStateRef.current({ launchingGame: false });
+				onLaunchStateClearedRef.current?.();
+			},
+			launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
+			openModal: (modalType) => setModalTypeRef.current(modalType),
+			persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
+			recalculateModData: () => collectionsRef.current?.recalculateModData(),
+			setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
+			validateDraft: (draft, launchIfValid, options) =>
+				validationRef.current?.validateActiveCollection(launchIfValid, { ...options, collection: draft }) ??
+				Promise.resolve({ type: 'cancelled' as const })
+		}
+	});
 	const driver = driverRef.current;
 	const [collectionWorkspaceSession, setCollectionWorkspaceSession] = useState(() => driver.getSnapshot());
 
@@ -130,14 +123,21 @@ export function useCollectionWorkspaceSession({
 		onCollectionLifecycleResultApplied,
 		onActiveDraftEdited: applyActiveDraftEdit
 	});
-	collectionsRef.current = collections;
 
 	const validation = useCollectionValidation({
 		activeCollectionDraft: collectionWorkspaceSession.draft,
 		appState,
 		openNotification
 	});
-	validationRef.current = validation;
+	useLayoutEffect(() => {
+		launchModsRef.current = launchMods;
+		modsRef.current = mods;
+		onLaunchStateClearedRef.current = onLaunchStateCleared;
+		setModalTypeRef.current = setModalType;
+		updateStateRef.current = updateState;
+		collectionsRef.current = collections;
+		validationRef.current = validation;
+	}, [collections, launchMods, mods, onLaunchStateCleared, setModalType, updateState, validation]);
 
 	useEffect(() => {
 		driver.dispatch({

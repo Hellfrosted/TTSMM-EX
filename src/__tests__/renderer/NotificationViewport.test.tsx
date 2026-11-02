@@ -1,14 +1,43 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotificationViewport } from '../../renderer/components/NotificationViewport';
 import { createNotificationEvent } from '../../renderer/notification-channel';
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 });
 
 describe('NotificationViewport', () => {
+	it('restarts the dismissal timer when a notification is replaced', () => {
+		vi.useFakeTimers();
+		render(<NotificationViewport />);
+		act(() =>
+			window.dispatchEvent(createNotificationEvent({ id: 'timed', type: 'info', props: { key: 'same', message: 'First', duration: 1 } }))
+		);
+		act(() => vi.advanceTimersByTime(500));
+		act(() =>
+			window.dispatchEvent(createNotificationEvent({ id: 'timed', type: 'info', props: { key: 'same', message: 'Updated', duration: 2 } }))
+		);
+		act(() => vi.advanceTimersByTime(600));
+		expect(screen.getByText('Updated')).toBeInTheDocument();
+		act(() => vi.advanceTimersByTime(1600));
+		expect(screen.queryByText('Updated')).not.toBeInTheDocument();
+	});
+	it('clears notification timers on unmount', () => {
+		vi.useFakeTimers();
+		const onClose = vi.fn();
+		const { unmount } = render(<NotificationViewport />);
+		act(() => {
+			window.dispatchEvent(createNotificationEvent({ id: 'timed', type: 'info', props: { message: 'Timed', duration: 1, onClose } }));
+		});
+		expect(vi.getTimerCount()).toBeGreaterThan(0);
+		unmount();
+		expect(vi.getTimerCount()).toBe(0);
+		act(() => vi.runAllTimers());
+		expect(onClose).not.toHaveBeenCalled();
+	});
 	it('announces passive notifications with status and alert roles', async () => {
 		render(<NotificationViewport />);
 

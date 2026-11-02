@@ -23,6 +23,7 @@ const SOURCE_FILTERS: Array<{ source: PopulationPoolSource; label: string }> = [
 ];
 
 const DEFAULT_SCAN_RESULT: PopulationPoolScanResult = { rows: [], pathStatuses: [], warnings: [] };
+type PopulationPoolOperation = 'disable' | 'restore' | 'stable-add' | 'workshop-request';
 
 function getColumnWidth(config: AppConfig, column: PopulationPoolColumnKey) {
 	return config.viewConfigs.populationPool?.columnWidthConfig?.[column];
@@ -61,6 +62,94 @@ function cloneConfigWithPopulationPool(config: AppConfig, update: NonNullable<Ap
 			}
 		}
 	};
+}
+
+function PopulationPoolColumnControls({
+	config,
+	onVisibilityChange,
+	onWidthChange,
+	onMove
+}: {
+	config: AppConfig['viewConfigs']['populationPool'];
+	onVisibilityChange: (column: PopulationPoolColumnKey, visible: boolean) => void;
+	onWidthChange: (column: PopulationPoolColumnKey, width: number | undefined) => void;
+	onMove: (column: PopulationPoolColumnKey, direction: -1 | 1) => void;
+}) {
+	return (
+		<div className="PopulationPoolColumnControls" role="group" aria-label="Population Pool table settings">
+			{POPULATION_POOL_COLUMN_KEYS.map((column) => (
+				<div key={column} className="PopulationPoolColumnControl">
+					<label>
+						<input
+							type="checkbox"
+							checked={config?.columnActiveConfig?.[column] !== false}
+							onChange={(event) => onVisibilityChange(column, event.target.checked)}
+						/>
+						<span>{POPULATION_POOL_COLUMN_TITLES[column]}</span>
+					</label>
+					<input
+						aria-label={`Saved width for ${POPULATION_POOL_COLUMN_TITLES[column]} column`}
+						type="number"
+						min={120}
+						value={config?.columnWidthConfig?.[column] ?? ''}
+						placeholder="Auto"
+						onChange={(event) => {
+							const width = event.currentTarget.valueAsNumber;
+							onWidthChange(column, Number.isFinite(width) ? width : undefined);
+						}}
+					/>
+					<button type="button" aria-label={`Move ${POPULATION_POOL_COLUMN_TITLES[column]} column left`} onClick={() => onMove(column, -1)}>
+						Left
+					</button>
+					<button type="button" aria-label={`Move ${POPULATION_POOL_COLUMN_TITLES[column]} column right`} onClick={() => onMove(column, 1)}>
+						Right
+					</button>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function PopulationPoolInspector({
+	row,
+	operationMessage,
+	onOperation
+}: {
+	row: PopulationPoolRow | undefined;
+	operationMessage: string | undefined;
+	onOperation: (operation: PopulationPoolOperation, row: PopulationPoolRow) => Promise<void>;
+}) {
+	return (
+		<aside className="PopulationPoolInspector" aria-label="Population Pool inspector">
+			{row ? (
+				<>
+					<h2>{row.name}</h2>
+					<p>{row.sourceLabel}</p>
+					<p>{row.compatibilityLabel}</p>
+					{row.previewUrl ? <img src={row.previewUrl} alt="" /> : null}
+					<p>{row.detail || row.status}</p>
+					<code>{row.path || row.workshopId || 'No file path'}</code>
+					<div className="PopulationPoolInspectorActions">
+						<DesktopButton disabled={!row.canStableAdd} onClick={() => void onOperation('stable-add', row)}>
+							Stable add
+						</DesktopButton>
+						<DesktopButton disabled={!row.canDisable} onClick={() => void onOperation('disable', row)}>
+							Disable
+						</DesktopButton>
+						<DesktopButton disabled={!row.canRestore} onClick={() => void onOperation('restore', row)}>
+							Restore
+						</DesktopButton>
+						<DesktopButton disabled={!row.canRequestWorkshopAdd} onClick={() => void onOperation('workshop-request', row)}>
+							Experimental Workshop Population Add
+						</DesktopButton>
+					</div>
+					{operationMessage ? <p>{operationMessage}</p> : null}
+				</>
+			) : (
+				<p>Select a Population Pool row.</p>
+			)}
+		</aside>
+	);
 }
 
 export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
@@ -144,12 +233,15 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	);
 
 	const updateColumnWidth = useCallback(
-		(column: PopulationPoolColumnKey, width: number) => {
+		(column: PopulationPoolColumnKey, width: number | undefined) => {
+			const columnWidthConfig = { ...config.viewConfigs.populationPool?.columnWidthConfig };
+			if (width === undefined) {
+				delete columnWidthConfig[column];
+			} else {
+				columnWidthConfig[column] = width;
+			}
 			const nextConfig = cloneConfigWithPopulationPool(config, {
-				columnWidthConfig: {
-					...config.viewConfigs.populationPool?.columnWidthConfig,
-					[column]: width
-				}
+				columnWidthConfig
 			});
 			void persistConfig(nextConfig);
 		},
@@ -180,7 +272,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	);
 
 	const runOperation = useCallback(
-		async (operation: 'disable' | 'restore' | 'stable-add' | 'workshop-request', row: PopulationPoolRow) => {
+		async (operation: PopulationPoolOperation, row: PopulationPoolRow) => {
 			setOperationMessage(undefined);
 			const scanRequest = await createScanRequest();
 			if (operation === 'workshop-request') {
@@ -287,40 +379,12 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 
 			<div className="PopulationPoolContent">
 				<section className="PopulationPoolTablePane" aria-label="Population Pool table">
-					<div className="PopulationPoolColumnControls" role="group" aria-label="Population Pool table settings">
-						{POPULATION_POOL_COLUMN_KEYS.map((column) => (
-							<label key={column}>
-								<input
-									type="checkbox"
-									checked={config.viewConfigs.populationPool?.columnActiveConfig?.[column] !== false}
-									onChange={(event) => updateColumnVisibility(column, event.target.checked)}
-								/>
-								<span>{POPULATION_POOL_COLUMN_TITLES[column]}</span>
-								<input
-									aria-label={`Saved width for ${POPULATION_POOL_COLUMN_TITLES[column]} column`}
-									type="number"
-									min={120}
-									value={getColumnWidth(config, column) ?? ''}
-									placeholder="Auto"
-									onChange={(event) => updateColumnWidth(column, Number(event.target.value))}
-								/>
-								<button
-									type="button"
-									aria-label={`Move ${POPULATION_POOL_COLUMN_TITLES[column]} column left`}
-									onClick={() => moveColumn(column, -1)}
-								>
-									Left
-								</button>
-								<button
-									type="button"
-									aria-label={`Move ${POPULATION_POOL_COLUMN_TITLES[column]} column right`}
-									onClick={() => moveColumn(column, 1)}
-								>
-									Right
-								</button>
-							</label>
-						))}
-					</div>
+					<PopulationPoolColumnControls
+						config={config.viewConfigs.populationPool}
+						onVisibilityChange={updateColumnVisibility}
+						onWidthChange={updateColumnWidth}
+						onMove={moveColumn}
+					/>
 					<table className="PopulationPoolTable" data-compact={config.viewConfigs.populationPool?.smallRows ? 'true' : 'false'}>
 						<thead>
 							<tr>
@@ -337,7 +401,15 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 									key={row.id}
 									data-source={row.source}
 									data-selected={row.id === selectedRow?.id}
+									aria-selected={row.id === selectedRow?.id}
+									tabIndex={0}
 									onClick={() => setSelectedRowId(row.id)}
+									onKeyDown={(event) => {
+										if (event.key === 'Enter' || event.key === ' ') {
+											event.preventDefault();
+											setSelectedRowId(row.id);
+										}
+									}}
 								>
 									{visibleColumns.map((column) => (
 										<td key={column}>{getCellValue(row, column) || 'Unavailable'}</td>
@@ -357,38 +429,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 					))}
 				</section>
 
-				<aside className="PopulationPoolInspector" aria-label="Population Pool inspector">
-					{selectedRow ? (
-						<>
-							<h2>{selectedRow.name}</h2>
-							<p>{selectedRow.sourceLabel}</p>
-							<p>{selectedRow.compatibilityLabel}</p>
-							{selectedRow.previewUrl ? <img src={selectedRow.previewUrl} alt="" /> : null}
-							<p>{selectedRow.detail || selectedRow.status}</p>
-							<code>{selectedRow.path || selectedRow.workshopId || 'No file path'}</code>
-							<div className="PopulationPoolInspectorActions">
-								<DesktopButton disabled={!selectedRow.canStableAdd} onClick={() => void runOperation('stable-add', selectedRow)}>
-									Stable add
-								</DesktopButton>
-								<DesktopButton disabled={!selectedRow.canDisable} onClick={() => void runOperation('disable', selectedRow)}>
-									Disable
-								</DesktopButton>
-								<DesktopButton disabled={!selectedRow.canRestore} onClick={() => void runOperation('restore', selectedRow)}>
-									Restore
-								</DesktopButton>
-								<DesktopButton
-									disabled={!selectedRow.canRequestWorkshopAdd}
-									onClick={() => void runOperation('workshop-request', selectedRow)}
-								>
-									Experimental Workshop Population Add
-								</DesktopButton>
-							</div>
-							{operationMessage ? <p>{operationMessage}</p> : null}
-						</>
-					) : (
-						<p>Select a Population Pool row.</p>
-					)}
-				</aside>
+				<PopulationPoolInspector row={selectedRow} operationMessage={operationMessage} onOperation={runOperation} />
 			</div>
 		</main>
 	);

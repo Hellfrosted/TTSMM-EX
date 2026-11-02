@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AppConfigKeys, type AppState, LogLevel } from '../../model';
+import { AppConfigKeys, type AppState, LogLevel, NLogLevel } from '../../model';
 import { SettingsView } from '../../renderer/views/SettingsView';
 import { createAppState, createTestConfig, renderWithTestProviders } from './test-utils';
 
@@ -39,6 +39,12 @@ afterEach(() => {
 });
 
 describe('SettingsView', () => {
+	it('keeps the remaining override row when an earlier row is removed', async () => {
+		renderSettingsView({ config: createTestConfig({ logParams: { First: NLogLevel.ERROR, Second: NLogLevel.INFO } }) });
+		const secondInput = screen.getByDisplayValue('Second');
+		fireEvent.click(screen.getByRole('button', { name: 'Remove logger override 1' }));
+		await waitFor(() => expect(screen.getByDisplayValue('Second')).toBe(secondInput));
+	});
 	it('toggles close-on-launch through the shared switch control', () => {
 		renderSettingsView();
 
