@@ -1,16 +1,18 @@
+import { useAtomRef } from '@effect/atom-react';
 import { CollectionManagerModalType, type ModData, type NotificationProps } from 'model';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import api from 'renderer/Api';
 import { type ActiveCollectionDraftDriver, createActiveCollectionDraftDriver } from 'renderer/active-collection-draft-driver';
 import { getCollectionModDataList } from 'renderer/collection-mod-list';
+import { createCollectionValidationExecutor } from 'renderer/collection-validation-executor';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
 	createCollectionWorkspaceSession
 } from 'renderer/collection-workspace-session';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { type CollectionWorkspaceAppState, useOptionalAppStateStore } from 'renderer/state/app-state';
 import { useCollections } from './useCollections';
-import { useCollectionValidation } from './useCollectionValidation';
+
 import { useModMetadata } from './useModMetadata';
 import type { NotificationType } from './useNotifications';
 
@@ -25,6 +27,67 @@ interface UseCollectionWorkspaceSessionOptions {
 	setModalType: (modalType: CollectionManagerModalType) => void;
 }
 
+function useInventoryUpdates(input: {
+	appStore: ReturnType<typeof useOptionalAppStateStore>;
+	driver: ActiveCollectionDraftDriver;
+	contextRef: {
+		current: {
+			config: CollectionWorkspaceAppState['config'];
+			mods: CollectionWorkspaceAppState['mods'];
+			openNotification: UseCollectionWorkspaceSessionOptions['openNotification'];
+		};
+	};
+	modsRef: { current: CollectionWorkspaceAppState['mods'] };
+	mods: CollectionWorkspaceAppState['mods'];
+	loadingMods: CollectionWorkspaceAppState['loadingMods'];
+}) {
+	const { appStore, driver, contextRef, modsRef, mods, loadingMods } = input;
+	const previousMods = useRef(mods);
+	useEffect(() => {
+		if (!appStore) return;
+		let previous = appStore.value;
+		return appStore.subscribe(() => {
+			const next = appStore.value;
+			const before = previous;
+			previous = next;
+			contextRef.current = { ...contextRef.current, config: next.config, mods: next.mods };
+			modsRef.current = next.mods;
+			if (before.config !== next.config || before.activeCollection !== next.activeCollection) {
+				driver.dispatch({ type: 'active-draft-changed', config: next.config, currentDraft: next.activeCollection });
+			}
+			if (before.mods !== next.mods) {
+				previousMods.current = next.mods;
+				driver.dispatch({ type: 'inventory-changed' });
+				driver.dispatch({ type: 'mod-metadata-updated', loadingMods: next.loadingMods });
+			}
+		});
+	}, [appStore, driver, contextRef, modsRef]);
+
+	useEffect(() => {
+		if (previousMods.current !== mods) {
+			previousMods.current = mods;
+			driver.dispatch({ type: 'inventory-changed' });
+			driver.dispatch({ type: 'mod-metadata-updated', loadingMods });
+		}
+	}, [driver, mods, loadingMods]);
+}
+
+function useValidationExecutor(
+	config: CollectionWorkspaceAppState['config'],
+	mods: CollectionWorkspaceAppState['mods'],
+	openNotification: UseCollectionWorkspaceSessionOptions['openNotification']
+) {
+	const contextRef = useRef({ config, mods, openNotification });
+	contextRef.current = { config, mods, openNotification };
+	const executorRef = useRef<ReturnType<typeof createCollectionValidationExecutor> | undefined>(undefined);
+	executorRef.current ??= createCollectionValidationExecutor({
+		getContext: () => contextRef.current,
+		openNotification: (props, type) => contextRef.current.openNotification(props, type)
+	});
+	const executor = executorRef.current;
+	return { contextRef, executor };
+}
+
 export function useCollectionWorkspaceSession({
 	appState,
 	gameRunning,
@@ -36,8 +99,9 @@ export function useCollectionWorkspaceSession({
 	setModalType
 }: UseCollectionWorkspaceSessionOptions): CollectionWorkspaceSessionView {
 	const { activeCollection, config, launchingGame, loadingMods, mods, updateState } = appState;
+	const appStore = useOptionalAppStateStore();
 	const collectionsRef = useRef<ReturnType<typeof useCollections> | undefined>(undefined);
-	const validationRef = useRef<ReturnType<typeof useCollectionValidation> | undefined>(undefined);
+	const { contextRef, executor } = useValidationExecutor(config, mods, openNotification);
 	const launchModsRef = useRef(launchMods);
 	const modsRef = useRef(mods);
 	const onLaunchStateClearedRef = useRef(onLaunchStateCleared);
@@ -49,8 +113,8 @@ export function useCollectionWorkspaceSession({
 		initial: { config, draft: activeCollection },
 		initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
 		adapters: {
-			cancelValidation: () => validationRef.current?.cancelValidation(),
-			clearCollectionErrors: () => validationRef.current?.setCollectionErrors(undefined),
+			cancelValidation: () => executor.cancel(),
+			clearCollectionErrors: () => {},
 			clearLaunchState: () => {
 				updateStateRef.current({ launchingGame: false });
 				onLaunchStateClearedRef.current?.();
@@ -60,19 +124,12 @@ export function useCollectionWorkspaceSession({
 			persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
 			recalculateModData: () => collectionsRef.current?.recalculateModData(),
 			setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
-			validateDraft: (draft, launchIfValid, options) =>
-				validationRef.current?.validateActiveCollection(launchIfValid, { ...options, collection: draft }) ??
-				Promise.resolve({ type: 'cancelled' as const })
+			validateDraft: (draft, launchIfValid, options) => executor.validate(draft, launchIfValid, options)
 		}
 	});
 	const driver = driverRef.current;
-	const [collectionWorkspaceSession, setCollectionWorkspaceSession] = useState(() => driver.getSnapshot());
-
-	useEffect(() => {
-		return driver.subscribe(() => {
-			setCollectionWorkspaceSession(driver.getSnapshot());
-		});
-	}, [driver]);
+	useAtomRef(driver.workflowRef);
+	const collectionWorkspaceSession = driver.getSnapshot();
 
 	useEffect(() => {
 		return () => {
@@ -110,6 +167,7 @@ export function useCollectionWorkspaceSession({
 
 	const collections = useCollections({
 		activeCollectionDraft: collectionWorkspaceSession.draft,
+		getDraftGeneration: () => driver.getWorkflowState().draftGeneration,
 		appState,
 		draftState: {
 			hasUnsavedDraft: collectionWorkspaceSession.hasUnsavedDraft,
@@ -118,17 +176,12 @@ export function useCollectionWorkspaceSession({
 			}
 		},
 		openNotification,
-		resetValidationState: () => validationRef.current?.resetValidationState(),
+		resetValidationState: () => {},
 		onCollectionContentSaveCompleted,
 		onCollectionLifecycleResultApplied,
 		onActiveDraftEdited: applyActiveDraftEdit
 	});
 
-	const validation = useCollectionValidation({
-		activeCollectionDraft: collectionWorkspaceSession.draft,
-		appState,
-		openNotification
-	});
 	useLayoutEffect(() => {
 		launchModsRef.current = launchMods;
 		modsRef.current = mods;
@@ -136,8 +189,15 @@ export function useCollectionWorkspaceSession({
 		setModalTypeRef.current = setModalType;
 		updateStateRef.current = updateState;
 		collectionsRef.current = collections;
-		validationRef.current = validation;
-	}, [collections, launchMods, mods, onLaunchStateCleared, setModalType, updateState, validation]);
+	}, [collections, launchMods, mods, onLaunchStateCleared, setModalType, updateState]);
+
+	const validation = {
+		validatingMods: collectionWorkspaceSession.validatingDraft,
+		validationResult: collectionWorkspaceSession.validationResult,
+		collectionErrors: collectionWorkspaceSession.currentCollectionErrors,
+		lastValidationStatus: collectionWorkspaceSession.currentValidationStatus,
+		lastValidatedCollectionKey: collectionWorkspaceSession.validationResult?.draftKey
+	};
 
 	useEffect(() => {
 		driver.dispatch({
@@ -156,13 +216,13 @@ export function useCollectionWorkspaceSession({
 		driver.dispatch({ type: 'active-draft-changed', config, currentDraft: activeCollection });
 	}, [activeCollection, config, driver]);
 
+	useInventoryUpdates({ appStore, driver, contextRef, modsRef, mods, loadingMods });
+
 	useEffect(() => {
 		driver.dispatch({ type: 'loaded-mods-changed', loadingMods });
 	}, [driver, loadingMods]);
 
-	useModMetadata(appState, () => {
-		driver.dispatch({ type: 'mod-metadata-updated', loadingMods });
-	});
+	useModMetadata(appState, () => {});
 
 	const validateCollection = useCallback(
 		(options?: { config?: CollectionWorkspaceAppState['config'] }) => {
@@ -196,11 +256,17 @@ export function useCollectionWorkspaceSession({
 type CollectionWorkspaceSessionView = {
 	collections: ReturnType<typeof useCollections>;
 	collectionWorkspaceSession: ReturnType<typeof createCollectionWorkspaceSession>;
-	currentCollectionErrors: ReturnType<typeof useCollectionValidation>['collectionErrors'];
+	currentCollectionErrors: ReturnType<typeof createCollectionWorkspaceSession>['currentCollectionErrors'];
 	currentValidationOutcome: ReturnType<typeof createCollectionWorkspaceSession>['currentValidationOutcome'];
-	currentValidationStatus: ReturnType<typeof useCollectionValidation>['lastValidationStatus'];
+	currentValidationStatus: ReturnType<typeof createCollectionWorkspaceSession>['currentValidationStatus'];
 	launchAnyway: () => void;
 	launchGame: () => Promise<void>;
 	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
-	validation: ReturnType<typeof useCollectionValidation>;
+	validation: {
+		validatingMods: boolean;
+		validationResult: ReturnType<typeof createCollectionWorkspaceSession>['validationResult'];
+		collectionErrors: ReturnType<typeof createCollectionWorkspaceSession>['currentCollectionErrors'];
+		lastValidationStatus: boolean | undefined;
+		lastValidatedCollectionKey?: string;
+	};
 };

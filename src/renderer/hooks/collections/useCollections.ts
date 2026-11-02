@@ -19,6 +19,7 @@ import type { NotificationType } from './useNotifications';
 
 interface UseCollectionsOptions {
 	activeCollectionDraft?: ModCollection;
+	getDraftGeneration?: () => number;
 	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
 	resetValidationState: () => void;
@@ -58,6 +59,7 @@ export function useCollections({
 	activeCollectionDraft,
 	appState,
 	draftState,
+	getDraftGeneration,
 	openNotification,
 	resetValidationState,
 	onCollectionContentSaveCompleted,
@@ -167,6 +169,7 @@ export function useCollections({
 			appState,
 			activeCollectionDraft: activeCollectionDraftOrFallback,
 			madeEdits,
+			getDraftGeneration,
 			onCollectionContentSaveCompleted,
 			onCollectionLifecycleResultApplied,
 			openNotification,

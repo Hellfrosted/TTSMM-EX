@@ -1,5 +1,7 @@
+import * as AtomRef from 'effect/reactivity/AtomRef';
 import { CollectionManagerModalType, type ModCollection } from 'model';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { getCollectionValidationKey } from './collection-validation-run';
 import {
 	type CollectionContentSaveCompletion,
 	type CollectionDraftEditResult,
@@ -79,6 +81,7 @@ export type ActiveCollectionDraftDriverEvent =
 			type: 'mod-metadata-updated';
 			loadingMods?: boolean;
 	  }
+	| { type: 'inventory-changed' }
 	| {
 			type: 'validate-requested';
 			options?: { config?: CollectionWorkspaceAppState['config'] };
@@ -120,6 +123,7 @@ function workflowEventFromValidationOutcome(outcome: CollectionValidationRunOutc
 }
 
 export interface ActiveCollectionDraftDriver {
+	workflowRef: AtomRef.AtomRef<CollectionWorkspaceWorkflowState>;
 	dispatch(event: ActiveCollectionDraftDriverEvent): void;
 	dispose(): void;
 	getSnapshot(): CollectionWorkspaceSession;
@@ -133,11 +137,13 @@ export function createActiveCollectionDraftDriver({
 	initial
 }: ActiveCollectionDraftDriverOptions): ActiveCollectionDraftDriver {
 	let disposed = false;
-	let workflowState = createCollectionWorkspaceWorkflowState({
-		config: initial.config,
-		draft: initial.draft,
-		runtimeFacts: initialFacts
-	});
+	const workflowRef = AtomRef.make(
+		createCollectionWorkspaceWorkflowState({
+			config: initial.config,
+			draft: initial.draft,
+			runtimeFacts: initialFacts
+		})
+	);
 	const listeners = new Set<() => void>();
 
 	const emit = () => {
@@ -146,12 +152,13 @@ export function createActiveCollectionDraftDriver({
 
 	const getSnapshot = () => {
 		return createCollectionWorkspaceSession({
-			activeCollection: workflowState.draft,
-			config: workflowState.config,
-			hasUnsavedDraft: workflowState.hasUnsavedDraft,
-			runtimeFacts: workflowState.runtimeFacts,
-			validatingDraft: workflowState.validatingDraft,
-			validationResult: workflowState.validationResult
+			activeCollection: workflowRef.value.draft,
+			config: workflowRef.value.config,
+			hasUnsavedDraft: workflowRef.value.hasUnsavedDraft,
+			runtimeFacts: workflowRef.value.runtimeFacts,
+			inventoryRevision: workflowRef.value.inventoryRevision,
+			validatingDraft: workflowRef.value.validatingDraft,
+			validationResult: workflowRef.value.validationResult
 		});
 	};
 
@@ -159,8 +166,8 @@ export function createActiveCollectionDraftDriver({
 		if (disposed) {
 			return;
 		}
-		const transition = reduceCollectionWorkspaceWorkflow(workflowState, event);
-		workflowState = transition.state;
+		const transition = reduceCollectionWorkspaceWorkflow(workflowRef.value, event);
+		workflowRef.set(transition.state);
 		emit();
 		transition.effects.forEach(runEffect);
 	};
@@ -188,12 +195,28 @@ export function createActiveCollectionDraftDriver({
 		if (disposed) {
 			return;
 		}
+		if (workflowRef.value.validationLaunchIfValid || workflowRef.value.pendingLaunchAfterSaveDraftKey) {
+			applyWorkflowEvent({ type: 'validation-superseded' });
+		}
+		adapters.cancelValidation();
 		const requestId = validationRequestId + 1;
 		validationRequestId = requestId;
-		applyWorkflowEvent({ type: 'validation-started', launchIfValid });
+		const runKey = getCollectionValidationKey(draft, options?.config ?? workflowRef.value.config);
+		const inventoryRevision = workflowRef.value.inventoryRevision;
+		applyWorkflowEvent({ type: 'validation-started', launchIfValid, runKey });
 		void adapters
 			.validateDraft(draft, launchIfValid, options)
 			.then((outcome) => {
+				if (
+					runKey !== getCollectionValidationKey(workflowRef.value.draft, workflowRef.value.config) ||
+					inventoryRevision !== workflowRef.value.inventoryRevision
+				) {
+					applyAcceptedValidationOutcome(requestId, { type: 'cancelled' });
+					return;
+				}
+				if (inventoryRevision !== 0 && 'validationResult' in outcome && outcome.validationResult) {
+					outcome = { ...outcome, validationResult: { ...outcome.validationResult, inventoryRevision } };
+				}
 				applyAcceptedValidationOutcome(requestId, outcome);
 			})
 			.catch(() => {
@@ -216,16 +239,16 @@ export function createActiveCollectionDraftDriver({
 				adapters.recalculateModData();
 				break;
 			case 'validate-active-collection':
-				validateActiveDraft(workflowState.draft, effect.launchIfValid);
+				validateActiveDraft(workflowRef.value.draft, effect.launchIfValid);
 				break;
 			case 'persist-active-collection-draft':
-				if (workflowState.draft) {
-					void adapters.persistDraft(workflowState.draft);
+				if (workflowRef.value.draft) {
+					void adapters.persistDraft(workflowRef.value.draft);
 				}
 				break;
 			case 'launch-current-draft':
-				if (workflowState.draft) {
-					void adapters.launchDraft(workflowState.draft);
+				if (workflowRef.value.draft) {
+					void adapters.launchDraft(workflowRef.value.draft);
 				}
 				break;
 			case 'set-launching-game':
@@ -279,6 +302,9 @@ export function createActiveCollectionDraftDriver({
 					modalOpen: event.modalOpen
 				});
 				break;
+			case 'inventory-changed':
+				applyWorkflowEvent({ type: 'inventory-changed' });
+				break;
 			case 'loaded-mods-changed':
 				applyWorkflowEvent({ type: 'loaded-mods-changed', loadingMods: event.loadingMods });
 				break;
@@ -287,21 +313,25 @@ export function createActiveCollectionDraftDriver({
 				break;
 			case 'validate-requested':
 				adapters.clearCollectionErrors();
-				validateActiveDraft(workflowState.draft, false, event.options);
+				validateActiveDraft(workflowRef.value.draft, false, event.options);
 				break;
 		}
 	};
 
 	return {
+		workflowRef,
 		dispatch,
 		dispose: () => {
+			if (workflowRef.value.validationLaunchIfValid || workflowRef.value.pendingLaunchAfterSaveDraftKey) {
+				adapters.clearLaunchState();
+			}
 			disposed = true;
 			invalidateCurrentValidationRequest();
 			adapters.cancelValidation();
 			listeners.clear();
 		},
 		getSnapshot,
-		getWorkflowState: () => workflowState,
+		getWorkflowState: () => workflowRef.value,
 		subscribe: (listener) => {
 			listeners.add(listener);
 			return () => {

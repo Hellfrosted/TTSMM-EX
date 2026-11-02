@@ -12,6 +12,7 @@ type CollectionValidationPersistenceAction = 'discard-stale-result' | 'record-an
 
 export interface CollectionWorkspaceValidationResult {
 	draftKey: string;
+	inventoryRevision?: number;
 	errors?: CollectionErrors;
 	outcome?: CollectionValidationOutcome;
 	success: boolean;
@@ -23,6 +24,7 @@ export interface CollectionWorkspaceSessionInput {
 	config: AppConfig;
 	gameRunning?: boolean;
 	hasUnsavedDraft: boolean;
+	inventoryRevision?: number;
 	launchingGame?: boolean;
 	loadingMods?: boolean;
 	runtimeFacts?: ActiveCollectionDraftRuntimeFacts;
@@ -61,6 +63,7 @@ interface CollectionValidationPersistenceDecision {
 
 function getValidationStatus(input: {
 	draftKey?: string;
+	inventoryRevision?: number;
 	validatingDraft?: boolean;
 	validationResult?: CollectionWorkspaceValidationResult;
 }): CollectionValidationStatus {
@@ -70,7 +73,10 @@ function getValidationStatus(input: {
 	if (!input.draftKey || !input.validationResult) {
 		return 'none';
 	}
-	if (input.validationResult.draftKey !== input.draftKey) {
+	if (
+		input.validationResult.draftKey !== input.draftKey ||
+		(input.validationResult.inventoryRevision ?? 0) !== (input.inventoryRevision ?? 0)
+	) {
 		return 'stale';
 	}
 
@@ -121,6 +127,7 @@ export function createCollectionWorkspaceSession(input: CollectionWorkspaceSessi
 	};
 	const validationStatus = getValidationStatus({
 		draftKey,
+		inventoryRevision: input.inventoryRevision,
 		validatingDraft: input.validatingDraft,
 		validationResult: input.validationResult
 	});
