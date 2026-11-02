@@ -41,7 +41,9 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.['check:dead-code']).toBe('node --import=tsx ./scripts/run-fallow.ts dead-code --fail-on-issues');
 		expect(packageJson.scripts?.['check:dupes']).toBe('node --import=tsx ./scripts/run-fallow.ts dupes --threshold 50 --top 25 --summary');
 		expect(packageJson.scripts?.['check:health']).toBe('node --import=tsx ./scripts/run-fallow.ts health --score --min-score 70');
-		expect(packageJson.scripts?.['check:audit']).toBe('node --import=tsx ./scripts/run-fallow.ts audit --gate new-only --summary');
+		expect(packageJson.scripts?.['check:audit']).toBe(
+			'node --import=tsx ./scripts/run-fallow.ts audit --gate new-only --summary --base origin/main'
+		);
 		expect(packageJson.scripts?.validate).toContain('pnpm run build');
 		expect(packageJson.scripts?.validate).toContain('pnpm run check:fallow');
 		expect(packageJson.scripts?.['ensure:electron']).toBe('node --import=tsx ./scripts/ensure-electron-binary.ts');
