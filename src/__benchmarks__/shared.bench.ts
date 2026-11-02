@@ -1,4 +1,4 @@
-import { describe, test } from 'vitest';
+import { test } from 'vitest';
 import { collectionNamesEqual, isValidCollectionName, validateCollectionName } from '../shared/collection-name';
 import { compactConfiguredOrder, compactRecord, defaultEquivalentOrder, isFiniteNumber, normalizedOrder } from '../shared/view-config';
 import { getWorkshopDependencySnapshotState, WORKSHOP_DEPENDENCY_SNAPSHOT_TTL_MS } from '../shared/workshop-dependency-snapshot';
@@ -24,30 +24,24 @@ const collectionNames = [
 	'nul.json'
 ];
 
-describe('collection-name', () => {
-	test('validateCollectionName over a mixed batch', async ({ bench }) => {
-		await bench('validateCollectionName over a mixed batch', () => {
-			for (const name of collectionNames) {
-				validateCollectionName(name);
-			}
-		}).run();
-	});
+test('collection-name', async ({ bench }) => {
+	await bench('validateCollectionName over a mixed batch', () => {
+		for (const name of collectionNames) {
+			validateCollectionName(name);
+		}
+	}).run();
 
-	test('isValidCollectionName over a mixed batch', async ({ bench }) => {
-		await bench('isValidCollectionName over a mixed batch', () => {
-			for (const name of collectionNames) {
-				isValidCollectionName(name);
-			}
-		}).run();
-	});
+	await bench('isValidCollectionName over a mixed batch', () => {
+		for (const name of collectionNames) {
+			isValidCollectionName(name);
+		}
+	}).run();
 
-	test('collectionNamesEqual case-insensitive comparison', async ({ bench }) => {
-		await bench('collectionNamesEqual case-insensitive comparison', () => {
-			for (let index = 0; index < collectionNames.length - 1; index += 1) {
-				collectionNamesEqual(collectionNames[index], collectionNames[index + 1]);
-			}
-		}).run();
-	});
+	await bench('collectionNamesEqual case-insensitive comparison', () => {
+		for (let index = 0; index < collectionNames.length - 1; index += 1) {
+			collectionNamesEqual(collectionNames[index], collectionNames[index + 1]);
+		}
+	}).run();
 });
 
 const defaultOrder = ['type', 'name', 'authors', 'state', 'id', 'size', 'lastUpdate', 'dateAdded', 'tags'] as const;
@@ -64,30 +58,22 @@ const widthRecord: Record<string, unknown> = {
 };
 const validKeys = new Set<string>(defaultOrder);
 
-describe('view-config', () => {
-	test('compactConfiguredOrder dedupes and filters', async ({ bench }) => {
-		await bench('compactConfiguredOrder dedupes and filters', () => {
-			compactConfiguredOrder(configuredOrder, defaultOrder);
-		}).run();
-	});
+test('view-config', async ({ bench }) => {
+	await bench('compactConfiguredOrder dedupes and filters', () => {
+		compactConfiguredOrder(configuredOrder, defaultOrder);
+	}).run();
 
-	test('normalizedOrder fills in missing columns', async ({ bench }) => {
-		await bench('normalizedOrder fills in missing columns', () => {
-			normalizedOrder(configuredOrder, defaultOrder);
-		}).run();
-	});
+	await bench('normalizedOrder fills in missing columns', () => {
+		normalizedOrder(configuredOrder, defaultOrder);
+	}).run();
 
-	test('compactRecord prunes invalid entries', async ({ bench }) => {
-		await bench('compactRecord prunes invalid entries', () => {
-			compactRecord(widthRecord, validKeys, isFiniteNumber);
-		}).run();
-	});
+	await bench('compactRecord prunes invalid entries', () => {
+		compactRecord(widthRecord, validKeys, isFiniteNumber);
+	}).run();
 
-	test('defaultEquivalentOrder comparison', async ({ bench }) => {
-		await bench('defaultEquivalentOrder comparison', () => {
-			defaultEquivalentOrder([...defaultOrder], defaultOrder);
-		}).run();
-	});
+	await bench('defaultEquivalentOrder comparison', () => {
+		defaultEquivalentOrder([...defaultOrder], defaultOrder);
+	}).run();
 });
 
 const now = new Date('2026-05-04T12:00:00Z').getTime();
@@ -104,18 +90,14 @@ const snapshotInputs = [
 	{ steamDependencies: largeDependencies, steamDependenciesFetchedAt: staleFetchedAt }
 ];
 
-describe('workshop-dependency-snapshot', () => {
-	test('getWorkshopDependencySnapshotState across snapshot kinds', async ({ bench }) => {
-		await bench('getWorkshopDependencySnapshotState across snapshot kinds', () => {
-			for (const input of snapshotInputs) {
-				getWorkshopDependencySnapshotState(input, now);
-			}
-		}).run();
-	});
+test('workshop-dependency-snapshot', async ({ bench }) => {
+	await bench('getWorkshopDependencySnapshotState across snapshot kinds', () => {
+		for (const input of snapshotInputs) {
+			getWorkshopDependencySnapshotState(input, now);
+		}
+	}).run();
 
-	test('getWorkshopDependencySnapshotState on a large known snapshot', async ({ bench }) => {
-		await bench('getWorkshopDependencySnapshotState on a large known snapshot', () => {
-			getWorkshopDependencySnapshotState({ steamDependencies: largeDependencies, steamDependenciesFetchedAt: freshFetchedAt }, now);
-		}).run();
-	});
+	await bench('getWorkshopDependencySnapshotState on a large known snapshot', () => {
+		getWorkshopDependencySnapshotState({ steamDependencies: largeDependencies, steamDependenciesFetchedAt: freshFetchedAt }, now);
+	}).run();
 });
