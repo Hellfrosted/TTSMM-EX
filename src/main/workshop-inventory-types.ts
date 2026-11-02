@@ -48,6 +48,13 @@ export interface WorkshopInventoryResolvedRecord {
 	source: WorkshopInventoryItemSource;
 }
 
+export type WorkshopDependencyObservation = { type: 'success'; mods: ModData[] } | { type: 'metadata-failed' };
+
+export type WorkshopDependencyEffect =
+	| { type: 'fetch-dependency-chunk'; workshopIDs: bigint[] }
+	| { type: 'dependency-expansion-complete'; dependencyItems: number }
+	| WorkshopInventoryProgressEffect;
+
 export interface WorkshopDependencyChunkOutcome {
 	missingDependencies: Set<bigint>;
 	resolvedRecords: WorkshopInventoryResolvedRecord[];

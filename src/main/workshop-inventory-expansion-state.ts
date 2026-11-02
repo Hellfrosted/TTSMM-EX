@@ -1,9 +1,12 @@
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
 import { collectMissingWorkshopDependencies } from './mod-workshop-dependencies';
+import { chunkWorkshopIds } from './mod-workshop-metadata';
 import { WorkshopDependencyQueueState } from './workshop-dependency-queue-state';
-import { shouldPreferWorkshopInventoryRecord } from './workshop-inventory-source-policy';
+import { getWorkshopInventorySourceForKnownItem, shouldPreferWorkshopInventoryRecord } from './workshop-inventory-source-policy';
 import type {
 	UnresolvedWorkshopItem,
+	WorkshopDependencyEffect,
+	WorkshopDependencyObservation,
 	WorkshopInventoryItemSource,
 	WorkshopInventoryResolvedRecord,
 	WorkshopInventoryScanOutcome,
@@ -17,6 +20,14 @@ export class WorkshopInventoryExpansion {
 	private readonly unresolvedWorkshopItems: UnresolvedWorkshopItem[];
 
 	private readonly dependencyQueue: WorkshopDependencyQueueState;
+
+	private dependencyChunks: bigint[][] = [];
+
+	private dependencyChunk: bigint[] = [];
+
+	private discoveredDependencies = new Set<bigint>();
+
+	private dependencyItems = 0;
 
 	readonly options: NuterraSteamCompatibilityOptions;
 
@@ -184,6 +195,56 @@ export class WorkshopInventoryExpansion {
 		const emittedItems = this.dependencyQueue.completePass(workshopIDs, this.getResolvedWorkshopModMap(), this.unresolvedWorkshopItems);
 		this.addUnresolvedWorkshopItems(emittedItems);
 		return emittedItems;
+	}
+
+	startDependencyExpansion(): WorkshopDependencyEffect[] {
+		this.dependencyItems = 0;
+		this.dependencyQueue.filterPendingWorkshopMods(this.getResolvedWorkshopModMap());
+		return this.startDependencyPass();
+	}
+
+	private startDependencyPass(): WorkshopDependencyEffect[] {
+		const pending = this.getPendingWorkshopMods();
+		if (pending.size === 0) {
+			return [{ type: 'dependency-expansion-complete', dependencyItems: this.dependencyItems }];
+		}
+		this.dependencyItems += pending.size;
+		this.discoveredDependencies = new Set();
+		this.dependencyChunks = chunkWorkshopIds([...pending]);
+		this.dependencyChunk = this.dependencyChunks.shift()!;
+		return [
+			{ type: 'increment-workshop-total', count: pending.size },
+			{ type: 'fetch-dependency-chunk', workshopIDs: this.dependencyChunk }
+		];
+	}
+
+	observeDependencyChunk(observation: WorkshopDependencyObservation, knownWorkshopMods: Set<bigint>): WorkshopDependencyEffect[] {
+		const requested = new Set(this.dependencyChunk);
+		const effects: WorkshopDependencyEffect[] = [];
+		if (observation.type === 'metadata-failed') {
+			this.recordMetadataFailures(requested);
+			effects.push({ type: 'increment-loaded-mods', count: requested.size });
+		} else {
+			const records = observation.mods.flatMap((mod) => {
+				if (mod.workshopID === undefined) return [];
+				requested.delete(mod.workshopID);
+				return [{ mod, source: getWorkshopInventorySourceForKnownItem(mod.workshopID, knownWorkshopMods, 'dependency') }];
+			});
+			this.addResolvedRecords(records);
+			for (const workshopID of requested) {
+				this.recordUnresolvedWorkshopItem({ workshopID, reason: 'hydration-failed' });
+			}
+			for (const id of this.collectMissingDependencies(observation.mods)) this.discoveredDependencies.add(id);
+		}
+		const nextChunk = this.dependencyChunks.shift();
+		if (nextChunk) {
+			this.dependencyChunk = nextChunk;
+			effects.push({ type: 'fetch-dependency-chunk', workshopIDs: nextChunk });
+		} else {
+			this.completeDependencyQueuePass(this.discoveredDependencies);
+			effects.push(...this.startDependencyPass());
+		}
+		return effects;
 	}
 
 	getWorkshopMods(): ModData[] {

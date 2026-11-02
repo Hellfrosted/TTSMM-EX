@@ -25,6 +25,10 @@ export class WorkshopDependencyQueueState {
 		return queuedWorkshopIDs;
 	}
 
+	filterPendingWorkshopMods(resolvedWorkshopMods: Map<bigint, ModData>) {
+		this.replacePendingWorkshopMods(this.getPendingWorkshopMods(), resolvedWorkshopMods);
+	}
+
 	getPendingWorkshopMods(): Set<bigint> {
 		return new Set(this.pendingWorkshopMods);
 	}
