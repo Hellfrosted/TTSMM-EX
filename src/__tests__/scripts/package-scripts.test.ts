@@ -35,12 +35,13 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.dev).toContain('./scripts/vite-dev.ts');
 		expect(packageJson.scripts?.['dev:stop']).toBe('node --import=tsx ./scripts/stop-dev.ts');
 		expect(packageJson.scripts?.format).toBe('biome format . --write');
-		expect(packageJson.scripts?.lint).toBe('biome check .');
+		expect(packageJson.scripts?.lint).toBe('biome check . && pnpm run lint:design');
+		expect(packageJson.scripts?.['lint:design']).toBe('oxlint src/renderer');
 		expect(packageJson.scripts?.['lint:fix']).toBe('biome check . --write --unsafe');
 		expect(packageJson.scripts?.['check:dead-code']).toBe('node --import=tsx ./scripts/run-fallow.ts dead-code --fail-on-issues');
 		expect(packageJson.scripts?.['check:dupes']).toBe('node --import=tsx ./scripts/run-fallow.ts dupes --threshold 50 --top 25 --summary');
 		expect(packageJson.scripts?.['check:health']).toBe('node --import=tsx ./scripts/run-fallow.ts health --score --min-score 70');
-		expect(packageJson.scripts?.['check:audit']).toBe('node --import=tsx ./scripts/run-fallow.ts audit --gate new-only --summary || true');
+		expect(packageJson.scripts?.['check:audit']).toBe('node --import=tsx ./scripts/run-fallow.ts audit --gate new-only --summary');
 		expect(packageJson.scripts?.validate).toContain('pnpm run build');
 		expect(packageJson.scripts?.validate).toContain('pnpm run check:fallow');
 		expect(packageJson.scripts?.['ensure:electron']).toBe('node --import=tsx ./scripts/ensure-electron-binary.ts');

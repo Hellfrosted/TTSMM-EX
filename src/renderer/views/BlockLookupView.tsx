@@ -25,7 +25,6 @@ import {
 	type SetStateAction,
 	useCallback,
 	useEffect,
-	useEffectEvent,
 	useMemo,
 	useReducer,
 	useRef,
@@ -56,6 +55,7 @@ import {
 	DesktopSwitch
 } from 'renderer/components/DesktopControls';
 import { VirtualTableBody, VirtualTableRow } from 'renderer/components/virtual-table-primitives';
+import { useColumnFilterMenu } from 'renderer/hooks/use-column-filter-menu';
 import { markPerfInteraction, measurePerf, PerfProfiler } from 'renderer/perf';
 import { useBlockLookupStore } from 'renderer/state/block-lookup-store';
 import { formatErrorMessage } from 'renderer/util/error-message';
@@ -181,71 +181,9 @@ function BlockLookupModHeaderFilter({
 	onSelectedModsChange: (mods: string[]) => void;
 	selectedMods: string[];
 }) {
-	const buttonRef = useRef<HTMLButtonElement | null>(null);
-	const menuRef = useRef<HTMLDivElement | null>(null);
-	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+	const { buttonRef, menuRef, menuPosition, openMenu, closeMenu } = useColumnFilterMenu(BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH);
 	const selectedModSet = new Set(selectedMods);
 	const disabled = selectedMods.length === 0 && availableMods.length === 0;
-
-	const closeMenu = useCallback((restoreFocus = true) => {
-		setMenuPosition(null);
-		if (restoreFocus) {
-			buttonRef.current?.focus();
-		}
-	}, []);
-
-	const openMenu = useCallback(() => {
-		const bounds = buttonRef.current?.getBoundingClientRect();
-		if (!bounds) {
-			return;
-		}
-		setMenuPosition({
-			x: Math.min(
-				Math.max(8, bounds.right - BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH),
-				Math.max(8, window.innerWidth - BLOCK_LOOKUP_MOD_FILTER_MENU_WIDTH - 8)
-			),
-			y: Math.min(bounds.bottom + 4, Math.max(8, window.innerHeight - 304))
-		});
-	}, []);
-
-	const closeMenuFromEffect = useEffectEvent((restoreFocus?: boolean) => {
-		closeMenu(restoreFocus);
-	});
-
-	useEffect(() => {
-		if (!menuPosition) {
-			return undefined;
-		}
-
-		const focusFirstOption = window.requestAnimationFrame(() => {
-			menuRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus();
-		});
-		const closeFromPointer = (event: globalThis.MouseEvent) => {
-			const target = event.target;
-			if (!(target instanceof Node)) {
-				closeMenuFromEffect(false);
-				return;
-			}
-			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
-				return;
-			}
-			closeMenuFromEffect(false);
-		};
-		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				closeMenuFromEffect();
-			}
-		};
-
-		window.addEventListener('mousedown', closeFromPointer);
-		window.addEventListener('keydown', closeFromKeyboard);
-		return () => {
-			window.cancelAnimationFrame(focusFirstOption);
-			window.removeEventListener('mousedown', closeFromPointer);
-			window.removeEventListener('keydown', closeFromKeyboard);
-		};
-	}, [menuPosition]);
 
 	const toggleMod = useCallback(
 		(mod: string) => {
@@ -366,8 +304,8 @@ function BlockLookupRenderedPreviewImage({ record, size }: { record: BlockLookup
 			alt={`${record.blockName} Block preview`}
 			className={
 				size === 'cell'
-					? 'mx-auto h-12 w-16 rounded border border-border-subtle object-contain'
-					: 'h-28 w-36 rounded border border-border-subtle object-contain'
+					? 'mx-auto h-12 w-16 rounded border border-border object-contain'
+					: 'h-28 w-36 rounded border border-border object-contain'
 			}
 			loading="lazy"
 		/>

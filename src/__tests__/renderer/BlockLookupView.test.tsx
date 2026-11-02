@@ -412,6 +412,11 @@ describe('BlockLookupView', () => {
 		});
 		expect(screen.getByText('Beta Shield')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: '1 mod filters active' })).toBeInTheDocument();
+		fireEvent.keyDown(window, { key: 'Escape' });
+		const filterButton = screen.getByRole('button', { name: '1 mod filters active' });
+		expect(filterButton).toHaveFocus();
+		expect(screen.queryByRole('checkbox', { name: 'Beta Pack' })).not.toBeInTheDocument();
+		fireEvent.click(filterButton);
 
 		fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
 

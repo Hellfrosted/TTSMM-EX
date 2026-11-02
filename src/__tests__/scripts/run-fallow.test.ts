@@ -1,9 +1,13 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
-import { shouldSuppressFallowStderrLine } from '../../../scripts/run-fallow';
+import { runFallowCli, shouldSuppressFallowStderrLine } from '../../../scripts/run-fallow';
 
 describe('run-fallow', () => {
+	it('runs the installed CLI', async () => {
+		await expect(runFallowCli(['--version'])).resolves.toBe(0);
+	});
+
 	it('suppresses the known packaged-app entry-point warning', () => {
 		expect(
 			shouldSuppressFallowStderrLine(

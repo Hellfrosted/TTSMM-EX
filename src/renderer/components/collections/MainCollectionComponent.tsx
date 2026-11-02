@@ -18,10 +18,11 @@ import {
 	ModType
 } from 'model';
 import type { CSSProperties, Key, KeyboardEvent, ReactNode } from 'react';
-import { memo, useCallback, useDeferredValue, useEffect, useEffectEvent, useMemo, useReducer, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext } from 'react-router-dom';
 import api from 'renderer/Api';
+import { useColumnFilterMenu } from 'renderer/hooks/use-column-filter-menu';
 import { markPerfInteraction, measurePerf } from 'renderer/perf';
 import { useMainCollectionTableStore } from 'renderer/state/main-collection-table-store';
 import { APP_TAG_STYLES } from 'renderer/theme';
@@ -362,68 +363,10 @@ function TagsHeaderFilter({
 	onSelectedTagsChange?: (tags: string[]) => void;
 	selectedTags: string[];
 }) {
-	const buttonRef = useRef<HTMLButtonElement | null>(null);
-	const menuRef = useRef<HTMLDivElement | null>(null);
-	const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+	const { buttonRef, menuRef, menuPosition, openMenu, closeMenu } = useColumnFilterMenu(TAG_FILTER_MENU_WIDTH);
 	const selectedTagSet = new Set(selectedTags);
 	const disabled = !onSelectedTagsChange || (selectedTags.length === 0 && availableTags.length === 0);
 	const activeLabel = selectedTags.length > 0 ? `${selectedTags.length}` : undefined;
-
-	const closeMenu = useCallback((restoreFocus = true) => {
-		setMenuPosition(null);
-		if (restoreFocus) {
-			buttonRef.current?.focus();
-		}
-	}, []);
-	const closeMenuFromEffect = useEffectEvent((restoreFocus?: boolean) => {
-		closeMenu(restoreFocus);
-	});
-
-	const openMenu = useCallback(() => {
-		const bounds = buttonRef.current?.getBoundingClientRect();
-		if (!bounds) {
-			return;
-		}
-		setMenuPosition({
-			x: Math.min(Math.max(8, bounds.right - TAG_FILTER_MENU_WIDTH), Math.max(8, window.innerWidth - TAG_FILTER_MENU_WIDTH - 8)),
-			y: Math.min(bounds.bottom + 4, Math.max(8, window.innerHeight - 304))
-		});
-	}, []);
-
-	useEffect(() => {
-		if (!menuPosition) {
-			return undefined;
-		}
-
-		const focusFirstOption = window.requestAnimationFrame(() => {
-			menuRef.current?.querySelector<HTMLInputElement>('input:not(:disabled)')?.focus();
-		});
-		const closeFromPointer = (event: MouseEvent) => {
-			const target = event.target;
-			if (!(target instanceof Node)) {
-				closeMenuFromEffect(false);
-				return;
-			}
-			if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) {
-				return;
-			}
-			closeMenuFromEffect(false);
-		};
-		const closeFromKeyboard = (event: globalThis.KeyboardEvent) => {
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				closeMenuFromEffect();
-			}
-		};
-
-		window.addEventListener('mousedown', closeFromPointer);
-		window.addEventListener('keydown', closeFromKeyboard);
-		return () => {
-			window.cancelAnimationFrame(focusFirstOption);
-			window.removeEventListener('mousedown', closeFromPointer);
-			window.removeEventListener('keydown', closeFromKeyboard);
-		};
-	}, [menuPosition]);
 
 	const toggleTag = useCallback(
 		(tag: string) => {

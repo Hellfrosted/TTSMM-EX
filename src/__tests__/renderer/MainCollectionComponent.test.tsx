@@ -700,6 +700,13 @@ describe('MainCollectionView', () => {
 
 		fireEvent.click(within(tagFilterMenu).getByRole('checkbox', { name: 'Better Future' }));
 		expect(onSelectedTagsChange).toHaveBeenCalledWith([]);
+
+		fireEvent.keyDown(window, { key: 'Escape' });
+		expect(screen.queryByRole('menu', { name: 'Tags column filters' })).not.toBeInTheDocument();
+		expect(tagFilter).toHaveFocus();
+		fireEvent.click(tagFilter);
+		fireEvent.mouseDown(document.body);
+		expect(screen.queryByRole('menu', { name: 'Tags column filters' })).not.toBeInTheDocument();
 	});
 
 	it('reorders columns by dragging collection table headers', async () => {
