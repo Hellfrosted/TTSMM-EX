@@ -8,10 +8,10 @@ use std::io::{prelude::*, SeekFrom};
 
 impl Texture2DObject for Texture2D<'_> {
     fn get_width(&self) -> anyhow::Result<u64> {
-        self.get_width().map(|i| i as u64)
+        Ok(u64::try_from(self.get_width()?)?)
     }
     fn get_height(&self) -> anyhow::Result<u64> {
-        self.get_height().map(|i| i as u64)
+        Ok(u64::try_from(self.get_height()?)?)
     }
 
     fn get_texture_format(&self) -> anyhow::Result<TextureFormat> {

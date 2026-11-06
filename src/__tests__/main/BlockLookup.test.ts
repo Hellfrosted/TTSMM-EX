@@ -277,6 +277,29 @@ describe('block lookup index', () => {
 		expect(assets).toEqual([]);
 	});
 
+	it('keeps valid Blockpedia entries when another image URL is malformed', () => {
+		const entries = parseBlockpediaPreviewEntries(`
+			<tr><td><img src="https://[invalid"></td><td>GSO</td><td>2</td><td>Bad</td></tr>
+			<tr><td><img src="https://terratechgame.com/assets/images/blockpedia/cab.jpg"></td><td>GSO</td><td>2</td><td>Cab</td></tr>
+		`);
+		expect(entries.map((entry) => entry.blockName)).toEqual(['Cab']);
+	});
+
+	it('retries Blockpedia images after a transient download failure', async () => {
+		const tempDir = createTempDir('ttsmm-block-lookup-blockpedia-retry-');
+		const imageUrl = 'https://terratechgame.com/assets/images/blockpedia/cab.jpg';
+		let imageAttempts = 0;
+		const fetchImpl = vi.fn(async (url: string) => {
+			if (url.endsWith('/blockpedia/')) {
+				return createFetchResponse(`<tr><td><img src="${imageUrl}"></td><td>GSO</td><td>2</td><td>Cab</td></tr>`);
+			}
+			if (++imageAttempts === 1) throw new Error('offline');
+			return createFetchResponse(new Uint8Array([1]));
+		});
+		expect(await Effect.runPromise(loadBlockpediaVanillaPreviewAssets(tempDir, { fetchImpl }))).toEqual([]);
+		expect(await Effect.runPromise(loadBlockpediaVanillaPreviewAssets(tempDir, { fetchImpl }))).toHaveLength(1);
+	});
+
 	it('uses cached Blockpedia thumbnails as the first vanilla preview source', async () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-source-vanilla-blockpedia-');
 		const previewCacheDir = path.join(tempDir, 'preview-cache');
@@ -467,7 +490,7 @@ describe('block lookup index', () => {
 			}
 		]);
 
-		expect(result.recordsBySourcePath.get(missingPath)).toEqual([]);
+		expect(result.recordsBySourcePath.has(missingPath)).toBe(false);
 		expect(result.recordsBySourcePath.get(goodPath)).toEqual([expect.objectContaining({ blockName: 'Good Block' })]);
 	});
 
@@ -751,7 +774,7 @@ describe('block lookup index', () => {
 
 		expect(extractBlockLookupBundleOutcomesAdapter).toHaveBeenCalledWith([emptyBundlePath, failedBundlePath, goodBundlePath]);
 		expect(result.recordsBySourcePath.get(emptyBundlePath)).toEqual([]);
-		expect(result.recordsBySourcePath.get(failedBundlePath)).toEqual([]);
+		expect(result.recordsBySourcePath.has(failedBundlePath)).toBe(false);
 		expect(result.recordsBySourcePath.get(goodBundlePath)).toEqual([
 			expect.objectContaining({ blockName: 'Good Bundle Block', sourceKind: 'bundle' })
 		]);

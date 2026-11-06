@@ -81,7 +81,7 @@ export const collectionNameExists = Effect.fnUntraced(function* (
 	userDataPath: string,
 	name: string,
 	currentName?: string
-): Effect.fn.Return<boolean> {
+): Effect.fn.Return<boolean, Error> {
 	const collectionNames = yield* listCollectionsEffect(userDataPath);
 	return collectionNames.some((collectionName) => {
 		if (currentName && collectionNamesEqual(collectionName, currentName)) {

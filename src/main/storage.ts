@@ -83,8 +83,7 @@ export function readJsonFileEffect<T>(filepath: string): Effect.Effect<T, MainSt
 function createAtomicWritePaths(filepath: string) {
 	const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 	return {
-		tempPath: `${filepath}.${suffix}.tmp`,
-		backupPath: `${filepath}.${suffix}.bak`
+		tempPath: `${filepath}.${suffix}.tmp`
 	};
 }
 
@@ -93,28 +92,12 @@ export function writeUtf8FileAtomicEffect(filepath: string, contents: string): E
 		try: () => {
 			fs.mkdirSync(path.dirname(filepath), { recursive: true });
 
-			const { tempPath, backupPath } = createAtomicWritePaths(filepath);
-			const hadOriginalFile = fs.existsSync(filepath);
+			const { tempPath } = createAtomicWritePaths(filepath);
 
 			try {
 				fs.writeFileSync(tempPath, contents, { encoding: 'utf8', flag: 'wx' });
 
-				if (!hadOriginalFile) {
-					fs.renameSync(tempPath, filepath);
-					return;
-				}
-
-				fs.renameSync(filepath, backupPath);
-				try {
-					fs.renameSync(tempPath, filepath);
-				} catch (error) {
-					if (fs.existsSync(backupPath) && !fs.existsSync(filepath)) {
-						fs.renameSync(backupPath, filepath);
-					}
-					throw error;
-				}
-
-				fs.unlinkSync(backupPath);
+				fs.renameSync(tempPath, filepath);
 			} catch (error) {
 				if (fs.existsSync(tempPath)) {
 					try {

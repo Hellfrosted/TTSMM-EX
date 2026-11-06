@@ -33,6 +33,13 @@ afterEach(() => {
 	fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
+it('preserves corrupt Workshop request data and reports the read error', () => {
+	const requestPath = path.join(tempDir, 'population-pool-workshop-requests.json');
+	fs.writeFileSync(requestPath, '{invalid');
+	expect(() => readWorkshopPopulationRequests(tempDir)).toThrow();
+	expect(fs.readFileSync(requestPath, 'utf8')).toBe('{invalid');
+});
+
 function createWorkshopDetails(overrides: Partial<SteamUGCDetails>): SteamUGCDetails {
 	return {
 		acceptForUse: true,
@@ -83,6 +90,18 @@ describe('population pool scanner', () => {
 		expect(result.pathStatuses.find((status) => status.key === 'tacLocalPopulation')?.state).toBe('manual');
 	});
 
+	it('reports an unreadable population folder without losing other scan results', async () => {
+		const localDir = path.join(tempDir, 'local');
+		const activePath = writeRawTech(localDir, 'Scout.rawtech');
+		const originalReaddir = fs.readdirSync;
+		vi.spyOn(fs, 'readdirSync').mockImplementation(((folder, options) => {
+			if (folder === path.dirname(activePath)) throw new Error('access denied');
+			return originalReaddir(folder, options as never);
+		}) as typeof fs.readdirSync);
+		const result = await scanPopulationPool(tempDir, { localDir });
+		expect(result.warnings).toContain('Could not read Active Population Entry folder.');
+	});
+
 	it('moves active entries to disabled storage and restores them without deleting RawTech data', async () => {
 		const localDir = path.join(tempDir, 'local');
 		const workshopRoot = path.join(tempDir, 'workshop');
@@ -123,6 +142,9 @@ describe('population pool scanner', () => {
 		await expect(addStablePopulationEntry(tempDir, { row: activeRow!, localDir })).rejects.toThrow(
 			'Population Pool writes require running-game guard confirmation.'
 		);
+		await expect(
+			disablePopulationEntry(tempDir, { row: activeRow!, localDir, confirmedWhileGameRunning: 'false' as never })
+		).rejects.toThrow('Population Pool writes require running-game guard confirmation.');
 	});
 
 	it('rejects paths and filenames outside the scanned population folders', async () => {
@@ -165,6 +187,29 @@ describe('population pool scanner', () => {
 		const savedRow = (await scanPopulationPool(tempDir, { localDir })).rows.find((row) => row.source === 'saved-candidate')!;
 		const result = await addStablePopulationEntry(tempDir, { row: savedRow, localDir, confirmedWhileGameRunning: true });
 		expect(result.rows.some((row) => row.source === 'active' && row.name === 'Candidate')).toBe(true);
+	});
+
+	it('preserves existing entries when repeated adds share a timestamp', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+		try {
+			const localDir = path.join(tempDir, 'local');
+			const activePath = writeRawTech(localDir, 'Candidate.rawtech', '{"version":1}');
+			const snapshotDir = path.join(localDir, 'Snapshots', 'Candidate');
+			fs.mkdirSync(snapshotDir, { recursive: true });
+			const sourcePath = path.join(snapshotDir, 'Candidate.rawtech');
+			fs.writeFileSync(sourcePath, '{"version":2}');
+			const savedRow = (await scanPopulationPool(tempDir, { localDir })).rows.find((row) => row.source === 'saved-candidate')!;
+			await addStablePopulationEntry(tempDir, { row: savedRow, localDir, confirmedWhileGameRunning: true });
+			fs.writeFileSync(sourcePath, '{"version":3}');
+			await addStablePopulationEntry(tempDir, { row: savedRow, localDir, confirmedWhileGameRunning: true });
+			const contents = fs
+				.readdirSync(path.dirname(activePath))
+				.map((name) => fs.readFileSync(path.join(path.dirname(activePath), name), 'utf8'));
+			expect(contents.sort()).toEqual(['{"version":1}', '{"version":2}', '{"version":3}']);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('reports blocked stable operations when the TAC Local Population Folder is missing', async () => {
@@ -237,9 +282,7 @@ describe('population pool scanner', () => {
 		]);
 	});
 
-	it('loads Workshop Tech Candidates from subscribed Techs and excludes Mods', async () => {
-		const workshopRoot = path.join(tempDir, 'workshop');
-		fs.mkdirSync(workshopRoot, { recursive: true });
+	it('loads subscribed Workshop Techs without a local Workshop folder and excludes Mods', async () => {
 		const ugcGetUserItems = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
 			expect(props.options?.required_tag).toBe('Techs');
 			props.success_callback({
@@ -252,7 +295,7 @@ describe('population pool scanner', () => {
 			});
 		});
 
-		const result = await scanPopulationPool(tempDir, { workshopRoot });
+		const result = await scanPopulationPool(tempDir, {});
 
 		expect(ugcGetUserItems).toHaveBeenCalledTimes(1);
 		expect(result.rows.filter((row) => row.source === 'workshop-candidate')).toMatchObject([
@@ -264,5 +307,13 @@ describe('population pool scanner', () => {
 			}
 		]);
 		expect(result.warnings).toContain('Skipped Workshop item 202 because it is tagged Mods.');
+	});
+
+	it('warns when Steam returns an incomplete Workshop page', async () => {
+		vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			props.success_callback({ totalItems: 5, numReturned: 0, items: [] });
+		});
+		const result = await scanPopulationPool(tempDir, {});
+		expect(result.warnings).toContain('Workshop Tech Candidate discovery returned incomplete results.');
 	});
 });

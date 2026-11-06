@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
 import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/block-lookup-cache';
+import { APP_NOTIFICATION_EVENT } from '../../renderer/notification-channel';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
 import type { BlockLookupRecord } from '../../shared/block-lookup';
@@ -150,6 +151,21 @@ afterEach(() => {
 });
 
 describe('BlockLookupView', () => {
+	it('reports file picker failures when finding a workshop folder', async () => {
+		mockBlockLookupRecords([]);
+		vi.mocked(window.electron.autoDetectBlockLookupWorkshopRoot).mockResolvedValueOnce(null);
+		vi.mocked(window.electron.selectPath).mockRejectedValueOnce(new Error('Picker unavailable'));
+		const notify = vi.fn();
+		window.addEventListener(APP_NOTIFICATION_EVENT, notify);
+		try {
+			renderBlockLookupView();
+			fireEvent.click(screen.getByRole('button', { name: 'Find workshop root' }));
+			await waitFor(() => expect(notify).toHaveBeenCalled());
+			expect((notify.mock.calls.at(-1)?.[0] as CustomEvent).detail.props.message).toBe('Could not open the file picker');
+		} finally {
+			window.removeEventListener(APP_NOTIFICATION_EVENT, notify);
+		}
+	});
 	it('keeps Block Lookup columns within constrained desktop widths', () => {
 		const responsiveColumns = getResponsiveBlockLookupColumns(
 			[

@@ -28,9 +28,14 @@ export function runSteamworksAction(
 	}
 
 	return Effect.callback<boolean>((resume) => {
+		const timeout = setTimeout(() => {
+			logger.error(`${failureMessage}: Steamworks did not respond`);
+			resume(Effect.succeed(false));
+		}, 30_000);
 		try {
 			action(
 				(result: EResult | undefined) => {
+					clearTimeout(timeout);
 					if (result === undefined || result === EResult.k_EResultOK) {
 						resume(Effect.succeed(true));
 					} else {
@@ -39,12 +44,14 @@ export function runSteamworksAction(
 					}
 				},
 				(error: Error) => {
+					clearTimeout(timeout);
 					logger.error(failureMessage);
 					logger.error(error);
 					resume(Effect.succeed(false));
 				}
 			);
 		} catch (error) {
+			clearTimeout(timeout);
 			logger.error(failureMessage);
 			logger.error(error);
 			resume(Effect.succeed(false));
@@ -60,13 +67,11 @@ export function applyWorkshopRuntimeState(mod: ModData, options: WorkshopRuntime
 
 	try {
 		const state: UGCItemState = steamworks.ugcGetItemState(mod.workshopID);
-		if (state) {
-			mod.subscribed = !!(state & UGCItemState.Subscribed);
-			mod.installed = !!(state & UGCItemState.Installed);
-			mod.downloadPending = !!(state & UGCItemState.DownloadPending);
-			mod.downloading = !!(state & UGCItemState.Downloading);
-			mod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-		}
+		mod.subscribed = !!(state & UGCItemState.Subscribed);
+		mod.installed = !!(state & UGCItemState.Installed);
+		mod.downloadPending = !!(state & UGCItemState.DownloadPending);
+		mod.downloading = !!(state & UGCItemState.Downloading);
+		mod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
 	} catch (error) {
 		options.logger?.warn(`Failed to read workshop item state for ${mod.workshopID}`);
 		options.logger?.warn(error);

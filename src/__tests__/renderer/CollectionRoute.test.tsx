@@ -51,7 +51,7 @@ describe('CollectionRoute', () => {
 		});
 
 		expect(screen.getAllByText('Launch Game').length).toBeGreaterThan(0);
-		expect(screen.getAllByText('Name').length).toBeGreaterThan(0);
+		expect((await screen.findAllByText('Name')).length).toBeGreaterThan(0);
 	}, 15000);
 
 	it('does not persist column widths into app state when the config write fails', async () => {

@@ -41,13 +41,16 @@ function startElectron() {
 	}
 
 	stopElectron();
-	electronProcess = spawn(electronPath as unknown as string, ['.'], {
+	const startedProcess = spawn(electronPath as unknown as string, ['.'], {
 		env,
 		stdio: 'inherit'
 	});
+	electronProcess = startedProcess;
 
-	electronProcess.on('exit', () => {
-		electronProcess = null;
+	startedProcess.on('exit', () => {
+		if (electronProcess === startedProcess) {
+			electronProcess = null;
+		}
 	});
 }
 

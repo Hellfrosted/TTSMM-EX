@@ -6,10 +6,7 @@ export function normalizePathValue(value: string | null | undefined): string | n
 		return null;
 	}
 
-	const trimmedValue = value
-		.trim()
-		.replace(/^"+|"+$/g, '')
-		.replace(/\\\\/g, '\\');
+	const trimmedValue = value.trim().replace(/^"+|"+$/g, '');
 	if (trimmedValue.length === 0) {
 		return null;
 	}
@@ -37,7 +34,7 @@ export function expandUserPath(value: string | null | undefined, homeDir: string
 
 export function parseSteamLibraryFolders(contents: string): string[] {
 	return Array.from(contents.matchAll(/"path"\s+"([^"]+)"/g)).flatMap((match) => {
-		const libraryPath = normalizePathValue(match[1]);
+		const libraryPath = normalizePathValue(match[1]?.replace(/\\\\/g, '\\'));
 		return libraryPath ? [libraryPath] : [];
 	});
 }

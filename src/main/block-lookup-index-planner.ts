@@ -54,6 +54,20 @@ export function createBlockLookupSourceIndexRecord(source: BlockLookupSourceReco
 	};
 }
 
+function sourceMatches(
+	existingSource: BlockLookupIndexSource | undefined,
+	source: BlockLookupSourceRecord
+): existingSource is BlockLookupIndexSource {
+	return (
+		!!existingSource &&
+		existingSource.size === source.size &&
+		existingSource.mtimeMs === source.mtimeMs &&
+		existingSource.sourceKind === source.sourceKind &&
+		existingSource.workshopId === source.workshopId &&
+		existingSource.modTitle === source.modTitle
+	);
+}
+
 export function createBlockLookupIndexPlan(
 	existingIndex: PersistedBlockLookupIndex,
 	sources: BlockLookupSourceRecord[],
@@ -69,8 +83,7 @@ export function createBlockLookupIndexPlan(
 
 	const tasks = sources.map((source) => {
 		const existingSource = existingSourceMap.get(source.sourcePath);
-		const unchanged = !forceRebuild && existingSource?.size === source.size && existingSource.mtimeMs === source.mtimeMs;
-		if (unchanged) {
+		if (!forceRebuild && sourceMatches(existingSource, source)) {
 			return {
 				source,
 				existingSource,

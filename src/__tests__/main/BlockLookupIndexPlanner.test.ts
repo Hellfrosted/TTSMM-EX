@@ -4,6 +4,14 @@ import { createBlockLookupIndexPlan } from '../../main/block-lookup-index-planne
 import { BLOCK_LOOKUP_INDEX_VERSION } from '../../shared/block-lookup';
 
 describe('block lookup index planner', () => {
+	it('rescans when source metadata changes without a file change', () => {
+		const source = { sourcePath: '/mod/file.json', sourceKind: 'json' as const, workshopId: '1', modTitle: 'Old', size: 10, mtimeMs: 20 };
+		const index = { version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: 'today', renderedPreviewsEnabled: false, sources: [source], records: [] };
+		for (const changed of [{ modTitle: 'New' }, { workshopId: '2' }, { sourceKind: 'bundle' as const }]) {
+			const plan = createBlockLookupIndexPlan(index, [{ ...source, ...changed }]);
+			expect(plan.tasks[0]?.reusedRecords).toBeUndefined();
+		}
+	});
 	it('marks unchanged sources for reuse and counts removed sources', () => {
 		const existingSource = {
 			sourcePath: path.normalize('/mods/a/Block.json'),

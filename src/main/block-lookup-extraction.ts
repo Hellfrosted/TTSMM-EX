@@ -36,27 +36,28 @@ function createSingleSourceExtractionAdapter(
 	extractSourceRecords: (
 		source: BlockLookupSourceRecord,
 		options?: BlockLookupSourceExtractionOptions
-	) => Effect.Effect<BlockLookupRecord[], unknown> | BlockLookupRecord[]
+	) => Effect.Effect<BlockLookupRecord[] | null, unknown> | BlockLookupRecord[] | null
 ): BlockLookupSourceExtractionAdapter {
 	return {
 		extractRecords: Effect.fnUntraced(function* (sources, options): Effect.fn.Return<Map<string, BlockLookupRecord[]>, unknown> {
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
 				const records = extractSourceRecords(source, options);
-				recordsBySourcePath.set(source.sourcePath, Array.isArray(records) ? records : yield* records);
+				const resolved = records === null || Array.isArray(records) ? records : yield* records;
+				if (resolved) recordsBySourcePath.set(source.sourcePath, resolved);
 			}
 			return recordsBySourcePath;
 		})
 	};
 }
 
-function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupRecord[] {
+function extractJsonSourceRecords(source: BlockLookupSourceRecord): BlockLookupRecord[] | null {
 	try {
 		return createBlockLookupRecordsFromTextAssets(source, [readBlockLookupSourceTextAsset(source.sourcePath)]);
 	} catch (error) {
 		log.warn(`Failed to index block source ${source.sourcePath}`);
 		log.warn(error);
-		return [];
+		return null;
 	}
 }
 
@@ -91,8 +92,11 @@ export function createBlockLookupBundleSourceExtractionAdapter(
 			const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 			for (const source of sources) {
 				const outcome = blockLookupOutcomesBySourcePath.get(source.sourcePath);
-				const records = createBlockLookupRecordsFromTextAssets(source, outcome?.textAssets ?? []);
-				recordsBySourcePath.set(source.sourcePath, assignRenderedBlockPreviewsToRecords(records, outcome?.previewAssets ?? [], options));
+				if (!outcome || outcome.status !== 'success') {
+					continue;
+				}
+				const records = createBlockLookupRecordsFromTextAssets(source, outcome.textAssets);
+				recordsBySourcePath.set(source.sourcePath, assignRenderedBlockPreviewsToRecords(records, outcome.previewAssets, options));
 			}
 			return recordsBySourcePath;
 		})
@@ -130,7 +134,8 @@ function createBlockLookupSourceExtractionRouter(adapters: BlockLookupSourceExtr
 				const adapter = sourceAdapters[sourceKind];
 				const extractedRecords = yield* options ? adapter.extractRecords(kindSources, options) : adapter.extractRecords(kindSources);
 				for (const source of kindSources) {
-					recordsBySourcePath.set(source.sourcePath, extractedRecords.get(source.sourcePath) ?? []);
+					const records = extractedRecords.get(source.sourcePath);
+					if (records) recordsBySourcePath.set(source.sourcePath, records);
 				}
 			}
 

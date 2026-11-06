@@ -931,7 +931,11 @@ function useBlockLookupViewContent({ appState }: BlockLookupViewProps) {
 								aria-label="Block lookup results table"
 								tabIndex={-1}
 							>
-								<table className="BlockLookupTable BlockLookupVirtualTable" style={{ width: tableScrollX }}>
+								<table
+									className="BlockLookupTable BlockLookupVirtualTable"
+									style={{ width: tableScrollX }}
+									aria-rowcount={sortedRows.length + 1}
+								>
 									<caption className="sr-only">
 										Block Lookup results. Use column headers to sort, resize, move, hide, or show table columns.
 									</caption>

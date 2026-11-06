@@ -118,4 +118,28 @@ describe('SteamworksRuntime', () => {
 			})
 		);
 	});
+
+	it('clears stale workshop state flags when Steam reports no flags', async () => {
+		const update = await Effect.runPromise(
+			refreshWorkshopMetadata(
+				{
+					uid: 'workshop:42',
+					type: ModType.WORKSHOP,
+					workshopID: 42n,
+					subscribed: true,
+					installed: true,
+					downloadPending: true,
+					downloading: true,
+					needsUpdate: true
+				},
+				{
+					loadModDetailsFromPath: () => Effect.succeed(null),
+					steamworks: { ugcGetItemState: () => UGCItemState.None, ugcGetItemInstallInfo: () => undefined } as never
+				}
+			)
+		);
+		expect(update).toEqual(
+			expect.objectContaining({ subscribed: false, installed: false, downloadPending: false, downloading: false, needsUpdate: false })
+		);
+	});
 });

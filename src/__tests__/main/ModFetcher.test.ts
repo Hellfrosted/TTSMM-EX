@@ -39,6 +39,7 @@ describe('ModFetcher', () => {
 			fs.mkdirSync(modDir, { recursive: true });
 			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle'), 'bundle');
 			fs.writeFileSync(path.join(modDir, 'AdapterBundle_bundle preview.png'), 'preview');
+			fs.writeFileSync(path.join(modDir, 'Plugin.DLL'), 'code');
 			const progress = new ModInventoryProgress({ send: vi.fn() });
 
 			await expect(Effect.runPromise(scanLocalMods(tempDir, progress))).resolves.toEqual([
@@ -46,6 +47,7 @@ describe('ModFetcher', () => {
 					uid: 'local:AdapterBundle',
 					id: 'AdapterBundle',
 					name: 'AdapterBundle',
+					hasCode: true,
 					path: modDir,
 					preview: expect.stringMatching(/^image:\/\/preview\//)
 				})
@@ -121,6 +123,13 @@ describe('ModFetcher', () => {
 
 		expect(sender.send).toHaveBeenNthCalledWith(1, expect.any(String), expect.any(String), 0.5, 'Loading mod details');
 		expect(sender.send).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), 1, 'Finished loading mods');
+	});
+
+	it('keeps progress finite when item counts arrive after loading starts', () => {
+		const sender = { send: vi.fn() };
+		const progress = new ModInventoryProgress(sender);
+		progress.addLoaded(1);
+		expect(sender.send).toHaveBeenCalledWith(expect.any(String), expect.any(String), 0, 'Loading mod details');
 	});
 
 	it('keeps workshop metadata helpers behind the metadata adapter', () => {

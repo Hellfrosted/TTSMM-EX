@@ -58,7 +58,10 @@ export function useGameLaunch({
 							config.extraParams
 						)
 					)
-				);
+				).catch((error: unknown) => {
+					api.logger.error(error);
+					return false;
+				});
 
 				if (launchRequestRef.current !== requestId) {
 					return;

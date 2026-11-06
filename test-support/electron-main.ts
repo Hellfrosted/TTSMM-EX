@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 export const app = {
 	getPath: vi.fn(() => 'C:\\Users\\tester\\AppData\\Roaming\\ttsmm'),
 	quit: vi.fn(),
+	requestSingleInstanceLock: vi.fn(() => true),
 	on: vi.fn(),
 	whenReady: vi.fn(() => Promise.resolve()),
 	isPackaged: false,

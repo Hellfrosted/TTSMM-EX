@@ -10,6 +10,22 @@ afterEach(() => {
 });
 
 describe('CollectionManagerModal', () => {
+	it('shows the manager warning when its metadata is unavailable', () => {
+		const appState = createAppState({ mods: new SessionMods('', []) });
+		renderInAppRoot(
+			<CollectionManagerModal
+				appState={appState}
+				modalType={CollectionManagerModalType.DESELECTING_MOD_MANAGER}
+				launchGameWithErrors={false}
+				currentView={CollectionViewType.MAIN}
+				launchAnyway={vi.fn()}
+				openNotification={vi.fn()}
+				closeModal={vi.fn()}
+				deleteCollection={vi.fn()}
+			/>
+		);
+		expect(screen.getByText(/Current manager: Unavailable/)).toBeInTheDocument();
+	});
 	it('shows per-mod validation details in the configuration error modal', async () => {
 		const brokenMod = {
 			uid: 'workshop:1',

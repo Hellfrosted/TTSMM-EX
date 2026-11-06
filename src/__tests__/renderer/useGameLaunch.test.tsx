@@ -91,6 +91,34 @@ describe('useGameLaunch', () => {
 		expect(scheduleLaunchOverrideReset).not.toHaveBeenCalled();
 	});
 
+	it('clears the running override and reports an IPC error', async () => {
+		vi.useFakeTimers();
+		vi.mocked(window.electron.launchGame).mockRejectedValueOnce(new Error('IPC unavailable'));
+		const appState = createAppState();
+		const openNotification = vi.fn();
+		const setOverrideGameRunning = vi.fn();
+		const { result } = renderHook(() =>
+			useGameLaunch({
+				appState,
+				clearGameLaunchOverrideTimeout: vi.fn(),
+				clearGameRunningPoll: vi.fn(),
+				openNotification,
+				pollGameRunning: vi.fn(async () => undefined),
+				scheduleLaunchOverrideReset: vi.fn(),
+				setOverrideGameRunning
+			})
+		);
+
+		await act(async () => {
+			const launchPromise = result.current.launchMods([]);
+			await vi.advanceTimersByTimeAsync(1000);
+			await launchPromise;
+		});
+		expect(setOverrideGameRunning).toHaveBeenLastCalledWith(false);
+		expect(appState.updateState).toHaveBeenLastCalledWith({ launchingGame: false });
+		expect(openNotification).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('did not start') }), 'error');
+	});
+
 	it('passes close-on-launch and pure vanilla launch settings to the Electron API', async () => {
 		vi.useFakeTimers();
 		vi.mocked(window.electron.launchGame).mockResolvedValue(true);

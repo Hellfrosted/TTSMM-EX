@@ -22,7 +22,7 @@ const validateNewCollectionName = Effect.fnUntraced(function* (
 	userDataPath: string,
 	name: string,
 	currentName?: string
-): Effect.fn.Return<CollectionLifecycleResult | undefined> {
+): Effect.fn.Return<CollectionLifecycleResult | undefined, Error> {
 	const validationError = validateCollectionName(name);
 	if (validationError) {
 		return failure('invalid-name', validationError);

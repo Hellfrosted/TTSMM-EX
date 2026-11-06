@@ -92,6 +92,13 @@ impl BinRead for TypeTreeObject {
                         },
                     )
                     .map_err(|_| std::io::Error::from(ErrorKind::NotFound))?;
+                if size < 0 {
+                    return Err(std::io::Error::new(
+                        ErrorKind::InvalidData,
+                        "negative array length",
+                    )
+                    .into());
+                }
 
                 *field_index += 1;
                 let item_field_index = *field_index;
@@ -314,4 +321,41 @@ fn calc_no_array_field_size(
         *read_size = *read_size + 4 - (*read_size % 4)
     }
     Some(*read_size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::serialized_file::version11::TypeTreeNode;
+    use std::io::Cursor;
+
+    #[test]
+    fn rejects_negative_array_lengths() {
+        let node = |name: &str, type_name: &str, level, byte_size, type_flags| {
+            Arc::new(Box::new(TypeTreeNode {
+                name: name.to_owned(),
+                type_name: type_name.to_owned(),
+                level,
+                byte_size,
+                type_flags,
+                index: 0,
+                version: 1,
+                meta_flag: 0,
+            }) as Box<dyn TypeField + Send + Sync>)
+        };
+        let fields = vec![
+            node("Array", "Array", 0, -1, 1),
+            node("size", "int", 1, 4, 0),
+            node("data", "UInt8", 1, 1, 0),
+        ];
+        let args =
+            TypeTreeObjectBinReadArgs::new(0, 0, TypeTreeObjectBinReadClassArgs::new(0, fields));
+        let mut reader = Cursor::new((-1_i32).to_le_bytes());
+        assert!(TypeTreeObject::read_options(
+            &mut reader,
+            &ReadOptions::new(binrw::Endian::Little),
+            args
+        )
+        .is_err());
+    }
 }

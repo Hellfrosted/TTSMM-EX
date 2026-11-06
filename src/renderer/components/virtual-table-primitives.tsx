@@ -90,6 +90,7 @@ export const VirtualTableRow = memo(function VirtualTableRow({
 	return (
 		<tr
 			{...props}
+			aria-rowindex={dataIndex + 2}
 			data-index={dataIndex}
 			className={className}
 			style={{ height: rowHeight, transform: `translateY(${start}px)`, width }}

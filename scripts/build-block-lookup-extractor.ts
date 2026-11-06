@@ -14,7 +14,7 @@ const releaseBinPath = path.join(releaseAppPath, 'bin');
 const releaseExecutablePath = path.join(releaseBinPath, executableName);
 
 console.log(terminalStyle.cyan('Building Block Lookup native extractor.'));
-execFileSync('cargo', ['build', '--manifest-path', manifestPath, '--release'], {
+execFileSync('cargo', ['build', '--locked', '--manifest-path', manifestPath, '--release'], {
 	cwd: repoRoot,
 	stdio: 'inherit'
 });

@@ -12,6 +12,7 @@ import {
 import { getModDetailsFromPath } from '../../main/mod-fetcher';
 import Steamworks from '../../main/steamworks';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
+import { runSteamworksAction } from '../../main/workshop-actions';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 
@@ -40,6 +41,17 @@ describe('mod handlers', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.clearAllMocks();
+	});
+
+	it('ends a Steamworks action when the native callback never arrives', async () => {
+		vi.useFakeTimers();
+		try {
+			const result = Effect.runPromise(runSteamworksAction(undefined, 'failed', () => {}, { error: vi.fn() }));
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await result).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('downloads mods through ugcDownloadItem', async () => {

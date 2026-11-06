@@ -255,6 +255,9 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		openExternalUrl(url);
 		return { action: 'deny' };
 	});
+	mainWindow.webContents.on('will-navigate', (event) => {
+		event.preventDefault();
+	});
 
 	mainWindow.webContents.on('did-finish-load', () => {
 		const name = 'TTSMM-EX';

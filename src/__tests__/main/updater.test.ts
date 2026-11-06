@@ -39,7 +39,7 @@ describe('updater', () => {
 		autoUpdaterMock.quitAndInstall.mockReset();
 	});
 
-	it('checks for startup updates without registering menu update listeners', async () => {
+	it('requires confirmation for updates found at startup', async () => {
 		autoUpdaterMock.checkForUpdates.mockResolvedValue(undefined);
 		const { checkForStartupUpdates } = await import('../../main/updater');
 
@@ -47,8 +47,8 @@ describe('updater', () => {
 		await Promise.resolve();
 
 		expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledOnce();
-		expect(autoUpdaterMock.on).not.toHaveBeenCalled();
-		expect(autoUpdaterMock.autoDownload).toBe(true);
+		expect(autoUpdaterMock.on).toHaveBeenCalledWith('update-available', expect.any(Function));
+		expect(autoUpdaterMock.autoDownload).toBe(false);
 	});
 
 	it('disables and restores the menu item when a manual update check fails', async () => {

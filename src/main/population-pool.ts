@@ -1,3 +1,4 @@
+import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
 import type {
@@ -15,6 +16,7 @@ import { POPULATION_POOL_PATH_LABELS } from 'shared/population-pool';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
 import { registerPreviewImage } from './preview-protocol';
 import Steamworks, { type SteamPageResults, UGCMatchingType, UserUGCList, UserUGCListSortOrder } from './steamworks';
+import { writeUtf8FileAtomicEffect } from './storage';
 
 const RAWTECH_EXTENSION = '.rawtech';
 const DISABLED_FOLDER_NAME = '.ttsmm-ex-disabled';
@@ -134,13 +136,21 @@ function createRawTechRow(filePath: string, source: 'active' | 'disabled'): Popu
 	};
 }
 
+function readPopulationDirectory(folderPath: string, label: string, warnings: string[]): fs.Dirent[] {
+	try {
+		return fs.readdirSync(folderPath, { withFileTypes: true });
+	} catch {
+		warnings.push(`Could not read ${label} folder.`);
+		return [];
+	}
+}
+
 function scanRawTechRows(folderPath: string, source: 'active' | 'disabled', warnings: string[]) {
 	if (!isDirectory(folderPath)) {
 		return [];
 	}
 
-	return fs
-		.readdirSync(folderPath, { withFileTypes: true })
+	return readPopulationDirectory(folderPath, source === 'active' ? 'Active Population Entry' : 'Disabled Population Entry', warnings)
 		.filter((entry) => entry.isFile())
 		.flatMap((entry) => {
 			const filePath = path.join(folderPath, entry.name);
@@ -159,8 +169,7 @@ function scanSavedTechRows(savedPath: string, warnings: string[]) {
 	if (!isDirectory(savedPath)) {
 		return [];
 	}
-	return fs
-		.readdirSync(savedPath, { withFileTypes: true })
+	return readPopulationDirectory(savedPath, 'Saved Tech Candidate', warnings)
 		.filter((entry) => entry.isDirectory())
 		.flatMap((entry): PopulationPoolRow[] => {
 			const snapshotPath = path.join(savedPath, entry.name);
@@ -205,15 +214,15 @@ export function readWorkshopPopulationRequests(userDataPath: string): WorkshopPo
 	try {
 		const raw = JSON.parse(fs.readFileSync(getRequestsPath(userDataPath), 'utf8')) as unknown;
 		if (!Array.isArray(raw)) {
-			return [];
+			throw new Error('Invalid Workshop population requests');
 		}
 		return raw.flatMap((request) => {
 			if (!request || typeof request !== 'object') {
-				return [];
+				throw new Error('Invalid Workshop population request');
 			}
 			const record = request as Record<string, unknown>;
 			if (typeof record.workshopId !== 'string' || typeof record.title !== 'string' || typeof record.requestedAt !== 'string') {
-				return [];
+				throw new Error('Invalid Workshop population request');
 			}
 			return [
 				{
@@ -224,14 +233,14 @@ export function readWorkshopPopulationRequests(userDataPath: string): WorkshopPo
 				}
 			];
 		});
-	} catch {
-		return [];
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+		throw error;
 	}
 }
 
 function writeWorkshopPopulationRequests(userDataPath: string, requests: WorkshopPopulationRequest[]) {
-	fs.mkdirSync(userDataPath, { recursive: true });
-	fs.writeFileSync(getRequestsPath(userDataPath), JSON.stringify(requests, null, 2));
+	Effect.runSync(writeUtf8FileAtomicEffect(getRequestsPath(userDataPath), JSON.stringify(requests, null, 2)));
 }
 
 function createRequestRows(userDataPath: string): PopulationPoolRow[] {
@@ -255,18 +264,30 @@ function createRequestRows(userDataPath: string): PopulationPoolRow[] {
 
 function getSubscribedTechPage(pageNum: number) {
 	return new Promise<SteamPageResults>((resolve, reject) => {
-		Steamworks.ugcGetUserItems({
-			options: {
-				app_id: Number(TERRATECH_STEAM_APP_ID),
-				page_num: pageNum,
-				required_tag: 'Techs'
-			},
-			ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
-			ugc_list: UserUGCList.Subscribed,
-			ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
-			success_callback: resolve,
-			error_callback: reject
-		});
+		const timeout = setTimeout(() => reject(new Error('Workshop discovery timed out')), 30_000);
+		try {
+			Steamworks.ugcGetUserItems({
+				options: {
+					app_id: Number(TERRATECH_STEAM_APP_ID),
+					page_num: pageNum,
+					required_tag: 'Techs'
+				},
+				ugc_matching_type: UGCMatchingType.ItemsReadyToUse,
+				ugc_list: UserUGCList.Subscribed,
+				ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
+				success_callback: (result) => {
+					clearTimeout(timeout);
+					resolve(result);
+				},
+				error_callback: (error) => {
+					clearTimeout(timeout);
+					reject(error);
+				}
+			});
+		} catch (error) {
+			clearTimeout(timeout);
+			reject(error);
+		}
 	});
 }
 
@@ -279,7 +300,11 @@ async function scanWorkshopTechRows(warnings: string[]): Promise<PopulationPoolR
 		total = result.totalItems;
 		details.push(...result.items);
 		page += 1;
+		if (result.items.length === 0) break;
 	} while (details.length < total && page < 100);
+	if (details.length < total) {
+		warnings.push('Workshop Tech Candidate discovery returned incomplete results.');
+	}
 
 	return details
 		.filter((detail) => {
@@ -323,12 +348,10 @@ export async function scanPopulationPool(userDataPath: string, request: Populati
 		...createRequestRows(userDataPath)
 	];
 
-	if (isDirectory(request.workshopRoot || '')) {
-		try {
-			rows.push(...(await scanWorkshopTechRows(warnings)));
-		} catch {
-			warnings.push('Workshop Tech Candidate discovery is unavailable.');
-		}
+	try {
+		rows.push(...(await scanWorkshopTechRows(warnings)));
+	} catch {
+		warnings.push('Workshop Tech Candidate discovery is unavailable.');
 	}
 
 	return { rows, pathStatuses, warnings };
@@ -343,7 +366,14 @@ function createUniqueDestination(folderPath: string, fileName: string) {
 	if (!fs.existsSync(directPath)) {
 		return directPath;
 	}
-	return path.join(folderPath, `${parsed.name}-${new Date().toISOString().replace(/[:.]/g, '-')}${parsed.ext}`);
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+	let suffix = 0;
+	let candidate: string;
+	do {
+		candidate = path.join(folderPath, `${parsed.name}-${timestamp}${suffix ? `-${suffix}` : ''}${parsed.ext}`);
+		suffix += 1;
+	} while (fs.existsSync(candidate));
+	return candidate;
 }
 
 function assertPopulationEntrySource(filePath: string, folderPath: string, nested: boolean) {
@@ -355,7 +385,7 @@ function assertPopulationEntrySource(filePath: string, folderPath: string, neste
 }
 
 function assertWriteGuardConfirmed(request: PopulationPoolFileOperationRequest) {
-	if (!request.confirmedWhileGameRunning) {
+	if (request.confirmedWhileGameRunning !== true) {
 		throw new Error('Population Pool writes require running-game guard confirmation.');
 	}
 }

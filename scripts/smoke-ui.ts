@@ -19,15 +19,15 @@ const requestedPackagedApp = process.argv.includes('--packaged');
 
 function resolvePackagedExecutable() {
 	if (process.platform === 'win32') {
-		return path.join(releaseBuildPath, 'win-unpacked', 'resources', 'app.asar');
+		return path.join(releaseBuildPath, 'win-unpacked', 'TTSMM-EX.exe');
 	}
 
 	if (process.platform === 'linux') {
-		return path.join(releaseBuildPath, 'linux-unpacked', 'resources', 'app.asar');
+		return path.join(releaseBuildPath, 'linux-unpacked', 'terratech-steam-mod-manager-ex');
 	}
 
 	if (process.platform === 'darwin') {
-		return path.join(releaseBuildPath, 'mac', 'TTSMM-EX.app', 'Contents', 'Resources', 'app.asar');
+		return path.join(releaseBuildPath, 'mac', 'TTSMM-EX.app', 'Contents', 'MacOS', 'TTSMM-EX');
 	}
 
 	throw new Error(`Packaged UI smoke is not supported on ${process.platform}.`);
@@ -44,8 +44,8 @@ function resolveLaunchCommand() {
 			);
 		}
 		return {
-			command: electronBinary,
-			args: [...sandboxArgs, executablePath]
+			command: executablePath,
+			args: sandboxArgs
 		};
 	}
 
@@ -143,6 +143,9 @@ try {
 
 	if (!output.results || output.results.length < 4) {
 		throw new Error('UI smoke test did not complete all renderer checkpoints.');
+	}
+	if (requestedPackagedApp && !output.packaged) {
+		throw new Error('Packaged UI smoke did not run the packaged application.');
 	}
 
 	if (output.lifecycle && output.lifecycle.length > 0) {

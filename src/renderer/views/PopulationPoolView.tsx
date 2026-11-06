@@ -1,7 +1,7 @@
 import { RefreshCw, Search } from 'lucide-react';
 import type { AppConfig, PopulationPoolColumnKey } from 'model';
 import { POPULATION_POOL_COLUMN_KEYS } from 'model';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PopulationPoolRow, PopulationPoolScanRequest, PopulationPoolScanResult, PopulationPoolSource } from 'shared/population-pool';
 import { POPULATION_POOL_COLUMN_TITLES } from 'shared/population-pool';
 import { normalizedOrder } from 'shared/view-config';
@@ -24,6 +24,21 @@ const SOURCE_FILTERS: Array<{ source: PopulationPoolSource; label: string }> = [
 
 const DEFAULT_SCAN_RESULT: PopulationPoolScanResult = { rows: [], pathStatuses: [], warnings: [] };
 type PopulationPoolOperation = 'disable' | 'restore' | 'stable-add' | 'workshop-request';
+
+async function confirmPopulationWrite(): Promise<string | undefined> {
+	let gameRunning: boolean;
+	try {
+		gameRunning = await window.electron.isGameRunning();
+	} catch {
+		return window.confirm('Running-game detection failed. This write affects TACtical_AI local population files. Continue?')
+			? undefined
+			: 'Population Pool write cancelled because running-game detection failed.';
+	}
+	if (gameRunning && !window.confirm('TerraTech appears to be running. This write affects TACtical_AI local population files. Continue?')) {
+		return 'Population Pool write cancelled while TerraTech is running.';
+	}
+	return undefined;
+}
 
 function getColumnWidth(config: AppConfig, column: PopulationPoolColumnKey) {
 	return config.viewConfigs.populationPool?.columnWidthConfig?.[column];
@@ -110,13 +125,42 @@ function PopulationPoolColumnControls({
 	);
 }
 
+function PopulationPoolActions({
+	row,
+	busy,
+	onOperation
+}: {
+	row: PopulationPoolRow;
+	busy: boolean;
+	onOperation: (operation: PopulationPoolOperation, row: PopulationPoolRow) => Promise<void>;
+}) {
+	return (
+		<div className="PopulationPoolInspectorActions">
+			<DesktopButton disabled={busy || !row.canStableAdd} onClick={() => void onOperation('stable-add', row)}>
+				Stable add
+			</DesktopButton>
+			<DesktopButton disabled={busy || !row.canDisable} onClick={() => void onOperation('disable', row)}>
+				Disable
+			</DesktopButton>
+			<DesktopButton disabled={busy || !row.canRestore} onClick={() => void onOperation('restore', row)}>
+				Restore
+			</DesktopButton>
+			<DesktopButton disabled={busy || !row.canRequestWorkshopAdd} onClick={() => void onOperation('workshop-request', row)}>
+				Experimental Workshop Population Add
+			</DesktopButton>
+		</div>
+	);
+}
+
 function PopulationPoolInspector({
 	row,
 	operationMessage,
+	busy,
 	onOperation
 }: {
 	row: PopulationPoolRow | undefined;
 	operationMessage: string | undefined;
+	busy: boolean;
 	onOperation: (operation: PopulationPoolOperation, row: PopulationPoolRow) => Promise<void>;
 }) {
 	return (
@@ -129,20 +173,7 @@ function PopulationPoolInspector({
 					{row.previewUrl ? <img src={row.previewUrl} alt="" /> : null}
 					<p>{row.detail || row.status}</p>
 					<code>{row.path || row.workshopId || 'No file path'}</code>
-					<div className="PopulationPoolInspectorActions">
-						<DesktopButton disabled={!row.canStableAdd} onClick={() => void onOperation('stable-add', row)}>
-							Stable add
-						</DesktopButton>
-						<DesktopButton disabled={!row.canDisable} onClick={() => void onOperation('disable', row)}>
-							Disable
-						</DesktopButton>
-						<DesktopButton disabled={!row.canRestore} onClick={() => void onOperation('restore', row)}>
-							Restore
-						</DesktopButton>
-						<DesktopButton disabled={!row.canRequestWorkshopAdd} onClick={() => void onOperation('workshop-request', row)}>
-							Experimental Workshop Population Add
-						</DesktopButton>
-					</div>
+					<PopulationPoolActions row={row} busy={busy} onOperation={onOperation} />
 					{operationMessage ? <p>{operationMessage}</p> : null}
 				</>
 			) : (
@@ -150,6 +181,98 @@ function PopulationPoolInspector({
 			)}
 		</aside>
 	);
+}
+
+function usePopulationPoolSettings(
+	config: AppConfig,
+	updateState: PopulationPoolViewProps['appState']['updateState'],
+	setError: (message: string) => void
+) {
+	const configRef = useRef(config);
+	const configWrites = useRef(Promise.resolve());
+	const pendingConfigWrites = useRef(0);
+	useEffect(() => {
+		if (pendingConfigWrites.current === 0) configRef.current = config;
+	}, [config]);
+	const persistConfig = useCallback(
+		(nextConfig: AppConfig) => {
+			configRef.current = nextConfig;
+			pendingConfigWrites.current++;
+			updateState({ config: nextConfig });
+			configWrites.current = configWrites.current.then(async () => {
+				try {
+					const persistedConfig = await window.electron.updateConfig(nextConfig);
+					if (!persistedConfig) throw new Error('Could not save Population Pool settings');
+					if (pendingConfigWrites.current === 1) {
+						configRef.current = persistedConfig;
+						updateState({ config: persistedConfig });
+					}
+				} catch (error) {
+					setError(error instanceof Error ? error.message : String(error));
+				} finally {
+					pendingConfigWrites.current--;
+				}
+			});
+		},
+		[setError, updateState]
+	);
+
+	const updateColumnVisibility = useCallback(
+		(column: PopulationPoolColumnKey, visible: boolean) => {
+			const config = configRef.current;
+			const nextConfig = cloneConfigWithPopulationPool(config, {
+				columnActiveConfig: {
+					...config.viewConfigs.populationPool?.columnActiveConfig,
+					[column]: visible
+				}
+			});
+			void persistConfig(nextConfig);
+		},
+		[persistConfig]
+	);
+
+	const updateColumnWidth = useCallback(
+		(column: PopulationPoolColumnKey, width: number | undefined) => {
+			const config = configRef.current;
+			const columnWidthConfig = { ...config.viewConfigs.populationPool?.columnWidthConfig };
+			if (width === undefined) {
+				delete columnWidthConfig[column];
+			} else {
+				columnWidthConfig[column] = width;
+			}
+			const nextConfig = cloneConfigWithPopulationPool(config, {
+				columnWidthConfig
+			});
+			void persistConfig(nextConfig);
+		},
+		[persistConfig]
+	);
+
+	const moveColumn = useCallback(
+		(column: PopulationPoolColumnKey, direction: -1 | 1) => {
+			const config = configRef.current;
+			const currentOrder = normalizedOrder(config.viewConfigs.populationPool?.columnOrder, POPULATION_POOL_COLUMN_KEYS);
+			const fromIndex = currentOrder.indexOf(column);
+			const toIndex = fromIndex + direction;
+			if (fromIndex < 0 || toIndex < 0 || toIndex >= currentOrder.length) {
+				return;
+			}
+			const nextOrder = [...currentOrder];
+			nextOrder.splice(fromIndex, 1);
+			nextOrder.splice(toIndex, 0, column);
+			void persistConfig(cloneConfigWithPopulationPool(config, { columnOrder: nextOrder }));
+		},
+		[persistConfig]
+	);
+
+	const updateCompactRows = useCallback(
+		(smallRows: boolean) => {
+			void persistConfig(cloneConfigWithPopulationPool(configRef.current, { smallRows }));
+		},
+		[persistConfig]
+	);
+
+	return { updateColumnVisibility, updateColumnWidth, moveColumn, updateCompactRows };
 }
 
 export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
@@ -163,8 +286,10 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	);
 	const [selectedRowId, setSelectedRowId] = useState<string | undefined>();
 	const [operationMessage, setOperationMessage] = useState<string | undefined>();
+	const refreshRequestId = useRef(0);
+	const operationPending = useRef(false);
+	const [operationBusy, setOperationBusy] = useState(false);
 
-	const selectedRow = scanResult.rows.find((row) => row.id === selectedRowId) || scanResult.rows[0];
 	const visibleColumns = useMemo(() => getVisibleColumns(config), [config]);
 	const filteredRows = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
@@ -180,6 +305,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 				.some((value) => String(value).toLowerCase().includes(normalizedQuery));
 		});
 	}, [enabledSources, query, scanResult.rows]);
+	const selectedRow = filteredRows.find((row) => row.id === selectedRowId) || filteredRows[0];
 
 	const createScanRequest = useCallback(async (): Promise<PopulationPoolScanRequest> => {
 		const blockLookupSettings = await window.electron.readBlockLookupSettings();
@@ -191,122 +317,73 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	}, [config.gameExec, config.localDir]);
 
 	const refresh = useCallback(async () => {
+		const requestId = ++refreshRequestId.current;
 		setLoading(true);
 		setError(undefined);
 		try {
 			const scanRequest = await createScanRequest();
 			const result = await window.electron.scanPopulationPool(scanRequest);
+			if (requestId !== refreshRequestId.current) return;
 			setScanResult(result);
 			setSelectedRowId((current) => (current && result.rows.some((row) => row.id === current) ? current : result.rows[0]?.id));
 		} catch (scanError) {
-			setError(scanError instanceof Error ? scanError.message : String(scanError));
+			if (requestId === refreshRequestId.current) setError(scanError instanceof Error ? scanError.message : String(scanError));
 		} finally {
-			setLoading(false);
+			if (requestId === refreshRequestId.current) setLoading(false);
 		}
 	}, [createScanRequest]);
 
 	useEffect(() => {
 		void refresh();
+		return () => {
+			refreshRequestId.current++;
+		};
 	}, [refresh]);
 
-	const persistConfig = useCallback(
-		async (nextConfig: AppConfig) => {
-			const persistedConfig = await window.electron.updateConfig(nextConfig);
-			if (persistedConfig) {
-				updateState({ config: persistedConfig });
-			}
-		},
-		[updateState]
-	);
-
-	const updateColumnVisibility = useCallback(
-		(column: PopulationPoolColumnKey, visible: boolean) => {
-			const nextConfig = cloneConfigWithPopulationPool(config, {
-				columnActiveConfig: {
-					...config.viewConfigs.populationPool?.columnActiveConfig,
-					[column]: visible
-				}
-			});
-			void persistConfig(nextConfig);
-		},
-		[config, persistConfig]
-	);
-
-	const updateColumnWidth = useCallback(
-		(column: PopulationPoolColumnKey, width: number | undefined) => {
-			const columnWidthConfig = { ...config.viewConfigs.populationPool?.columnWidthConfig };
-			if (width === undefined) {
-				delete columnWidthConfig[column];
-			} else {
-				columnWidthConfig[column] = width;
-			}
-			const nextConfig = cloneConfigWithPopulationPool(config, {
-				columnWidthConfig
-			});
-			void persistConfig(nextConfig);
-		},
-		[config, persistConfig]
-	);
-
-	const moveColumn = useCallback(
-		(column: PopulationPoolColumnKey, direction: -1 | 1) => {
-			const currentOrder = normalizedOrder(config.viewConfigs.populationPool?.columnOrder, POPULATION_POOL_COLUMN_KEYS);
-			const fromIndex = currentOrder.indexOf(column);
-			const toIndex = fromIndex + direction;
-			if (fromIndex < 0 || toIndex < 0 || toIndex >= currentOrder.length) {
-				return;
-			}
-			const nextOrder = [...currentOrder];
-			nextOrder.splice(fromIndex, 1);
-			nextOrder.splice(toIndex, 0, column);
-			void persistConfig(cloneConfigWithPopulationPool(config, { columnOrder: nextOrder }));
-		},
-		[config, persistConfig]
-	);
-
-	const updateCompactRows = useCallback(
-		(smallRows: boolean) => {
-			void persistConfig(cloneConfigWithPopulationPool(config, { smallRows }));
-		},
-		[config, persistConfig]
+	const { updateColumnVisibility, updateColumnWidth, moveColumn, updateCompactRows } = usePopulationPoolSettings(
+		config,
+		updateState,
+		setError
 	);
 
 	const runOperation = useCallback(
 		async (operation: PopulationPoolOperation, row: PopulationPoolRow) => {
+			if (operationPending.current) return;
+			operationPending.current = true;
+			setOperationBusy(true);
+			refreshRequestId.current++;
+			setLoading(false);
 			setOperationMessage(undefined);
-			const scanRequest = await createScanRequest();
-			if (operation === 'workshop-request') {
-				await window.electron.createWorkshopPopulationRequest({ row, scanRequest });
-				setOperationMessage('Workshop Population Request saved.');
-				await refresh();
-				return;
-			}
-			let gameRunning = false;
 			try {
-				gameRunning = await window.electron.isGameRunning();
-			} catch {
-				const continueAfterCaution = window.confirm(
-					'Running-game detection failed. This write affects TACtical_AI local population files. Continue?'
-				);
-				if (!continueAfterCaution) {
-					setOperationMessage('Population Pool write cancelled because running-game detection failed.');
+				const scanRequest = await createScanRequest();
+				if (operation === 'workshop-request') {
+					await window.electron.createWorkshopPopulationRequest({ row, scanRequest });
+					setOperationMessage('Workshop Population Request saved.');
+					await refresh();
 					return;
 				}
+				const cancellation = await confirmPopulationWrite();
+				if (cancellation) {
+					setOperationMessage(cancellation);
+					return;
+				}
+				const confirmedWhileGameRunning = true;
+				const result =
+					operation === 'disable'
+						? await window.electron.disablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
+						: operation === 'restore'
+							? await window.electron.restorePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
+							: await window.electron.addStablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest });
+				refreshRequestId.current++;
+				setLoading(false);
+				setScanResult(result);
+				setOperationMessage(result.operationStatus);
+			} catch (error) {
+				setOperationMessage(error instanceof Error ? error.message : String(error));
+			} finally {
+				operationPending.current = false;
+				setOperationBusy(false);
 			}
-			const confirmedWhileGameRunning =
-				!gameRunning || window.confirm('TerraTech appears to be running. This write affects TACtical_AI local population files. Continue?');
-			if (!confirmedWhileGameRunning) {
-				setOperationMessage('Population Pool write cancelled while TerraTech is running.');
-				return;
-			}
-			const result =
-				operation === 'disable'
-					? await window.electron.disablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
-					: operation === 'restore'
-						? await window.electron.restorePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
-						: await window.electron.addStablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest });
-			setScanResult(result);
-			setOperationMessage(result.operationStatus);
 		},
 		[config.localDir, createScanRequest, refresh]
 	);
@@ -429,7 +506,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 					))}
 				</section>
 
-				<PopulationPoolInspector row={selectedRow} operationMessage={operationMessage} onOperation={runOperation} />
+				<PopulationPoolInspector row={selectedRow} operationMessage={operationMessage} busy={operationBusy} onOperation={runOperation} />
 			</div>
 		</main>
 	);

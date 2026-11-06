@@ -11,6 +11,14 @@ use crate::type_tree::TypeTreeObjectRef;
 
 use binrw::{BinRead, ReadOptions, VecArgs};
 
+fn decode_snorm8(value: i8) -> f32 {
+    (value as f32 / 127.0).max(-1.0)
+}
+
+fn decode_snorm16(value: i16) -> f32 {
+    (value as f32 / 32767.0).max(-1.0)
+}
+
 impl MeshObject for Mesh<'_> {
     fn get_index_buff(&self, sub_mesh_id: usize) -> anyhow::Result<Vec<u32>> {
         let binding = self.get_sub_meshes()?;
@@ -279,7 +287,7 @@ impl VertexData<'_> {
                 let buff = self
                     .get_channel::<i8>(&channel, sub_mesh, endian)?
                     .into_iter()
-                    .map(|f| f.into_iter().map(|f| (f as f32 / 127.0).max(1.0)).collect())
+                    .map(|f| f.into_iter().map(decode_snorm8).collect())
                     .collect();
                 Ok(StreamBuff::Float(buff))
             }
@@ -295,11 +303,7 @@ impl VertexData<'_> {
                 let buff = self
                     .get_channel::<i16>(&channel, sub_mesh, endian)?
                     .into_iter()
-                    .map(|f| {
-                        f.into_iter()
-                            .map(|f| (f as f32 / 32767.0).max(1.0))
-                            .collect()
-                    })
+                    .map(|f| f.into_iter().map(decode_snorm16).collect())
                     .collect();
                 Ok(StreamBuff::Float(buff))
             }
@@ -384,5 +388,20 @@ impl VertexData<'_> {
             buff.push(sbuff);
         }
         Ok(buff)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_snorm16, decode_snorm8};
+
+    #[test]
+    fn signed_normalized_values_preserve_sign_and_clamp_minimum() {
+        assert_eq!(decode_snorm8(i8::MIN), -1.0);
+        assert_eq!(decode_snorm8(0), 0.0);
+        assert_eq!(decode_snorm8(i8::MAX), 1.0);
+        assert_eq!(decode_snorm16(i16::MIN), -1.0);
+        assert_eq!(decode_snorm16(0), 0.0);
+        assert_eq!(decode_snorm16(i16::MAX), 1.0);
     }
 }

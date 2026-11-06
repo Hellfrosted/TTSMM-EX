@@ -392,6 +392,10 @@ function DeleteCollectionDialog({
 	);
 }
 
+function managerDisplayName(name: string | undefined) {
+	return name || 'Unavailable';
+}
+
 function CollectionManagerModal({
 	appState,
 	modalType,
@@ -478,7 +482,7 @@ function CollectionManagerModal({
 			);
 		case CollectionManagerModalType.DESELECTING_MOD_MANAGER: {
 			const managerUID = getModManagerUID();
-			const managerData: ModData = getByUID(appState.mods, managerUID)!;
+			const managerData = getByUID(appState.mods, managerUID);
 			return (
 				<CollectionDialog
 					key="manager-warning-modal"
@@ -494,7 +498,9 @@ function CollectionManagerModal({
 						<p className={MODAL_COPY_CLASS_NAME}>
 							TTSMM-EX needs one mod manager package enabled so TerraTech can load managed mods reliably.
 						</p>
-						<p className={MODAL_COPY_CLASS_NAME}>Current manager: {`${managerData.name} (${appState.config.workshopID})`}.</p>
+						<p className={MODAL_COPY_CLASS_NAME}>
+							Current manager: {`${managerDisplayName(managerData?.name)} (${appState.config.workshopID})`}.
+						</p>
 						<p className={MODAL_COPY_CLASS_NAME}>
 							To switch managers, update the workshop item ID in Settings instead of disabling the current one here.
 						</p>

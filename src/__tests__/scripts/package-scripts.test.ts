@@ -118,7 +118,7 @@ describe('package scripts', () => {
 				fs.writeFileSync(runtimePath, runtimeFile);
 			}
 
-			copyGreenworksRuntime(sourcePath, targetPath);
+			copyGreenworksRuntime(sourcePath, targetPath, 'win32');
 
 			for (const runtimeFile of requiredGreenworksRuntimeFiles) {
 				expect(fs.readFileSync(path.join(targetPath, runtimeFile), 'utf8')).toBe(runtimeFile);
@@ -127,6 +127,23 @@ describe('package scripts', () => {
 				name: 'greenworks',
 				version: '1.0.0'
 			});
+		} finally {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+	});
+
+	it('stages the Linux Greenworks runtime without Windows binaries', () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ttsmm-greenworks-linux-'));
+		try {
+			const source = path.join(tempDir, 'source');
+			const target = path.join(tempDir, 'target');
+			fs.mkdirSync(path.join(source, 'lib'), { recursive: true });
+			fs.writeFileSync(path.join(source, 'package.json'), '{}');
+			for (const file of ['greenworks.js', 'lib/greenworks-linux64.node', 'lib/libsteam_api.so', 'lib/libsdkencryptedappticket.so']) {
+				fs.writeFileSync(path.join(source, file), file);
+			}
+			copyGreenworksRuntime(source, target, 'linux');
+			expect(fs.existsSync(path.join(target, 'lib', 'greenworks-linux64.node'))).toBe(true);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

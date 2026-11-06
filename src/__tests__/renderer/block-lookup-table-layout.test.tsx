@@ -17,6 +17,7 @@ import {
 
 afterEach(() => {
 	cleanup();
+	vi.unstubAllGlobals();
 });
 
 function createColumn(overrides: Partial<BlockLookupColumnConfig> = {}): BlockLookupColumnConfig {
@@ -130,8 +131,8 @@ describe('block-lookup-table-layout', () => {
 	});
 
 	it('keeps the header menu in the viewport and returns focus after selecting an item', () => {
-		Object.defineProperty(window, 'innerWidth', { configurable: true, value: 160 });
-		Object.defineProperty(window, 'innerHeight', { configurable: true, value: 120 });
+		vi.stubGlobal('innerWidth', 160);
+		vi.stubGlobal('innerHeight', 120);
 		const onClick = vi.fn();
 
 		render(

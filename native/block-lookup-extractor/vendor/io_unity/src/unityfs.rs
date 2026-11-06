@@ -17,6 +17,8 @@ use num_enum::TryFromPrimitive;
 
 use crate::until::binrw_parser::position_parser; // reading/writing utilities
 
+const MAX_BLOCK_SIZE: u64 = 512 * 1024 * 1024;
+
 pub trait UnityResource: std::io::Read + std::io::Seek {}
 
 impl<T: std::io::Read + std::io::Seek> UnityResource for T {}
@@ -124,7 +126,7 @@ impl UnityFS {
         let mut file_block = Vec::new();
         for sb in &self.content.blocks_info.storage_blocks {
             if (uncompressed_data_offset + (sb.uncompressed_size as u64)) >= node.offset as u64 {
-                let mut blocks_infocompressedd_stream = vec![0u8; sb.compressed_size as usize];
+                let mut blocks_infocompressedd_stream = vec![0u8; compressed_block_size(sb.compressed_size)?];
                 if let Ok(mut file_reader) = self.file_reader.lock() {
                     file_reader.seek(SeekFrom::Start(
                         compressed_data_offset + self.content.position,
@@ -197,7 +199,7 @@ impl UnityFS {
             let mut storage_blocks_positions = Vec::new();
             for storage_block in &content.blocks_info.storage_blocks {
                 storage_blocks_positions.push((compressed_data_offset, uncompressed_data_offset));
-                compressed_data_offset += storage_block.compressed_size as u64;
+                compressed_data_offset += compressed_block_size(storage_block.compressed_size)? as u64;
                 uncompressed_data_offset += storage_block.uncompressed_size as u64;
             }
             storage_blocks_positions
@@ -215,15 +217,62 @@ fn is_serialized_file_path(path: &str) -> bool {
     !(path.ends_with(".resource") || path.ends_with(".resS"))
 }
 
+fn compressed_block_size(size: i32) -> std::io::Result<usize> {
+    let size = usize::try_from(size)
+        .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "negative compressed block size"))?;
+    if size as u64 > MAX_BLOCK_SIZE {
+        return Err(std::io::Error::new(ErrorKind::InvalidData, "compressed Unity block exceeds size limit"));
+    }
+    Ok(size)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_serialized_file_path;
+    use super::*;
 
     #[test]
     fn excludes_unity_resource_payload_paths() {
-        assert!(is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860"));
-        assert!(!is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860.resource"));
-        assert!(!is_serialized_file_path("CAB-6b7fbabe912c5c86166029b281687860.resS"));
+        assert!(is_serialized_file_path(
+            "CAB-6b7fbabe912c5c86166029b281687860"
+        ));
+        assert!(!is_serialized_file_path(
+            "CAB-6b7fbabe912c5c86166029b281687860.resource"
+        ));
+        assert!(!is_serialized_file_path(
+            "CAB-6b7fbabe912c5c86166029b281687860.resS"
+        ));
+    }
+
+    #[test]
+    fn node_reader_stops_at_node_boundary() {
+        let mut reader = UnityFSNode {
+            file_reader: Arc::new(Mutex::new(Box::new(Cursor::new(b"firstsecond".to_vec())))),
+            storage_blocks: vec![StorageBlock {
+                uncompressed_size: 11,
+                compressed_size: 11,
+                flags: StorageBlockFlags::new().with_compression_type(CompressionType::None),
+            }],
+            storage_blocks_start_positions: vec![(0, 0)],
+            storage_block_position: 0,
+            storage_blocks_cache: BTreeMap::new(),
+            node_info: Node {
+                offset: 0,
+                size: 5,
+                flags: 0,
+                path: NullString::default(),
+            },
+            current_position: 0,
+        };
+        let mut result = Vec::new();
+        reader.read_to_end(&mut result).unwrap();
+        assert_eq!(result, b"first");
+        assert_eq!(reader.read(&mut [0; 1]).unwrap(), 0);
+    }
+
+    #[test]
+    fn rejects_negative_compressed_block_size() {
+        assert!(compressed_block_size(-1).is_err());
+        assert_eq!(compressed_block_size(12).unwrap(), 12);
     }
 }
 
@@ -232,6 +281,9 @@ fn block_uncompressed(
     flag: CompressionType,
     blocks_infocompressedd_stream: Vec<u8>,
 ) -> std::io::Result<Vec<u8>> {
+    if uncompressed_size > MAX_BLOCK_SIZE {
+        return Err(std::io::Error::new(ErrorKind::InvalidData, "Unity block exceeds size limit"));
+    }
     let blocks_info_uncompressedd_stream = match flag {
         CompressionType::None => blocks_infocompressedd_stream,
         CompressionType::Lzma => {
@@ -308,6 +360,9 @@ fn blocks_info_parser<R: Read + Seek>(
         }
     }
 
+    if u64::from(compressed_blocks_info_size) > MAX_BLOCK_SIZE || u64::from(uncompressed_blocks_info_size) > MAX_BLOCK_SIZE {
+        return Err(binrw::Error::Io(std::io::Error::new(ErrorKind::InvalidData, "Unity block info exceeds size limit")));
+    }
     let mut blocks_infocompressedd_stream = vec![0u8; compressed_blocks_info_size as usize];
 
     if flags.blocks_info_at_the_end() {
@@ -349,6 +404,13 @@ pub struct UnityFSNode {
 
 impl Read for UnityFSNode {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let size = u64::try_from(self.node_info.size)
+            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "negative node size"))?;
+        if buf.is_empty() || self.current_position >= size {
+            return Ok(0);
+        }
+        let length = (size - self.current_position).min(buf.len() as u64) as usize;
+        let buf = &mut buf[..length];
         let uncompressed_data_read_start_offset =
             (self.node_info.offset as u64) + self.current_position;
         let storage_blocks_index = match self.storage_blocks_start_positions.binary_search_by_key(
@@ -356,8 +418,12 @@ impl Read for UnityFSNode {
             |&(_compressed_data_offset, uncompressed_data_offset)| uncompressed_data_offset,
         ) {
             Ok(index) => index,
+            Err(0) => return Err(std::io::Error::from(ErrorKind::UnexpectedEof)),
             Err(rindex) => rindex - 1,
         };
+        if storage_blocks_index >= self.storage_blocks.len() {
+            return Err(std::io::Error::from(ErrorKind::UnexpectedEof));
+        }
         let (mut compressed_data_offset, mut uncompressed_data_offset) =
             self.storage_blocks_start_positions[storage_blocks_index];
         let mut file_block = Vec::new();
@@ -370,7 +436,7 @@ impl Read for UnityFSNode {
                 {
                     cache_block
                 } else {
-                    let mut blocks_infocompressedd_stream = vec![0u8; sb.compressed_size as usize];
+                    let mut blocks_infocompressedd_stream = vec![0u8; compressed_block_size(sb.compressed_size)?];
                     if let Ok(mut file_reader) = self.file_reader.lock() {
                         file_reader.seek(SeekFrom::Start(
                             compressed_data_offset + self.storage_block_position,
