@@ -36,7 +36,10 @@ interface BlockpediaPreviewFetchResponse {
 	text(): Promise<string>;
 }
 
-type BlockpediaPreviewFetch = (url: string, options?: { signal: AbortSignal }) => Promise<BlockpediaPreviewFetchResponse>;
+type BlockpediaPreviewFetch = (
+	url: string,
+	options?: { signal: AbortSignal; redirect: 'error' }
+) => Promise<BlockpediaPreviewFetchResponse>;
 
 interface LoadBlockpediaPreviewOptions {
 	fetchImpl?: BlockpediaPreviewFetch;
@@ -92,7 +95,9 @@ function parseBlockpediaImageUrl(imageHtml: string): URL | undefined {
 	const imageUrl = getAttribute(imageHtml, 'data-original') ?? getAttribute(imageHtml, 'src');
 	if (!imageUrl || !URL.canParse(imageUrl, BLOCKPEDIA_URL)) return undefined;
 	const parsed = new URL(imageUrl, BLOCKPEDIA_URL);
-	return parsed.hostname === 'terratechgame.com' && /\/assets\/images\/blockpedia\//.test(parsed.pathname) ? parsed : undefined;
+	return parsed.protocol === 'https:' && parsed.hostname === 'terratechgame.com' && /\/assets\/images\/blockpedia\//.test(parsed.pathname)
+		? parsed
+		: undefined;
 }
 
 export function parseBlockpediaPreviewEntries(html: string): BlockpediaPreviewEntry[] {
@@ -176,7 +181,7 @@ const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 		const cachePath = path.join(previewCacheDir, entry.cacheRelativePath);
 		if (!fs.existsSync(cachePath)) {
 			const imageResponse = yield* Effect.tryPromise({
-				try: () => fetchImpl(entry.imageUrl, { signal: AbortSignal.timeout(15_000) }),
+				try: () => fetchImpl(entry.imageUrl, { signal: AbortSignal.timeout(15_000), redirect: 'error' }),
 				catch: (error) => toEffectOperationError('fetch Blockpedia preview image', error)
 			}).pipe(
 				Effect.catch((error) => {
@@ -248,7 +253,7 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 	}
 
 	const pageResponse = yield* Effect.tryPromise({
-		try: () => fetchImpl(BLOCKPEDIA_URL, { signal: AbortSignal.timeout(15_000) }),
+		try: () => fetchImpl(BLOCKPEDIA_URL, { signal: AbortSignal.timeout(15_000), redirect: 'error' }),
 		catch: (error) => toEffectOperationError('fetch Blockpedia page', error)
 	}).pipe(
 		Effect.catch((error) => {

@@ -232,7 +232,7 @@ describe('block lookup index', () => {
 		const tempDir = createTempDir('ttsmm-block-lookup-blockpedia-cache-');
 		const previewCacheDir = path.join(tempDir, 'preview-cache');
 		const imageUrl = 'https://terratechgame.com/wp-content/themes/generatepress-child/assets/images/blockpedia/GSO_Cab_211.jpg';
-		const fetchImpl = vi.fn(async (url: string) => {
+		const fetchImpl = vi.fn(async (url: string, _options?: { redirect: 'error'; signal: AbortSignal }) => {
 			if (url === 'https://terratechgame.com/blockpedia/') {
 				return createFetchResponse(`
 					<tr>
@@ -257,6 +257,7 @@ describe('block lookup index', () => {
 		]);
 		expect(secondLoad).toEqual(firstLoad);
 		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl.mock.calls.every((call) => (call[1] as { redirect?: string })?.redirect === 'error')).toBe(true);
 		expect(fs.existsSync(path.join(previewCacheDir, firstLoad[0].cacheRelativePath))).toBe(true);
 	});
 

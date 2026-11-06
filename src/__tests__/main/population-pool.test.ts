@@ -93,6 +93,9 @@ describe('population pool scanner', () => {
 	it('reports an unreadable population folder without losing other scan results', async () => {
 		const localDir = path.join(tempDir, 'local');
 		const activePath = writeRawTech(localDir, 'Scout.rawtech');
+		const disabledPath = getDisabledPopulationPath(path.dirname(activePath));
+		fs.mkdirSync(disabledPath, { recursive: true });
+		fs.writeFileSync(path.join(disabledPath, 'Other.rawtech'), '{"blocks":[]}');
 		const originalReaddir = fs.readdirSync;
 		vi.spyOn(fs, 'readdirSync').mockImplementation(((folder, options) => {
 			if (folder === path.dirname(activePath)) throw new Error('access denied');
@@ -100,6 +103,16 @@ describe('population pool scanner', () => {
 		}) as typeof fs.readdirSync);
 		const result = await scanPopulationPool(tempDir, { localDir });
 		expect(result.warnings).toContain('Could not read Active Population Entry folder.');
+		expect(result.rows).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Other', source: 'disabled' })]));
+	});
+
+	it('retains local rows when the Workshop request file is corrupt', async () => {
+		const localDir = path.join(tempDir, 'local');
+		writeRawTech(localDir, 'Scout.rawtech');
+		fs.writeFileSync(path.join(tempDir, 'population-pool-workshop-requests.json'), '{invalid');
+		const result = await scanPopulationPool(tempDir, { localDir });
+		expect(result.warnings).toContain('Could not read Workshop Population Requests.');
+		expect(result.rows).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Scout', source: 'active' })]));
 	});
 
 	it('moves active entries to disabled storage and restores them without deleting RawTech data', async () => {
@@ -315,5 +328,21 @@ describe('population pool scanner', () => {
 		});
 		const result = await scanPopulationPool(tempDir, {});
 		expect(result.warnings).toContain('Workshop Tech Candidate discovery returned incomplete results.');
+	});
+
+	it('bounds the total Workshop discovery time across pages', async () => {
+		vi.useFakeTimers();
+		try {
+			vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+				if (props.options?.page_num === 1) {
+					setTimeout(() => props.success_callback({ totalItems: 2, numReturned: 1, items: [createWorkshopDetails({})] }), 20_000);
+				}
+			});
+			const scan = scanPopulationPool(tempDir, {});
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect((await scan).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

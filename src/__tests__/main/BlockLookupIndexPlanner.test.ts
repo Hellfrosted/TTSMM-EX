@@ -9,6 +9,8 @@ describe('block lookup index planner', () => {
 		const index = { version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: 'today', renderedPreviewsEnabled: false, sources: [source], records: [] };
 		for (const changed of [{ modTitle: 'New' }, { workshopId: '2' }, { sourceKind: 'bundle' as const }]) {
 			const plan = createBlockLookupIndexPlan(index, [{ ...source, ...changed }]);
+			expect(plan.tasks).toHaveLength(1);
+			expect(plan.tasks[0].source).toEqual({ ...source, ...changed });
 			expect(plan.tasks[0]?.reusedRecords).toBeUndefined();
 		}
 	});

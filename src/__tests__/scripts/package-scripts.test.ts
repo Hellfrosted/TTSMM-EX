@@ -142,8 +142,10 @@ describe('package scripts', () => {
 			for (const file of ['greenworks.js', 'lib/greenworks-linux64.node', 'lib/libsteam_api.so', 'lib/libsdkencryptedappticket.so']) {
 				fs.writeFileSync(path.join(source, file), file);
 			}
+			fs.writeFileSync(path.join(source, 'lib', 'greenworks-win64.node'), 'windows');
 			copyGreenworksRuntime(source, target, 'linux');
 			expect(fs.existsSync(path.join(target, 'lib', 'greenworks-linux64.node'))).toBe(true);
+			expect(fs.existsSync(path.join(target, 'lib', 'greenworks-win64.node'))).toBe(false);
 		} finally {
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		}

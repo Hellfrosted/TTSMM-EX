@@ -262,9 +262,9 @@ function createRequestRows(userDataPath: string): PopulationPoolRow[] {
 	}));
 }
 
-function getSubscribedTechPage(pageNum: number) {
+function getSubscribedTechPage(pageNum: number, timeoutMs: number) {
 	return new Promise<SteamPageResults>((resolve, reject) => {
-		const timeout = setTimeout(() => reject(new Error('Workshop discovery timed out')), 30_000);
+		const timeout = setTimeout(() => reject(new Error('Workshop discovery timed out')), timeoutMs);
 		try {
 			Steamworks.ugcGetUserItems({
 				options: {
@@ -295,8 +295,11 @@ async function scanWorkshopTechRows(warnings: string[]): Promise<PopulationPoolR
 	const details = [];
 	let page = 1;
 	let total = 0;
+	const deadline = Date.now() + 30_000;
 	do {
-		const result = await getSubscribedTechPage(page);
+		const remaining = deadline - Date.now();
+		if (remaining <= 0) throw new Error('Workshop discovery timed out');
+		const result = await getSubscribedTechPage(page, remaining);
 		total = result.totalItems;
 		details.push(...result.items);
 		page += 1;
@@ -344,9 +347,13 @@ export async function scanPopulationPool(userDataPath: string, request: Populati
 	const rows = [
 		...scanRawTechRows(tacPath, 'active', warnings),
 		...scanRawTechRows(disabledPath, 'disabled', warnings),
-		...scanSavedTechRows(getSavedTechSnapshotPath(request.localDir), warnings),
-		...createRequestRows(userDataPath)
+		...scanSavedTechRows(getSavedTechSnapshotPath(request.localDir), warnings)
 	];
+	try {
+		rows.push(...createRequestRows(userDataPath));
+	} catch {
+		warnings.push('Could not read Workshop Population Requests.');
+	}
 
 	try {
 		rows.push(...(await scanWorkshopTechRows(warnings)));

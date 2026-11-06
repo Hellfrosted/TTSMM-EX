@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { dialog } from 'electron';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const autoUpdaterMock = vi.hoisted(() => ({
@@ -49,6 +50,12 @@ describe('updater', () => {
 		expect(autoUpdaterMock.checkForUpdates).toHaveBeenCalledOnce();
 		expect(autoUpdaterMock.on).toHaveBeenCalledWith('update-available', expect.any(Function));
 		expect(autoUpdaterMock.autoDownload).toBe(false);
+		vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false });
+		const handler = autoUpdaterMock.on.mock.calls.find(([event]) => event === 'update-available')?.[1];
+		expect(handler).toBeDefined();
+		handler();
+		await vi.waitFor(() => expect(dialog.showMessageBox).toHaveBeenCalledOnce());
+		expect(autoUpdaterMock.downloadUpdate).not.toHaveBeenCalled();
 	});
 
 	it('disables and restores the menu item when a manual update check fails', async () => {

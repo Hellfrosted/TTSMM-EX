@@ -12,6 +12,7 @@ const blockLookupBootstrapCacheRef = AtomRef.make<BlockLookupBootstrapQueryData 
 const blockLookupSearchCacheRef = AtomRef.make<Map<string, BlockLookupSearchCacheData>>(new Map());
 let bootstrapCacheGeneration = 0;
 let searchCacheGeneration = 0;
+const searchRequests = new Map<string, object>();
 
 export function getBlockLookupBootstrapCacheData() {
 	return blockLookupBootstrapCacheRef.value;
@@ -82,11 +83,17 @@ export async function fetchBlockLookupSearch(request: BlockLookupSearchRequest) 
 		return cachedResult;
 	}
 	const generation = searchCacheGeneration;
-	const result = await runRenderer(searchBlockLookupEffect(request));
-	if (generation === searchCacheGeneration) {
-		blockLookupSearchCacheRef.set(new Map(blockLookupSearchCacheRef.value).set(cacheKey, result));
+	const requestToken = {};
+	searchRequests.set(cacheKey, requestToken);
+	try {
+		const result = await runRenderer(searchBlockLookupEffect(request));
+		if (generation === searchCacheGeneration && searchRequests.get(cacheKey) === requestToken) {
+			blockLookupSearchCacheRef.set(new Map(blockLookupSearchCacheRef.value).set(cacheKey, result));
+		}
+		return result;
+	} finally {
+		if (searchRequests.get(cacheKey) === requestToken) searchRequests.delete(cacheKey);
 	}
-	return result;
 }
 
 const buildBlockLookupIndexEffect = Effect.fnUntraced(function* (request: BlockLookupBuildRequest) {
