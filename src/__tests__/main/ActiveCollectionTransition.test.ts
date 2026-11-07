@@ -95,6 +95,24 @@ describe('active collection transition', () => {
 		}
 	});
 
+	it('does not change the active selection when the final collection read fails', () => {
+		writeTestCollection(tempDir, { name: 'alt', mods: [] });
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(configPath, 'original');
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+			throw new Error('access denied');
+		});
+		try {
+			const result = Effect.runSync(
+				switchActiveCollectionTransition(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }), name: 'alt' })
+			);
+			expect(result.ok).toBe(false);
+			expect(fs.readFileSync(configPath, 'utf8')).toBe('original');
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it('rejects a switch to a missing collection target', () => {
 		const result = Effect.runSync(
 			switchActiveCollectionTransition(tempDir, {

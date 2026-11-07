@@ -56,8 +56,8 @@ describe('mod handlers', () => {
 
 	it('blocks conflicting retries after timeout until the native callback arrives', async () => {
 		vi.useFakeTimers();
+		let complete: ((result: EResult) => void) | undefined;
 		try {
-			let complete!: (result: EResult) => void;
 			const start = vi.fn((success: (result: EResult) => void) => {
 				complete = success;
 			});
@@ -67,11 +67,12 @@ describe('mod handlers', () => {
 			expect(await first).toBe(false);
 			expect(await Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'))).toBe(false);
 			expect(start).toHaveBeenCalledTimes(1);
-			complete(EResult.k_EResultOK);
+			complete?.(EResult.k_EResultOK);
 			const next = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'));
-			complete(EResult.k_EResultOK);
+			complete?.(EResult.k_EResultOK);
 			expect(await next).toBe(true);
 		} finally {
+			complete?.(EResult.k_EResultOK);
 			vi.useRealTimers();
 		}
 	});
@@ -309,8 +310,8 @@ describe('mod handlers', () => {
 
 	it('blocks context-menu actions while a timed-out IPC action remains pending', async () => {
 		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
 		try {
-			let finish!: (result: EResult) => void;
 			vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_id, success) => {
 				finish = success;
 			});
@@ -326,8 +327,8 @@ describe('mod handlers', () => {
 			action.click?.({} as never, {} as never, {} as never);
 			await vi.advanceTimersByTimeAsync(0);
 			expect(subscribe).not.toHaveBeenCalled();
-			finish(EResult.k_EResultOK);
 		} finally {
+			finish?.(EResult.k_EResultOK);
 			vi.useRealTimers();
 		}
 	});

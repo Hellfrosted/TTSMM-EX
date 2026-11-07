@@ -52,6 +52,7 @@ describe('collection handlers', () => {
 			existsSpy.mockRestore();
 		}
 		expect(JSON.parse(fs.readFileSync(original, 'utf8'))).toEqual({ mods: ['local:keep'] });
+		expect(fs.readdirSync(dir)).toEqual(['foo.JSON']);
 	});
 
 	it('throws when a collection file exists but contains malformed json', () => {

@@ -344,7 +344,9 @@ describe('population pool scanner', () => {
 			const scan = scanPopulationPool(tempDir, {});
 			await vi.advanceTimersByTimeAsync(30_000);
 			expect((await scan).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
-			expect((await scanPopulationPool(tempDir, {})).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
+			expect((await scanPopulationPool(tempDir, {})).warnings).toContain(
+				'Workshop discovery query is still pending. Restart the app if it does not recover.'
+			);
 			expect(query).toHaveBeenCalledTimes(2);
 			finishPending();
 			query.mockImplementation((props) => props.success_callback({ totalItems: 0, numReturned: 0, items: [] }));

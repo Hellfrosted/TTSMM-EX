@@ -244,6 +244,7 @@ describe('BlockLookupView', () => {
 		renderBlockLookupView();
 		const toggle = await screen.findByRole('switch', { name: 'Enable rendered block previews' });
 		fireEvent.click(toggle);
+		expect(toggle).toBeChecked();
 		await waitFor(() => expect(toggle).not.toBeChecked());
 	});
 
@@ -262,7 +263,30 @@ describe('BlockLookupView', () => {
 		const newerStats = { ...TEST_STATS, blocks: 99 };
 		setBlockLookupBootstrapCacheData([TEST_BLOCK_LOOKUP_SETTINGS, newerStats]);
 		await act(async () => finish({ ...TEST_BLOCK_LOOKUP_SETTINGS, renderedPreviewsEnabled: true }));
+		expect(getBlockLookupBootstrapCacheData()?.[0]).toEqual({ ...TEST_BLOCK_LOOKUP_SETTINGS, renderedPreviewsEnabled: true });
 		expect(getBlockLookupBootstrapCacheData()?.[1]).toEqual(newerStats);
+	});
+
+	it('keeps settings saved while an index build is running', async () => {
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
+		let finish!: (result: { settings: typeof TEST_BLOCK_LOOKUP_SETTINGS; stats: typeof TEST_STATS }) => void;
+		vi.mocked(window.electron.buildBlockLookupIndex).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		vi.mocked(window.electron.saveBlockLookupSettings).mockResolvedValueOnce({
+			...TEST_BLOCK_LOOKUP_SETTINGS,
+			renderedPreviewsEnabled: true
+		});
+		renderBlockLookupView();
+		fireEvent.click(await screen.findByRole('button', { name: /Update Index/ }));
+		await waitFor(() => expect(finish).toBeDefined());
+		fireEvent.click(screen.getByRole('switch', { name: 'Enable rendered block previews' }));
+		await waitFor(() => expect(getBlockLookupBootstrapCacheData()?.[0].renderedPreviewsEnabled).toBe(true));
+		await act(async () => finish({ settings: TEST_BLOCK_LOOKUP_SETTINGS, stats: TEST_STATS }));
+		expect(getBlockLookupBootstrapCacheData()?.[0].renderedPreviewsEnabled).toBe(true);
 	});
 
 	it('shows only cached rendered preview references after the current index was built with rendered previews', async () => {

@@ -11,7 +11,6 @@ import {
 } from 'renderer/block-lookup-cache';
 import {
 	collectBlockLookupModSources,
-	createBlockLookupBootstrapCacheProjection,
 	createBlockLookupBuildRequest,
 	createBlockLookupSearchRequest,
 	createBlockLookupWorkspaceSessionState,
@@ -294,9 +293,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					forceRebuild,
 					modSources: modSources.length
 				});
-				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', forceRebuild, result });
 				dispatchSessionEvent({ type: 'build-index-completed', forceRebuild, result });
-				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(buildState));
+				setBlockLookupBootstrapQueryData([getBlockLookupBootstrapCacheData()?.[0] ?? savedSettingsRef.current, result.stats]);
 				await invalidateBlockLookupSearchQueries();
 				await refreshResults(query);
 				openNotification(
@@ -326,7 +324,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				dispatchSessionEvent({ type: 'build-index-finished' });
 			}
 		},
-		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults, sessionState]
+		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults]
 	);
 
 	const selectAllVisibleRows = useCallback((orderedRowKeys: string[]) => {

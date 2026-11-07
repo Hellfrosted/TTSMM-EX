@@ -262,7 +262,7 @@ let workshopQueryPending = false;
 function getSubscribedTechPage(pageNum: number, timeoutMs: number) {
 	return new Promise<SteamPageResults>((resolve, reject) => {
 		if (workshopQueryPending) {
-			reject(new Error('Workshop discovery query is still pending'));
+			reject(new Error('Workshop discovery query is still pending. Restart the app if it does not recover.'));
 			return;
 		}
 		workshopQueryPending = true;
@@ -362,8 +362,12 @@ export async function scanPopulationPool(userDataPath: string, request: Populati
 
 	try {
 		rows.push(...(await scanWorkshopTechRows(warnings)));
-	} catch {
-		warnings.push('Workshop Tech Candidate discovery is unavailable.');
+	} catch (error) {
+		warnings.push(
+			error instanceof Error && error.message.startsWith('Workshop discovery query is still pending')
+				? error.message
+				: 'Workshop Tech Candidate discovery is unavailable.'
+		);
 	}
 
 	return { rows, pathStatuses, warnings };

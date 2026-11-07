@@ -65,20 +65,20 @@ const persistDirtyActiveCollection = Effect.fnUntraced(function* (
 	return undefined;
 });
 
-const createActiveCollectionTransitionSuccess = Effect.fnUntraced(function* (
-	userDataPath: string,
+function createActiveCollectionTransitionSuccess(
 	config: AppConfig,
-	activeCollection: ModCollection
-): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	activeCollection: ModCollection,
+	collections: ModCollection[]
+): CollectionLifecycleResult {
 	return {
 		ok: true,
 		...createActiveCollectionLifecycleState({
 			activeCollection,
-			collections: yield* readSavedActiveCollections(userDataPath),
+			collections,
 			config
 		})
 	};
-});
+}
 
 const activateActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
@@ -86,13 +86,18 @@ const activateActiveCollection = Effect.fnUntraced(function* (
 	activeCollection: ModCollection,
 	onConfigWriteFailure: () => Effect.Effect<CollectionLifecycleResult, Error>
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const collections = yield* readSavedActiveCollections(userDataPath).pipe(
+		Effect.map((value) => ({ ok: true as const, value })),
+		Effect.catch(() => Effect.succeed({ ok: false as const }))
+	);
+	if (!collections.ok) return yield* onConfigWriteFailure();
 	const persistedConfig = yield* persistActiveCollectionSelection(userDataPath, config, activeCollection.name);
 	if (!persistedConfig) {
 		yield* persistActiveCollectionConfig(userDataPath, config);
 		return yield* onConfigWriteFailure();
 	}
 
-	return yield* createActiveCollectionTransitionSuccess(userDataPath, persistedConfig, activeCollection);
+	return createActiveCollectionTransitionSuccess(persistedConfig, activeCollection, collections.value);
 });
 
 const restoreDeletedActiveCollection = Effect.fnUntraced(function* (
