@@ -146,12 +146,18 @@ async function runContextMenuSteamworksAction(
 	failureMessage: string,
 	workshopID: bigint,
 	action: (success: (result?: unknown) => void, failure: (error: Error) => void) => void,
-	onSuccess: () => void,
+	onSuccess: () => void | Promise<void>,
 	timeoutMs?: number
 ): Promise<void> {
-	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString(), timeoutMs));
+	const success = await runMain(
+		runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString(), timeoutMs, onSuccess)
+	);
 	if (success) {
-		onSuccess();
+		try {
+			await onSuccess();
+		} catch (error) {
+			log.error('Failed to refresh Workshop metadata after action', error);
+		}
 	}
 }
 
@@ -212,7 +218,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 							mainWindowProvider
 								.getWebContents()
 								?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, workshopID), { subscribed: false });
-							void getUpdatedInfo();
+							return getUpdatedInfo();
 						}
 					);
 				}
@@ -232,7 +238,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 							mainWindowProvider
 								.getWebContents()
 								?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, workshopID), { subscribed: true });
-							void getUpdatedInfo();
+							return getUpdatedInfo();
 						}
 					);
 				}
@@ -254,7 +260,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						},
 						() => {
 							log.verbose(`Updated ${record.workshopID}`);
-							void getUpdatedInfo();
+							return getUpdatedInfo();
 						},
 						DOWNLOAD_TIMEOUT_MS
 					);

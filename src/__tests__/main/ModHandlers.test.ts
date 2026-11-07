@@ -308,6 +308,68 @@ describe('mod handlers', () => {
 		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:42', { subscribed: false });
 	});
 
+	it('updates subscription state when a timed-out context-menu action succeeds later', async () => {
+		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
+		try {
+			vi.spyOn(Steamworks, 'ugcSubscribe').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+			vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+			const send = vi.fn();
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:125', type: ModType.WORKSHOP, workshopID: 125n, id: 'test', name: 'Test', subscribed: false },
+				{ getWebContents: () => ({ send }) as never }
+			);
+			getSubmenuItems(template.find((item) => item.label === 'Steam Subscription'))[0].click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(send).not.toHaveBeenCalled();
+			finish?.(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:125', { subscribed: true });
+		} finally {
+			finish?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps the action guarded until late-success reconciliation finishes', async () => {
+		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
+		let finishRefresh: (() => void) | undefined;
+		try {
+			const start = vi.fn((success: (result: EResult) => void) => {
+				finish = success;
+			});
+			const reconcile = vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						finishRefresh = resolve;
+					})
+			);
+			const first = Effect.runPromise(
+				runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test', 30_000, reconcile)
+			);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await first).toBe(false);
+			finish?.(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(reconcile).toHaveBeenCalledOnce();
+			expect(await Effect.runPromise(runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test'))).toBe(false);
+			expect(start).toHaveBeenCalledTimes(1);
+			finishRefresh?.();
+			await vi.advanceTimersByTimeAsync(0);
+			const next = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test'));
+			finish?.(EResult.k_EResultOK);
+			expect(await next).toBe(true);
+		} finally {
+			finishRefresh?.();
+			finish?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
+	});
+
 	it('blocks context-menu actions while a timed-out IPC action remains pending', async () => {
 		vi.useFakeTimers();
 		let finish: ((result: EResult) => void) | undefined;

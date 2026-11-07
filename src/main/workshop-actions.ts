@@ -25,7 +25,8 @@ export function runSteamworksAction(
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void,
 	logger: Pick<typeof log, 'error'> = console,
 	actionKey?: string,
-	timeoutMs = 30_000
+	timeoutMs = 30_000,
+	onLateSuccess?: () => void | Promise<void>
 ): Effect.Effect<boolean> {
 	if (status && status.readiness.kind !== 'ready') {
 		return Effect.succeed(false);
@@ -38,23 +39,40 @@ export function runSteamworksAction(
 			return;
 		}
 		if (actionKey) pendingWorkshopActions.add(actionKey);
+		let timedOut = false;
+		let completed = false;
 		const timeout = setTimeout(() => {
+			timedOut = true;
 			logger.error(`${failureMessage}: Steamworks did not respond`);
 			resume(Effect.succeed(false));
 		}, timeoutMs);
 		try {
 			action(
 				(result: EResult | undefined) => {
+					if (completed) return;
+					completed = true;
 					clearTimeout(timeout);
-					if (actionKey) pendingWorkshopActions.delete(actionKey);
 					if (result === undefined || result === EResult.k_EResultOK) {
-						resume(Effect.succeed(true));
+						if (timedOut && onLateSuccess) {
+							void Promise.resolve()
+								.then(onLateSuccess)
+								.catch((error) => logger.error(error))
+								.finally(() => {
+									if (actionKey) pendingWorkshopActions.delete(actionKey);
+								});
+							return;
+						} else {
+							resume(Effect.succeed(true));
+						}
 					} else {
 						logger.error(`${failureMessage}. Status ${result.toString()}`);
 						resume(Effect.succeed(false));
 					}
+					if (actionKey) pendingWorkshopActions.delete(actionKey);
 				},
 				(error: Error) => {
+					if (completed) return;
+					completed = true;
 					clearTimeout(timeout);
 					if (actionKey) pendingWorkshopActions.delete(actionKey);
 					logger.error(failureMessage);
