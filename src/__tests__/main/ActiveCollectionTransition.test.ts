@@ -106,8 +106,26 @@ describe('active collection transition', () => {
 			const result = Effect.runSync(
 				switchActiveCollectionTransition(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }), name: 'alt' })
 			);
-			expect(result.ok).toBe(false);
+			expect(result).toMatchObject({ ok: false, code: 'collection-read-failed', message: 'Failed to read saved collections' });
 			expect(fs.readFileSync(configPath, 'utf8')).toBe('original');
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('rolls back a new collection when the final collection read fails', () => {
+		const originalReaddir = fs.readdirSync;
+		let calls = 0;
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((...args) => {
+			if (++calls > 1) throw new Error('access denied');
+			return originalReaddir(...(args as Parameters<typeof fs.readdirSync>));
+		}) as typeof fs.readdirSync);
+		try {
+			const result = Effect.runSync(
+				createActiveCollectionTransition(tempDir, { config: createTestAppConfig(), collection: { name: 'fresh', mods: [] } })
+			);
+			expect(result).toMatchObject({ ok: false, code: 'collection-read-failed' });
+			expect(fs.existsSync(path.join(tempDir, 'collections', 'fresh.json'))).toBe(false);
 		} finally {
 			spy.mockRestore();
 		}
