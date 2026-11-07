@@ -24,7 +24,8 @@ export function runSteamworksAction(
 	failureMessage: string,
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void,
 	logger: Pick<typeof log, 'error'> = console,
-	actionKey?: string
+	actionKey?: string,
+	timeoutMs = 30_000
 ): Effect.Effect<boolean> {
 	if (status && status.readiness.kind !== 'ready') {
 		return Effect.succeed(false);
@@ -40,7 +41,7 @@ export function runSteamworksAction(
 		const timeout = setTimeout(() => {
 			logger.error(`${failureMessage}: Steamworks did not respond`);
 			resume(Effect.succeed(false));
-		}, 30_000);
+		}, timeoutMs);
 		try {
 			action(
 				(result: EResult | undefined) => {

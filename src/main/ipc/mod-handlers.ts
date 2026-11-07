@@ -22,6 +22,7 @@ interface MainWindowProvider {
 }
 
 type ScanModInventory = typeof scanModInventoryProgram;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 
 interface ModContextMenuRecordStore {
 	get: (uid: string) => ModData | undefined;
@@ -53,7 +54,8 @@ export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus
 					steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
 				},
 				log,
-				validatedWorkshopID.toString()
+				validatedWorkshopID.toString(),
+				DOWNLOAD_TIMEOUT_MS
 			)
 		);
 	};
@@ -144,9 +146,10 @@ async function runContextMenuSteamworksAction(
 	failureMessage: string,
 	workshopID: bigint,
 	action: (success: (result?: unknown) => void, failure: (error: Error) => void) => void,
-	onSuccess: () => void
+	onSuccess: () => void,
+	timeoutMs?: number
 ): Promise<void> {
-	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString()));
+	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString(), timeoutMs));
 	if (success) {
 		onSuccess();
 	}
@@ -252,7 +255,8 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 						() => {
 							log.verbose(`Updated ${record.workshopID}`);
 							void getUpdatedInfo();
-						}
+						},
+						DOWNLOAD_TIMEOUT_MS
 					);
 				}
 			});

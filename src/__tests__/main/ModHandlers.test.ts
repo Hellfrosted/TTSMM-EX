@@ -316,7 +316,7 @@ describe('mod handlers', () => {
 			});
 			const subscribe = vi.spyOn(Steamworks, 'ugcSubscribe').mockImplementation(() => {});
 			const pending = createDownloadModHandler(Steamworks)(undefined, 42n);
-			await vi.advanceTimersByTimeAsync(30_000);
+			await vi.advanceTimersByTimeAsync(30 * 60_000);
 			expect(await pending).toBe(false);
 			const template = createContextMenuTemplate(
 				{ uid: 'workshop:42', type: ModType.WORKSHOP, workshopID: 42n, id: 'test', name: 'Test', subscribed: false },
@@ -327,6 +327,48 @@ describe('mod handlers', () => {
 			await vi.advanceTimersByTimeAsync(0);
 			expect(subscribe).not.toHaveBeenCalled();
 			finish(EResult.k_EResultOK);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('allows a download to complete after the short action timeout', async () => {
+		vi.useFakeTimers();
+		try {
+			let finish!: (result: EResult) => void;
+			const steamworks = {
+				ugcDownloadItem: vi.fn((_id: bigint, success: (result: EResult) => void) => {
+					finish = success;
+				})
+			};
+			const result = createDownloadModHandler(steamworks as never)(undefined, 123n);
+			await vi.advanceTimersByTimeAsync(31_000);
+			finish(EResult.k_EResultOK);
+			expect(await result).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('allows a context-menu update to complete after the short action timeout', async () => {
+		vi.useFakeTimers();
+		try {
+			let finish!: (result: EResult) => void;
+			vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(0);
+			vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+			const send = vi.fn();
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:124', type: ModType.WORKSHOP, workshopID: 124n, id: 'test', name: 'Test', needsUpdate: true },
+				{ getWebContents: () => ({ send }) as never }
+			);
+			template.find((item) => item.label === 'Update')?.click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(31_000);
+			finish(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(send).toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
