@@ -65,15 +65,17 @@ const searchBlockLookupEffect = Effect.fnUntraced(function* (
 });
 
 export async function fetchBlockLookupBootstrap() {
-	if (blockLookupBootstrapCacheRef.value !== undefined) {
-		return blockLookupBootstrapCacheRef.value;
+	while (true) {
+		if (blockLookupBootstrapCacheRef.value !== undefined) {
+			return blockLookupBootstrapCacheRef.value;
+		}
+		const generation = bootstrapCacheGeneration;
+		const data = await runRenderer(readBlockLookupBootstrapEffect());
+		if (generation === bootstrapCacheGeneration) {
+			blockLookupBootstrapCacheRef.set(data);
+			return data;
+		}
 	}
-	const generation = bootstrapCacheGeneration;
-	const data = await runRenderer(readBlockLookupBootstrapEffect());
-	if (generation === bootstrapCacheGeneration) {
-		blockLookupBootstrapCacheRef.set(data);
-	}
-	return data;
 }
 
 export async function fetchBlockLookupSearch(request: BlockLookupSearchRequest) {

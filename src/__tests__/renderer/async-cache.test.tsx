@@ -336,7 +336,29 @@ describe('renderer async cache', () => {
 		await vi.waitFor(() => expect(finishOld).toBeDefined());
 		setBlockLookupBootstrapCacheData([newSettings, null]);
 		finishOld(oldSettings);
-		await oldRequest;
+		await expect(oldRequest).resolves.toEqual([newSettings, null]);
+		expect(getBlockLookupBootstrapCacheData()).toEqual([newSettings, null]);
+	});
+
+	it('retries a bootstrap read invalidated before fresh data is cached', async () => {
+		const oldSettings = { workshopRoot: 'old', renderedPreviewsEnabled: false };
+		const newSettings = { workshopRoot: 'new', renderedPreviewsEnabled: true };
+		let finishOld!: (settings: typeof oldSettings) => void;
+		vi.mocked(window.electron.readBlockLookupSettings)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					})
+			)
+			.mockResolvedValueOnce(newSettings);
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+
+		const oldRequest = fetchBlockLookupBootstrap();
+		await vi.waitFor(() => expect(finishOld).toBeDefined());
+		setBlockLookupBootstrapCacheData(undefined);
+		finishOld(oldSettings);
+		await expect(oldRequest).resolves.toEqual([newSettings, null]);
 		expect(getBlockLookupBootstrapCacheData()).toEqual([newSettings, null]);
 	});
 
