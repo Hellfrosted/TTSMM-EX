@@ -82,12 +82,16 @@ export function useGameRunning() {
 	}, [pollGameRunning]);
 
 	useEffect(() => {
+		let cancelled = false;
+		isCancelledRef.current = false;
 		queueMicrotask(() => {
-			void pollGameRunning();
+			if (!cancelled) void pollGameRunning();
 		});
 
 		return () => {
+			cancelled = true;
 			isCancelledRef.current = true;
+			pollRequestIdRef.current += 1;
 			clearGameRunningPoll();
 			clearGameLaunchOverrideTimeout();
 		};

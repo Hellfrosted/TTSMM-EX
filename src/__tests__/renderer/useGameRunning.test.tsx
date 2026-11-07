@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useGameRunning } from '../../renderer/hooks/collections/useGameRunning';
@@ -29,6 +30,16 @@ describe('useGameRunning', () => {
 		});
 
 		expect(window.electron.isGameRunning).toHaveBeenCalledTimes(2);
+	});
+
+	it('starts polling when effects are remounted in StrictMode', async () => {
+		vi.mocked(window.electron.isGameRunning).mockResolvedValue(true);
+		const { result } = renderHook(() => useGameRunning(), { wrapper: StrictMode });
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(window.electron.isGameRunning).toHaveBeenCalledOnce();
+		expect(result.current.gameRunning).toBe(true);
 	});
 
 	it('ignores stale poll results when a newer request resolves first', async () => {

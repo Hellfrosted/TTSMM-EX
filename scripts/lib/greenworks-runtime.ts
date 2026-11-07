@@ -17,8 +17,17 @@ const copyFile = (sourcePath: string, targetPath: string) => {
 	fs.copyFileSync(sourcePath, targetPath);
 };
 
-export const copyGreenworksRuntime = (sourcePath: string, targetPath: string) => {
-	const missingRuntimeFiles = requiredGreenworksRuntimeFiles.filter((runtimeFile) => !fs.existsSync(path.join(sourcePath, runtimeFile)));
+export const copyGreenworksRuntime = (sourcePath: string, targetPath: string, platform = process.platform) => {
+	const runtimeFiles =
+		platform === 'linux'
+			? [
+					'greenworks.js',
+					path.join('lib', 'greenworks-linux64.node'),
+					path.join('lib', 'libsteam_api.so'),
+					path.join('lib', 'libsdkencryptedappticket.so')
+				]
+			: requiredGreenworksRuntimeFiles;
+	const missingRuntimeFiles = runtimeFiles.filter((runtimeFile) => !fs.existsSync(path.join(sourcePath, runtimeFile)));
 	if (missingRuntimeFiles.length > 0) {
 		throw new Error(
 			[
@@ -42,7 +51,7 @@ export const copyGreenworksRuntime = (sourcePath: string, targetPath: string) =>
 	delete packageJson.scripts;
 	fs.mkdirSync(targetPath, { recursive: true });
 	fs.writeFileSync(path.join(targetPath, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
-	for (const runtimeFile of requiredGreenworksRuntimeFiles) {
+	for (const runtimeFile of runtimeFiles) {
 		copyFile(path.join(sourcePath, runtimeFile), path.join(targetPath, runtimeFile));
 	}
 };

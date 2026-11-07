@@ -40,6 +40,17 @@ if (!app || typeof app.setPath !== 'function') {
 }
 
 app.setPath('userData', resolveUserDataPath(app));
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+	app.quit();
+} else {
+	app.on('second-instance', () => {
+		if (mainWindow) {
+			if (mainWindow.isMinimized()) mainWindow.restore();
+			mainWindow.focus();
+		}
+	});
+}
 if (process.platform === 'win32') {
 	app.setAppUserModelId(FORK_APP_ID);
 }
@@ -112,26 +123,27 @@ registerModHandlers(
 	tryInitSteamworks
 );
 
-app
-	.whenReady()
-	.then(async () => {
-		await installProductionSourceMaps();
-		await enableDevelopmentDebugging();
-		if (!previewProtocolRegistered) {
-			registerPreviewProtocol(protocol, { getUserDataPath: () => app.getPath('userData') });
-			previewProtocolRegistered = true;
-		}
-		await createWindow();
-		app.on('activate', () => {
-			if (mainWindow === null) {
-				void createWindow();
+if (hasInstanceLock)
+	app
+		.whenReady()
+		.then(async () => {
+			await installProductionSourceMaps();
+			await enableDevelopmentDebugging();
+			if (!previewProtocolRegistered) {
+				registerPreviewProtocol(protocol, { getUserDataPath: () => app.getPath('userData') });
+				previewProtocolRegistered = true;
 			}
+			await createWindow();
+			app.on('activate', () => {
+				if (mainWindow === null) {
+					void createWindow();
+				}
+			});
+			return undefined;
+		})
+		.catch((error) => {
+			log.error(error);
+			return undefined;
 		});
-		return undefined;
-	})
-	.catch((error) => {
-		log.error(error);
-		return undefined;
-	});
 
 new ApplicationLogging();

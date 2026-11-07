@@ -74,4 +74,27 @@ describe('steam persona resolution', () => {
 
 		await expect(lookup).resolves.toBe('456');
 	});
+
+	it('does not let a completed lookup timeout resolve a later lookup for the same user', async () => {
+		vi.useFakeTimers();
+		mockSteamworks.requestUserInformation.mockReturnValue(true);
+		mockSteamworks.getFriendPersonaName.mockReturnValue('');
+		const [{ ManagedRuntime }, { SteamPersonaCache, SteamPersonaCacheLive }] = await Promise.all([
+			import('effect'),
+			import('../../main/steam-persona-cache')
+		]);
+		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
+		const first = runtime.runPromise(SteamPersonaCache['use']((cache) => cache.resolve('123', 1000)));
+		await vi.waitFor(() => expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1));
+		mockSteamworks.getFriendPersonaName.mockReturnValue('First name');
+		personaStateChangeListener?.('123');
+		await expect(first).resolves.toBe('First name');
+		mockSteamworks.getFriendPersonaName.mockReturnValue('');
+		const second = runtime.runPromise(SteamPersonaCache['use']((cache) => cache.resolve('123', 5000)));
+		await vi.waitFor(() => expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(2));
+		await vi.advanceTimersByTimeAsync(1000);
+		mockSteamworks.getFriendPersonaName.mockReturnValue('Second name');
+		personaStateChangeListener?.('123');
+		await expect(second).resolves.toBe('Second name');
+	});
 });

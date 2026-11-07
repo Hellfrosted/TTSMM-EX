@@ -5,6 +5,7 @@ import {
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
 	getBlockLookupBootstrapCacheData,
+	invalidateBlockLookupSearchQueries,
 	setBlockLookupBootstrapCacheData,
 	setBlockLookupSearchCacheData,
 	useBuildBlockLookupIndexMutation
@@ -275,6 +276,90 @@ describe('renderer async cache', () => {
 		expect(window.electron.getBlockLookupStats).toHaveBeenCalledTimes(1);
 		expect(window.electron.searchBlockLookup).toHaveBeenCalledTimes(1);
 		expect(window.electron.searchBlockLookup).toHaveBeenCalledWith({ query: 'cab', limit: 50 });
+	});
+
+	it('does not repopulate invalidated search data when an older request completes', async () => {
+		const stale = { rows: [], stats: null };
+		const fresh = { rows: [], stats: null };
+		let finishOld!: (result: typeof stale) => void;
+		vi.mocked(window.electron.searchBlockLookup)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					})
+			)
+			.mockResolvedValueOnce(fresh);
+
+		const oldRequest = fetchBlockLookupSearch({ query: 'cab' });
+		await vi.waitFor(() => expect(finishOld).toBeDefined());
+		await invalidateBlockLookupSearchQueries();
+		finishOld(stale);
+		await oldRequest;
+		await expect(fetchBlockLookupSearch({ query: 'cab' })).resolves.toBe(fresh);
+		expect(window.electron.searchBlockLookup).toHaveBeenCalledTimes(2);
+	});
+
+	it('keeps the newest result when same-key searches complete out of order', async () => {
+		const stale = { rows: [], stats: null };
+		const fresh = { rows: [], stats: null };
+		let finishOld!: (result: typeof stale) => void;
+		vi.mocked(window.electron.searchBlockLookup)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					})
+			)
+			.mockResolvedValueOnce(fresh);
+		const old = fetchBlockLookupSearch({ query: 'cab' });
+		await vi.waitFor(() => expect(finishOld).toBeDefined());
+		await fetchBlockLookupSearch({ query: 'cab' });
+		finishOld(stale);
+		await old;
+		await expect(fetchBlockLookupSearch({ query: 'cab' })).resolves.toBe(fresh);
+	});
+
+	it('does not overwrite newer bootstrap data when an older request completes', async () => {
+		const oldSettings = { workshopRoot: 'old', renderedPreviewsEnabled: false };
+		const newSettings = { workshopRoot: 'new', renderedPreviewsEnabled: true };
+		let finishOld!: (settings: typeof oldSettings) => void;
+		vi.mocked(window.electron.readBlockLookupSettings).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finishOld = resolve;
+				})
+		);
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValueOnce(null);
+
+		const oldRequest = fetchBlockLookupBootstrap();
+		await vi.waitFor(() => expect(finishOld).toBeDefined());
+		setBlockLookupBootstrapCacheData([newSettings, null]);
+		finishOld(oldSettings);
+		await expect(oldRequest).resolves.toEqual([newSettings, null]);
+		expect(getBlockLookupBootstrapCacheData()).toEqual([newSettings, null]);
+	});
+
+	it('retries a bootstrap read invalidated before fresh data is cached', async () => {
+		const oldSettings = { workshopRoot: 'old', renderedPreviewsEnabled: false };
+		const newSettings = { workshopRoot: 'new', renderedPreviewsEnabled: true };
+		let finishOld!: (settings: typeof oldSettings) => void;
+		vi.mocked(window.electron.readBlockLookupSettings)
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						finishOld = resolve;
+					})
+			)
+			.mockResolvedValueOnce(newSettings);
+		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
+
+		const oldRequest = fetchBlockLookupBootstrap();
+		await vi.waitFor(() => expect(finishOld).toBeDefined());
+		setBlockLookupBootstrapCacheData(undefined);
+		finishOld(oldSettings);
+		await expect(oldRequest).resolves.toEqual([newSettings, null]);
+		expect(getBlockLookupBootstrapCacheData()).toEqual([newSettings, null]);
 	});
 
 	it('runs Block Lookup index builds without owning session cache transitions', async () => {

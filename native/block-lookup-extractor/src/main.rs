@@ -16,6 +16,8 @@ use sha2::{Digest, Sha256};
 
 const MAX_PREVIEW_ASSETS_PER_FILE: usize = 4096;
 const MAX_PREVIEW_DIMENSION: u32 = 512;
+const MAX_SOURCE_PREVIEW_DIMENSION: u64 = 16_384;
+const MAX_SOURCE_PREVIEW_PIXELS: u64 = 64 * 1024 * 1024;
 const MESH_PREVIEW_SIZE: u32 = 96;
 const MESH_PREVIEW_PADDING: f32 = 8.0;
 const MAX_MESH_PREVIEW_TRIANGLES: usize = 16_384;
@@ -300,9 +302,10 @@ fn read_json_string_property(text: &str, property_name: &str) -> Option<String> 
     let after_property = &text[property_index + property.len()..];
     let colon_index = after_property.find(':')?;
     let after_colon = after_property[colon_index + 1..].trim_start();
-    let value = after_colon.strip_prefix('"')?;
-    let end_index = value.find('"')?;
-    Some(value[..end_index].to_owned())
+    serde_json::Deserializer::from_str(after_colon)
+        .into_iter::<String>()
+        .next()?
+        .ok()
 }
 
 fn normalized_asset_key(value: &str) -> String {
@@ -425,6 +428,7 @@ fn extract_preview_asset(
     preview_cache_dir: &Path,
 ) -> Result<ExtractedPreviewAsset> {
     let texture = Texture2D::new(object_ref);
+    validate_preview_dimensions(texture.get_width()?, texture.get_height()?)?;
     let image = texture
         .get_image(viewer)
         .with_context(|| format!("decode Texture2D preview {asset_name}"))?;
@@ -432,7 +436,10 @@ fn extract_preview_asset(
         .rotate180()
         .thumbnail(MAX_PREVIEW_DIMENSION, MAX_PREVIEW_DIMENSION);
     let rgba = thumbnail.to_rgba8();
-    let thumbnail = DynamicImage::ImageRgba8(RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw()).context("invalid thumbnail dimensions")?);
+    let thumbnail = DynamicImage::ImageRgba8(
+        RgbaImage::from_raw(rgba.width(), rgba.height(), rgba.into_raw())
+            .context("invalid thumbnail dimensions")?,
+    );
     if is_flat_preview_image(&thumbnail) {
         anyhow::bail!("Texture2D preview {asset_name} decoded to a flat image");
     }
@@ -463,6 +470,18 @@ fn extract_preview_asset(
         width: thumbnail.width(),
         height: thumbnail.height(),
     })
+}
+
+fn validate_preview_dimensions(width: u64, height: u64) -> Result<()> {
+    if width == 0
+        || height == 0
+        || width > MAX_SOURCE_PREVIEW_DIMENSION
+        || height > MAX_SOURCE_PREVIEW_DIMENSION
+        || width * height > MAX_SOURCE_PREVIEW_PIXELS
+    {
+        anyhow::bail!("texture dimensions exceed preview limits");
+    }
+    Ok(())
 }
 
 fn extract_mesh_preview_asset(
@@ -808,6 +827,14 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn rejects_invalid_or_excessive_preview_dimensions() {
+        assert!(validate_preview_dimensions(0, 10).is_err());
+        assert!(validate_preview_dimensions(u64::MAX, 1).is_err());
+        assert!(validate_preview_dimensions(16384, 16384).is_err());
+        assert!(validate_preview_dimensions(4096, 4096).is_ok());
+    }
+
+    #[test]
     fn reports_parser_panic_without_raw_text_fallback() {
         let previous_hook = panic::take_hook();
         panic::set_hook(Box::new(|_| {}));
@@ -889,6 +916,18 @@ mod tests {
             &keys
         ));
         assert!(should_extract_preview_asset("HE_Block_Collector", &keys));
+    }
+
+    #[test]
+    fn decodes_escaped_json_preview_names() {
+        let keys = create_preview_match_keys(&[ExtractedTextAsset {
+            asset_name: "unrelated".to_owned(),
+            text:
+                r#"{"IconName":"Icons/Block\u005fIcon.png","MeshName":"Meshes/Quoted\"Block.obj"}"#
+                    .to_owned(),
+        }]);
+        assert!(keys.contains(&"blockicon".to_owned()));
+        assert!(keys.contains(&"quotedblock".to_owned()));
     }
 
     #[test]

@@ -18,6 +18,15 @@ function createSource(sourcePath: string, sourceKind: BlockLookupSourceKind, siz
 }
 
 describe('block lookup index build policy', () => {
+	it('does not cache a source when extraction did not return a result', async () => {
+		const source = createSource('/mods/failing.bundle', 'bundle', 10, 20);
+		const index = { version: BLOCK_LOOKUP_INDEX_VERSION, builtAt: '', renderedPreviewsEnabled: false, sources: [], records: [] };
+		const indexer = vi.fn(() => Effect.succeed({ recordsBySourcePath: new Map() }));
+		const first = await Effect.runPromise(createBlockLookupIndexBuildPolicy(index, [source], false, { indexBlockLookupSources: indexer }));
+		expect(first.index.sources).toEqual([]);
+		await Effect.runPromise(createBlockLookupIndexBuildPolicy(first.index, [source], false, { indexBlockLookupSources: indexer }));
+		expect(indexer).toHaveBeenCalledTimes(2);
+	});
 	it('reuses unchanged source records, scans changed sources, dedupes changed blocks, and reports stats', async () => {
 		const unchangedSource = createSource('/mods/unchanged/StableBlock.json', 'json', 10, 20);
 		const changedBundleSource = createSource('/mods/changed/Flaggship_bundle', 'bundle', 30, 40);

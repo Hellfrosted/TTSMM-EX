@@ -201,6 +201,16 @@ describe('block-lookup-workspace', () => {
 		expect(reduceBlockLookupWorkspaceSession(failedBuildState, { type: 'build-index-status-cleared' }).indexRunStatus).toBeUndefined();
 	});
 
+	it('keeps newer settings drafts when an earlier save completes', () => {
+		const initial = createBlockLookupWorkspaceSessionState();
+		const requested = { workshopRoot: 'old', renderedPreviewsEnabled: false };
+		const draft = { ...initial, workshopRoot: 'new', renderedPreviewsEnabled: true };
+		const result = reduceBlockLookupWorkspaceSession(draft, { type: 'settings-saved', settings: requested, requested });
+		expect(result.workshopRoot).toBe('new');
+		expect(result.renderedPreviewsEnabled).toBe(true);
+		expect(result.settings).toEqual(requested);
+	});
+
 	it('tracks determinate build progress while indexing is running', () => {
 		const initialState = createBlockLookupWorkspaceSessionState();
 		const runningState = reduceBlockLookupWorkspaceSession(initialState, { type: 'build-index-started', forceRebuild: true });

@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -45,6 +48,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Check Effect diagnostics
+        run: pnpm run check:effect
 
       - name: Test
         run: pnpm run test
@@ -190,6 +196,9 @@ jobs:
 
       - name: Build native Block Lookup extractor
         run: pnpm run build:block-lookup
+
+      - name: Test native Block Lookup extractor
+        run: cargo test --locked --manifest-path native/block-lookup-extractor/Cargo.toml
 
       - name: Build app
         run: pnpm run build

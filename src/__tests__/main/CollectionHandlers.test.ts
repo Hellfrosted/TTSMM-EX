@@ -32,6 +32,29 @@ describe('collection handlers', () => {
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(true);
 	});
 
+	it('does not create a second collection when directory inspection fails', () => {
+		const dir = path.join(tempDir, 'collections');
+		fs.mkdirSync(dir, { recursive: true });
+		const original = path.join(dir, 'foo.JSON');
+		fs.writeFileSync(original, JSON.stringify({ mods: ['local:keep'] }));
+		const exists = fs.existsSync;
+		const existsSpy = vi
+			.spyOn(fs, 'existsSync')
+			.mockImplementation((target) => (target === path.join(dir, 'foo.json') ? false : exists(target)));
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+			throw new Error('access denied');
+		});
+		try {
+			expect(() => readCollectionFile(tempDir, 'foo')).toThrow();
+			expect(updateCollectionFile(tempDir, { name: 'foo', mods: [] })).toBe(false);
+		} finally {
+			spy.mockRestore();
+			existsSpy.mockRestore();
+		}
+		expect(JSON.parse(fs.readFileSync(original, 'utf8'))).toEqual({ mods: ['local:keep'] });
+		expect(fs.readdirSync(dir)).toEqual(['foo.JSON']);
+	});
+
 	it('throws when a collection file exists but contains malformed json', () => {
 		const collectionsDir = path.join(tempDir, 'collections');
 		fs.mkdirSync(collectionsDir, { recursive: true });
@@ -182,6 +205,24 @@ describe('collection handlers', () => {
 		fs.mkdirSync(path.join(collectionsDir, 'archived.json'));
 
 		expect(listCollections(tempDir).sort()).toEqual(['alpha', 'beta']);
+	});
+
+	it('reads collections whose JSON extension uses uppercase on a case-sensitive filesystem', () => {
+		const collectionsDir = path.join(tempDir, 'collections');
+		const upperPath = path.join(collectionsDir, 'beta.JSON');
+		const lowerPath = path.join(collectionsDir, 'beta.json');
+		fs.mkdirSync(collectionsDir, { recursive: true });
+		fs.writeFileSync(upperPath, JSON.stringify({ mods: ['local:a'] }));
+		const exists = fs.existsSync;
+		const existsSpy = vi.spyOn(fs, 'existsSync').mockImplementation((target) => (String(target) === lowerPath ? false : exists(target)));
+		const readSpy = vi.spyOn(fs, 'readFileSync');
+		try {
+			expect(readCollectionFile(tempDir, 'beta')).toEqual({ name: 'beta', mods: ['local:a'] });
+			expect(readSpy).toHaveBeenCalledWith(upperPath, 'utf8');
+		} finally {
+			readSpy.mockRestore();
+			existsSpy.mockRestore();
+		}
 	});
 
 	it('rejects malformed update payloads at the ipc seam', async () => {

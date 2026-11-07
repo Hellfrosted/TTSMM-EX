@@ -115,9 +115,9 @@ interface GreenworksNative {
 	isSubscribedApp: (app_id: number) => boolean;
 	getLaunchCommandLine: () => string;
 	fileShare: (file_path: string, success_callback: (file_handle: string) => void, error_callback?: SteamErrorCallback) => boolean;
-	ugcDownloadItem: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
-	ugcUnsubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
-	ugcSubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => boolean;
+	ugcDownloadItem: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => void;
+	ugcUnsubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => void;
+	ugcSubscribe: (published_file_id: string, success_callback: (result: EResult) => void, error_callback?: SteamErrorCallback) => void;
 	ugcCreateItem: (
 		options: { app_id: number; file_type: WorkshopFileType },
 		success_callback: (id: string) => void,

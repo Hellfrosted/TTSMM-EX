@@ -10,16 +10,21 @@ type BlockLookupSearchCacheData = Awaited<ReturnType<typeof window.electron.sear
 
 const blockLookupBootstrapCacheRef = AtomRef.make<BlockLookupBootstrapQueryData | undefined>(undefined);
 const blockLookupSearchCacheRef = AtomRef.make<Map<string, BlockLookupSearchCacheData>>(new Map());
+let bootstrapCacheGeneration = 0;
+let searchCacheGeneration = 0;
+const searchRequests = new Map<string, object>();
 
 export function getBlockLookupBootstrapCacheData() {
 	return blockLookupBootstrapCacheRef.value;
 }
 
 export function setBlockLookupBootstrapCacheData(data: BlockLookupBootstrapQueryData | undefined) {
+	bootstrapCacheGeneration++;
 	blockLookupBootstrapCacheRef.set(data);
 }
 
 export function setBlockLookupSearchCacheData(data: Map<string, BlockLookupSearchCacheData>) {
+	searchCacheGeneration++;
 	blockLookupSearchCacheRef.set(new Map(data));
 }
 
@@ -60,12 +65,17 @@ const searchBlockLookupEffect = Effect.fnUntraced(function* (
 });
 
 export async function fetchBlockLookupBootstrap() {
-	if (blockLookupBootstrapCacheRef.value !== undefined) {
-		return blockLookupBootstrapCacheRef.value;
+	while (true) {
+		if (blockLookupBootstrapCacheRef.value !== undefined) {
+			return blockLookupBootstrapCacheRef.value;
+		}
+		const generation = bootstrapCacheGeneration;
+		const data = await runRenderer(readBlockLookupBootstrapEffect());
+		if (generation === bootstrapCacheGeneration) {
+			blockLookupBootstrapCacheRef.set(data);
+			return data;
+		}
 	}
-	const data = await runRenderer(readBlockLookupBootstrapEffect());
-	blockLookupBootstrapCacheRef.set(data);
-	return data;
 }
 
 export async function fetchBlockLookupSearch(request: BlockLookupSearchRequest) {
@@ -74,9 +84,18 @@ export async function fetchBlockLookupSearch(request: BlockLookupSearchRequest) 
 	if (cachedResult) {
 		return cachedResult;
 	}
-	const result = await runRenderer(searchBlockLookupEffect(request));
-	blockLookupSearchCacheRef.set(new Map(blockLookupSearchCacheRef.value).set(cacheKey, result));
-	return result;
+	const generation = searchCacheGeneration;
+	const requestToken = {};
+	searchRequests.set(cacheKey, requestToken);
+	try {
+		const result = await runRenderer(searchBlockLookupEffect(request));
+		if (generation === searchCacheGeneration && searchRequests.get(cacheKey) === requestToken) {
+			blockLookupSearchCacheRef.set(new Map(blockLookupSearchCacheRef.value).set(cacheKey, result));
+		}
+		return result;
+	} finally {
+		if (searchRequests.get(cacheKey) === requestToken) searchRequests.delete(cacheKey);
+	}
 }
 
 const buildBlockLookupIndexEffect = Effect.fnUntraced(function* (request: BlockLookupBuildRequest) {

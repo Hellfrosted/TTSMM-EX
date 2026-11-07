@@ -17,34 +17,72 @@ interface WorkshopRuntimeStateOptions {
 	steamworks?: Pick<typeof Steamworks, 'ugcGetItemInstallInfo' | 'ugcGetItemState'>;
 }
 
+const pendingWorkshopActions = new Set<string>();
+
 export function runSteamworksAction(
 	status: SteamworksStatus | undefined,
 	failureMessage: string,
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void,
-	logger: Pick<typeof log, 'error'> = console
+	logger: Pick<typeof log, 'error'> = console,
+	actionKey?: string,
+	timeoutMs = 30_000,
+	onLateSuccess?: () => void | Promise<void>
 ): Effect.Effect<boolean> {
 	if (status && status.readiness.kind !== 'ready') {
 		return Effect.succeed(false);
 	}
 
 	return Effect.callback<boolean>((resume) => {
+		if (actionKey && pendingWorkshopActions.has(actionKey)) {
+			logger.error(`${failureMessage}: a Workshop action is still pending`);
+			resume(Effect.succeed(false));
+			return;
+		}
+		if (actionKey) pendingWorkshopActions.add(actionKey);
+		let timedOut = false;
+		let completed = false;
+		const timeout = setTimeout(() => {
+			timedOut = true;
+			logger.error(`${failureMessage}: Steamworks did not respond`);
+			resume(Effect.succeed(false));
+		}, timeoutMs);
 		try {
 			action(
 				(result: EResult | undefined) => {
+					if (completed) return;
+					completed = true;
+					clearTimeout(timeout);
 					if (result === undefined || result === EResult.k_EResultOK) {
-						resume(Effect.succeed(true));
+						if (timedOut && onLateSuccess) {
+							void Promise.resolve()
+								.then(onLateSuccess)
+								.catch((error) => logger.error(error))
+								.finally(() => {
+									if (actionKey) pendingWorkshopActions.delete(actionKey);
+								});
+							return;
+						} else {
+							resume(Effect.succeed(true));
+						}
 					} else {
 						logger.error(`${failureMessage}. Status ${result.toString()}`);
 						resume(Effect.succeed(false));
 					}
+					if (actionKey) pendingWorkshopActions.delete(actionKey);
 				},
 				(error: Error) => {
+					if (completed) return;
+					completed = true;
+					clearTimeout(timeout);
+					if (actionKey) pendingWorkshopActions.delete(actionKey);
 					logger.error(failureMessage);
 					logger.error(error);
 					resume(Effect.succeed(false));
 				}
 			);
 		} catch (error) {
+			clearTimeout(timeout);
+			if (actionKey) pendingWorkshopActions.delete(actionKey);
 			logger.error(failureMessage);
 			logger.error(error);
 			resume(Effect.succeed(false));
@@ -60,13 +98,11 @@ export function applyWorkshopRuntimeState(mod: ModData, options: WorkshopRuntime
 
 	try {
 		const state: UGCItemState = steamworks.ugcGetItemState(mod.workshopID);
-		if (state) {
-			mod.subscribed = !!(state & UGCItemState.Subscribed);
-			mod.installed = !!(state & UGCItemState.Installed);
-			mod.downloadPending = !!(state & UGCItemState.DownloadPending);
-			mod.downloading = !!(state & UGCItemState.Downloading);
-			mod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
-		}
+		mod.subscribed = !!(state & UGCItemState.Subscribed);
+		mod.installed = !!(state & UGCItemState.Installed);
+		mod.downloadPending = !!(state & UGCItemState.DownloadPending);
+		mod.downloading = !!(state & UGCItemState.Downloading);
+		mod.needsUpdate = !!(state & UGCItemState.NeedsUpdate);
 	} catch (error) {
 		options.logger?.warn(`Failed to read workshop item state for ${mod.workshopID}`);
 		options.logger?.warn(error);

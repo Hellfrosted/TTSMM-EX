@@ -227,34 +227,17 @@ export function formatSizeLabel(size?: number) {
 		return undefined;
 	}
 
-	const strNum = `${size}`;
-	const power = strNum.length;
-	const [digit1 = '', digit2 = '', digit3Raw = '', digit4] = strNum;
-	let digit3 = digit3Raw;
-	if (!digit4) {
-		return `${strNum} B`;
+	if (size < 1000) return `${size} B`;
+	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	let unit = Math.min(Math.floor(Math.log10(size) / 3), units.length - 1);
+	let value = size / 1000 ** unit;
+	if (value >= 999.5 && unit < units.length - 1) {
+		value /= 1000;
+		unit++;
 	}
-
-	digit3 = parseInt(digit4, 10) >= 5 ? `${parseInt(digit3, 10) + 1}` : digit3;
-
-	let descriptor = ' B';
-	if (power > 3) {
-		if (power > 6) {
-			descriptor = power > 9 ? ' GB' : ' MB';
-		} else {
-			descriptor = ' KB';
-		}
-	}
-
-	let value = `${digit1}${digit2}${digit3}`;
-	const decimal = power % 3;
-	if (decimal === 1) {
-		value = `${digit1}.${digit2}${digit3}`;
-	} else if (decimal === 2) {
-		value = `${digit1}${digit2}.${digit3}`;
-	}
-
-	return value + descriptor;
+	const roundedValue = Number(value.toPrecision(3));
+	const decimalPlaces = roundedValue < 10 ? 2 : roundedValue < 100 ? 1 : 0;
+	return `${value.toFixed(decimalPlaces)} ${units[unit]}`;
 }
 
 export function getAllTags(record: DisplayModData) {

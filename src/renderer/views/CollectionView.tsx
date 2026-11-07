@@ -562,7 +562,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	};
 }
 
-function DetailsOverlayResizeHandle({
+export function DetailsOverlayResizeHandle({
 	layout,
 	maxSize,
 	minSize,
@@ -619,6 +619,10 @@ function DetailsOverlayResizeHandle({
 
 	const startResize = useCallback(
 		(startX: number, startY: number) => {
+			if (keyboardPersistTimeoutRef.current !== undefined) {
+				window.clearTimeout(keyboardPersistTimeoutRef.current);
+				keyboardPersistTimeoutRef.current = undefined;
+			}
 			const startSize = clampDetailsOverlaySize(sizeRef.current || size, minSize, maxSize);
 			let nextSize = startSize;
 			const previousBodyCssText = document.body.style.cssText;
@@ -675,6 +679,10 @@ function DetailsOverlayResizeHandle({
 		(event: ReactMouseEvent<HTMLButtonElement>) => {
 			event.preventDefault();
 			event.stopPropagation();
+			if (keyboardPersistTimeoutRef.current !== undefined) {
+				window.clearTimeout(keyboardPersistTimeoutRef.current);
+				keyboardPersistTimeoutRef.current = undefined;
+			}
 			markPerfInteraction('collection.detailsOverlayResize.reset', { layout });
 			onReset(layout);
 		},

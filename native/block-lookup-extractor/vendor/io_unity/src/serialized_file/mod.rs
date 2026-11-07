@@ -521,21 +521,34 @@ pub trait Serialized: fmt::Debug {
 
         let mut type_tree_object = TypeTreeObject::read_options(reader, &options, args)?;
         let apos = reader.stream_position()?;
-        if apos - (self.get_data_offset() + obj.byte_start) != obj.byte_size as u64 {
-            println!(
-                "{} readed, {} object size. class id {:?}",
-                apos - (self.get_data_offset() + obj.byte_start),
-                obj.byte_size,
-                obj.class
-            );
-            let mut external_data = vec![
-                0u8;
-                (obj.byte_size as u64 - (apos - (self.get_data_offset() + obj.byte_start)))
-                    as usize
-            ];
+        let consumed = apos - (self.get_data_offset() + obj.byte_start);
+        let remaining = remaining_object_bytes(obj.byte_size, consumed)?;
+        if remaining > 0 {
+            let mut external_data = vec![0u8; remaining as usize];
             reader.read_exact(&mut external_data)?;
             type_tree_object.external_data = Some(external_data);
         }
         Ok(type_tree_object)
+    }
+}
+
+fn remaining_object_bytes(size: u32, consumed: u64) -> std::io::Result<u64> {
+    (size as u64).checked_sub(consumed).ok_or_else(|| {
+        std::io::Error::new(
+            ErrorKind::InvalidData,
+            "type tree exceeds serialized object size",
+        )
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::remaining_object_bytes;
+
+    #[test]
+    fn rejects_type_tree_larger_than_serialized_object() {
+        assert_eq!(remaining_object_bytes(10, 4).unwrap(), 6);
+        assert_eq!(remaining_object_bytes(10, 10).unwrap(), 0);
+        assert!(remaining_object_bytes(10, 11).is_err());
     }
 }

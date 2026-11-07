@@ -30,9 +30,9 @@
 		"hide": "on_success"
 	},
 	{
-		"label": "pnpm: deadcode",
+		"label": "pnpm: check:dead-code",
 		"command": "pnpm",
-		"args": ["run", "deadcode"],
+		"args": ["run", "check:dead-code"],
 		"hide": "on_success"
 	},
 	{

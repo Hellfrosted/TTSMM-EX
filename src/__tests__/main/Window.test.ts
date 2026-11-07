@@ -5,12 +5,18 @@ import {
 	ensureSteamAppIdFile,
 	forwardRendererConsoleMessage,
 	installDevtoolsExtension,
+	isAllowedDevelopmentReload,
 	MAIN_WINDOW_DEFAULT_BOUNDS,
 	resolveSteamAppIdFilePath
 } from '../../main/window';
 import { createTempDir } from './test-utils';
 
 describe('window helpers', () => {
+	it('allows only same-document development reloads', () => {
+		expect(isAllowedDevelopmentReload(true, 'http://localhost:5173/', 'http://localhost:5173/')).toBe(true);
+		expect(isAllowedDevelopmentReload(true, 'http://localhost:5173/', 'https://example.com/')).toBe(false);
+		expect(isAllowedDevelopmentReload(false, 'http://localhost:5173/', 'http://localhost:5173/')).toBe(false);
+	});
 	let tempDir: string;
 
 	beforeEach(() => {

@@ -60,6 +60,10 @@ export function cloneModOverride(override: ModDataOverride | undefined): ModData
 }
 
 export function getModDependencyDescriptor(graph: ModDependencyGraph, mod: ModData): ModDescriptor | undefined {
+	const registeredKey = graph.descriptorKeyByUid.get(mod.uid);
+	if (registeredKey) {
+		return graph.descriptorByKey.get(registeredKey);
+	}
 	let myDescriptor: ModDescriptor | undefined;
 	const id = getModDataId(mod);
 	if (id) {

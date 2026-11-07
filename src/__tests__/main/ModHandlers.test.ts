@@ -12,6 +12,7 @@ import {
 import { getModDetailsFromPath } from '../../main/mod-fetcher';
 import Steamworks from '../../main/steamworks';
 import { EResult, UGCItemState } from '../../main/steamworks/types';
+import { runSteamworksAction } from '../../main/workshop-actions';
 import { ModType } from '../../model';
 import { ValidChannel } from '../../shared/ipc';
 
@@ -40,6 +41,40 @@ describe('mod handlers', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.clearAllMocks();
+	});
+
+	it('ends a Steamworks action when the native callback never arrives', async () => {
+		vi.useFakeTimers();
+		try {
+			const result = Effect.runPromise(runSteamworksAction(undefined, 'failed', () => {}, { error: vi.fn() }));
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await result).toBe(false);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('blocks conflicting retries after timeout until the native callback arrives', async () => {
+		vi.useFakeTimers();
+		let complete: ((result: EResult) => void) | undefined;
+		try {
+			const start = vi.fn((success: (result: EResult) => void) => {
+				complete = success;
+			});
+			const logger = { error: vi.fn() };
+			const first = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'));
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await first).toBe(false);
+			expect(await Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'))).toBe(false);
+			expect(start).toHaveBeenCalledTimes(1);
+			complete?.(EResult.k_EResultOK);
+			const next = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'));
+			complete?.(EResult.k_EResultOK);
+			expect(await next).toBe(true);
+		} finally {
+			complete?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
 	});
 
 	it('downloads mods through ugcDownloadItem', async () => {
@@ -271,6 +306,135 @@ describe('mod handlers', () => {
 
 		expect(Steamworks.ugcUnsubscribe).toHaveBeenCalledWith(BigInt(42), expect.any(Function), expect.any(Function));
 		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:42', { subscribed: false });
+	});
+
+	it('updates subscription state when a timed-out context-menu action succeeds later', async () => {
+		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
+		try {
+			vi.spyOn(Steamworks, 'ugcSubscribe').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(UGCItemState.Subscribed);
+			vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+			const send = vi.fn();
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:125', type: ModType.WORKSHOP, workshopID: 125n, id: 'test', name: 'Test', subscribed: false },
+				{ getWebContents: () => ({ send }) as never }
+			);
+			getSubmenuItems(template.find((item) => item.label === 'Steam Subscription'))[0].click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(send).not.toHaveBeenCalled();
+			finish?.(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:125', { subscribed: true });
+		} finally {
+			finish?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
+	});
+
+	it('keeps the action guarded until late-success reconciliation finishes', async () => {
+		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
+		let finishRefresh: (() => void) | undefined;
+		try {
+			const start = vi.fn((success: (result: EResult) => void) => {
+				finish = success;
+			});
+			const reconcile = vi.fn(
+				() =>
+					new Promise<void>((resolve) => {
+						finishRefresh = resolve;
+					})
+			);
+			const first = Effect.runPromise(
+				runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test', 30_000, reconcile)
+			);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await first).toBe(false);
+			finish?.(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(reconcile).toHaveBeenCalledOnce();
+			expect(await Effect.runPromise(runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test'))).toBe(false);
+			expect(start).toHaveBeenCalledTimes(1);
+			finishRefresh?.();
+			await vi.advanceTimersByTimeAsync(0);
+			const next = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, { error: vi.fn() }, 'reconcile-test'));
+			finish?.(EResult.k_EResultOK);
+			expect(await next).toBe(true);
+		} finally {
+			finishRefresh?.();
+			finish?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
+	});
+
+	it('blocks context-menu actions while a timed-out IPC action remains pending', async () => {
+		vi.useFakeTimers();
+		let finish: ((result: EResult) => void) | undefined;
+		try {
+			vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			const subscribe = vi.spyOn(Steamworks, 'ugcSubscribe').mockImplementation(() => {});
+			const pending = createDownloadModHandler(Steamworks)(undefined, 42n);
+			await vi.advanceTimersByTimeAsync(30 * 60_000);
+			expect(await pending).toBe(false);
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:42', type: ModType.WORKSHOP, workshopID: 42n, id: 'test', name: 'Test', subscribed: false },
+				{ getWebContents: () => null }
+			);
+			const action = getSubmenuItems(template.find((item) => item.label === 'Steam Subscription'))[0];
+			action.click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(subscribe).not.toHaveBeenCalled();
+		} finally {
+			finish?.(EResult.k_EResultOK);
+			vi.useRealTimers();
+		}
+	});
+
+	it('allows a download to complete after the short action timeout', async () => {
+		vi.useFakeTimers();
+		try {
+			let finish!: (result: EResult) => void;
+			const steamworks = {
+				ugcDownloadItem: vi.fn((_id: bigint, success: (result: EResult) => void) => {
+					finish = success;
+				})
+			};
+			const result = createDownloadModHandler(steamworks as never)(undefined, 123n);
+			await vi.advanceTimersByTimeAsync(31_000);
+			finish(EResult.k_EResultOK);
+			expect(await result).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('allows a context-menu update to complete after the short action timeout', async () => {
+		vi.useFakeTimers();
+		try {
+			let finish!: (result: EResult) => void;
+			vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			vi.spyOn(Steamworks, 'ugcGetItemState').mockReturnValue(0);
+			vi.spyOn(Steamworks, 'ugcGetItemInstallInfo').mockReturnValue(undefined);
+			const send = vi.fn();
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:124', type: ModType.WORKSHOP, workshopID: 124n, id: 'test', name: 'Test', needsUpdate: true },
+				{ getWebContents: () => ({ send }) as never }
+			);
+			template.find((item) => item.label === 'Update')?.click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(31_000);
+			finish(EResult.k_EResultOK);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(send).toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('rejects mod metadata requests when scanning mods fails', async () => {

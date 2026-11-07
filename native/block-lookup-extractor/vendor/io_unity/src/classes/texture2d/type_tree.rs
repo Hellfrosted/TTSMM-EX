@@ -6,12 +6,30 @@ use crate::unity_asset_view::UnityAssetViewer;
 use num_enum::TryFromPrimitive;
 use std::io::{prelude::*, SeekFrom};
 
+fn checked_texture_resource_size(size: u64) -> anyhow::Result<usize> {
+    if size > 256 * 1024 * 1024 {
+        return Err(anyhow!("texture resource exceeds size limit"));
+    }
+    Ok(usize::try_from(size)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_texture_resource_size;
+
+    #[test]
+    fn rejects_oversized_texture_resource_before_allocation() {
+        assert!(checked_texture_resource_size(256 * 1024 * 1024 + 1).is_err());
+        assert_eq!(checked_texture_resource_size(16).unwrap(), 16);
+    }
+}
+
 impl Texture2DObject for Texture2D<'_> {
     fn get_width(&self) -> anyhow::Result<u64> {
-        self.get_width().map(|i| i as u64)
+        Ok(u64::try_from(self.get_width()?)?)
     }
     fn get_height(&self) -> anyhow::Result<u64> {
-        self.get_height().map(|i| i as u64)
+        Ok(u64::try_from(self.get_height()?)?)
     }
 
     fn get_texture_format(&self) -> anyhow::Result<TextureFormat> {
@@ -32,7 +50,8 @@ impl Texture2DObject for Texture2D<'_> {
             &self.get_stream_data_path()?,
         ) {
             file.seek(SeekFrom::Start(self.get_stream_data_offset()?))?;
-            let mut data = vec![0u8; self.get_stream_data_size()? as usize];
+            let size = checked_texture_resource_size(self.get_stream_data_size()?)?;
+            let mut data = vec![0u8; size];
             file.read_exact(&mut data)?;
             return Ok(data);
         }

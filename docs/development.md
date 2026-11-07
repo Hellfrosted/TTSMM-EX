@@ -58,7 +58,7 @@ This repository assumes Steamworks is available for source builds. Steam must be
 
 The root package builds and bundles renderer code. Electron main/preload builds externalize dependencies that are listed in `release/app/package.json`, so every production main-process runtime dependency that is not bundled must also be present in `release/app/package.json` and `release/app/pnpm-lock.yaml`.
 
-When adding an Effect package for Electron main-process runtime code, keep the beta package set aligned with the root `effect` version. The current `@effect/platform-node` runtime entry uses `4.0.0-beta.74`; `release/app/pnpm-workspace.yaml` pins `@effect/platform-node-shared` to the same beta set through pnpm overrides.
+Keep the `effect` version used by Electron main-process runtime code aligned with the root package and both lockfiles.
 
 Windows packaging:
 
@@ -127,14 +127,14 @@ The pacman target needs `bsdtar`.
 - `pnpm run typecheck`: TypeScript build check
 - `pnpm run test`: Vitest
 - `pnpm run build`: build main, preload, and renderer
-- `pnpm run validate`: lint, all Fallow checks, typecheck, tests, and build
+- `pnpm run validate`: lint, all Fallow checks, typecheck, Effect diagnostics, Electron binary check, tests, and build
 - `pnpm audit --audit-level=moderate`: dependency security audit
 - `pnpm outdated --long`: dependency freshness report; apply only patch/minor updates during routine maintenance
 - `pnpm run setup:steamworks`: stage the SDK and rebuild native dependencies
 - `pnpm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `pnpm run smoke:ui`: build, then run the GUI smoke test with isolated user data
 - `pnpm run smoke:ui:built`: GUI smoke test against the existing `release/app/dist` build
-- `pnpm run smoke:ui:packaged`: packaged-app GUI smoke test with isolated user data
+- `pnpm run smoke:ui:packaged`: GUI smoke test of the packaged executable with isolated user data
 - `pnpm run rebuild:electron`: rebuild native Electron dependencies in `release/app`
 - `pnpm run package`: package for the current platform default target
 - `pnpm run package:linux`: build both Linux package formats
@@ -147,9 +147,7 @@ The pacman target needs `bsdtar`.
 
 ## Local Push Gate
 
-Pushing to `main` runs the Husky pre-push hook, which runs `pnpm run validate` with `CI=true`. This catches the same Biome, Fallow, typecheck, test, and build failures locally before GitHub Actions spends a runner on them.
-
-For emergency pushes only, set `TTSMM_SKIP_PRE_PUSH=1` or use Git's `--no-verify` flag. If either bypass is used, run `pnpm run validate` before relying on the pushed commit.
+The Husky pre-push hook runs `pnpm run validate` with `CI=true` for pushes to `main` only when `TTSMM_PRE_PUSH_VALIDATE=1` is set. Otherwise it skips local validation. GitHub Actions runs its configured checks separately.
 
 ## App Data Overrides
 
@@ -174,7 +172,7 @@ Files of interest:
 
 ## Effect Boundaries
 
-TypeScript internals use Effect v4 beta for async composition, expected failures, schema decoding, and renderer-local state/cache ownership. Renderer ownership is formalized in [ADR 0009](adr/0009-renderer-state-and-cache-use-effect-atom.md). Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
+TypeScript internals use Effect v4 for async composition, expected failures, schema decoding, and renderer-local state/cache ownership. Renderer ownership is formalized in [ADR 0009](adr/0009-renderer-state-and-cache-use-effect-atom.md). Keep `Effect.runPromise` and Promise-returning functions at framework boundaries only:
 
 - Electron IPC, preload, contextBridge, and the shared renderer API contract.
 - React event handlers, hooks, React Hook Form resolvers, and dynamic component imports. Renderer programs that touch Electron run through `runRenderer(...)`; React still receives Promises at its callback boundary.
@@ -183,7 +181,6 @@ TypeScript internals use Effect v4 beta for async composition, expected failures
 - Native or callback adapters that must expose a Promise or callback to an external lifecycle, including Steam UGC callbacks, Steam persona event callbacks that resume Effect state with `Effect.runFork`, process/window lifecycle hooks, dynamic imports, and low-level test adapters.
 - Renderer config, collection, mod metadata, game-running, Block Lookup cache, and local table/app state are owned by Effect Atom refs. Do not reintroduce React Query or Zustand as parallel owners.
 - Internal concurrency owners should stay in Effect services or primitives. Current owners include validation fibers, the Steam persona cache service, Atom refs, and the hook-local collection write semaphore.
-- `@effect/platform-node` belongs to Electron main-process and local script code only. Renderer code must not import it unless a future boundary proof explicitly expands that rule.
 - `@effect/opentelemetry` is deferred by [ADR 0008](adr/0008-defer-effect-opentelemetry.md). Any future telemetry must be local-only by default, with no network exporter or off-device data flow unless a later decision designs an explicit user-controlled export path.
 
 Remaining Promise/Effect ledger:

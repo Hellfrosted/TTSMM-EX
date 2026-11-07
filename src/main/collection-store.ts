@@ -36,7 +36,30 @@ function resolveCollectionFilePath(userDataPath: string, collectionName: string)
 		return null;
 	}
 
+	if (!fs.existsSync(filepath)) {
+		try {
+			const existingFile = fs.readdirSync(collectionsDirectory, { withFileTypes: true }).find((entry) => {
+				const parsed = path.parse(entry.name);
+				return entry.isFile() && parsed.name === collectionName && parsed.ext.toLowerCase() === '.json';
+			});
+			if (existingFile) {
+				return path.join(collectionsDirectory, existingFile.name);
+			}
+		} catch (error) {
+			log.warn(`Failed to inspect collection directory ${collectionsDirectory}`);
+			log.warn(error);
+			throw error;
+		}
+	}
+
 	return filepath;
+}
+
+function resolveCollectionFilePathEffect(userDataPath: string, name: string) {
+	return Effect.try({
+		try: () => resolveCollectionFilePath(userDataPath, name),
+		catch: (error) => toEffectOperationError('inspect collection directory', error)
+	});
 }
 
 export function refersToSameCollectionPath(oldpath: string, newpath: string): boolean {
@@ -61,7 +84,7 @@ export const readCollectionFileEffect = Effect.fnUntraced(function* (
 	userDataPath: string,
 	collection: string
 ): Effect.fn.Return<ModCollection | null, Error> {
-	const collectionPath = resolveCollectionFilePath(userDataPath, collection);
+	const collectionPath = yield* resolveCollectionFilePathEffect(userDataPath, collection);
 	if (!collectionPath) {
 		return null;
 	}
@@ -96,16 +119,9 @@ export function readCollectionFile(userDataPath: string, collection: string): Mo
 	return Effect.runSync(readCollectionFileEffect(userDataPath, collection));
 }
 
-export const listCollectionsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<string[]> {
-	const collectionsDirectory = yield* ensureCollectionsDirectoryEffect(userDataPath).pipe(
-		Effect.catch(() => Effect.succeed(ensureCollectionsDirectory(userDataPath)))
-	);
-	const dirContents = yield* listDirectoryEffect(collectionsDirectory).pipe(
-		Effect.catch((error) => {
-			log.error(error.cause);
-			return Effect.succeed([]);
-		})
-	);
+export const listCollectionsEffect = Effect.fnUntraced(function* (userDataPath: string): Effect.fn.Return<string[], Error> {
+	const collectionsDirectory = yield* ensureCollectionsDirectoryEffect(userDataPath);
+	const dirContents = yield* listDirectoryEffect(collectionsDirectory);
 	return dirContents.flatMap((entry) => {
 		if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.json') {
 			return [];
@@ -123,7 +139,7 @@ export const updateCollectionFileEffect = Effect.fnUntraced(function* (
 	userDataPath: string,
 	collection: ModCollection
 ): Effect.fn.Return<boolean> {
-	const filepath = resolveCollectionFilePath(userDataPath, collection.name);
+	const filepath = yield* resolveCollectionFilePathEffect(userDataPath, collection.name).pipe(Effect.catch(() => Effect.succeed(null)));
 	if (!filepath) {
 		return false;
 	}
@@ -146,8 +162,8 @@ export const renameCollectionFileEffect = Effect.fnUntraced(function* (
 	collection: ModCollection,
 	newName: string
 ): Effect.fn.Return<boolean> {
-	const oldpath = resolveCollectionFilePath(userDataPath, collection.name);
-	const newpath = resolveCollectionFilePath(userDataPath, newName);
+	const oldpath = yield* resolveCollectionFilePathEffect(userDataPath, collection.name).pipe(Effect.catch(() => Effect.succeed(null)));
+	const newpath = yield* resolveCollectionFilePathEffect(userDataPath, newName).pipe(Effect.catch(() => Effect.succeed(null)));
 	if (!oldpath || !newpath) {
 		return false;
 	}
@@ -207,7 +223,7 @@ export const deleteCollectionFileEffect = Effect.fnUntraced(function* (
 	userDataPath: string,
 	collection: string
 ): Effect.fn.Return<boolean> {
-	const filepath = resolveCollectionFilePath(userDataPath, collection);
+	const filepath = yield* resolveCollectionFilePathEffect(userDataPath, collection).pipe(Effect.catch(() => Effect.succeed(null)));
 	if (!filepath) {
 		return false;
 	}

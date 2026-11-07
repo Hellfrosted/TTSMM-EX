@@ -9,6 +9,7 @@ export type CollectionLifecycleFailureCode =
 	| 'dirty-collection-write-failed'
 	| 'collection-write-failed'
 	| 'collection-delete-failed'
+	| 'collection-read-failed'
 	| 'config-write-failed'
 	| 'rollback-failed';
 

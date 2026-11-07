@@ -61,7 +61,7 @@ type BlockLookupWorkspaceSessionEvent =
 	| { type: 'search-finished'; requestId: number }
 	| { type: 'search-started'; requestId: number }
 	| { type: 'selected-filter-mods-changed'; selectedMods: string[] }
-	| { type: 'settings-saved'; settings: BlockLookupSettings }
+	| { type: 'settings-saved'; settings: BlockLookupSettings; requested?: BlockLookupSettings }
 	| { type: 'selection-all-requested'; orderedRowKeys: string[] }
 	| { type: 'selection-copy-order-changed'; orderedRowKeys: string[] }
 	| { type: 'selection-row-requested'; rowKey: string; orderedRowKeys: string[]; range: boolean; toggle: boolean }
@@ -90,6 +90,18 @@ export function createBlockLookupWorkspaceSessionState(): BlockLookupWorkspaceSe
 		settings: { workshopRoot: '', renderedPreviewsEnabled: false },
 		stats: null,
 		workshopRoot: ''
+	};
+}
+
+function applySavedSettings(state: BlockLookupWorkspaceSessionState, settings: BlockLookupSettings, requested?: BlockLookupSettings) {
+	return {
+		...state,
+		...createBlockLookupSettingsSaveState(settings, state.stats),
+		workshopRoot: requested && state.workshopRoot !== requested.workshopRoot ? state.workshopRoot : settings.workshopRoot,
+		renderedPreviewsEnabled:
+			requested && state.renderedPreviewsEnabled !== requested.renderedPreviewsEnabled
+				? state.renderedPreviewsEnabled
+				: settings.renderedPreviewsEnabled
 	};
 }
 
@@ -217,10 +229,7 @@ export function reduceBlockLookupWorkspaceSession(
 				...createBlockLookupSelectionState(state, event.rowKey ? [event.rowKey] : [], event.rowKey, event.rowKey, state.copyRowKeys)
 			};
 		case 'settings-saved':
-			return {
-				...state,
-				...createBlockLookupSettingsSaveState(event.settings, state.stats)
-			};
+			return applySavedSettings(state, event.settings, event.requested);
 		case 'rendered-previews-enabled-changed':
 			return {
 				...state,

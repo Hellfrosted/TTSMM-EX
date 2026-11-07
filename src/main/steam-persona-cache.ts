@@ -39,10 +39,10 @@ function createSteamPersonaCache(steamworks: SteamPersonaApi) {
 		const services = yield* Effect.context<never>();
 		const runFork = Effect.runForkWith(services);
 
-		const resolveLookup = (steamID: string, resolvedName: string) =>
+		const resolveLookup = (steamID: string, resolvedName: string, expectedLookup?: Deferred.Deferred<string>) =>
 			Ref.modify(pendingLookups, (currentLookups) => {
 				const pendingLookup = currentLookups.get(steamID);
-				if (!pendingLookup) {
+				if (!pendingLookup || (expectedLookup && pendingLookup !== expectedLookup)) {
 					return [undefined, currentLookups] as const;
 				}
 				const nextLookups = new Map(currentLookups);
@@ -89,17 +89,17 @@ function createSteamPersonaCache(steamworks: SteamPersonaApi) {
 
 			if (lookup.isNew) {
 				yield* Effect.sleep(`${timeoutMs} millis`).pipe(
-					Effect.andThen(resolveLookup(steamID, steamID)),
+					Effect.andThen(resolveLookup(steamID, steamID, lookup.deferred)),
 					Effect.forkDetach({ startImmediately: true })
 				);
 				yield* Effect.sync(() => {
 					try {
 						const requestStarted = steamworks.requestUserInformation(steamID, true);
 						if (!requestStarted) {
-							runFork(resolveLookup(steamID, tryGetPersonaName(steamworks, steamID) || steamID));
+							runFork(resolveLookup(steamID, tryGetPersonaName(steamworks, steamID) || steamID, lookup.deferred));
 						}
 					} catch {
-						runFork(resolveLookup(steamID, steamID));
+						runFork(resolveLookup(steamID, steamID, lookup.deferred));
 					}
 				});
 			}

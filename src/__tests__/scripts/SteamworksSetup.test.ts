@@ -160,6 +160,19 @@ afterEach(() => {
 });
 
 describe('steamworks setup scripts', () => {
+	it('does not delete a configured SDK inside managed dependencies', async () => {
+		const { paths } = createRepoLayout();
+		const managedSdk = path.join(paths.releaseAppNodeModulesPath, 'greenworks', 'deps', 'steamworks_sdk');
+		createLinuxSdk(managedSdk);
+		setProcessTarget('linux', 'x64');
+		const execSync = vi.fn();
+		const { setupSteamworksNativeDeps } = await importSteamworksSetup(paths, execSync);
+
+		expect(() => setupSteamworksNativeDeps(managedSdk)).toThrow('outside the managed');
+		expect(fs.existsSync(path.join(managedSdk, 'public', 'steam', 'steam_api.h'))).toBe(true);
+		expect(execSync).not.toHaveBeenCalled();
+	});
+
 	it('uses the Linux setup path without invoking PowerShell and stages greenworks before rebuild', async () => {
 		const { sdkPath, paths } = createRepoLayout();
 		const greenworksPath = path.join(paths.releaseAppNodeModulesPath, 'greenworks');

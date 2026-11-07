@@ -19,7 +19,12 @@ export class ModInventoryProgress {
 		this.loadedMods += size;
 		const total = (this.localMods || 0) + (this.workshopMods || 0);
 		log.silly(`Loaded ${size} new mods. Old total: ${current}, Local: ${this.localMods}, Workshop: ${this.workshopMods}`);
-		this.progressSender.send(ValidChannel.PROGRESS_CHANGE, ProgressTypes.MOD_LOAD, (current + size) / total, 'Loading mod details');
+		this.progressSender.send(
+			ValidChannel.PROGRESS_CHANGE,
+			ProgressTypes.MOD_LOAD,
+			total > 0 ? Math.min(1, this.loadedMods / total) : 0,
+			'Loading mod details'
+		);
 	}
 
 	finish() {

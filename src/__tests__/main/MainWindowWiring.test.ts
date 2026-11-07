@@ -17,6 +17,7 @@ const electronMock = vi.hoisted(() => {
 		});
 		webContents = {
 			on: vi.fn(),
+			getURL: vi.fn(() => 'app://renderer/index.html'),
 			setWindowOpenHandler: vi.fn()
 		};
 
@@ -130,5 +131,12 @@ describe('main window wiring', () => {
 		const windowOpenHandler = vi.mocked(electronMock.instances[0].webContents.setWindowOpenHandler).mock.calls[0]?.[0];
 		expect(windowOpenHandler?.({ url: 'https://example.com' })).toEqual({ action: 'deny' });
 		expect(externalLinksMock.openExternalUrl).toHaveBeenCalledWith('https://example.com');
+		const navigateHandler = vi
+			.mocked(electronMock.instances[0].webContents.on)
+			.mock.calls.find(([event]) => event === 'will-navigate')?.[1];
+		const preventDefault = vi.fn();
+		expect(navigateHandler).toBeDefined();
+		navigateHandler?.({ preventDefault });
+		expect(preventDefault).toHaveBeenCalledOnce();
 	});
 });

@@ -36,7 +36,10 @@ interface BlockpediaPreviewFetchResponse {
 	text(): Promise<string>;
 }
 
-type BlockpediaPreviewFetch = (url: string) => Promise<BlockpediaPreviewFetchResponse>;
+type BlockpediaPreviewFetch = (
+	url: string,
+	options?: { signal: AbortSignal; redirect: 'error' }
+) => Promise<BlockpediaPreviewFetchResponse>;
 
 interface LoadBlockpediaPreviewOptions {
 	fetchImpl?: BlockpediaPreviewFetch;
@@ -88,6 +91,15 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseBlockpediaImageUrl(imageHtml: string): URL | undefined {
+	const imageUrl = getAttribute(imageHtml, 'data-original') ?? getAttribute(imageHtml, 'src');
+	if (!imageUrl || !URL.canParse(imageUrl, BLOCKPEDIA_URL)) return undefined;
+	const parsed = new URL(imageUrl, BLOCKPEDIA_URL);
+	return parsed.protocol === 'https:' && parsed.hostname === 'terratechgame.com' && /\/assets\/images\/blockpedia\//.test(parsed.pathname)
+		? parsed
+		: undefined;
+}
+
 export function parseBlockpediaPreviewEntries(html: string): BlockpediaPreviewEntry[] {
 	const entries: BlockpediaPreviewEntry[] = [];
 	const rowRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -99,12 +111,8 @@ export function parseBlockpediaPreviewEntries(html: string): BlockpediaPreviewEn
 		}
 
 		const imageHtml = cells[0];
-		const imageUrl = getAttribute(imageHtml, 'data-original') ?? getAttribute(imageHtml, 'src');
-		if (!imageUrl) {
-			continue;
-		}
-		const parsedImageUrl = new URL(imageUrl, BLOCKPEDIA_URL);
-		if (parsedImageUrl.hostname !== 'terratechgame.com' || !/\/assets\/images\/blockpedia\//.test(parsedImageUrl.pathname)) {
+		const parsedImageUrl = parseBlockpediaImageUrl(imageHtml);
+		if (!parsedImageUrl) {
 			continue;
 		}
 
@@ -173,7 +181,7 @@ const downloadBlockpediaPreviewImages = Effect.fnUntraced(function* (
 		const cachePath = path.join(previewCacheDir, entry.cacheRelativePath);
 		if (!fs.existsSync(cachePath)) {
 			const imageResponse = yield* Effect.tryPromise({
-				try: () => fetchImpl(entry.imageUrl),
+				try: () => fetchImpl(entry.imageUrl, { signal: AbortSignal.timeout(15_000), redirect: 'error' }),
 				catch: (error) => toEffectOperationError('fetch Blockpedia preview image', error)
 			}).pipe(
 				Effect.catch((error) => {
@@ -245,7 +253,7 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 	}
 
 	const pageResponse = yield* Effect.tryPromise({
-		try: () => fetchImpl(BLOCKPEDIA_URL),
+		try: () => fetchImpl(BLOCKPEDIA_URL, { signal: AbortSignal.timeout(15_000), redirect: 'error' }),
 		catch: (error) => toEffectOperationError('fetch Blockpedia page', error)
 	}).pipe(
 		Effect.catch((error) => {
@@ -277,6 +285,9 @@ export const loadBlockpediaVanillaPreviewAssets = Effect.fnUntraced(function* (
 		Effect.flatMap((entries) =>
 			downloadBlockpediaPreviewImages(previewCacheDir, entries, fetchImpl).pipe(
 				Effect.flatMap((cachedEntries) => {
+					if (entries.length === 0 || cachedEntries.length !== entries.length) {
+						return Effect.succeed(toPreviewAssets(cachedEntries));
+					}
 					return Effect.try({
 						try: () => {
 							const manifest: BlockpediaPreviewManifest = {

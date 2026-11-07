@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import fs from 'fs';
 import path from 'path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createActiveCollectionTransition,
 	deleteActiveCollectionTransition,
@@ -18,6 +18,20 @@ describe('active collection transition', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-active-collection-transition-test-');
+	});
+
+	it('does not overwrite the default collection when listing fails', () => {
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:keep'] });
+		const listing = vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+			throw new Error('listing failed');
+		});
+		try {
+			const result = Effect.runSync(resolveStartupActiveCollectionTransition(tempDir, { config: createTestAppConfig() }));
+			expect(result).toMatchObject({ ok: false, code: 'collection-read-failed' });
+		} finally {
+			listing.mockRestore();
+		}
+		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:keep'] });
 	});
 
 	it('creates and activates a collection while preserving a dirty active collection draft', () => {
@@ -58,8 +72,7 @@ describe('active collection transition', () => {
 		});
 		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
 		const configPath = path.join(tempDir, 'config.json');
-		expect(fs.statSync(configPath).isFile()).toBe(true);
-		expect(readConfigFile(configPath, true)?.activeCollection).toBe('default');
+		expect(fs.statSync(configPath).isDirectory()).toBe(true);
 	});
 
 	it('switches active collections after saving dirty edits', () => {
@@ -79,6 +92,42 @@ describe('active collection transition', () => {
 		if (result.ok) {
 			expect(result.activeCollection).toEqual({ name: 'alt', mods: ['local:alt'] });
 			expect(result.config.activeCollection).toBe('alt');
+		}
+	});
+
+	it('does not change the active selection when the final collection read fails', () => {
+		writeTestCollection(tempDir, { name: 'alt', mods: [] });
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(configPath, 'original');
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+			throw new Error('access denied');
+		});
+		try {
+			const result = Effect.runSync(
+				switchActiveCollectionTransition(tempDir, { config: createTestAppConfig({ activeCollection: 'default' }), name: 'alt' })
+			);
+			expect(result).toMatchObject({ ok: false, code: 'collection-read-failed', message: 'Failed to read saved collections' });
+			expect(fs.readFileSync(configPath, 'utf8')).toBe('original');
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('rolls back a new collection when the final collection read fails', () => {
+		const originalReaddir = fs.readdirSync;
+		let calls = 0;
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((...args) => {
+			if (++calls > 1) throw new Error('access denied');
+			return originalReaddir(...(args as Parameters<typeof fs.readdirSync>));
+		}) as typeof fs.readdirSync);
+		try {
+			const result = Effect.runSync(
+				createActiveCollectionTransition(tempDir, { config: createTestAppConfig(), collection: { name: 'fresh', mods: [] } })
+			);
+			expect(result).toMatchObject({ ok: false, code: 'collection-read-failed' });
+			expect(fs.existsSync(path.join(tempDir, 'collections', 'fresh.json'))).toBe(false);
+		} finally {
+			spy.mockRestore();
 		}
 	});
 
@@ -132,8 +181,7 @@ describe('active collection transition', () => {
 		expect(readCollectionFile(tempDir, 'renamed')).toEqual({ name: 'renamed', mods: ['local:old'] });
 		expect(readCollectionFile(tempDir, 'rolled-back')).toBeNull();
 		const configPath = path.join(tempDir, 'config.json');
-		expect(fs.statSync(configPath).isFile()).toBe(true);
-		expect(readConfigFile(configPath, true)?.activeCollection).toBe('renamed');
+		expect(fs.statSync(configPath).isDirectory()).toBe(true);
 	});
 
 	it('deletes an active collection and activates the replacement or fallback', () => {
@@ -202,8 +250,7 @@ describe('active collection transition', () => {
 			code: 'collection-write-failed'
 		});
 		expect(readCollectionFile(tempDir, 'active')).toEqual(activeCollection);
-		expect(fs.existsSync(path.join(tempDir, 'collections', 'default.json'))).toBe(false);
-		expect(readCollectionFile(tempDir, 'default')).toBeNull();
+		expect(fs.statSync(path.join(tempDir, 'collections', 'default.json')).isDirectory()).toBe(true);
 	});
 
 	it('resolves startup repair through the active collection transition', () => {

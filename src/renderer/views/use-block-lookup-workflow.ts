@@ -4,13 +4,13 @@ import api from 'renderer/Api';
 import {
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
+	getBlockLookupBootstrapCacheData,
 	invalidateBlockLookupSearchQueries,
 	setBlockLookupBootstrapQueryData,
 	useBuildBlockLookupIndexMutation
 } from 'renderer/block-lookup-cache';
 import {
 	collectBlockLookupModSources,
-	createBlockLookupBootstrapCacheProjection,
 	createBlockLookupBuildRequest,
 	createBlockLookupSearchRequest,
 	createBlockLookupWorkspaceSessionState,
@@ -49,6 +49,21 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const { config: appConfig, mods } = appState;
 	const { gameExec } = appConfig;
 	const searchRequestIdRef = useRef(0);
+	const settingsWriteQueue = useRef(Promise.resolve());
+	const savedSettingsRef = useRef(settings);
+	const previewToggleRevision = useRef(0);
+	const saveSettings = useCallback((requested: typeof settings) => {
+		const result = settingsWriteQueue.current.then(async () => {
+			const saved = await api.saveBlockLookupSettings(requested);
+			savedSettingsRef.current = saved;
+			return saved;
+		});
+		settingsWriteQueue.current = result.then(
+			() => undefined,
+			() => undefined
+		);
+		return result;
+	}, []);
 	const skippedInitialSearchEffectRef = useRef(false);
 	const queryRef = useRef(query);
 	useLayoutEffect(() => {
@@ -105,16 +120,22 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					return;
 				}
 				dispatchSessionEvent({ type: 'bootstrap-loaded', settings: nextSettings, stats: nextStats });
+				savedSettingsRef.current = nextSettings;
 				await refreshResults(queryRef.current);
 			} catch (error) {
+				if (cancelled) return;
 				api.logger.error(error);
+				openNotification(
+					{ message: 'Could not load block lookup', description: formatErrorMessage(error), placement: 'topRight', duration: null },
+					'error'
+				);
 			}
 		})();
 
 		return () => {
 			cancelled = true;
 		};
-	}, [refreshResults]);
+	}, [openNotification, refreshResults]);
 
 	useEffect(() => {
 		if (!skippedInitialSearchEffectRef.current) {
@@ -155,10 +176,16 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const handleSaveSettings = useCallback(
 		async (notify = true) => {
 			try {
-				const nextSettings = await api.saveBlockLookupSettings({ workshopRoot, renderedPreviewsEnabled });
-				const settingsState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'settings-saved', settings: nextSettings });
-				dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
+				const requested = { workshopRoot, renderedPreviewsEnabled };
+				const nextSettings = await saveSettings(requested);
+				const settingsState = reduceBlockLookupWorkspaceSession(sessionState, {
+					type: 'settings-saved',
+					settings: nextSettings,
+					requested
+				});
+				dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings, requested });
+				const cached = getBlockLookupBootstrapCacheData();
+				setBlockLookupBootstrapQueryData([nextSettings, cached ? cached[1] : settingsState.stats]);
 				if (notify) {
 					openNotification(
 						{
@@ -183,7 +210,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				);
 			}
 		},
-		[openNotification, renderedPreviewsEnabled, sessionState, workshopRoot]
+		[openNotification, renderedPreviewsEnabled, saveSettings, sessionState, workshopRoot]
 	);
 
 	useEffect(() => {
@@ -199,11 +226,19 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	}, [handleSaveSettings, settings.workshopRoot, workshopRoot]);
 
 	const handleBrowseWorkshopRoot = useCallback(async () => {
-		const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
-		if (selectedPath) {
-			dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: selectedPath });
+		try {
+			const selectedPath = await api.selectPath(true, 'Select TerraTech workshop content folder');
+			if (selectedPath) {
+				dispatchSessionEvent({ type: 'workshop-root-changed', workshopRoot: selectedPath });
+			}
+		} catch (error) {
+			api.logger.error(error);
+			openNotification(
+				{ message: 'Could not open the file picker', description: formatErrorMessage(error), placement: 'topRight', duration: 3 },
+				'error'
+			);
 		}
-	}, []);
+	}, [openNotification]);
 
 	const handleAutoDetectWorkshopRoot = useCallback(
 		async (options?: { notifyMissing?: boolean }) => {
@@ -258,9 +293,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					forceRebuild,
 					modSources: modSources.length
 				});
-				const buildState = reduceBlockLookupWorkspaceSession(sessionState, { type: 'build-index-completed', forceRebuild, result });
 				dispatchSessionEvent({ type: 'build-index-completed', forceRebuild, result });
-				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(buildState));
+				setBlockLookupBootstrapQueryData([getBlockLookupBootstrapCacheData()?.[0] ?? savedSettingsRef.current, result.stats]);
 				await invalidateBlockLookupSearchQueries();
 				await refreshResults(query);
 				openNotification(
@@ -290,7 +324,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				dispatchSessionEvent({ type: 'build-index-finished' });
 			}
 		},
-		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults, sessionState]
+		[buildIndexMutation, buildRequest, modSources.length, openNotification, query, refreshResults]
 	);
 
 	const selectAllVisibleRows = useCallback((orderedRowKeys: string[]) => {
@@ -319,30 +353,36 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 
 	const setRenderedPreviewsEnabled = useCallback(
 		(nextRenderedPreviewsEnabled: boolean) => {
-			const previousRenderedPreviewsEnabled = renderedPreviewsEnabled;
+			const revision = ++previewToggleRevision.current;
 			dispatchSessionEvent({ type: 'rendered-previews-enabled-changed', renderedPreviewsEnabled: nextRenderedPreviewsEnabled });
 			void (async () => {
 				try {
-					const nextSettings = await api.saveBlockLookupSettings({
+					const requested = {
 						workshopRoot,
 						renderedPreviewsEnabled: nextRenderedPreviewsEnabled
-					});
+					};
+					const nextSettings = await saveSettings(requested);
 					const optimisticState = {
 						...sessionState,
 						renderedPreviewsEnabled: nextRenderedPreviewsEnabled
 					};
 					const settingsState = reduceBlockLookupWorkspaceSession(optimisticState, {
 						type: 'settings-saved',
-						settings: nextSettings
+						settings: nextSettings,
+						requested
 					});
-					dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings });
-					setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
+					dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings, requested });
+					const cached = getBlockLookupBootstrapCacheData();
+					setBlockLookupBootstrapQueryData([nextSettings, cached ? cached[1] : settingsState.stats]);
 				} catch (error) {
 					api.logger.error(error);
-					dispatchSessionEvent({
-						type: 'rendered-previews-enabled-changed',
-						renderedPreviewsEnabled: previousRenderedPreviewsEnabled
-					});
+					await settingsWriteQueue.current;
+					if (previewToggleRevision.current === revision) {
+						dispatchSessionEvent({
+							type: 'rendered-previews-enabled-changed',
+							renderedPreviewsEnabled: savedSettingsRef.current.renderedPreviewsEnabled
+						});
+					}
 					openNotification(
 						{
 							message: 'Could not save rendered preview setting',
@@ -355,7 +395,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 				}
 			})();
 		},
-		[openNotification, renderedPreviewsEnabled, sessionState, workshopRoot]
+		[openNotification, saveSettings, sessionState, workshopRoot]
 	);
 
 	const syncSelectionCopyOrder = useCallback((orderedRowKeys: string[]) => {

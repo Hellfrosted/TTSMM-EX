@@ -76,6 +76,44 @@ function getChangedBlockLookupSources(
 	return indexSources.flatMap((task) => (task.reusedRecords ? [] : [task.source]));
 }
 
+function collectIndexResults(
+	tasks: ReturnType<typeof createBlockLookupIndexPlan>['tasks'],
+	recordsBySourcePath: Map<string, BlockLookupRecord[]>,
+	onProgress?: BlockLookupIndexProgressCallback
+) {
+	const nextRecords: BlockLookupRecord[] = [];
+	const nextSources: BlockLookupIndexSource[] = [];
+	const changedRecords: BlockLookupRecord[] = [];
+	let scanned = 0;
+	let skipped = 0;
+	const taskCount = tasks.length;
+	for (const [taskIndex, task] of tasks.entries()) {
+		if (task.reusedRecords) {
+			skipped += 1;
+			nextSources.push(task.existingSource);
+			nextRecords.push(...task.reusedRecords);
+		} else {
+			const source = task.source;
+			const records = recordsBySourcePath.get(source.sourcePath);
+			scanned += 1;
+			if (records) {
+				nextSources.push(createBlockLookupSourceIndexRecord(source));
+				changedRecords.push(...records);
+				nextRecords.push(...records);
+			}
+		}
+		reportBlockLookupIndexProgress(
+			onProgress,
+			'finalizing',
+			taskIndex + 1,
+			Math.max(1, taskCount),
+			75 + ((taskIndex + 1) / Math.max(1, taskCount)) * 20
+		);
+	}
+
+	return { nextRecords, nextSources, changedRecords, scanned, skipped };
+}
+
 export const createBlockLookupIndexBuildPolicy = Effect.fnUntraced(function* (
 	existingIndex: PersistedBlockLookupIndex,
 	sources: readonly BlockLookupSourceRecord[],
@@ -89,11 +127,6 @@ export const createBlockLookupIndexBuildPolicy = Effect.fnUntraced(function* (
 		[...sources],
 		options.forceRebuild || existingIndex.renderedPreviewsEnabled !== renderedPreviewsEnabled
 	);
-	const nextRecords: BlockLookupRecord[] = [];
-	const nextSources: BlockLookupIndexSource[] = [];
-	const changedRecords: BlockLookupRecord[] = [];
-	let scanned = 0;
-	let skipped = 0;
 	const changedSources = getChangedBlockLookupSources(indexPlan.tasks);
 	reportBlockLookupIndexProgress(options.onProgress, 'scanning-sources', sources.length, Math.max(1, sources.length), 10, 'sources');
 	reportBlockLookupIndexProgress(options.onProgress, 'indexing-sources', 0, changedSources.length, 10, 'sources');
@@ -129,28 +162,11 @@ export const createBlockLookupIndexBuildPolicy = Effect.fnUntraced(function* (
 		);
 	}
 
-	const taskCount = indexPlan.tasks.length;
-	for (const [taskIndex, task] of indexPlan.tasks.entries()) {
-		if (task.reusedRecords) {
-			skipped += 1;
-			nextSources.push(task.existingSource);
-			nextRecords.push(...task.reusedRecords);
-		} else {
-			const source = task.source;
-			const records = indexedSources.recordsBySourcePath.get(source.sourcePath) ?? [];
-			scanned += 1;
-			nextSources.push(createBlockLookupSourceIndexRecord(source));
-			changedRecords.push(...records);
-			nextRecords.push(...records);
-		}
-		reportBlockLookupIndexProgress(
-			options.onProgress,
-			'finalizing',
-			taskIndex + 1,
-			Math.max(1, taskCount),
-			75 + ((taskIndex + 1) / Math.max(1, taskCount)) * 20
-		);
-	}
+	const { nextRecords, nextSources, changedRecords, scanned, skipped } = collectIndexResults(
+		indexPlan.tasks,
+		indexedSources.recordsBySourcePath,
+		options.onProgress
+	);
 
 	const previewCompletedRecords = renderedPreviewsEnabled
 		? yield* assignModBundleRenderedPreviewsToRecords(nextRecords, nextSources, options, extractBlockLookupBundleOutcomesImpl)

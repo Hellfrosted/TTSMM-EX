@@ -5,6 +5,13 @@ import { ModType } from '../../model/Mod';
 import { getDependencies, getDependents, getDescriptor, SessionMods, setupDescriptors } from '../../model/SessionMods';
 
 describe('session mod descriptors', () => {
+	it('resolves normalized identities for local Nuterra variants and their dependencies', () => {
+		const mod = { uid: 'local:beta', type: ModType.LOCAL, id: 'NuterraSteam (Beta)', explicitIDDependencies: ['MissingMod'] };
+		const session = new SessionMods('', [mod]);
+		setupDescriptors(session, new Map());
+		expect(getDescriptor(session, mod)?.modID).toBe('NuterraSteam');
+		expect(getDependencies(session, mod)).toEqual([expect.objectContaining({ modID: 'MissingMod' })]);
+	});
 	it.each([
 		{
 			dependencyId: 'NuterraSteam(beta)',

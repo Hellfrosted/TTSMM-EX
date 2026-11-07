@@ -93,19 +93,21 @@ function shouldSkipVanillaBlockIdentifier(value: string): boolean {
 	return isDeprecatedVanillaBlockIdentifier(value) || isReservedVanillaBlockIdentifier(value);
 }
 
+function recoverVanillaIndexFailure(sourcePath: string, error: unknown) {
+	log.warn(`Failed to index vanilla TerraTech blocks from ${sourcePath}`);
+	log.warn(error);
+	return Effect.succeed(null);
+}
+
 export const extractVanillaSourceRecords = Effect.fnUntraced(function* (
 	source: BlockLookupSourceRecord,
 	options?: BlockLookupRenderedPreviewAcquisitionOptions
-): Effect.fn.Return<BlockLookupRecord[]> {
+): Effect.fn.Return<BlockLookupRecord[] | null> {
 	const enumNames = yield* loadVanillaEnumNames(source.sourcePath).pipe(
-		Effect.catch((error) => {
-			log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
-			log.warn(error);
-			return Effect.succeed(null);
-		})
+		Effect.catch((error) => recoverVanillaIndexFailure(source.sourcePath, error))
 	);
 	if (!enumNames) {
-		return [];
+		return null;
 	}
 	const records = yield* Effect.try({
 		try: () => {
@@ -129,14 +131,8 @@ export const extractVanillaSourceRecords = Effect.fnUntraced(function* (
 			});
 		},
 		catch: (error) => toEffectOperationError(`index vanilla TerraTech blocks from ${source.sourcePath}`, error)
-	}).pipe(
-		Effect.catch((error) => {
-			log.warn(`Failed to index vanilla TerraTech blocks from ${source.sourcePath}`);
-			log.warn(error);
-			return Effect.succeed<BlockLookupRecord[]>([]);
-		})
-	);
-	if (records.length === 0) {
+	}).pipe(Effect.catch((error) => recoverVanillaIndexFailure(source.sourcePath, error)));
+	if (!records || records.length === 0) {
 		return records;
 	}
 	const previewAssets = yield* loadVanillaRenderedPreviewAssets(source.sourcePath, records, options);

@@ -84,13 +84,15 @@ const indexBlockLookupSourcesWithProgress = Effect.fnUntraced(function* (
 		);
 
 		for (const { batchRecordsBySourcePath, source, sourceIndex } of groupResults) {
-			recordsBySourcePathByIndex.set(sourceIndex, batchRecordsBySourcePath.get(source.sourcePath) ?? []);
+			const records = batchRecordsBySourcePath.get(source.sourcePath);
+			if (records) recordsBySourcePathByIndex.set(sourceIndex, records);
 		}
 	}
 
 	const recordsBySourcePath = new Map<string, BlockLookupRecord[]>();
 	for (const [sourceIndex, source] of sources.entries()) {
-		recordsBySourcePath.set(source.sourcePath, recordsBySourcePathByIndex.get(sourceIndex) ?? []);
+		const records = recordsBySourcePathByIndex.get(sourceIndex);
+		if (records) recordsBySourcePath.set(source.sourcePath, records);
 	}
 	return {
 		recordsBySourcePath
@@ -113,7 +115,8 @@ export const indexBlockLookupSources = Effect.fnUntraced(function* (
 		const batch = sources.slice(index, index + batchSize);
 		const batchRecordsBySourcePath = yield* extractRecordsFromSourcesImpl(batch, adapters.sourceExtractionAdapters, options);
 		for (const source of batch) {
-			recordsBySourcePath.set(source.sourcePath, batchRecordsBySourcePath.get(source.sourcePath) ?? []);
+			const records = batchRecordsBySourcePath.get(source.sourcePath);
+			if (records) recordsBySourcePath.set(source.sourcePath, records);
 		}
 		completed += batch.length;
 		options?.onIndexedSourceBatch?.(completed, sources.length);

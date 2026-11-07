@@ -22,6 +22,7 @@ interface MainWindowProvider {
 }
 
 type ScanModInventory = typeof scanModInventoryProgram;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 
 interface ModContextMenuRecordStore {
 	get: (uid: string) => ModData | undefined;
@@ -52,7 +53,9 @@ export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus
 				(success, failure) => {
 					steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString(),
+				DOWNLOAD_TIMEOUT_MS
 			)
 		);
 	};
@@ -68,7 +71,8 @@ export function createSubscribeModHandler(steamworks = Steamworks, getSteamStatu
 				(success, failure) => {
 					steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString()
 			)
 		);
 	};
@@ -84,7 +88,8 @@ function createUnsubscribeModHandler(steamworks = Steamworks, getSteamStatus?: (
 				(success, failure) => {
 					steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString()
 			)
 		);
 	};
@@ -139,12 +144,20 @@ function createSteamworksInitHandler(getSteamStatus: () => SteamworksStatus, try
 
 async function runContextMenuSteamworksAction(
 	failureMessage: string,
+	workshopID: bigint,
 	action: (success: (result?: unknown) => void, failure: (error: Error) => void) => void,
-	onSuccess: () => void
+	onSuccess: () => void | Promise<void>,
+	timeoutMs?: number
 ): Promise<void> {
-	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log));
+	const success = await runMain(
+		runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString(), timeoutMs, onSuccess)
+	);
 	if (success) {
-		onSuccess();
+		try {
+			await onSuccess();
+		} catch (error) {
+			log.error('Failed to refresh Workshop metadata after action', error);
+		}
 	}
 }
 
@@ -196,6 +209,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to unsubscribe from mod ${workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcUnsubscribe(workshopID, success as never, failure);
 						},
@@ -204,7 +218,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 							mainWindowProvider
 								.getWebContents()
 								?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, workshopID), { subscribed: false });
-							void getUpdatedInfo();
+							return getUpdatedInfo();
 						}
 					);
 				}
@@ -215,6 +229,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to subscribe to mod ${workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcSubscribe(workshopID, success as never, failure);
 						},
@@ -223,7 +238,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 							mainWindowProvider
 								.getWebContents()
 								?.send(ValidChannel.MOD_METADATA_UPDATE, createModUid(ModType.WORKSHOP, workshopID), { subscribed: true });
-							void getUpdatedInfo();
+							return getUpdatedInfo();
 						}
 					);
 				}
@@ -239,13 +254,15 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to update mod ${record.workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcDownloadItem(record.workshopID!, success as never, failure);
 						},
 						() => {
 							log.verbose(`Updated ${record.workshopID}`);
-							void getUpdatedInfo();
-						}
+							return getUpdatedInfo();
+						},
+						DOWNLOAD_TIMEOUT_MS
 					);
 				}
 			});

@@ -85,7 +85,7 @@ function registerMenuUpdateListeners() {
 }
 
 export function checkForStartupUpdates() {
-	autoUpdater.logger = log;
+	registerMenuUpdateListeners();
 	void autoUpdater.checkForUpdates().catch(log.error);
 }
 

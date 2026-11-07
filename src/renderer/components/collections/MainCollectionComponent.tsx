@@ -1359,7 +1359,7 @@ function MainCollectionViewComponent(props: CollectionViewProps) {
 					aria-label="Mod collection table"
 					tabIndex={-1}
 				>
-					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX }}>
+					<table className="MainCollectionVirtualTable" style={{ width: tableScrollX }} aria-rowcount={sortedRows.length + 1}>
 						<caption className="sr-only">Mod collection table. Use column headers to sort, resize, hide, or show table columns.</caption>
 						<colgroup>
 							<col style={{ width: DEFAULT_SELECTION_COLUMN_WIDTH }} />

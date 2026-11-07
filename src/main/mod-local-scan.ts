@@ -166,7 +166,7 @@ export const getModDetailsFromPath = Effect.fnUntraced(function* (
 			const normalizedFileName = file.name.toLowerCase();
 			if ((normalizedFileName === 'preview.png' || normalizedFileName.endsWith(' preview.png')) && !potentialMod.preview) {
 				potentialMod.preview = registerPreviewImage(path.join(modPath, file.name));
-			} else if (file.name.match(/^(.*)\.dll$/)) {
+			} else if (normalizedFileName.endsWith('.dll')) {
 				potentialMod.hasCode = true;
 			} else if (file.name === 'ttsmm.json') {
 				applyTtsmmMetadataFile(potentialMod, path.join(modPath, file.name));

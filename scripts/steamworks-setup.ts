@@ -129,6 +129,26 @@ function normalizePathForPlatform(targetPath: string) {
 	return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
 }
 
+function isWithinDirectory(parent: string, child: string) {
+	const relative = path.relative(parent, child);
+	return !relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function assertSdkOutsideManagedDirectories(steamworksSdkPath: string) {
+	const source = normalizePathForPlatform(fs.realpathSync.native(steamworksSdkPath));
+	for (const managedPath of [releaseAppNodeModulesPath, releaseAppPnpmStorePath, greenworksSdkPath]) {
+		const managed = normalizePathForPlatform(fs.existsSync(managedPath) ? fs.realpathSync.native(managedPath) : path.resolve(managedPath));
+		if (isWithinDirectory(managed, source)) {
+			throw new Error('The Steamworks SDK must be outside the managed release/app dependency directories.');
+		}
+		if (managedPath === greenworksSdkPath) {
+			if (source !== managed && isWithinDirectory(source, managed)) {
+				throw new Error('The staged Steamworks SDK cannot be inside the source SDK directory.');
+			}
+		}
+	}
+}
+
 function ensureGreenworksPresent() {
 	if (fs.existsSync(greenworksPackageJsonPath) && fs.existsSync(greenworksEntrypointPath)) {
 		if (process.platform !== 'win32') {
@@ -368,6 +388,7 @@ export function linkModules() {
 
 export function setupSteamworksNativeDeps(steamworksSdkPath: string) {
 	validateSteamworksSdkPath(steamworksSdkPath);
+	assertSdkOutsideManagedDirectories(steamworksSdkPath);
 	terminateSteamworksSmokeProcesses();
 	stageSteamworksSdk(steamworksSdkPath);
 	patchGreenworksWorkshopWorkerSource();
