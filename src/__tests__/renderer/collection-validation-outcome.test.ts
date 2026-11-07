@@ -14,7 +14,8 @@ const summary = {
 	invalidIds: 0,
 	subscriptionIssues: 0,
 	installIssues: 0,
-	updateIssues: 0
+	updateIssues: 0,
+	unknownWorkshopDependencies: 0
 };
 
 function collection(mods: string[]): ModCollection {

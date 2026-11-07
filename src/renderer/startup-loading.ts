@@ -1,5 +1,5 @@
 import type { AppConfig } from 'model/AppConfig';
-import { getStartupRestorablePath } from 'shared/app-route-policy';
+import { APP_ROUTES, getStartupRestorablePath } from 'shared/app-route-policy';
 import { DEFAULT_CONFIG } from './Constants';
 
 interface StartupBootErrorDescription {
@@ -70,10 +70,10 @@ export function resolveStartupNavigation(config: AppConfig, configErrors: { [fie
 		return {
 			config: {
 				...config,
-				currentPath: '/settings'
+				currentPath: APP_ROUTES.settings
 			},
 			loadingMods: false,
-			path: '/settings'
+			path: APP_ROUTES.settings
 		};
 	}
 

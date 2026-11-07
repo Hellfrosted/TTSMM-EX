@@ -110,7 +110,7 @@ describe('collection-validation-run', () => {
 			summarizeValidationIssues({
 				a: { invalidId: true, notSubscribed: true },
 				b: { missingDependencies: [{ UIDs: new Set(), modID: 'MissingMod' }], incompatibleMods: ['a'] },
-				c: { notInstalled: true, needsUpdate: true }
+				c: { notInstalled: true, needsUpdate: true, unknownWorkshopDependencies: true }
 			})
 		).toEqual({
 			affectedMods: 3,
@@ -119,7 +119,8 @@ describe('collection-validation-run', () => {
 			invalidIds: 1,
 			subscriptionIssues: 1,
 			installIssues: 1,
-			updateIssues: 1
+			updateIssues: 1,
+			unknownWorkshopDependencies: 1
 		});
 	});
 

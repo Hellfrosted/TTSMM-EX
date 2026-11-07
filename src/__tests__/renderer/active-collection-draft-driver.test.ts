@@ -20,7 +20,8 @@ const summary = {
 	invalidIds: 0,
 	subscriptionIssues: 0,
 	installIssues: 0,
-	updateIssues: 0
+	updateIssues: 0,
+	unknownWorkshopDependencies: 0
 };
 
 function collection(mods: string[]): ModCollection {
@@ -59,7 +60,6 @@ function createDriverHarness(
 		gameRunning: false,
 		launchingGame: false,
 		loadingMods: false,
-		overrideGameRunning: false,
 		savingDraft: false,
 		...options.facts
 	};
@@ -94,6 +94,24 @@ function createDriverHarness(
 }
 
 describe('active-collection-draft-driver', () => {
+	it('keeps launch ownership while external facts change and settles when the launch fails', async () => {
+		const draft = collection(['local:a']);
+		const { adapters, driver } = createDriverHarness({ draft });
+		let fail!: (reason: Error) => void;
+		vi.mocked(adapters.launchDraft).mockReturnValue(
+			new Promise<void>((_resolve, reject) => {
+				fail = reject;
+			})
+		);
+		driver.dispatch({ type: 'launch-anyway-requested' });
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(true);
+		driver.dispatch({ type: 'runtime-facts-changed', facts: { gameRunning: false, loadingMods: false, savingDraft: false } });
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(true);
+		fail(new Error('launch failed'));
+		await flushPromises();
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(false);
+		expect(adapters.clearLaunchState).toHaveBeenCalledOnce();
+	});
 	it('saves a fresh validated draft before launching', async () => {
 		const draft = collection(['local:a']);
 		const { adapters, driver } = createDriverHarness({ draft });
@@ -244,7 +262,6 @@ describe('active-collection-draft-driver', () => {
 				gameRunning: true,
 				launchingGame: false,
 				loadingMods: false,
-				overrideGameRunning: false,
 				savingDraft: false
 			}
 		});
@@ -257,7 +274,6 @@ describe('active-collection-draft-driver', () => {
 				gameRunning: false,
 				launchingGame: false,
 				loadingMods: false,
-				overrideGameRunning: false,
 				savingDraft: false
 			}
 		});

@@ -4,27 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from 'renderer/Api';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { pauseEffect } from 'util/Sleep';
+import { useGameRunning } from './useGameRunning';
 import type { NotificationType } from './useNotifications';
 
 interface UseGameLaunchOptions {
 	appState: CollectionWorkspaceAppState;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
-	pollGameRunning: () => Promise<void>;
-	clearGameRunningPoll: () => void;
-	clearGameLaunchOverrideTimeout: () => void;
-	scheduleLaunchOverrideReset: (callback?: () => void) => void;
-	setOverrideGameRunning: (override: boolean) => void;
 }
 
-export function useGameLaunch({
-	appState,
-	openNotification,
-	pollGameRunning,
-	clearGameRunningPoll,
-	clearGameLaunchOverrideTimeout,
-	scheduleLaunchOverrideReset,
-	setOverrideGameRunning
-}: UseGameLaunchOptions) {
+export function useGameLaunch({ appState, openNotification }: UseGameLaunchOptions) {
+	const { effectiveGameRunning, beginLaunch, finishLaunch } = useGameRunning();
 	const [launchGameWithErrors, setLaunchGameWithErrors] = useState(false);
 	const launchRequestRef = useRef(0);
 
@@ -38,12 +27,10 @@ export function useGameLaunch({
 		async (mods: ModData[]) => {
 			const requestId = launchRequestRef.current + 1;
 			launchRequestRef.current = requestId;
-			const { config, updateState } = appState;
+			const { config } = appState;
 
 			api.logger.info('launching game');
-			updateState({ launchingGame: true });
-			setOverrideGameRunning(true);
-			void pollGameRunning();
+			beginLaunch();
 
 			try {
 				const success = await Effect.runPromise(
@@ -68,8 +55,7 @@ export function useGameLaunch({
 				}
 
 				if (!success) {
-					clearGameRunningPoll();
-					clearGameLaunchOverrideTimeout();
+					finishLaunch(false);
 					openNotification(
 						{
 							message: 'Game launch did not start. Check the configured executable and Steam state, then try again.',
@@ -78,32 +64,21 @@ export function useGameLaunch({
 						},
 						'error'
 					);
-					setOverrideGameRunning(false);
 					return;
 				}
 
-				scheduleLaunchOverrideReset(() => {
-					void pollGameRunning();
-				});
+				finishLaunch(true);
 			} finally {
 				if (launchRequestRef.current === requestId) {
-					updateState({ launchingGame: false });
 					setLaunchGameWithErrors(false);
 				}
 			}
 		},
-		[
-			appState,
-			clearGameLaunchOverrideTimeout,
-			clearGameRunningPoll,
-			openNotification,
-			pollGameRunning,
-			scheduleLaunchOverrideReset,
-			setOverrideGameRunning
-		]
+		[appState, beginLaunch, finishLaunch, openNotification]
 	);
 
 	return {
+		effectiveGameRunning,
 		launchGameWithErrors,
 		setLaunchGameWithErrors,
 		launchMods

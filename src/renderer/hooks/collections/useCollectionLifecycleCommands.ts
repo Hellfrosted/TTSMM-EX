@@ -119,7 +119,10 @@ export function useCollectionLifecycleCommands({
 			let writeAccepted = false;
 			const draftGeneration = getDraftGeneration?.();
 			await runQueuedCollectionWrite(async () => {
-				if (draftGeneration !== undefined && draftGeneration !== getDraftGeneration?.()) return;
+				if (draftGeneration !== undefined && draftGeneration !== getDraftGeneration?.()) {
+					onCollectionContentSaveCompleted?.({ draftGeneration, pureSave, writeAccepted: false });
+					return;
+				}
 				setSavingCollection(true);
 				try {
 					const saveOutcome = await Effect.runPromise(
@@ -158,6 +161,7 @@ export function useCollectionLifecycleCommands({
 					}
 				} catch (error) {
 					api.logger.error(error);
+					onCollectionContentSaveCompleted?.({ draftGeneration, pureSave, writeAccepted: false });
 				} finally {
 					setSavingCollection(false);
 				}

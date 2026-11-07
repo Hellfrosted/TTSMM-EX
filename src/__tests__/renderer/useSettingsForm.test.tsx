@@ -75,7 +75,8 @@ describe('useSettingsForm', () => {
 		expect(window.electron.updateConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				gameExec: 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe'
-			})
+			}),
+			expect.objectContaining({ gameExec: 'C:\\Games\\TerraTech\\TerraTechWin64.exe' })
 		);
 		expect(saveResult).toEqual({
 			ok: true,
@@ -86,7 +87,8 @@ describe('useSettingsForm', () => {
 
 	it('marks mod data for reload when NuterraSteam compatibility changes', async () => {
 		const appState = createAppState({
-			firstModLoad: true,
+			loadingMods: false,
+			forceReloadMods: false,
 			config: {
 				...DEFAULT_CONFIG,
 				treatNuterraSteamBetaAsEquivalent: true,
@@ -110,13 +112,15 @@ describe('useSettingsForm', () => {
 			ok: true,
 			reloadRequired: true
 		});
-		expect(appState.firstModLoad).toBe(false);
+		expect(appState.loadingMods).toBe(true);
+		expect(appState.forceReloadMods).toBe(true);
 		expect(appState.config.treatNuterraSteamBetaAsEquivalent).toBe(false);
 	});
 
 	it('does not mark mods for reload when saving settings fails', async () => {
 		const appState = createAppState({
-			firstModLoad: true,
+			loadingMods: false,
+			forceReloadMods: false,
 			config: {
 				...DEFAULT_CONFIG,
 				localDir: 'C:\\TerraTech\\LocalMods',
@@ -141,7 +145,8 @@ describe('useSettingsForm', () => {
 			ok: false,
 			message: 'Config write was rejected'
 		});
-		expect(appState.firstModLoad).toBe(true);
+		expect(appState.loadingMods).toBe(false);
+		expect(appState.forceReloadMods).toBe(false);
 		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
 		expect(appState.madeConfigEdits).toBe(true);
 	});

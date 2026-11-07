@@ -48,3 +48,32 @@ export function normalizedOrder<T extends string>(configuredOrder: readonly stri
 export function defaultEquivalentOrder<T extends string>(order: readonly T[], defaultOrder: readonly T[]) {
 	return order.length === defaultOrder.length && order.every((column, index) => column === defaultOrder[index]);
 }
+
+export function normalizeTableViewConfig<T extends string>(
+	input: unknown,
+	columns: readonly T[],
+	options: {
+		normalizeWidth: (column: T, width: number) => number;
+		defaultWidth?: (column: T) => number;
+		preserveFalseSmallRows?: boolean;
+	}
+): { columnOrder?: T[]; columnActiveConfig?: Record<string, boolean>; columnWidthConfig?: Record<string, number>; smallRows?: boolean } {
+	if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+	const config = input as Record<string, unknown>;
+	const knownColumns = new Set<string>(columns);
+	const order = compactConfiguredOrder(config.columnOrder, columns);
+	const active = compactRecord(config.columnActiveConfig, knownColumns, (value): value is boolean => typeof value === 'boolean');
+	const widths = compactRecord(config.columnWidthConfig, knownColumns, isFiniteNumber);
+	const normalizedWidths: Record<string, number> = {};
+	for (const [key, width] of Object.entries(widths ?? {})) {
+		const column = key as T;
+		const normalized = options.normalizeWidth(column, width);
+		if (!options.defaultWidth || normalized !== options.defaultWidth(column)) normalizedWidths[key] = normalized;
+	}
+	return {
+		...(order && !defaultEquivalentOrder(order, columns) ? { columnOrder: order } : {}),
+		...(active ? { columnActiveConfig: active } : {}),
+		...(Object.keys(normalizedWidths).length ? { columnWidthConfig: normalizedWidths } : {}),
+		...(config.smallRows === true || (options.preserveFalseSmallRows && config.smallRows === false) ? { smallRows: config.smallRows } : {})
+	};
+}

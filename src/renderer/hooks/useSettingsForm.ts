@@ -189,7 +189,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 
 		updateState({ savingConfig: true });
 		try {
-			const persistedConfig = await writeConfigMutation.mutateAsync(configToSave);
+			const persistedConfig = await writeConfigMutation.mutateAsync({ nextConfig: configToSave, baseConfig: config });
 			if (shouldUpdateLogLevel && persistedConfig.logLevel !== undefined) {
 				api.updateLogLevel(persistedConfig.logLevel);
 			}
@@ -197,14 +197,16 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 				config: AppConfig;
 				madeConfigEdits: boolean;
 				configErrors: {};
-				firstModLoad?: boolean;
+				loadingMods?: boolean;
+				forceReloadMods?: boolean;
 			} = {
 				config: persistedConfig,
 				madeConfigEdits: false,
 				configErrors: {}
 			};
 			if (shouldReloadMods) {
-				nextState.firstModLoad = false;
+				nextState.loadingMods = true;
+				nextState.forceReloadMods = true;
 			}
 			updateState({
 				...nextState
@@ -222,15 +224,7 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		} finally {
 			updateState({ savingConfig: false });
 		}
-	}, [
-		config.localDir,
-		config.logLevel,
-		config.treatNuterraSteamBetaAsEquivalent,
-		config.workshopID,
-		form,
-		updateState,
-		writeConfigMutation
-	]);
+	}, [config, form, updateState, writeConfigMutation]);
 
 	const cancelChanges = useCallback(() => {
 		form.reset(createEditingConfig(config));

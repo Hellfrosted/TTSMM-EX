@@ -132,6 +132,7 @@ export type CollectionWorkspaceWorkflowEvent =
 			type: 'validation-completed';
 	  }
 	| { type: 'validation-superseded' }
+	| { type: 'launch-finished' }
 	| {
 			type: 'validation-cancelled';
 	  }
@@ -151,7 +152,7 @@ export type CollectionWorkspaceWorkflowEvent =
 			type: 'has-unsaved-draft-changed';
 	  }
 	| {
-			facts: ActiveCollectionDraftRuntimeFacts;
+			facts: Omit<ActiveCollectionDraftRuntimeFacts, 'launchingGame'>;
 			type: 'runtime-facts-changed';
 	  };
 
@@ -497,7 +498,14 @@ function continueDraftLaunchAfterSave(
 	effects: CollectionWorkspaceWorkflowEffect[],
 	input: CollectionContentSaveCompletion
 ) {
-	if (input.draftGeneration !== undefined && input.draftGeneration !== state.draftGeneration) return;
+	if (input.draftGeneration !== undefined && input.draftGeneration !== state.draftGeneration) {
+		if (state.pendingLaunchAfterSaveDraftKey) {
+			state.pendingLaunchAfterSaveDraftKey = undefined;
+			setWorkflowLaunchingGame(state, false);
+			effects.push({ type: 'clear-launching-game' });
+		}
+		return;
+	}
 	if (
 		input.writeAccepted &&
 		input.savedCollection &&
@@ -664,7 +672,12 @@ export function reduceCollectionWorkspaceWorkflow(
 			break;
 		}
 		case 'runtime-facts-changed': {
-			nextState.runtimeFacts = event.facts;
+			nextState.runtimeFacts = { ...event.facts, launchingGame: nextState.runtimeFacts.launchingGame };
+			break;
+		}
+		case 'launch-finished': {
+			setWorkflowLaunchingGame(nextState, false);
+			effects.push({ type: 'clear-launching-game' });
 			break;
 		}
 		case 'active-draft-changed': {

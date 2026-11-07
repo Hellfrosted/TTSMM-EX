@@ -206,7 +206,8 @@ function usePopulationPoolSettings(
 			updateState({ config: nextConfig });
 			configWrites.current = configWrites.current.then(async () => {
 				try {
-					const persistedConfig = await window.electron.updateConfig(update(persistedConfigRef.current));
+					const baseConfig = persistedConfigRef.current;
+					const persistedConfig = await window.electron.updateConfig(update(baseConfig), baseConfig);
 					if (!persistedConfig) throw new Error('Could not save Population Pool settings');
 					persistedConfigRef.current = persistedConfig;
 				} catch (error) {

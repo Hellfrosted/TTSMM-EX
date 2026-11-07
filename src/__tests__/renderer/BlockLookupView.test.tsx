@@ -134,7 +134,8 @@ function expectBlockLookupColumnOrderSaved(appState: ReturnType<typeof createApp
 			viewConfigs: expect.objectContaining({
 				blockLookup: blockLookupConfig
 			})
-		})
+		}),
+		expect.anything()
 	);
 	expect(appState.updateState).toHaveBeenCalledWith(
 		expect.objectContaining({
@@ -516,7 +517,8 @@ describe('BlockLookupView', () => {
 							})
 						})
 					})
-				})
+				}),
+				expect.anything()
 			);
 			const nextConfig = vi.mocked(window.electron.updateConfig).mock.calls.at(-1)?.[0];
 			expect(nextConfig?.viewConfigs.blockLookup?.columnWidthConfig?.blockName).toBeGreaterThan(initialWidth);

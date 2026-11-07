@@ -1,13 +1,15 @@
 import { it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Duration, Effect } from 'effect';
 import { afterEach, describe, expect, vi, it as vitestIt } from 'vitest';
 import { ModInventoryProgress } from '../../main/mod-inventory-progress';
-import { buildWorkshopModBatch, resolveWorkshopDependencyChunk, scanWorkshopInventory } from '../../main/mod-workshop-inventory';
+import { buildWorkshopModBatch, scanWorkshopInventory } from '../../main/mod-workshop-inventory';
 import Steamworks from '../../main/steamworks';
+import { WorkshopPagingStalled } from '../../main/workshop-errors';
 import {
 	applyWorkshopInventorySubscribedPageTransition,
 	createWorkshopInventorySubscribedPageTransition,
 	expandPendingWorkshopDependencies,
+	scanWorkshopInventoryExpansion,
 	WorkshopInventoryExpansion,
 	type WorkshopInventoryProgressEffect
 } from '../../main/workshop-inventory-expansion';
@@ -252,42 +254,6 @@ describe('WorkshopInventoryExpansion', () => {
 		]);
 	});
 
-	it.effect('expands dependencies from Steamworks dependency snapshots', () =>
-		Effect.gen(function* () {
-			const workshopID = BigInt(20);
-			const dependencyID = BigInt(21);
-			const workshopMap = new Map<bigint, ModData>();
-			const knownInvalidMods = new Set<bigint>();
-
-			const missingDependencies = yield* resolveWorkshopDependencyChunk(workshopMap, knownInvalidMods, new Set([workshopID]), {
-				getDetailsForWorkshopModList: () =>
-					Effect.succeed([
-						{
-							uid: `workshop:${workshopID}`,
-							id: 'Parent',
-							type: ModType.WORKSHOP,
-							workshopID,
-							steamDependencies: [dependencyID],
-							steamDependencyNames: {
-								[dependencyID.toString()]: 'Dependency'
-							}
-						}
-					]),
-				knownWorkshopMods: new Set([workshopID])
-			});
-
-			expect(missingDependencies).toEqual(new Set([dependencyID]));
-			expect(workshopMap.get(workshopID)).toEqual(
-				expect.objectContaining({
-					steamDependencies: [dependencyID],
-					steamDependencyNames: {
-						[dependencyID.toString()]: 'Dependency'
-					}
-				})
-			);
-		})
-	);
-
 	it.effect('emits progress effects and merges dependency results while expanding pending workshop mods', () =>
 		Effect.gen(function* () {
 			const parentWorkshopID = BigInt(22);
@@ -304,7 +270,8 @@ describe('WorkshopInventoryExpansion', () => {
 								id: workshopID === parentWorkshopID ? 'Parent' : 'Dependency',
 								type: ModType.WORKSHOP,
 								workshopID,
-								steamDependencies: workshopID === parentWorkshopID ? [dependencyWorkshopID] : undefined
+								steamDependencies: workshopID === parentWorkshopID ? [dependencyWorkshopID] : undefined,
+								steamDependencyNames: workshopID === parentWorkshopID ? { [dependencyWorkshopID.toString()]: 'Dependency' } : undefined
 							}))
 						),
 					knownWorkshopMods: new Set([parentWorkshopID])
@@ -322,7 +289,9 @@ describe('WorkshopInventoryExpansion', () => {
 			expect(expansion.getWorkshopMods()).toEqual([
 				expect.objectContaining({
 					id: 'Parent',
-					workshopID: parentWorkshopID
+					workshopID: parentWorkshopID,
+					steamDependencies: [dependencyWorkshopID],
+					steamDependencyNames: { [dependencyWorkshopID.toString()]: 'Dependency' }
 				}),
 				expect.objectContaining({
 					id: 'Dependency',
@@ -535,6 +504,66 @@ describe('WorkshopInventoryExpansion', () => {
 				},
 				unresolvedWorkshopItems: []
 			});
+		})
+	);
+
+	it.effect('reports a typed stall when Steam reports more pages than the cap allows', () =>
+		Effect.gen(function* () {
+			let fetchedPages = 0;
+			const error = yield* scanWorkshopInventoryExpansion({
+				buildWorkshopMod: () => Effect.succeed(null),
+				fetchSubscribedPage: (page) => {
+					fetchedPages = page;
+					return Effect.succeed({
+						items: [],
+						itemIDs: [BigInt(page)],
+						numReturned: 1,
+						totalItems: 100
+					});
+				},
+				getDetailsForWorkshopModList: () => Effect.succeed([]),
+				knownWorkshopMods: new Set<bigint>(),
+				paging: { maxPages: 3 }
+			}).pipe(Effect.flip);
+
+			expect(fetchedPages).toBe(3);
+			expect(error).toBeInstanceOf(WorkshopPagingStalled);
+			expect(error).toMatchObject({ pageNum: 4, reason: 'page-limit' });
+		})
+	);
+
+	it.effect('reports a typed stall when Steam repeats a page without new workshop ids', () =>
+		Effect.gen(function* () {
+			const error = yield* scanWorkshopInventoryExpansion({
+				buildWorkshopMod: () => Effect.succeed(null),
+				fetchSubscribedPage: () =>
+					Effect.succeed({
+						items: [],
+						itemIDs: [BigInt(1)],
+						numReturned: 1,
+						totalItems: 100
+					}),
+				getDetailsForWorkshopModList: () => Effect.succeed([]),
+				knownWorkshopMods: new Set<bigint>()
+			}).pipe(Effect.flip);
+
+			expect(error).toBeInstanceOf(WorkshopPagingStalled);
+			expect(error).toMatchObject({ pageNum: 2, reason: 'no-progress' });
+		})
+	);
+
+	it.effect('reports a typed stall when a page never responds', () =>
+		Effect.gen(function* () {
+			const error = yield* scanWorkshopInventoryExpansion({
+				buildWorkshopMod: () => Effect.succeed(null),
+				fetchSubscribedPage: () => Effect.never,
+				getDetailsForWorkshopModList: () => Effect.succeed([]),
+				knownWorkshopMods: new Set<bigint>(),
+				paging: { pageTimeout: Duration.zero }
+			}).pipe(Effect.flip);
+
+			expect(error).toBeInstanceOf(WorkshopPagingStalled);
+			expect(error).toMatchObject({ pageNum: 1, reason: 'timeout' });
 		})
 	);
 

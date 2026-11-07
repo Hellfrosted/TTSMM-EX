@@ -7,8 +7,10 @@ import { useCacheMutation } from './cache-mutation';
 import { RendererElectron, runRenderer } from './runtime';
 
 const configCacheRef = AtomRef.make<AppConfig | null | undefined>(undefined);
+let configCacheGeneration = 0;
 
 export function setConfigCacheData(config: AppConfig | null | undefined) {
+	configCacheGeneration++;
 	configCacheRef.set(config);
 }
 
@@ -17,13 +19,16 @@ export function useConfigCacheValue() {
 }
 
 export async function readConfigCache(): Promise<AppConfig | null> {
-	const cachedConfig = configCacheRef.value;
-	if (cachedConfig !== undefined) {
-		return cachedConfig;
+	while (true) {
+		const cachedConfig = configCacheRef.value;
+		if (cachedConfig !== undefined) return cachedConfig;
+		const generation = configCacheGeneration;
+		const config = await runRenderer(readConfigEffect());
+		if (generation === configCacheGeneration) {
+			configCacheRef.set(config);
+			return config;
+		}
 	}
-	const config = await runRenderer(readConfigEffect());
-	configCacheRef.set(config);
-	return config;
 }
 
 const readConfigEffect = Effect.fnUntraced(function* (): Effect.fn.Return<AppConfig | null, unknown, RendererElectron> {
@@ -35,11 +40,12 @@ const readConfigEffect = Effect.fnUntraced(function* (): Effect.fn.Return<AppCon
 });
 
 export const writeConfigEffect = Effect.fnUntraced(function* (
-	nextConfig: AppConfig
+	nextConfig: AppConfig,
+	baseConfig?: AppConfig
 ): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
 	const renderer = yield* RendererElectron;
 	const persistedConfig = yield* Effect.tryPromise({
-		try: () => renderer.electron.updateConfig(nextConfig),
+		try: () => (baseConfig ? renderer.electron.updateConfig(nextConfig, baseConfig) : renderer.electron.updateConfig(nextConfig)),
 		catch: (error) => toEffectOperationError('write config', error)
 	});
 	if (!persistedConfig) {
@@ -48,8 +54,8 @@ export const writeConfigEffect = Effect.fnUntraced(function* (
 	return persistedConfig;
 });
 
-function writeConfigMutationFn(nextConfig: AppConfig) {
-	return runRenderer(writeConfigEffect(nextConfig));
+function writeConfigMutationFn({ nextConfig, baseConfig }: { nextConfig: AppConfig; baseConfig: AppConfig }) {
+	return runRenderer(writeConfigEffect(nextConfig, baseConfig));
 }
 
 export function useWriteConfigMutation() {

@@ -1,4 +1,4 @@
-export { expandPendingWorkshopDependencies, resolveWorkshopDependencyChunk } from './workshop-dependency-chunk-resolution';
+export { expandPendingWorkshopDependencies } from './workshop-dependency-chunk-resolution';
 export { buildWorkshopModBatch } from './workshop-inventory-build-policy';
 export { WorkshopInventoryExpansion } from './workshop-inventory-expansion-state';
 export { createEmptyWorkshopInventoryScanOutcome, scanWorkshopInventoryExpansion } from './workshop-inventory-scan-policy';
@@ -11,7 +11,6 @@ export type {
 	BuildWorkshopMod,
 	UnresolvedWorkshopItem,
 	UnresolvedWorkshopReason,
-	WorkshopDependencyChunkOutcome,
 	WorkshopDependencyExpansionAdapters,
 	WorkshopInventoryDependencyExpansionOptions,
 	WorkshopInventoryExpansionScanInput,

@@ -4,8 +4,10 @@ import { toEffectOperationError } from 'shared/effect-errors';
 import { RendererElectron, runRenderer } from './runtime';
 
 const gameRunningCacheRef = AtomRef.make<boolean | undefined>(undefined);
+let gameRunningRequestId = 0;
 
 export function setGameRunningCacheData(running: boolean | undefined) {
+	gameRunningRequestId++;
 	gameRunningCacheRef.set(running);
 }
 
@@ -13,8 +15,9 @@ export async function readGameRunningCache({ forceReload = false }: { forceReloa
 	if (!forceReload && gameRunningCacheRef.value !== undefined) {
 		return gameRunningCacheRef.value;
 	}
+	const requestId = ++gameRunningRequestId;
 	const running = await runRenderer(gameRunningEffect());
-	gameRunningCacheRef.set(running);
+	if (requestId === gameRunningRequestId) gameRunningCacheRef.set(running);
 	return running;
 }
 

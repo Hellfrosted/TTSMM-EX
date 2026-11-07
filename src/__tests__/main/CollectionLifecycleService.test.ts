@@ -21,6 +21,23 @@ describe('collection lifecycle service', () => {
 		tempDir = createTempDir('ttsmm-collection-lifecycle-test-');
 	});
 
+	it('rejects a stale draft before any lifecycle operation can modify another collection', () => {
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:active'] });
+		writeTestCollection(tempDir, { name: 'other', mods: ['local:other'] });
+		const request = { config: createTestAppConfig(), dirtyCollection: { name: 'other', mods: ['local:stale'] } };
+		for (const result of [
+			Effect.runSync(createAndActivateCollection(tempDir, { ...request, name: 'new' })),
+			Effect.runSync(duplicateAndActivateCollection(tempDir, { ...request, name: 'copy' })),
+			Effect.runSync(renameActiveCollection(tempDir, { ...request, name: 'renamed' })),
+			Effect.runSync(deleteActiveCollection(tempDir, request)),
+			Effect.runSync(switchActiveCollection(tempDir, { ...request, name: 'other' }))
+		]) {
+			expect(result).toMatchObject({ ok: false, code: 'dirty-collection-write-failed' });
+		}
+		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:active'] });
+		expect(readCollectionFile(tempDir, 'other')).toEqual({ name: 'other', mods: ['local:other'] });
+	});
+
 	it('creates and activates a new collection while preserving dirty active edits', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 

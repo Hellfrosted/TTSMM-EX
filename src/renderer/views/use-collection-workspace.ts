@@ -2,7 +2,6 @@ import { CollectionManagerModalType, type ModData, type NotificationProps } from
 import { startTransition, useCallback, useState } from 'react';
 import { useCollectionWorkspaceSession } from 'renderer/hooks/collections/useCollectionWorkspaceSession';
 import { useGameLaunch } from 'renderer/hooks/collections/useGameLaunch';
-import { useGameRunning } from 'renderer/hooks/collections/useGameRunning';
 import type { NotificationType } from 'renderer/hooks/collections/useNotifications';
 import { markPerfInteraction } from 'renderer/perf';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
@@ -15,8 +14,6 @@ interface UseCollectionWorkspaceOptions {
 type CollectionWorkspaceSessionController = ReturnType<typeof useCollectionWorkspaceSession>;
 
 interface CollectionWorkspaceResult {
-	clearGameLaunchOverrideTimeout: ReturnType<typeof useGameRunning>['clearGameLaunchOverrideTimeout'];
-	clearGameRunningPoll: ReturnType<typeof useGameRunning>['clearGameRunningPoll'];
 	closeLaunchModal: (mods: ModData[]) => Promise<void>;
 	closeModal: () => void;
 	collections: CollectionWorkspaceSessionController['collections'];
@@ -27,23 +24,19 @@ interface CollectionWorkspaceResult {
 	currentValidationStatus: CollectionWorkspaceSessionController['currentValidationStatus'];
 	detailsActiveTabKey: string;
 	getModDetails: (uid: string, record: ModData, showBigDetails?: boolean) => void;
-	gameRunning: ReturnType<typeof useGameRunning>['gameRunning'];
+	effectiveGameRunning: boolean;
 	bigDetails: boolean;
 	launchGame: () => Promise<void>;
 	launchAnyway: () => void;
 	launchGameWithErrors: ReturnType<typeof useGameLaunch>['launchGameWithErrors'];
 	modalType: CollectionManagerModalType;
 	openMainViewSettings: () => void;
-	overrideGameRunning: ReturnType<typeof useGameRunning>['overrideGameRunning'];
-	pollGameRunning: ReturnType<typeof useGameRunning>['pollGameRunning'];
 	prewarmAlternateDetails: boolean;
-	scheduleLaunchOverrideReset: ReturnType<typeof useGameRunning>['scheduleLaunchOverrideReset'];
 	closeCurrentRecord: () => void;
 	setBigDetails: (showBigDetails: boolean) => void;
 	setDetailsActiveTabKey: (tabKey: string) => void;
 	setLaunchGameWithErrors: ReturnType<typeof useGameLaunch>['setLaunchGameWithErrors'];
 	setModalType: (modalType: CollectionManagerModalType) => void;
-	setOverrideGameRunning: ReturnType<typeof useGameRunning>['setOverrideGameRunning'];
 	setPrewarmAlternateDetails: (prewarmAlternateDetails: boolean) => void;
 	validation: CollectionWorkspaceSessionController['validation'];
 	validateCollection: (options?: { config?: CollectionWorkspaceAppState['config'] }) => void;
@@ -55,24 +48,9 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 	const [bigDetails, setBigDetailsState] = useState(false);
 	const [detailsActiveTabKey, setDetailsActiveTabKey] = useState('info');
 	const [prewarmAlternateDetails, setPrewarmAlternateDetails] = useState(false);
-	const {
-		gameRunning,
-		overrideGameRunning,
-		setOverrideGameRunning,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset
-	} = useGameRunning();
-
-	const { launchGameWithErrors, setLaunchGameWithErrors, launchMods } = useGameLaunch({
+	const { effectiveGameRunning, launchGameWithErrors, setLaunchGameWithErrors, launchMods } = useGameLaunch({
 		appState,
-		openNotification,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset,
-		setOverrideGameRunning
+		openNotification
 	});
 
 	const closeLaunchModal = useCallback(
@@ -95,12 +73,11 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		validation
 	} = useCollectionWorkspaceSession({
 		appState,
-		gameRunning,
+		gameRunning: effectiveGameRunning,
 		launchMods: closeLaunchModal,
 		modalOpen: modalType !== CollectionManagerModalType.NONE,
 		onLaunchStateCleared: () => setLaunchGameWithErrors(false),
 		openNotification,
-		overrideGameRunning,
 		setModalType
 	});
 	const closeModal = useCallback(() => {
@@ -145,8 +122,6 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 	}, [launchAnywayFromWorkflow, setLaunchGameWithErrors]);
 
 	return {
-		clearGameLaunchOverrideTimeout,
-		clearGameRunningPoll,
 		bigDetails,
 		closeCurrentRecord,
 		closeLaunchModal,
@@ -159,21 +134,17 @@ export function useCollectionWorkspace({ appState, openNotification }: UseCollec
 		currentValidationStatus,
 		detailsActiveTabKey,
 		getModDetails,
-		gameRunning,
+		effectiveGameRunning,
 		launchGame,
 		launchAnyway,
 		launchGameWithErrors,
 		modalType,
 		openMainViewSettings,
-		overrideGameRunning,
-		pollGameRunning,
 		prewarmAlternateDetails,
-		scheduleLaunchOverrideReset,
 		setBigDetails,
 		setDetailsActiveTabKey,
 		setLaunchGameWithErrors,
 		setModalType,
-		setOverrideGameRunning,
 		setPrewarmAlternateDetails,
 		validation,
 		validateCollection

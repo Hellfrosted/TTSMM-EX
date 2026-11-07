@@ -1,5 +1,4 @@
 import { type AppConfig, MainColumnTitles } from 'model';
-import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { normalizeMainCollectionConfig, normalizeMainColumnWidth } from 'shared/main-collection-view-config';
 import { defaultEquivalentOrder, normalizedOrder } from 'shared/view-config';
 import { canSetMainColumnVisibility } from './main-column-visibility';
@@ -10,7 +9,7 @@ export function setMainCollectionColumnWidth(config: AppConfig, column: MainColu
 		return undefined;
 	}
 
-	const nextConfig = cloneAppConfig(config);
+	const nextConfig = structuredClone(config);
 	const nextMainConfig = normalizeMainCollectionConfig(nextConfig.viewConfigs.main);
 	nextMainConfig.columnWidthConfig = {
 		...(nextMainConfig.columnWidthConfig || {}),
@@ -31,7 +30,7 @@ export function setMainCollectionColumnVisibility(config: AppConfig, column: Mai
 		return undefined;
 	}
 
-	const nextConfig = cloneAppConfig(config);
+	const nextConfig = structuredClone(config);
 	const nextMainConfig = normalizeMainCollectionConfig(nextConfig.viewConfigs.main);
 	const nextColumnActiveConfig = { ...(nextMainConfig.columnActiveConfig || {}) };
 	if (visible) {
@@ -62,7 +61,7 @@ export function moveMainCollectionColumn(config: AppConfig, fromColumn: MainColu
 	const [movedColumn] = nextOrder.splice(fromIndex, 1);
 	nextOrder.splice(toIndex, 0, movedColumn);
 
-	const nextConfig = cloneAppConfig(config);
+	const nextConfig = structuredClone(config);
 	const nextMainConfig = normalizeMainCollectionConfig(nextConfig.viewConfigs.main);
 	nextMainConfig.columnOrder = defaultEquivalentOrder(nextOrder, defaultOrder) ? undefined : nextOrder;
 	nextConfig.viewConfigs.main = nextMainConfig;

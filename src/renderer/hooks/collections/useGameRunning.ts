@@ -14,9 +14,10 @@ export function useGameRunning() {
 	const overrideGameRunningRef = useRef(overrideGameRunning);
 	const pollGameRunningRef = useRef<() => Promise<void>>(async () => undefined);
 
-	useEffect(() => {
-		overrideGameRunningRef.current = overrideGameRunning;
-	}, [overrideGameRunning]);
+	const setLaunchPending = useCallback((pending: boolean) => {
+		overrideGameRunningRef.current = pending;
+		setOverrideGameRunning(pending);
+	}, []);
 
 	const clearGameRunningPoll = useCallback(() => {
 		if (gameRunningPollTimeoutRef.current) {
@@ -32,12 +33,15 @@ export function useGameRunning() {
 		}
 	}, []);
 
-	const setGameRunningCallback = useCallback((running: boolean) => {
-		if (overrideGameRunningRef.current && running) {
-			setOverrideGameRunning(false);
-		}
-		setGameRunning(running);
-	}, []);
+	const setGameRunningCallback = useCallback(
+		(running: boolean) => {
+			if (overrideGameRunningRef.current && running) {
+				setLaunchPending(false);
+			}
+			setGameRunning(running);
+		},
+		[setLaunchPending]
+	);
 
 	const scheduleNextPoll = useCallback(() => {
 		if (isCancelledRef.current) {
@@ -97,24 +101,31 @@ export function useGameRunning() {
 		};
 	}, [clearGameLaunchOverrideTimeout, clearGameRunningPoll, pollGameRunning]);
 
-	const scheduleLaunchOverrideReset = useCallback(
-		(callback?: () => void) => {
+	const beginLaunch = useCallback(() => {
+		clearGameLaunchOverrideTimeout();
+		setLaunchPending(true);
+		void pollGameRunning();
+	}, [clearGameLaunchOverrideTimeout, pollGameRunning, setLaunchPending]);
+
+	const finishLaunch = useCallback(
+		(success: boolean) => {
 			clearGameLaunchOverrideTimeout();
+			if (!success) {
+				setLaunchPending(false);
+				void pollGameRunning();
+				return;
+			}
 			overrideTimeoutRef.current = setTimeout(() => {
-				setOverrideGameRunning(false);
-				callback?.();
+				setLaunchPending(false);
+				void pollGameRunning();
 			}, GAME_RUNNING_POLL_INTERVAL_MS);
 		},
-		[clearGameLaunchOverrideTimeout]
+		[clearGameLaunchOverrideTimeout, pollGameRunning, setLaunchPending]
 	);
 
 	return {
-		gameRunning,
-		overrideGameRunning,
-		setOverrideGameRunning,
-		pollGameRunning,
-		clearGameRunningPoll,
-		clearGameLaunchOverrideTimeout,
-		scheduleLaunchOverrideReset
+		effectiveGameRunning: gameRunning || overrideGameRunning,
+		beginLaunch,
+		finishLaunch
 	};
 }

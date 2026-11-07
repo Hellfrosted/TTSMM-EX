@@ -8,9 +8,10 @@ import {
 	renameCollectionFile,
 	updateCollectionFile
 } from '../../main/collection-store';
+import { writeConfigFile } from '../../main/config-store';
 import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createIpcHandlerHarness, createTempDir } from './test-utils';
+import { createIpcHandlerHarness, createTempDir, createTestAppConfig } from './test-utils';
 
 function createCollectionHandlerHarness(userDataPath: string) {
 	return createIpcHandlerHarness((ipcMain) =>
@@ -25,6 +26,20 @@ describe('collection handlers', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-collection-test-');
+	});
+
+	it('rejects lifecycle commands from a stale active collection and preserves the saved config', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		updateCollectionFile(tempDir, { name: 'other', mods: ['local:other'] });
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'other' }));
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		const result = await invoke(ValidChannel.DELETE_COLLECTION_LIFECYCLE, {
+			config: createTestAppConfig({ activeCollection: 'default', workshopID: 1n, treatNuterraSteamBetaAsEquivalent: true }),
+			dirtyCollection: { name: 'default', mods: [] }
+		});
+		expect(result).toMatchObject({ ok: false, code: 'stale-active-collection' });
+		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
+		expect(readCollectionFile(tempDir, 'other')?.mods).toEqual(['local:other']);
 	});
 
 	it('returns null for a missing collection file', () => {

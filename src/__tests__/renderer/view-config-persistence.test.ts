@@ -312,4 +312,18 @@ describe('view-config-persistence', () => {
 			columnOrder: ['path', 'name', 'status']
 		});
 	});
+
+	it('preserves each workspace’s persisted defaults and rejects invalid table values', () => {
+		expect(normalizeMainCollectionConfig({ smallRows: false, columnWidthConfig: { Name: 288, ID: Number.NaN } })).toEqual({});
+		expect(
+			normalizeBlockLookupViewConfig({ smallRows: false, columnWidthConfig: { preview: 92, blockName: Number.POSITIVE_INFINITY } })
+		).toEqual({});
+		const pool = normalizePopulationPoolViewConfig({
+			smallRows: false,
+			columnWidthConfig: { name: 260, path: Number.NaN },
+			columnOrder: [...POPULATION_POOL_COLUMN_KEYS]
+		});
+		expect(pool).toEqual({ smallRows: false, columnWidthConfig: { name: 260 } });
+		expect(normalizePopulationPoolViewConfig(pool)).toEqual(pool);
+	});
 });

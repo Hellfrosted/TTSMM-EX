@@ -1,6 +1,7 @@
 import { Effect } from 'effect';
 import type { ModCollection } from '../model';
 import type {
+	CollectionLifecycleBaseRequest,
 	CollectionLifecycleResult,
 	CreateCollectionLifecycleRequest,
 	DeleteCollectionLifecycleRequest,
@@ -8,7 +9,7 @@ import type {
 	RenameCollectionLifecycleRequest,
 	SwitchCollectionLifecycleRequest
 } from '../shared/collection-lifecycle';
-import { validateCollectionName } from '../shared/collection-name';
+import { collectionNamesEqual, validateCollectionName } from '../shared/collection-name';
 import { collectionNameExists, readActiveCollectionForLifecycle } from './active-collection-persistence';
 import {
 	createActiveCollectionTransition,
@@ -17,6 +18,7 @@ import {
 	renameActiveCollectionTransition,
 	switchActiveCollectionTransition
 } from './active-collection-transition';
+import { readCollectionFileEffect } from './collection-store';
 
 const validateNewCollectionName = Effect.fnUntraced(function* (
 	userDataPath: string,
@@ -32,6 +34,19 @@ const validateNewCollectionName = Effect.fnUntraced(function* (
 		return failure('duplicate-name', `A collection named ${name} already exists`);
 	}
 
+	return undefined;
+});
+
+const validateDirtyCollection = Effect.fnUntraced(function* (userDataPath: string, request: CollectionLifecycleBaseRequest) {
+	if (!request.dirtyCollection) return undefined;
+	const activeName = request.config.activeCollection;
+	if (
+		!activeName ||
+		!collectionNamesEqual(activeName, request.dirtyCollection.name) ||
+		!(yield* readCollectionFileEffect(userDataPath, activeName))
+	) {
+		return failure('dirty-collection-write-failed', 'The draft no longer matches an existing active collection');
+	}
 	return undefined;
 });
 
@@ -61,6 +76,8 @@ export const createAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: CreateCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* validateDirtyCollection(userDataPath, request);
+	if (dirtyFailure) return dirtyFailure;
 	const nameFailure = yield* validateNewCollectionName(userDataPath, request.name);
 	if (nameFailure) {
 		return nameFailure;
@@ -81,6 +98,8 @@ export const duplicateAndActivateCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DuplicateCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* validateDirtyCollection(userDataPath, request);
+	if (dirtyFailure) return dirtyFailure;
 	const source = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!source) {
 		return failure('missing-active-collection', 'No active collection is available to duplicate');
@@ -98,6 +117,8 @@ export const renameActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: RenameCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* validateDirtyCollection(userDataPath, request);
+	if (dirtyFailure) return dirtyFailure;
 	const activeCollection = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to rename');
@@ -119,6 +140,8 @@ export const deleteActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: DeleteCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* validateDirtyCollection(userDataPath, request);
+	if (dirtyFailure) return dirtyFailure;
 	const activeCollection = yield* readActiveCollectionForLifecycle(userDataPath, request);
 	if (!activeCollection) {
 		return failure('missing-active-collection', 'No active collection is available to delete');
@@ -134,6 +157,8 @@ export const switchActiveCollection = Effect.fnUntraced(function* (
 	userDataPath: string,
 	request: SwitchCollectionLifecycleRequest
 ): Effect.fn.Return<CollectionLifecycleResult, Error> {
+	const dirtyFailure = yield* validateDirtyCollection(userDataPath, request);
+	if (dirtyFailure) return dirtyFailure;
 	return yield* switchActiveCollectionTransition(userDataPath, request);
 });
 

@@ -7,8 +7,11 @@ import { toEffectOperationError } from 'shared/effect-errors';
 
 type ConfigCommit = (nextConfig: AppConfig) => void;
 
-const writeConfigProgram = Effect.fnUntraced(function* (nextConfig: AppConfig): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
-	const persistedConfig = yield* writeConfigEffect(nextConfig);
+const writeConfigProgram = Effect.fnUntraced(function* (
+	nextConfig: AppConfig,
+	baseConfig?: AppConfig
+): Effect.fn.Return<AppConfig, unknown, RendererElectron> {
+	const persistedConfig = yield* writeConfigEffect(nextConfig, baseConfig);
 	setConfigCacheData(persistedConfig);
 	return persistedConfig;
 });
@@ -19,13 +22,14 @@ export function writeConfig(nextConfig: AppConfig): Promise<AppConfig> {
 
 export const persistConfigChangeProgram = Effect.fnUntraced(function* (
 	nextConfig: AppConfig | undefined,
-	commit: ConfigCommit
+	commit: ConfigCommit,
+	baseConfig?: AppConfig
 ): Effect.fn.Return<boolean, unknown, RendererElectron> {
 	if (!nextConfig) {
 		return true;
 	}
 
-	const persistedConfig = yield* writeConfigProgram(nextConfig);
+	const persistedConfig = yield* writeConfigProgram(nextConfig, baseConfig);
 	yield* Effect.try({
 		try: () => commit(persistedConfig),
 		catch: (error) => toEffectOperationError('commit persisted config', error)
@@ -33,12 +37,15 @@ export const persistConfigChangeProgram = Effect.fnUntraced(function* (
 	return true;
 });
 
-export function persistConfigChange(nextConfig: AppConfig | undefined, commit: ConfigCommit): Promise<boolean> {
-	return runRenderer(persistConfigChangeProgram(nextConfig, commit));
+export function persistConfigChange(nextConfig: AppConfig | undefined, commit: ConfigCommit, baseConfig?: AppConfig): Promise<boolean> {
+	return runRenderer(persistConfigChangeProgram(nextConfig, commit, baseConfig));
 }
 
-const tryWriteConfigProgram = Effect.fnUntraced(function* (nextConfig: AppConfig): Effect.fn.Return<boolean, never, RendererElectron> {
-	return yield* writeConfigProgram(nextConfig).pipe(
+const tryWriteConfigProgram = Effect.fnUntraced(function* (
+	nextConfig: AppConfig,
+	baseConfig?: AppConfig
+): Effect.fn.Return<boolean, never, RendererElectron> {
+	return yield* writeConfigProgram(nextConfig, baseConfig).pipe(
 		Effect.map(() => true),
 		Effect.catch((error) => {
 			api.logger.error(error);
@@ -47,6 +54,6 @@ const tryWriteConfigProgram = Effect.fnUntraced(function* (nextConfig: AppConfig
 	);
 });
 
-export function tryWriteConfig(nextConfig: AppConfig): Promise<boolean> {
-	return runRenderer(tryWriteConfigProgram(nextConfig));
+export function tryWriteConfig(nextConfig: AppConfig, baseConfig?: AppConfig): Promise<boolean> {
+	return runRenderer(tryWriteConfigProgram(nextConfig, baseConfig));
 }

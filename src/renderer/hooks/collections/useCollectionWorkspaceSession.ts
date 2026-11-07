@@ -23,7 +23,6 @@ interface UseCollectionWorkspaceSessionOptions {
 	modalOpen: boolean;
 	onLaunchStateCleared?: () => void;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
-	overrideGameRunning: boolean;
 	setModalType: (modalType: CollectionManagerModalType) => void;
 }
 
@@ -95,7 +94,6 @@ export function useCollectionWorkspaceSession({
 	modalOpen,
 	onLaunchStateCleared,
 	openNotification,
-	overrideGameRunning,
 	setModalType
 }: UseCollectionWorkspaceSessionOptions): CollectionWorkspaceSessionView {
 	const { activeCollection, config, launchingGame, loadingMods, mods, updateState } = appState;
@@ -111,7 +109,7 @@ export function useCollectionWorkspaceSession({
 	const driverRef = useRef<ActiveCollectionDraftDriver | undefined>(undefined);
 	driverRef.current ??= createActiveCollectionDraftDriver({
 		initial: { config, draft: activeCollection },
-		initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, overrideGameRunning, savingDraft: false },
+		initialFacts: { gameRunning, launchingGame: !!launchingGame, loadingMods: !!loadingMods, savingDraft: false },
 		adapters: {
 			cancelValidation: () => executor.cancel(),
 			clearCollectionErrors: () => {},
@@ -204,13 +202,11 @@ export function useCollectionWorkspaceSession({
 			type: 'runtime-facts-changed',
 			facts: {
 				gameRunning,
-				launchingGame: !!launchingGame,
 				loadingMods: !!loadingMods,
-				overrideGameRunning,
 				savingDraft: collections.savingCollection
 			}
 		});
-	}, [collections.savingCollection, driver, gameRunning, launchingGame, loadingMods, overrideGameRunning]);
+	}, [collections.savingCollection, driver, gameRunning, loadingMods]);
 
 	useEffect(() => {
 		driver.dispatch({ type: 'active-draft-changed', config, currentDraft: activeCollection });

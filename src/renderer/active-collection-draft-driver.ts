@@ -19,7 +19,6 @@ export interface ActiveCollectionDraftDriverFacts {
 	gameRunning: boolean;
 	launchingGame: boolean;
 	loadingMods: boolean;
-	overrideGameRunning: boolean;
 	savingDraft: boolean;
 }
 
@@ -59,7 +58,7 @@ export type ActiveCollectionDraftDriverEvent =
 			type: 'active-draft-edited';
 	  }
 	| {
-			facts: ActiveCollectionDraftDriverFacts;
+			facts: Omit<ActiveCollectionDraftDriverFacts, 'launchingGame'>;
 			type: 'runtime-facts-changed';
 	  }
 	| {
@@ -248,7 +247,16 @@ export function createActiveCollectionDraftDriver({
 				break;
 			case 'launch-current-draft':
 				if (workflowRef.value.draft) {
-					void adapters.launchDraft(workflowRef.value.draft);
+					try {
+						void Promise.resolve(adapters.launchDraft(workflowRef.value.draft)).then(
+							() => applyWorkflowEvent({ type: 'launch-finished' }),
+							() => applyWorkflowEvent({ type: 'launch-finished' })
+						);
+					} catch {
+						applyWorkflowEvent({ type: 'launch-finished' });
+					}
+				} else {
+					applyWorkflowEvent({ type: 'launch-finished' });
 				}
 				break;
 			case 'set-launching-game':
@@ -322,7 +330,7 @@ export function createActiveCollectionDraftDriver({
 		workflowRef,
 		dispatch,
 		dispose: () => {
-			if (workflowRef.value.validationLaunchIfValid || workflowRef.value.pendingLaunchAfterSaveDraftKey) {
+			if (workflowRef.value.runtimeFacts.launchingGame) {
 				adapters.clearLaunchState();
 			}
 			disposed = true;

@@ -19,12 +19,7 @@ function MenuBarHarness({
 	return (
 		<>
 			<div data-testid="location">{location.pathname}</div>
-			<MenuBar
-				config={appState.config}
-				disableNavigation={disableNavigation}
-				onWorkspacePreview={onWorkspacePreview}
-				updateState={appState.updateState}
-			/>
+			<MenuBar disableNavigation={disableNavigation} onWorkspacePreview={onWorkspacePreview} />
 			<div data-testid="persisted-path">{appState.config.currentPath}</div>
 		</>
 	);

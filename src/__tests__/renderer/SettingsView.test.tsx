@@ -70,7 +70,8 @@ describe('SettingsView', () => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(
 				expect.objectContaining({
 					treatNuterraSteamBetaAsEquivalent: false
-				})
+				}),
+				expect.anything()
 			);
 		});
 	});
@@ -91,7 +92,8 @@ describe('SettingsView', () => {
 				expect.objectContaining({
 					[AppConfigKeys.LOCAL_DIR]: 'C:\\Games\\TerraTech\\LocalMods',
 					logLevel: LogLevel.DEBUG
-				})
+				}),
+				expect.anything()
 			);
 		});
 		expect(appState.configErrors).toEqual({});
@@ -159,7 +161,8 @@ describe('SettingsView', () => {
 						TTSMM: 'debug',
 						TTSMMChildFixed: 'trace'
 					}
-				})
+				}),
+				expect.anything()
 			);
 		});
 	});

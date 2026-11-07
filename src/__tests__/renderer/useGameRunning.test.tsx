@@ -1,13 +1,14 @@
 import { act, renderHook } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { readGameRunningCache, setGameRunningCacheData } from '../../renderer/game-status-cache';
 import { useGameRunning } from '../../renderer/hooks/collections/useGameRunning';
 import { createTestWrapper } from './test-utils';
 
 describe('useGameRunning', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		setGameRunningCacheData(undefined);
 		vi.useFakeTimers();
 	});
 
@@ -39,7 +40,7 @@ describe('useGameRunning', () => {
 			await Promise.resolve();
 		});
 		expect(window.electron.isGameRunning).toHaveBeenCalledOnce();
-		expect(result.current.gameRunning).toBe(true);
+		expect(result.current.effectiveGameRunning).toBe(true);
 	});
 
 	it('ignores stale poll results when a newer request resolves first', async () => {
@@ -59,7 +60,7 @@ describe('useGameRunning', () => {
 		expect(window.electron.isGameRunning).toHaveBeenCalledTimes(1);
 
 		await act(async () => {
-			void result.current.pollGameRunning();
+			result.current.beginLaunch();
 			await Promise.resolve();
 		});
 
@@ -70,13 +71,14 @@ describe('useGameRunning', () => {
 			await Promise.resolve();
 		});
 
-		expect(result.current.gameRunning).toBe(true);
+		expect(result.current.effectiveGameRunning).toBe(true);
 
 		await act(async () => {
 			resolvers[0]?.(false);
 			await Promise.resolve();
 		});
 
-		expect(result.current.gameRunning).toBe(true);
+		expect(result.current.effectiveGameRunning).toBe(true);
+		await expect(readGameRunningCache()).resolves.toBe(true);
 	});
 });

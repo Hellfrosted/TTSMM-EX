@@ -34,6 +34,56 @@ function createValidConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 }
 
 describe('config handlers', () => {
+	it('merges concurrent edits against the latest saved config', async () => {
+		const tempDir = createTempDir('ttsmm-config-merge-');
+		const base = createValidConfig({ activeCollection: 'default', viewConfigs: {} });
+		writeConfigFile(path.join(tempDir, 'config.json'), base);
+		const { invoke } = createConfigHandlerHarness(tempDir);
+		const first = { ...base, language: 'fr' };
+		const second = { ...base, gameExec: 'new-game.exe' };
+		await Promise.all([invoke(ValidChannel.UPDATE_CONFIG, first, base), invoke(ValidChannel.UPDATE_CONFIG, second, base)]);
+		expect(readConfigFile(path.join(tempDir, 'config.json'), true)).toMatchObject({ language: 'fr', gameExec: 'new-game.exe' });
+	});
+
+	it('merges independent view and override edits even when both start from empty containers', async () => {
+		const tempDir = createTempDir('ttsmm-config-merge-');
+		const base = createValidConfig();
+		writeConfigFile(path.join(tempDir, 'config.json'), base);
+		const { invoke } = createConfigHandlerHarness(tempDir);
+		const first = {
+			...base,
+			viewConfigs: { main: { columnWidthConfig: { Name: 200 } } },
+			userOverrides: new Map([['local:a', { id: 'A' }]])
+		};
+		const second = {
+			...base,
+			viewConfigs: { main: { columnWidthConfig: { ID: 300 } } },
+			userOverrides: new Map([['local:b', { id: 'B' }]])
+		};
+		await invoke(ValidChannel.UPDATE_CONFIG, first, base);
+		await invoke(ValidChannel.UPDATE_CONFIG, second, base);
+		const saved = readConfigFile(path.join(tempDir, 'config.json'), true);
+		expect(saved?.viewConfigs.main?.columnWidthConfig).toMatchObject({ Name: 200, ID: 300 });
+		expect([...saved!.userOverrides.keys()]).toEqual(expect.arrayContaining(['local:a', 'local:b']));
+	});
+	it('does not restore an outdated active selection when saving settings', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		writeConfigFile(configPath, createValidConfig({ activeCollection: 'current' }));
+		const { invoke } = createConfigHandlerHarness(tempDir);
+		const base = createValidConfig({ activeCollection: 'old' });
+		const result = await invoke(ValidChannel.UPDATE_CONFIG, { ...base, language: 'fr' }, base);
+		expect(result).toMatchObject({ activeCollection: 'current', language: 'fr' });
+		expect(readConfigFile(configPath, true)).toMatchObject({ activeCollection: 'current', language: 'fr' });
+	});
+
+	it('rejects a snapshot overwrite without a base once config exists', async () => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		writeConfigFile(path.join(tempDir, 'config.json'), createValidConfig({ language: 'fr' }));
+		const { invoke } = createConfigHandlerHarness(tempDir);
+		await expect(invoke(ValidChannel.UPDATE_CONFIG, createValidConfig({ language: 'en' }))).resolves.toBeNull();
+		expect(readConfigFile(path.join(tempDir, 'config.json'), true)?.language).toBe('fr');
+	});
 	it('returns null for a missing config file', () => {
 		const tempDir = createTempDir('ttsmm-config-test-');
 
@@ -69,6 +119,13 @@ describe('config handlers', () => {
 		fs.writeFileSync(configPath, '{ bad json', 'utf8');
 
 		expect(() => readConfigFile(configPath, true)).toThrow(`Failed to load config file "${configPath}"`);
+	});
+
+	it.each(['null', '[]', '42', '"config"'])('rejects a non-object config document: %s', (payload) => {
+		const tempDir = createTempDir('ttsmm-config-test-');
+		const configPath = path.join(tempDir, 'config.json');
+		fs.writeFileSync(configPath, payload, 'utf8');
+		expect(() => readConfigFile(configPath, true)).toThrow();
 	});
 
 	it('defaults NuterraSteam compatibility on when loading older config files', () => {

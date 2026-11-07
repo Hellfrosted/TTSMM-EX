@@ -12,6 +12,7 @@ export interface ValidationIssueSummary {
 	subscriptionIssues: number;
 	installIssues: number;
 	updateIssues: number;
+	unknownWorkshopDependencies: number;
 }
 
 interface ValidationIssueListItem {
@@ -35,6 +36,76 @@ interface CollectionStatusTagInput {
 }
 
 export type CollectionValidationOutcome = 'valid' | 'blocked' | 'warnings';
+
+type IssueSummaryKey = Exclude<keyof ValidationIssueSummary, 'affectedMods'>;
+interface ValidationIssueDefinition {
+	severity: 'blocking' | 'warning';
+	summaryKey: IssueSummaryKey;
+	message: (errors: ModErrors, mods: SessionMods) => string;
+	tag: CollectionStatusTag;
+	tagOrder: number;
+}
+
+const validationIssueDefinitions = {
+	invalidId: {
+		severity: 'blocking',
+		summaryKey: 'invalidIds',
+		message: () => 'Invalid mod ID',
+		tag: { text: 'Invalid ID', tone: 'danger', rank: 0 },
+		tagOrder: 1
+	},
+	missingDependencies: {
+		severity: 'blocking',
+		summaryKey: 'missingDependencies',
+		message: (errors) => `Missing dependencies: ${errors.missingDependencies!.map(getModDescriptorDisplayName).join(', ')}`,
+		tag: { text: 'Missing dependencies', tone: 'warning', rank: 2 },
+		tagOrder: 2
+	},
+	unknownWorkshopDependencies: {
+		severity: 'warning',
+		summaryKey: 'unknownWorkshopDependencies',
+		message: () => 'Workshop dependency metadata unknown',
+		tag: { text: 'Dependencies unknown', tone: 'warning', rank: 3 },
+		tagOrder: 3
+	},
+	incompatibleMods: {
+		severity: 'blocking',
+		summaryKey: 'incompatibleMods',
+		message: (errors, mods) => `Conflicts with: ${errors.incompatibleMods!.map((uid) => getByUID(mods, uid)?.name || uid).join(', ')}`,
+		tag: { text: 'Conflicts', tone: 'danger', rank: 1 },
+		tagOrder: 0
+	},
+	notSubscribed: {
+		severity: 'warning',
+		summaryKey: 'subscriptionIssues',
+		message: () => 'Not subscribed',
+		tag: { text: 'Not subscribed', tone: 'warning', rank: 4 },
+		tagOrder: 4
+	},
+	notInstalled: {
+		severity: 'warning',
+		summaryKey: 'installIssues',
+		message: () => 'Not installed',
+		tag: { text: 'Not installed', tone: 'warning', rank: 5 },
+		tagOrder: 5
+	},
+	needsUpdate: {
+		severity: 'warning',
+		summaryKey: 'updateIssues',
+		message: () => 'Needs update',
+		tag: { text: 'Needs update', tone: 'warning', rank: 6 },
+		tagOrder: 6
+	}
+} satisfies Record<keyof ModErrors, ValidationIssueDefinition>;
+
+const validationIssues = Object.entries(validationIssueDefinitions) as [keyof ModErrors, ValidationIssueDefinition][];
+
+function presentIssues(errors: ModErrors) {
+	return validationIssues.filter(([key]) => {
+		const value = errors[key];
+		return Array.isArray(value) ? value.length > 0 : !!value;
+	});
+}
 
 interface CollectionValidationResultPolicy {
 	errors?: CollectionErrors;
@@ -78,6 +149,8 @@ function getValidationConfigKey(config: AppConfig) {
 
 	return JSON.stringify({
 		workshopID: config.workshopID.toString(),
+		localDir: config.localDir ?? null,
+		pureVanilla: config.pureVanilla ?? false,
 		treatNuterraSteamBetaAsEquivalent: config.treatNuterraSteamBetaAsEquivalent,
 		ignoredValidationErrors,
 		userOverrides
@@ -95,33 +168,11 @@ export function getCollectionValidationKey(collection: ModCollection | undefined
 export function summarizeValidationIssues(errors: CollectionErrors): ValidationIssueSummary {
 	const summary: ValidationIssueSummary = {
 		affectedMods: Object.keys(errors).length,
-		missingDependencies: 0,
-		incompatibleMods: 0,
-		invalidIds: 0,
-		subscriptionIssues: 0,
-		installIssues: 0,
-		updateIssues: 0
+		...(Object.fromEntries(validationIssues.map(([, issue]) => [issue.summaryKey, 0])) as Record<IssueSummaryKey, number>)
 	};
 
 	Object.values(errors).forEach((modErrors) => {
-		if (modErrors.missingDependencies?.length) {
-			summary.missingDependencies += 1;
-		}
-		if (modErrors.incompatibleMods?.length) {
-			summary.incompatibleMods += 1;
-		}
-		if (modErrors.invalidId) {
-			summary.invalidIds += 1;
-		}
-		if (modErrors.notSubscribed) {
-			summary.subscriptionIssues += 1;
-		}
-		if (modErrors.notInstalled) {
-			summary.installIssues += 1;
-		}
-		if (modErrors.needsUpdate) {
-			summary.updateIssues += 1;
-		}
+		for (const [, issue] of presentIssues(modErrors)) summary[issue.summaryKey]++;
 	});
 
 	return summary;
@@ -135,33 +186,7 @@ export function getValidationIssueList(errors: CollectionErrors | undefined, mod
 	return Object.entries(errors)
 		.flatMap(([uid, modErrors]) => {
 			const modData = getByUID(mods, uid);
-			const issues: string[] = [];
-
-			if (modErrors.invalidId) {
-				issues.push('Invalid mod ID');
-			}
-			if (modErrors.missingDependencies?.length) {
-				issues.push(
-					`Missing dependencies: ${modErrors.missingDependencies.map((descriptor) => getModDescriptorDisplayName(descriptor)).join(', ')}`
-				);
-			}
-			if (modErrors.unknownWorkshopDependencies) {
-				issues.push('Workshop dependency metadata unknown');
-			}
-			if (modErrors.incompatibleMods?.length) {
-				issues.push(
-					`Conflicts with: ${modErrors.incompatibleMods.map((conflictingUid) => getByUID(mods, conflictingUid)?.name || conflictingUid).join(', ')}`
-				);
-			}
-			if (modErrors.notSubscribed) {
-				issues.push('Not subscribed');
-			}
-			if (modErrors.notInstalled) {
-				issues.push('Not installed');
-			}
-			if (modErrors.needsUpdate) {
-				issues.push('Needs update');
-			}
+			const issues = presentIssues(modErrors).map(([, issue]) => issue.message(modErrors, mods));
 
 			return issues.length > 0
 				? [
@@ -181,15 +206,7 @@ function emptySummary(): ValidationIssueSummary {
 }
 
 function hasModErrors(errors: ModErrors) {
-	return (
-		!!errors.invalidId ||
-		!!errors.notSubscribed ||
-		!!errors.notInstalled ||
-		!!errors.needsUpdate ||
-		!!errors.unknownWorkshopDependencies ||
-		!!errors.missingDependencies?.length ||
-		!!errors.incompatibleMods?.length
-	);
+	return presentIssues(errors).length > 0;
 }
 
 function hasSelectedMod(selectedMods: CollectionStatusTagInput['selectedMods'], uid: string) {
@@ -206,42 +223,30 @@ export function getCollectionStatusTags({ lastValidationStatus, record, selected
 	if (record.type === ModType.DESCRIPTOR) {
 		const selectedChildren = record.children?.filter((child) => hasSelectedMod(selectedMods, child.uid)) ?? [];
 		if (selectedChildren.length > 1) {
-			return [{ text: 'Conflicts', tone: 'danger', rank: 1 }];
+			return [{ ...validationIssueDefinitions.incompatibleMods.tag }];
 		}
 	}
 
 	if (!isSelected) {
 		if (!record.subscribed && record.workshopID && record.workshopID > 0) {
-			return [{ text: 'Not subscribed', tone: 'warning', rank: 4 }];
+			return [{ ...validationIssueDefinitions.notSubscribed.tag }];
 		}
 		if (record.subscribed && !record.installed) {
-			return [{ text: 'Not installed', tone: 'warning', rank: 5 }];
+			return [{ ...validationIssueDefinitions.notInstalled.tag }];
 		}
 		return [];
 	}
 
-	const stateTags: CollectionStatusTag[] = [];
-	if (record.errors) {
-		if (record.errors.incompatibleMods?.length) {
-			stateTags.push({ text: 'Conflicts', tone: 'danger', rank: 1 });
-		}
-		if (record.errors.invalidId) {
-			stateTags.push({ text: 'Invalid ID', tone: 'danger', rank: 0 });
-		}
-		if (record.errors.missingDependencies?.length) {
-			stateTags.push({ text: 'Missing dependencies', tone: 'warning', rank: 2 });
-		}
-		if (record.errors.unknownWorkshopDependencies) {
-			stateTags.push({ text: 'Dependencies unknown', tone: 'warning', rank: 3 });
-		}
-		if (record.errors.notSubscribed) {
-			stateTags.push({ text: 'Not subscribed', tone: 'warning', rank: 4 });
-		} else if (record.errors.notInstalled) {
-			stateTags.push({ text: 'Not installed', tone: 'warning', rank: 5 });
-		} else if (record.errors.needsUpdate) {
-			stateTags.push({ text: 'Needs update', tone: 'warning', rank: 6 });
-		}
-	}
+	const errors = record.errors;
+	const stateTags = errors
+		? presentIssues(errors)
+				.filter(
+					([key]) =>
+						!(key === 'notInstalled' && errors.notSubscribed) && !(key === 'needsUpdate' && (errors.notSubscribed || errors.notInstalled))
+				)
+				.sort(([, left], [, right]) => left.tagOrder - right.tagOrder)
+				.map(([, issue]) => ({ ...issue.tag }))
+		: [];
 
 	if (stateTags.length > 0) {
 		return stateTags;
@@ -268,8 +273,8 @@ function applyIgnoredValidationErrors(errors: CollectionErrors, config: AppConfi
 			modErrors.incompatibleMods = nonIgnoredErrors.length > 0 ? nonIgnoredErrors : undefined;
 		}
 
-		if (invalidIgnoredErrors?.[uid] && modErrors.invalidId) {
-			modErrors.invalidId = invalidIgnoredErrors[uid].length > 0;
+		if (modErrors.invalidId && invalidIgnoredErrors?.[uid]?.length) {
+			modErrors.invalidId = undefined;
 		}
 
 		if (dependencyIgnoredErrors?.[uid] && modErrors.missingDependencies) {
@@ -305,9 +310,10 @@ export function createCollectionValidationResultPolicy(errors: CollectionErrors,
 	let hasWarnings = false;
 
 	Object.values(effectiveErrors).forEach((modErrors) => {
-		hasBlockingErrors ||= !!modErrors.invalidId || !!modErrors.incompatibleMods?.length || !!modErrors.missingDependencies?.length;
-		hasWarnings ||=
-			!!modErrors.notSubscribed || !!modErrors.notInstalled || !!modErrors.needsUpdate || !!modErrors.unknownWorkshopDependencies;
+		for (const [, issue] of presentIssues(modErrors)) {
+			hasBlockingErrors ||= issue.severity === 'blocking';
+			hasWarnings ||= issue.severity === 'warning';
+		}
 	});
 
 	return {

@@ -17,7 +17,6 @@ import {
 } from 'model';
 import { type CSSProperties, type Key, memo, type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
-import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { APP_TAG_STYLES } from 'renderer/theme';
 import { persistConfigChange } from 'renderer/util/config-write';
@@ -503,7 +502,7 @@ function useModDetailsFooterContent({
 						checked={isSelected}
 						disabled={recordType !== ModType.DESCRIPTOR && type === DependenciesTableType.REQUIRED}
 						onChange={(checked) => {
-							const nextConfig = cloneAppConfig(appConfig);
+							const nextConfig = structuredClone(appConfig);
 							let nextIgnoredErrors = nextConfig.ignoredValidationErrors.get(errorType as ModErrorType);
 							if (!nextIgnoredErrors) {
 								nextIgnoredErrors = {};
@@ -522,10 +521,14 @@ function useModDetailsFooterContent({
 
 							void (async () => {
 								try {
-									await persistConfigChange(nextConfig, (persistedConfig) => {
-										updateAppState({ config: persistedConfig });
-										validateCollection({ config: persistedConfig });
-									});
+									await persistConfigChange(
+										nextConfig,
+										(persistedConfig) => {
+											updateAppState({ config: persistedConfig });
+											validateCollection({ config: persistedConfig });
+										},
+										appConfig
+									);
 								} catch (error) {
 									api.logger.error(error);
 									openNotification(

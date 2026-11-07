@@ -24,7 +24,6 @@ import {
 } from 'renderer/collection-manager-form-validation';
 import { getValidationIssueList } from 'renderer/collection-validation-run';
 import { DesktopButton, DesktopDialog, DesktopInput, DesktopSwitch } from 'renderer/components/DesktopControls';
-import { cloneAppConfig } from 'renderer/hooks/collections/utils';
 import { canSetMainColumnVisibility } from 'renderer/main-column-visibility';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { persistConfigChange } from 'renderer/util/config-write';
@@ -446,14 +445,13 @@ function CollectionManagerModal({
 		tableSettingsForm.reset(setMainTableSettingsColumnWidth(tableSettingsForm.getValues(), columnId, width), { keepDefaultValues: true });
 	};
 	const closeLaunchWarning = () => {
-		appState.updateState({ launchingGame: false });
 		closeModal();
 	};
 
 	const saveConfig = async (nextConfig: AppConfig, afterSave?: () => void) => {
 		setSavingConfig(true);
 		try {
-			await persistConfigChange(nextConfig, (persistedConfig) => appState.updateState({ config: persistedConfig }));
+			await persistConfigChange(nextConfig, (persistedConfig) => appState.updateState({ config: persistedConfig }), appState.config);
 			afterSave?.();
 		} catch (error) {
 			api.logger.error(error);
@@ -525,7 +523,7 @@ function CollectionManagerModal({
 				return null;
 			}
 			const submitTableSettings = tableSettingsForm.handleSubmit((values) => {
-				const nextConfig = cloneAppConfig(appState.config);
+				const nextConfig = structuredClone(appState.config);
 				nextConfig.viewConfigs.main = toMainCollectionConfig(values, appState.config.viewConfigs.main);
 				void saveConfig(nextConfig, closeModal);
 			});
@@ -576,7 +574,7 @@ function CollectionManagerModal({
 			const currentUserTagsInputId = 'collection-current-user-tags';
 			const currentUserTagsHelpId = 'collection-current-user-tags-help';
 			const submitOverrideSettings = overrideForm.handleSubmit((values) => {
-				const nextConfig = cloneAppConfig(appState.config);
+				const nextConfig = structuredClone(appState.config);
 				const nextOverride = nextConfig.userOverrides.get(nextRecord.uid) || {};
 				const nextOverrideId = values.overrideId.trim();
 				if (nextOverrideId) {

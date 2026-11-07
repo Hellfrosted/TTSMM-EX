@@ -87,7 +87,6 @@ export default function ModLoadingComponent({ appState, modLoadCompleteCallback 
 	const commitModLoad = useEffectEvent((mods: SessionMods) => {
 		updateAppState({
 			mods,
-			firstModLoad: true,
 			loadingMods: false,
 			forceReloadMods: false
 		});

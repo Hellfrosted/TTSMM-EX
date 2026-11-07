@@ -1,10 +1,15 @@
 import { Effect } from 'effect';
 import log from 'electron-log';
+import path from 'path';
 
 import type { AppConfig } from '../model';
 import { normalizeAppConfig } from '../shared/app-config-defaults';
 import { toEffectOperationError } from '../shared/effect-errors';
 import { fileExistsEffect, readJsonFileEffect, writeUtf8FileAtomicEffect } from './storage';
+
+export function configFilePath(userDataPath: string): string {
+	return path.join(userDataPath, 'config.json');
+}
 
 export function applyLogLevel(level: log.LogLevel, isDevelopment: boolean) {
 	log.transports.file.level = level;
@@ -24,6 +29,9 @@ export const readConfigFileEffect = Effect.fnUntraced(function* (
 
 	return yield* readJsonFileEffect<unknown>(filepath).pipe(
 		Effect.map((payload) => {
+			if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+				throw new Error('Config file must contain an object');
+			}
 			const appConfig = normalizeAppConfig(payload as Record<string, unknown>, process.platform);
 			if (appConfig.logLevel) {
 				applyLogLevel(appConfig.logLevel, isDevelopment);
