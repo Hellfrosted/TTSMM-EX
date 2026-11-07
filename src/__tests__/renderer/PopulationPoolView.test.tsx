@@ -35,6 +35,28 @@ describe('PopulationPoolView', () => {
 		await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
 		expect(update.mock.calls[1][0].viewConfigs.populationPool.columnActiveConfig).toMatchObject({ name: false, source: false });
 	});
+	it('does not carry a failed setting into a queued write', async () => {
+		let failFirst!: (value: null) => void;
+		const update = vi
+			.fn()
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						failFirst = resolve;
+					})
+			)
+			.mockImplementation(async (value) => value);
+		window.electron.updateConfig = update;
+		const updateState = vi.fn();
+		render(<PopulationPoolView appState={{ config: createTestConfig(), updateState }} />);
+		fireEvent.click(screen.getByRole('checkbox', { name: 'Name' }));
+		fireEvent.click(screen.getByRole('checkbox', { name: 'Source' }));
+		await waitFor(() => expect(failFirst).toBeDefined());
+		await act(async () => failFirst(null));
+		await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+		expect(update.mock.calls[1][0].viewConfigs.populationPool.columnActiveConfig).toEqual({ source: false });
+		await waitFor(() => expect(updateState).toHaveBeenLastCalledWith(expect.objectContaining({ config: update.mock.calls[1][0] })));
+	});
 	it('ignores an older scan that resolves after a newer one', async () => {
 		const row = {
 			id: 'one',

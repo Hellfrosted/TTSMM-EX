@@ -25,6 +25,10 @@ export const MAIN_WINDOW_DEFAULT_BOUNDS = Object.freeze({
 	minHeight: 600
 });
 
+export function isAllowedDevelopmentReload(isDevelopment: boolean, currentUrl: string, targetUrl: string) {
+	return isDevelopment && currentUrl !== '' && targetUrl === currentUrl;
+}
+
 interface WindowOptions {
 	isDevelopment: boolean;
 	onDidFinishLoad: () => void;
@@ -255,8 +259,8 @@ export async function createMainWindow({ isDevelopment, onDidFinishLoad }: Windo
 		openExternalUrl(url);
 		return { action: 'deny' };
 	});
-	mainWindow.webContents.on('will-navigate', (event) => {
-		event.preventDefault();
+	mainWindow.webContents.on('will-navigate', (event, url) => {
+		if (!isAllowedDevelopmentReload(isDevelopment, mainWindow.webContents.getURL(), url)) event.preventDefault();
 	});
 
 	mainWindow.webContents.on('did-finish-load', () => {

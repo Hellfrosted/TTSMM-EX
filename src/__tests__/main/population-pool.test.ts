@@ -333,14 +333,23 @@ describe('population pool scanner', () => {
 	it('bounds the total Workshop discovery time across pages', async () => {
 		vi.useFakeTimers();
 		try {
-			vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			let finishPending!: () => void;
+			const query = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
 				if (props.options?.page_num === 1) {
 					setTimeout(() => props.success_callback({ totalItems: 2, numReturned: 1, items: [createWorkshopDetails({})] }), 20_000);
+				} else {
+					finishPending = () => props.success_callback({ totalItems: 0, numReturned: 0, items: [] });
 				}
 			});
 			const scan = scanPopulationPool(tempDir, {});
 			await vi.advanceTimersByTimeAsync(30_000);
 			expect((await scan).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
+			expect((await scanPopulationPool(tempDir, {})).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
+			expect(query).toHaveBeenCalledTimes(2);
+			finishPending();
+			query.mockImplementation((props) => props.success_callback({ totalItems: 0, numReturned: 0, items: [] }));
+			await scanPopulationPool(tempDir, {});
+			expect(query).toHaveBeenCalledTimes(3);
 		} finally {
 			vi.useRealTimers();
 		}

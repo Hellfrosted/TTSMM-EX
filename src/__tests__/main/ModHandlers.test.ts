@@ -54,6 +54,28 @@ describe('mod handlers', () => {
 		}
 	});
 
+	it('blocks conflicting retries after timeout until the native callback arrives', async () => {
+		vi.useFakeTimers();
+		try {
+			let complete!: (result: EResult) => void;
+			const start = vi.fn((success: (result: EResult) => void) => {
+				complete = success;
+			});
+			const logger = { error: vi.fn() };
+			const first = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'));
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await first).toBe(false);
+			expect(await Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'))).toBe(false);
+			expect(start).toHaveBeenCalledTimes(1);
+			complete(EResult.k_EResultOK);
+			const next = Effect.runPromise(runSteamworksAction(undefined, 'failed', start, logger, 'test-item'));
+			complete(EResult.k_EResultOK);
+			expect(await next).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it('downloads mods through ugcDownloadItem', async () => {
 		const steamworks = {
 			ugcDownloadItem: vi.fn((workshopID: bigint, success: (result: EResult) => void) => {
@@ -283,6 +305,31 @@ describe('mod handlers', () => {
 
 		expect(Steamworks.ugcUnsubscribe).toHaveBeenCalledWith(BigInt(42), expect.any(Function), expect.any(Function));
 		expect(send).toHaveBeenCalledWith(ValidChannel.MOD_METADATA_UPDATE, 'workshop:42', { subscribed: false });
+	});
+
+	it('blocks context-menu actions while a timed-out IPC action remains pending', async () => {
+		vi.useFakeTimers();
+		try {
+			let finish!: (result: EResult) => void;
+			vi.spyOn(Steamworks, 'ugcDownloadItem').mockImplementation((_id, success) => {
+				finish = success;
+			});
+			const subscribe = vi.spyOn(Steamworks, 'ugcSubscribe').mockImplementation(() => {});
+			const pending = createDownloadModHandler(Steamworks)(undefined, 42n);
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await pending).toBe(false);
+			const template = createContextMenuTemplate(
+				{ uid: 'workshop:42', type: ModType.WORKSHOP, workshopID: 42n, id: 'test', name: 'Test', subscribed: false },
+				{ getWebContents: () => null }
+			);
+			const action = getSubmenuItems(template.find((item) => item.label === 'Steam Subscription'))[0];
+			action.click?.({} as never, {} as never, {} as never);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(subscribe).not.toHaveBeenCalled();
+			finish(EResult.k_EResultOK);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('rejects mod metadata requests when scanning mods fails', async () => {

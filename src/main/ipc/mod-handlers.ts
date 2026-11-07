@@ -52,7 +52,8 @@ export function createDownloadModHandler(steamworks = Steamworks, getSteamStatus
 				(success, failure) => {
 					steamworks.ugcDownloadItem(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString()
 			)
 		);
 	};
@@ -68,7 +69,8 @@ export function createSubscribeModHandler(steamworks = Steamworks, getSteamStatu
 				(success, failure) => {
 					steamworks.ugcSubscribe(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString()
 			)
 		);
 	};
@@ -84,7 +86,8 @@ function createUnsubscribeModHandler(steamworks = Steamworks, getSteamStatus?: (
 				(success, failure) => {
 					steamworks.ugcUnsubscribe(validatedWorkshopID, success, failure);
 				},
-				log
+				log,
+				validatedWorkshopID.toString()
 			)
 		);
 	};
@@ -139,10 +142,11 @@ function createSteamworksInitHandler(getSteamStatus: () => SteamworksStatus, try
 
 async function runContextMenuSteamworksAction(
 	failureMessage: string,
+	workshopID: bigint,
 	action: (success: (result?: unknown) => void, failure: (error: Error) => void) => void,
 	onSuccess: () => void
 ): Promise<void> {
-	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log));
+	const success = await runMain(runSteamworksAction(undefined, failureMessage, action as never, log, workshopID.toString()));
 	if (success) {
 		onSuccess();
 	}
@@ -196,6 +200,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to unsubscribe from mod ${workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcUnsubscribe(workshopID, success as never, failure);
 						},
@@ -215,6 +220,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to subscribe to mod ${workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcSubscribe(workshopID, success as never, failure);
 						},
@@ -239,6 +245,7 @@ export function createContextMenuTemplate(record: ModData, mainWindowProvider: M
 				click: () => {
 					void runContextMenuSteamworksAction(
 						`Failed to update mod ${record.workshopID}`,
+						workshopID,
 						(success, failure) => {
 							Steamworks.ugcDownloadItem(record.workshopID!, success as never, failure);
 						},

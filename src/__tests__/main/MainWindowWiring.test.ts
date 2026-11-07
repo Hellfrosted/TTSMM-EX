@@ -17,6 +17,7 @@ const electronMock = vi.hoisted(() => {
 		});
 		webContents = {
 			on: vi.fn(),
+			getURL: vi.fn(() => 'app://renderer/index.html'),
 			setWindowOpenHandler: vi.fn()
 		};
 

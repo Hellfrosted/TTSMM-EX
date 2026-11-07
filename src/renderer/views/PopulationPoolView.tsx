@@ -189,28 +189,34 @@ function usePopulationPoolSettings(
 	setError: (message: string) => void
 ) {
 	const configRef = useRef(config);
+	const persistedConfigRef = useRef(config);
 	const configWrites = useRef(Promise.resolve());
 	const pendingConfigWrites = useRef(0);
 	useEffect(() => {
-		if (pendingConfigWrites.current === 0) configRef.current = config;
+		if (pendingConfigWrites.current === 0) {
+			configRef.current = config;
+			persistedConfigRef.current = config;
+		}
 	}, [config]);
 	const persistConfig = useCallback(
-		(nextConfig: AppConfig) => {
+		(update: (config: AppConfig) => AppConfig) => {
+			const nextConfig = update(configRef.current);
 			configRef.current = nextConfig;
 			pendingConfigWrites.current++;
 			updateState({ config: nextConfig });
 			configWrites.current = configWrites.current.then(async () => {
 				try {
-					const persistedConfig = await window.electron.updateConfig(nextConfig);
+					const persistedConfig = await window.electron.updateConfig(update(persistedConfigRef.current));
 					if (!persistedConfig) throw new Error('Could not save Population Pool settings');
-					if (pendingConfigWrites.current === 1) {
-						configRef.current = persistedConfig;
-						updateState({ config: persistedConfig });
-					}
+					persistedConfigRef.current = persistedConfig;
 				} catch (error) {
 					setError(error instanceof Error ? error.message : String(error));
 				} finally {
 					pendingConfigWrites.current--;
+					if (pendingConfigWrites.current === 0) {
+						configRef.current = persistedConfigRef.current;
+						updateState({ config: persistedConfigRef.current });
+					}
 				}
 			});
 		},
@@ -219,55 +225,56 @@ function usePopulationPoolSettings(
 
 	const updateColumnVisibility = useCallback(
 		(column: PopulationPoolColumnKey, visible: boolean) => {
-			const config = configRef.current;
-			const nextConfig = cloneConfigWithPopulationPool(config, {
-				columnActiveConfig: {
-					...config.viewConfigs.populationPool?.columnActiveConfig,
-					[column]: visible
-				}
-			});
-			void persistConfig(nextConfig);
+			persistConfig((config) =>
+				cloneConfigWithPopulationPool(config, {
+					columnActiveConfig: {
+						...config.viewConfigs.populationPool?.columnActiveConfig,
+						[column]: visible
+					}
+				})
+			);
 		},
 		[persistConfig]
 	);
 
 	const updateColumnWidth = useCallback(
 		(column: PopulationPoolColumnKey, width: number | undefined) => {
-			const config = configRef.current;
-			const columnWidthConfig = { ...config.viewConfigs.populationPool?.columnWidthConfig };
-			if (width === undefined) {
-				delete columnWidthConfig[column];
-			} else {
-				columnWidthConfig[column] = width;
-			}
-			const nextConfig = cloneConfigWithPopulationPool(config, {
-				columnWidthConfig
+			persistConfig((config) => {
+				const columnWidthConfig = { ...config.viewConfigs.populationPool?.columnWidthConfig };
+				if (width === undefined) {
+					delete columnWidthConfig[column];
+				} else {
+					columnWidthConfig[column] = width;
+				}
+				return cloneConfigWithPopulationPool(config, {
+					columnWidthConfig
+				});
 			});
-			void persistConfig(nextConfig);
 		},
 		[persistConfig]
 	);
 
 	const moveColumn = useCallback(
 		(column: PopulationPoolColumnKey, direction: -1 | 1) => {
-			const config = configRef.current;
-			const currentOrder = normalizedOrder(config.viewConfigs.populationPool?.columnOrder, POPULATION_POOL_COLUMN_KEYS);
-			const fromIndex = currentOrder.indexOf(column);
-			const toIndex = fromIndex + direction;
-			if (fromIndex < 0 || toIndex < 0 || toIndex >= currentOrder.length) {
-				return;
-			}
-			const nextOrder = [...currentOrder];
-			nextOrder.splice(fromIndex, 1);
-			nextOrder.splice(toIndex, 0, column);
-			void persistConfig(cloneConfigWithPopulationPool(config, { columnOrder: nextOrder }));
+			persistConfig((config) => {
+				const currentOrder = normalizedOrder(config.viewConfigs.populationPool?.columnOrder, POPULATION_POOL_COLUMN_KEYS);
+				const fromIndex = currentOrder.indexOf(column);
+				const toIndex = fromIndex + direction;
+				if (fromIndex < 0 || toIndex < 0 || toIndex >= currentOrder.length) {
+					return config;
+				}
+				const nextOrder = [...currentOrder];
+				nextOrder.splice(fromIndex, 1);
+				nextOrder.splice(toIndex, 0, column);
+				return cloneConfigWithPopulationPool(config, { columnOrder: nextOrder });
+			});
 		},
 		[persistConfig]
 	);
 
 	const updateCompactRows = useCallback(
 		(smallRows: boolean) => {
-			void persistConfig(cloneConfigWithPopulationPool(configRef.current, { smallRows }));
+			persistConfig((config) => cloneConfigWithPopulationPool(config, { smallRows }));
 		},
 		[persistConfig]
 	);

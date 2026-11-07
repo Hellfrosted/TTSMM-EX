@@ -4,6 +4,7 @@ import api from 'renderer/Api';
 import {
 	fetchBlockLookupBootstrap,
 	fetchBlockLookupSearch,
+	getBlockLookupBootstrapCacheData,
 	invalidateBlockLookupSearchQueries,
 	setBlockLookupBootstrapQueryData,
 	useBuildBlockLookupIndexMutation
@@ -50,8 +51,14 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 	const { gameExec } = appConfig;
 	const searchRequestIdRef = useRef(0);
 	const settingsWriteQueue = useRef(Promise.resolve());
+	const savedSettingsRef = useRef(settings);
+	const previewToggleRevision = useRef(0);
 	const saveSettings = useCallback((requested: typeof settings) => {
-		const result = settingsWriteQueue.current.then(() => api.saveBlockLookupSettings(requested));
+		const result = settingsWriteQueue.current.then(async () => {
+			const saved = await api.saveBlockLookupSettings(requested);
+			savedSettingsRef.current = saved;
+			return saved;
+		});
 		settingsWriteQueue.current = result.then(
 			() => undefined,
 			() => undefined
@@ -114,6 +121,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					return;
 				}
 				dispatchSessionEvent({ type: 'bootstrap-loaded', settings: nextSettings, stats: nextStats });
+				savedSettingsRef.current = nextSettings;
 				await refreshResults(queryRef.current);
 			} catch (error) {
 				if (cancelled) return;
@@ -177,7 +185,8 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 					requested
 				});
 				dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings, requested });
-				setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
+				const cached = getBlockLookupBootstrapCacheData();
+				setBlockLookupBootstrapQueryData([nextSettings, cached ? cached[1] : settingsState.stats]);
 				if (notify) {
 					openNotification(
 						{
@@ -346,6 +355,7 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 
 	const setRenderedPreviewsEnabled = useCallback(
 		(nextRenderedPreviewsEnabled: boolean) => {
+			const revision = ++previewToggleRevision.current;
 			dispatchSessionEvent({ type: 'rendered-previews-enabled-changed', renderedPreviewsEnabled: nextRenderedPreviewsEnabled });
 			void (async () => {
 				try {
@@ -364,9 +374,17 @@ export function useBlockLookupWorkflow({ appState }: BlockLookupWorkflowOptions)
 						requested
 					});
 					dispatchSessionEvent({ type: 'settings-saved', settings: nextSettings, requested });
-					setBlockLookupBootstrapQueryData(createBlockLookupBootstrapCacheProjection(settingsState));
+					const cached = getBlockLookupBootstrapCacheData();
+					setBlockLookupBootstrapQueryData([nextSettings, cached ? cached[1] : settingsState.stats]);
 				} catch (error) {
 					api.logger.error(error);
+					await settingsWriteQueue.current;
+					if (previewToggleRevision.current === revision) {
+						dispatchSessionEvent({
+							type: 'rendered-previews-enabled-changed',
+							renderedPreviewsEnabled: savedSettingsRef.current.renderedPreviewsEnabled
+						});
+					}
 					openNotification(
 						{
 							message: 'Could not save rendered preview setting',

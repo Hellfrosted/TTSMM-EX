@@ -17,17 +17,26 @@ interface WorkshopRuntimeStateOptions {
 	steamworks?: Pick<typeof Steamworks, 'ugcGetItemInstallInfo' | 'ugcGetItemState'>;
 }
 
+const pendingWorkshopActions = new Set<string>();
+
 export function runSteamworksAction(
 	status: SteamworksStatus | undefined,
 	failureMessage: string,
 	action: (success: (result: EResult) => void, failure: (error: Error) => void) => void,
-	logger: Pick<typeof log, 'error'> = console
+	logger: Pick<typeof log, 'error'> = console,
+	actionKey?: string
 ): Effect.Effect<boolean> {
 	if (status && status.readiness.kind !== 'ready') {
 		return Effect.succeed(false);
 	}
 
 	return Effect.callback<boolean>((resume) => {
+		if (actionKey && pendingWorkshopActions.has(actionKey)) {
+			logger.error(`${failureMessage}: a Workshop action is still pending`);
+			resume(Effect.succeed(false));
+			return;
+		}
+		if (actionKey) pendingWorkshopActions.add(actionKey);
 		const timeout = setTimeout(() => {
 			logger.error(`${failureMessage}: Steamworks did not respond`);
 			resume(Effect.succeed(false));
@@ -36,6 +45,7 @@ export function runSteamworksAction(
 			action(
 				(result: EResult | undefined) => {
 					clearTimeout(timeout);
+					if (actionKey) pendingWorkshopActions.delete(actionKey);
 					if (result === undefined || result === EResult.k_EResultOK) {
 						resume(Effect.succeed(true));
 					} else {
@@ -45,6 +55,7 @@ export function runSteamworksAction(
 				},
 				(error: Error) => {
 					clearTimeout(timeout);
+					if (actionKey) pendingWorkshopActions.delete(actionKey);
 					logger.error(failureMessage);
 					logger.error(error);
 					resume(Effect.succeed(false));
@@ -52,6 +63,7 @@ export function runSteamworksAction(
 			);
 		} catch (error) {
 			clearTimeout(timeout);
+			if (actionKey) pendingWorkshopActions.delete(actionKey);
 			logger.error(failureMessage);
 			logger.error(error);
 			resume(Effect.succeed(false));

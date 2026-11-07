@@ -32,6 +32,28 @@ describe('collection handlers', () => {
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(true);
 	});
 
+	it('does not create a second collection when directory inspection fails', () => {
+		const dir = path.join(tempDir, 'collections');
+		fs.mkdirSync(dir, { recursive: true });
+		const original = path.join(dir, 'foo.JSON');
+		fs.writeFileSync(original, JSON.stringify({ mods: ['local:keep'] }));
+		const exists = fs.existsSync;
+		const existsSpy = vi
+			.spyOn(fs, 'existsSync')
+			.mockImplementation((target) => (target === path.join(dir, 'foo.json') ? false : exists(target)));
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+			throw new Error('access denied');
+		});
+		try {
+			expect(() => readCollectionFile(tempDir, 'foo')).toThrow();
+			expect(updateCollectionFile(tempDir, { name: 'foo', mods: [] })).toBe(false);
+		} finally {
+			spy.mockRestore();
+			existsSpy.mockRestore();
+		}
+		expect(JSON.parse(fs.readFileSync(original, 'utf8'))).toEqual({ mods: ['local:keep'] });
+	});
+
 	it('throws when a collection file exists but contains malformed json', () => {
 		const collectionsDir = path.join(tempDir, 'collections');
 		fs.mkdirSync(collectionsDir, { recursive: true });

@@ -93,12 +93,7 @@ export function discoverPopulationPoolPathStatuses(request: PopulationPoolScanRe
 			'Saved Tech Snapshot Folder is missing. Saved Tech Candidate discovery is unavailable.',
 			!!request.localDir
 		),
-		createPathStatus(
-			'workshopContent',
-			request.workshopRoot || '',
-			'Workshop Content Folder is missing. Workshop Tech Candidate discovery is unavailable.',
-			!!request.workshopRoot
-		)
+		createPathStatus('workshopContent', request.workshopRoot || '', 'Workshop Content Folder is missing.', !!request.workshopRoot)
 	];
 }
 
@@ -262,8 +257,15 @@ function createRequestRows(userDataPath: string): PopulationPoolRow[] {
 	}));
 }
 
+let workshopQueryPending = false;
+
 function getSubscribedTechPage(pageNum: number, timeoutMs: number) {
 	return new Promise<SteamPageResults>((resolve, reject) => {
+		if (workshopQueryPending) {
+			reject(new Error('Workshop discovery query is still pending'));
+			return;
+		}
+		workshopQueryPending = true;
 		const timeout = setTimeout(() => reject(new Error('Workshop discovery timed out')), timeoutMs);
 		try {
 			Steamworks.ugcGetUserItems({
@@ -276,15 +278,18 @@ function getSubscribedTechPage(pageNum: number, timeoutMs: number) {
 				ugc_list: UserUGCList.Subscribed,
 				ugc_list_sort_order: UserUGCListSortOrder.SubscriptionDateDesc,
 				success_callback: (result) => {
+					workshopQueryPending = false;
 					clearTimeout(timeout);
 					resolve(result);
 				},
 				error_callback: (error) => {
+					workshopQueryPending = false;
 					clearTimeout(timeout);
 					reject(error);
 				}
 			});
 		} catch (error) {
+			workshopQueryPending = false;
 			clearTimeout(timeout);
 			reject(error);
 		}

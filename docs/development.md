@@ -134,7 +134,7 @@ The pacman target needs `bsdtar`.
 - `pnpm run smoke:steamworks`: Electron-side Steamworks smoke test
 - `pnpm run smoke:ui`: build, then run the GUI smoke test with isolated user data
 - `pnpm run smoke:ui:built`: GUI smoke test against the existing `release/app/dist` build
-- `pnpm run smoke:ui:packaged`: GUI smoke test of the packaged `app.asar` using the installed Electron binary and isolated user data
+- `pnpm run smoke:ui:packaged`: GUI smoke test of the packaged executable with isolated user data
 - `pnpm run rebuild:electron`: rebuild native Electron dependencies in `release/app`
 - `pnpm run package`: package for the current platform default target
 - `pnpm run package:linux`: build both Linux package formats

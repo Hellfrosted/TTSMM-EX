@@ -4,7 +4,11 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
-import { setBlockLookupBootstrapCacheData, setBlockLookupSearchCacheData } from '../../renderer/block-lookup-cache';
+import {
+	getBlockLookupBootstrapCacheData,
+	setBlockLookupBootstrapCacheData,
+	setBlockLookupSearchCacheData
+} from '../../renderer/block-lookup-cache';
 import { APP_NOTIFICATION_EVENT } from '../../renderer/notification-channel';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
 import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
@@ -232,6 +236,33 @@ describe('BlockLookupView', () => {
 			});
 		});
 		expect(screen.queryByRole('button', { name: 'Save Settings' })).not.toBeInTheDocument();
+	});
+
+	it('restores the saved preview toggle when persistence fails', async () => {
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
+		vi.mocked(window.electron.saveBlockLookupSettings).mockRejectedValueOnce(new Error('write failed'));
+		renderBlockLookupView();
+		const toggle = await screen.findByRole('switch', { name: 'Enable rendered block previews' });
+		fireEvent.click(toggle);
+		await waitFor(() => expect(toggle).not.toBeChecked());
+	});
+
+	it('keeps newer cached index stats when an older settings save completes', async () => {
+		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
+		let finish!: (settings: typeof TEST_BLOCK_LOOKUP_SETTINGS) => void;
+		vi.mocked(window.electron.saveBlockLookupSettings).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		renderBlockLookupView();
+		fireEvent.click(await screen.findByRole('switch', { name: 'Enable rendered block previews' }));
+		await waitFor(() => expect(finish).toBeDefined());
+		const newerStats = { ...TEST_STATS, blocks: 99 };
+		setBlockLookupBootstrapCacheData([TEST_BLOCK_LOOKUP_SETTINGS, newerStats]);
+		await act(async () => finish({ ...TEST_BLOCK_LOOKUP_SETTINGS, renderedPreviewsEnabled: true }));
+		expect(getBlockLookupBootstrapCacheData()?.[1]).toEqual(newerStats);
 	});
 
 	it('shows only cached rendered preview references after the current index was built with rendered previews', async () => {
