@@ -14,6 +14,7 @@ import type {
 } from 'shared/population-pool';
 import { POPULATION_POOL_PATH_LABELS } from 'shared/population-pool';
 import { TERRATECH_STEAM_APP_ID } from 'shared/terratech';
+import { getPublicSubscribedTechs } from './population-pool-workshop-fallback';
 import { registerPreviewImage } from './preview-protocol';
 import Steamworks, { type SteamPageResults, UGCMatchingType, UserUGCList, UserUGCListSortOrder } from './steamworks';
 import { writeUtf8FileAtomicEffect } from './storage';
@@ -297,21 +298,25 @@ function getSubscribedTechPage(pageNum: number, timeoutMs: number) {
 }
 
 async function scanWorkshopTechRows(warnings: string[]): Promise<PopulationPoolRow[]> {
-	const details = [];
+	const details: Pick<SteamPageResults['items'][number], 'publishedFileId' | 'title' | 'tagsDisplayNames' | 'previewURL'>[] = [];
 	let page = 1;
 	let total = 0;
 	const deadline = Date.now() + 30_000;
-	do {
-		const remaining = deadline - Date.now();
-		if (remaining <= 0) throw new Error('Workshop discovery timed out');
-		const result = await getSubscribedTechPage(page, remaining);
-		total = result.totalItems;
-		details.push(...result.items);
-		page += 1;
-		if (result.items.length === 0) break;
-	} while (details.length < total && page < 100);
-	if (details.length < total) {
-		warnings.push('Workshop Tech Candidate discovery returned incomplete results.');
+	if (workshopQueryPending) {
+		details.push(...(await getPublicSubscribedTechs(warnings)));
+	} else {
+		do {
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) throw new Error('Workshop discovery timed out');
+			const result = await getSubscribedTechPage(page, remaining);
+			total = result.totalItems;
+			details.push(...result.items);
+			page += 1;
+			if (result.items.length === 0) break;
+		} while (details.length < total && page < 100);
+		if (details.length < total) {
+			warnings.push('Workshop Tech Candidate discovery returned incomplete results.');
+		}
 	}
 
 	return details

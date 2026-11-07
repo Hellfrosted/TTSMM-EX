@@ -344,15 +344,57 @@ describe('population pool scanner', () => {
 			const scan = scanPopulationPool(tempDir, {});
 			await vi.advanceTimersByTimeAsync(30_000);
 			expect((await scan).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
-			expect((await scanPopulationPool(tempDir, {})).warnings).toContain(
-				'Workshop discovery query is still pending. Restart the app if it does not recover.'
-			);
+			expect((await scanPopulationPool(tempDir, {})).warnings).toContain('Workshop Tech Candidate discovery is unavailable.');
 			expect(query).toHaveBeenCalledTimes(2);
 			finishPending();
 			query.mockImplementation((props) => props.success_callback({ totalItems: 0, numReturned: 0, items: [] }));
 			await scanPopulationPool(tempDir, {});
 			expect(query).toHaveBeenCalledTimes(3);
 		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('recovers Workshop discovery on later scans when a native query never completes', async () => {
+		vi.useFakeTimers();
+		let finishPending!: () => void;
+		try {
+			const query = vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+				finishPending = () => props.success_callback({ totalItems: 0, numReturned: 0, items: [] });
+			});
+			vi.spyOn(Steamworks, 'getSubscribedItems').mockReturnValue([101n, 202n, 303n]);
+			vi.stubGlobal(
+				'fetch',
+				vi.fn().mockImplementation(
+					() =>
+						new Response(
+							JSON.stringify({
+								response: {
+									publishedfiledetails: [
+										{ result: 1, publishedfileid: '101', consumer_app_id: 285920, title: 'Recovered Tech', tags: [{ tag: 'Techs' }] },
+										{ result: 1, publishedfileid: '202', consumer_app_id: 285920, title: 'Mod', tags: [{ tag: 'Mods' }] }
+									]
+								}
+							}),
+							{ status: 200 }
+						)
+				)
+			);
+			const initial = scanPopulationPool(tempDir, {});
+			await vi.advanceTimersByTimeAsync(30_000);
+			await initial;
+			const recovered = await scanPopulationPool(tempDir, {});
+			expect(recovered.rows.filter((row) => row.source === 'workshop-candidate')).toMatchObject([
+				{ workshopId: '101', name: 'Recovered Tech' }
+			]);
+			expect(recovered.warnings).toContain('Workshop Tech Candidate discovery returned incomplete results. Some items may not be public.');
+			expect((await scanPopulationPool(tempDir, {})).rows).toEqual(
+				expect.arrayContaining([expect.objectContaining({ workshopId: '101' })])
+			);
+			expect(query).toHaveBeenCalledTimes(1);
+		} finally {
+			finishPending?.();
+			vi.unstubAllGlobals();
 			vi.useRealTimers();
 		}
 	});
