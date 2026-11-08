@@ -38,6 +38,18 @@ describe('collection lifecycle service', () => {
 		expect(readCollectionFile(tempDir, 'other')).toEqual({ name: 'other', mods: ['local:other'] });
 	});
 
+	it('does not use a case-different draft name as the file identity', () => {
+		writeTestCollection(tempDir, { name: 'default', mods: ['local:active'] });
+		const result = Effect.runSync(
+			deleteActiveCollection(tempDir, {
+				config: createTestAppConfig(),
+				dirtyCollection: { name: 'Default', mods: ['local:stale'] }
+			})
+		);
+		expect(result).toMatchObject({ ok: false, code: 'dirty-collection-write-failed' });
+		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:active']);
+	});
+
 	it('creates and activates a new collection while preserving dirty active edits', () => {
 		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
 

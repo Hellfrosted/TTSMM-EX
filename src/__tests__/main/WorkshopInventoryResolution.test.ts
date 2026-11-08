@@ -303,6 +303,33 @@ describe('WorkshopInventoryExpansion', () => {
 		})
 	);
 
+	it.effect('terminates cyclic Workshop dependencies after each item is resolved once', () =>
+		Effect.gen(function* () {
+			const expansion = new WorkshopInventoryExpansion(new Set([1n]));
+			const fetched: bigint[] = [];
+			const count = yield* expandPendingWorkshopDependencies(expansion, {
+				adapters: {
+					knownWorkshopMods: new Set([1n]),
+					getDetailsForWorkshopModList: (ids) => {
+						fetched.push(...ids);
+						return Effect.succeed(
+							ids.map((workshopID) => ({
+								uid: `workshop:${workshopID}`,
+								id: `Mod${workshopID}`,
+								type: ModType.WORKSHOP,
+								workshopID,
+								steamDependencies: [workshopID === 1n ? 2n : 1n]
+							}))
+						);
+					}
+				}
+			});
+			expect(count).toBe(2);
+			expect(fetched).toEqual([1n, 2n]);
+			expect(expansion.getPendingWorkshopMods().size).toBe(0);
+		})
+	);
+
 	vitestIt('turns chunk observations into failure, duplicate, progress, and completion effects', () => {
 		const first = BigInt(90);
 		const missing = BigInt(91);

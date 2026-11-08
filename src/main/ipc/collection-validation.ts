@@ -8,14 +8,13 @@ import type {
 	RenameCollectionLifecycleRequest,
 	SwitchCollectionLifecycleRequest
 } from 'shared/collection-lifecycle';
-import { MAX_COLLECTION_MODS } from 'shared/collection-payload';
+import { collectionModsSchema } from 'shared/collection-payload';
 import type { ValidChannel } from 'shared/ipc';
 import type { StartupCollectionResolutionRequest } from 'shared/startup-collection-resolution';
 import { appConfigPayloadSchema } from './config-validation';
 import { parseEffectIpcPayload } from './ipc-validation';
 
 const collectionNameSchema = Schema.String;
-const collectionModsSchema = Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_COLLECTION_MODS));
 const modCollectionSchema = Schema.Struct({
 	name: collectionNameSchema,
 	mods: collectionModsSchema

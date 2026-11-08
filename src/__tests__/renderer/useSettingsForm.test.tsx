@@ -6,6 +6,15 @@ import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
 import { createAppState, createTestWrapper } from './test-utils';
 
 describe('useSettingsForm', () => {
+	it('releases the navigation guard when the settings form unmounts', () => {
+		const appState = createAppState();
+		const { result, unmount } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
+		act(() => result.current.setField(AppConfigKeys.GAME_EXEC, 'another.exe'));
+		expect(appState.madeConfigEdits).toBe(true);
+		unmount();
+		expect(appState.madeConfigEdits).toBe(false);
+		expect(appState.configErrors).toEqual({});
+	});
 	it('selects a settings path through the promise-based preload API', async () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockResolvedValueOnce('C:\\Games\\TerraTech\\LocalMods');

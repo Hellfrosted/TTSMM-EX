@@ -119,7 +119,7 @@ export function useCollectionWorkspaceSession({
 			},
 			launchDraft: (draft) => launchModsRef.current(getCollectionModDataList(modsRef.current, draft)),
 			openModal: (modalType) => setModalTypeRef.current(modalType),
-			persistDraft: (draft) => collectionsRef.current?.persistCollection(draft),
+			persistDraft: (draft, launchSaveId) => collectionsRef.current?.persistCollection(draft, launchSaveId),
 			recalculateModData: () => collectionsRef.current?.recalculateModData(),
 			setLaunchingGame: (nextLaunchingGame) => updateStateRef.current({ launchingGame: nextLaunchingGame }),
 			validateDraft: (draft, launchIfValid, options) => executor.validate(draft, launchIfValid, options)

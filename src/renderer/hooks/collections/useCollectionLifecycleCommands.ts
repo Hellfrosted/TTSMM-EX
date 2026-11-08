@@ -30,6 +30,7 @@ interface UseCollectionLifecycleCommandsOptions {
 
 export interface CollectionContentSaveCommandOptions {
 	showSuccessNotification?: boolean;
+	launchSaveId?: number;
 }
 
 export function useCollectionLifecycleCommands({
@@ -120,7 +121,7 @@ export function useCollectionLifecycleCommands({
 			const draftGeneration = getDraftGeneration?.();
 			await runQueuedCollectionWrite(async () => {
 				if (draftGeneration !== undefined && draftGeneration !== getDraftGeneration?.()) {
-					onCollectionContentSaveCompleted?.({ draftGeneration, pureSave, writeAccepted: false });
+					onCollectionContentSaveCompleted?.({ draftGeneration, launchSaveId: options.launchSaveId, pureSave, writeAccepted: false });
 					return;
 				}
 				setSavingCollection(true);
@@ -146,6 +147,7 @@ export function useCollectionLifecycleCommands({
 						onCollectionContentSaveCompleted({
 							...saveOutcome.completion,
 							draftGeneration,
+							launchSaveId: options.launchSaveId,
 							savedCollection: saveOutcome.writeAccepted ? saveOutcome.targetCollection : undefined
 						});
 					}
@@ -161,7 +163,7 @@ export function useCollectionLifecycleCommands({
 					}
 				} catch (error) {
 					api.logger.error(error);
-					onCollectionContentSaveCompleted?.({ draftGeneration, pureSave, writeAccepted: false });
+					onCollectionContentSaveCompleted?.({ draftGeneration, launchSaveId: options.launchSaveId, pureSave, writeAccepted: false });
 				} finally {
 					setSavingCollection(false);
 				}

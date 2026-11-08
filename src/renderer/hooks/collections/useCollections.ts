@@ -42,7 +42,7 @@ interface UseCollectionsResult {
 	madeEdits: boolean;
 	onSearch: (search: string) => void;
 	onSearchChange: (search: string) => void;
-	persistCollection: (collection: ModCollection) => Promise<boolean>;
+	persistCollection: (collection: ModCollection, launchSaveId: number) => Promise<boolean>;
 	recalculateModData: () => void;
 	renameCollection: (name: string) => Promise<void>;
 	rows: ModData[];
@@ -181,7 +181,7 @@ export function useCollections({
 		});
 
 	const persistCollection = useCallback(
-		(collection: ModCollection) => saveCollection(collection, true, { showSuccessNotification: false }),
+		(collection: ModCollection, launchSaveId: number) => saveCollection(collection, true, { showSuccessNotification: false, launchSaveId }),
 		[saveCollection]
 	);
 

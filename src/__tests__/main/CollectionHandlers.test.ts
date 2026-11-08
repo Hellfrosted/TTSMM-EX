@@ -124,6 +124,11 @@ describe('collection handlers', () => {
 		});
 	});
 
+	it('does not create a destination when the collection to rename is missing', () => {
+		expect(renameCollectionFile(tempDir, { name: 'missing', mods: ['local:new'] }, 'renamed')).toBe(false);
+		expect(readCollectionFile(tempDir, 'renamed')).toBeNull();
+	});
+
 	it('keeps the original collection when rewriting the renamed file fails', () => {
 		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
 
@@ -248,6 +253,15 @@ describe('collection handlers', () => {
 		);
 
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(false);
+	});
+
+	it('rejects duplicate mod identities before saving collection content', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'default', mods: ['local:a', 'local:a'] })).rejects.toThrow(
+			'Invalid IPC payload for update-collection'
+		);
+		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
 	});
 
 	it('only updates content for an existing collection at the ipc seam', async () => {

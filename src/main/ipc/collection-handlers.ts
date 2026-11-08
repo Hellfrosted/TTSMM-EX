@@ -2,8 +2,12 @@ import type { IpcMain } from 'electron';
 import { app } from 'electron';
 
 import { ValidChannel } from '../../model';
-import { collectionNamesEqual } from '../../shared/collection-name';
 import { saveExistingCollectionContent } from '../collection-content-save';
+import {
+	beginCollectionLifecycleJournal,
+	clearCollectionLifecycleJournal,
+	recoverCollectionLifecycleJournal
+} from '../collection-lifecycle-journal';
 import { type CollectionLifecycleCommand, runCollectionLifecycle } from '../collection-lifecycle-service';
 import { listCollectionsEffect, readCollectionFileEffect } from '../collection-store';
 import { configFilePath, readConfigFileEffect } from '../config-store';
@@ -20,7 +24,7 @@ import {
 	parseStartupCollectionResolutionRequest,
 	parseSwitchCollectionLifecycleRequest
 } from './collection-validation';
-import { registerValidatedEffectIpcHandler, registerValidatedIpcHandler } from './ipc-handler';
+import { registerValidatedIpcHandler } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -46,7 +50,7 @@ export function registerCollectionHandlers(
 			{
 				const expected = command.request.config.activeCollection;
 				const actual = stored.activeCollection;
-				if (expected !== actual && (!expected || !actual || !collectionNamesEqual(expected, actual))) {
+				if (expected !== actual) {
 					return {
 						ok: false as const,
 						code: 'stale-active-collection' as const,
@@ -54,20 +58,30 @@ export function registerCollectionHandlers(
 					};
 				}
 			}
-			return runMain(
+			const names = [stored.activeCollection, 'default', 'name' in command.request ? command.request.name : undefined].filter(
+				(name): name is string => typeof name === 'string'
+			);
+			beginCollectionLifecycleJournal(userDataPath, names);
+			const result = await runMain(
 				runCollectionLifecycle(userDataPath, {
 					...command,
 					request: { ...command.request, config: stored }
 				} as CollectionLifecycleCommand)
 			);
+			if (result.ok) clearCollectionLifecycleJournal(userDataPath);
+			else recoverCollectionLifecycleJournal(userDataPath);
+			return result;
 		});
 
-	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.READ_COLLECTION, (_event, collection: string) => {
-		return readCollectionFileEffect(getUserDataPath(), parseCollectionNamePayload(ValidChannel.READ_COLLECTION, collection));
+	registerValidatedIpcHandler(ipcMain, ValidChannel.READ_COLLECTION, (_event, collection: string) => {
+		const userDataPath = getUserDataPath();
+		const name = parseCollectionNamePayload(ValidChannel.READ_COLLECTION, collection);
+		return runConfigTransaction(userDataPath, () => runMain(readCollectionFileEffect(userDataPath, name)));
 	});
 
-	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.READ_COLLECTIONS, () => {
-		return listCollectionsEffect(getUserDataPath());
+	registerValidatedIpcHandler(ipcMain, ValidChannel.READ_COLLECTIONS, () => {
+		const userDataPath = getUserDataPath();
+		return runConfigTransaction(userDataPath, () => runMain(listCollectionsEffect(userDataPath)));
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.UPDATE_COLLECTION, (_event, request: unknown) => {

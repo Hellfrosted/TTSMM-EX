@@ -104,6 +104,8 @@ export function useSettingsForm(appState: Pick<AppState, 'config' | 'updateState
 		updateState({ madeConfigEdits: isDirty });
 	}, [isDirty, updateState]);
 
+	useEffect(() => () => updateState({ madeConfigEdits: false, configErrors: {} }), [updateState]);
+
 	const setField = useCallback(
 		<K extends keyof EditingConfig>(field: K, value: EditingConfig[K]) => {
 			const formField = field as Path<EditingConfig>;

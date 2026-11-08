@@ -9,7 +9,7 @@ import type {
 	RenameCollectionLifecycleRequest,
 	SwitchCollectionLifecycleRequest
 } from '../shared/collection-lifecycle';
-import { collectionNamesEqual, validateCollectionName } from '../shared/collection-name';
+import { validateCollectionName } from '../shared/collection-name';
 import { collectionNameExists, readActiveCollectionForLifecycle } from './active-collection-persistence';
 import {
 	createActiveCollectionTransition,
@@ -40,11 +40,7 @@ const validateNewCollectionName = Effect.fnUntraced(function* (
 const validateDirtyCollection = Effect.fnUntraced(function* (userDataPath: string, request: CollectionLifecycleBaseRequest) {
 	if (!request.dirtyCollection) return undefined;
 	const activeName = request.config.activeCollection;
-	if (
-		!activeName ||
-		!collectionNamesEqual(activeName, request.dirtyCollection.name) ||
-		!(yield* readCollectionFileEffect(userDataPath, activeName))
-	) {
+	if (!activeName || activeName !== request.dirtyCollection.name || !(yield* readCollectionFileEffect(userDataPath, activeName))) {
 		return failure('dirty-collection-write-failed', 'The draft no longer matches an existing active collection');
 	}
 	return undefined;

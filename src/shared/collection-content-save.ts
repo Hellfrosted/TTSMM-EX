@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 import type { ModCollection } from 'model/ModCollection';
-import { MAX_COLLECTION_MODS } from './collection-payload';
+import { collectionModsSchema } from './collection-payload';
 
 export interface CollectionContentSaveRequest {
 	collectionName: string;
@@ -22,7 +22,7 @@ export type CollectionContentSaveResult =
 
 export const collectionContentSaveRequestSchema = Schema.Struct({
 	collectionName: Schema.String,
-	mods: Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_COLLECTION_MODS))
+	mods: collectionModsSchema
 });
 
 export function createCollectionContentSaveRequest(collection: ModCollection): CollectionContentSaveRequest {

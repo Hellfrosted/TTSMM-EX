@@ -12,7 +12,7 @@ import {
 } from './workshop-inventory-subscribed-page-policy';
 import type { WorkshopInventoryExpansionScanInput, WorkshopInventoryScanOutcome } from './workshop-inventory-types';
 
-const DEFAULT_MAX_WORKSHOP_PAGES = 100;
+const DEFAULT_MAX_WORKSHOP_PAGES = 10_000;
 const DEFAULT_WORKSHOP_PAGE_TIMEOUT = Duration.seconds(30);
 
 export function createEmptyWorkshopInventoryScanOutcome(): WorkshopInventoryScanOutcome {

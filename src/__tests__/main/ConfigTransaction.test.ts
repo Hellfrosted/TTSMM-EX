@@ -72,4 +72,22 @@ describe('config transactions', () => {
 		await blocker;
 		await expect(save).resolves.toMatchObject({ ok: true, collection: { mods: ['local:new'] } });
 	});
+
+	it('holds collection reads behind lifecycle transactions', async () => {
+		const directory = createTempDir('ttsmm-collection-read-transaction-');
+		writeTestCollection(directory, { name: 'default', mods: ['local:old'] });
+		const { invoke } = createIpcHandlerHarness((ipcMain) => registerCollectionHandlers(ipcMain, { getUserDataPath: () => directory }));
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const transaction = runConfigTransaction(directory, async () => {
+			await gate;
+			writeTestCollection(directory, { name: 'default', mods: ['local:new'] });
+		});
+		const read = invoke(ValidChannel.READ_COLLECTION, 'default');
+		release();
+		await transaction;
+		await expect(read).resolves.toEqual({ name: 'default', mods: ['local:new'] });
+	});
 });
