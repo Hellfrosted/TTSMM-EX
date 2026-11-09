@@ -143,6 +143,19 @@ describe('ModFetcher', () => {
 		expect(sender.send).toHaveBeenCalledWith(expect.any(String), expect.any(String), 0, 'Loading mod details');
 	});
 
+	it('does not regress as scan totals grow or report progress after finishing', () => {
+		const sender = { send: vi.fn() };
+		const progress = new ModInventoryProgress(sender);
+		progress.localMods = 1;
+		progress.addLoaded(1);
+		progress.workshopMods = 10;
+		progress.addLoaded(1);
+		progress.finish();
+		progress.finish();
+		progress.addLoaded(1);
+		expect(sender.send.mock.calls.map((call) => call[2])).toEqual([0.99, 0.99, 1]);
+	});
+
 	it('keeps workshop metadata helpers behind the metadata adapter', () => {
 		expect(chunkWorkshopIds([BigInt(1), BigInt(2)])).toEqual([[BigInt(1), BigInt(2)]]);
 		expect(createWorkshopPotentialMod(BigInt(42))).toEqual(
