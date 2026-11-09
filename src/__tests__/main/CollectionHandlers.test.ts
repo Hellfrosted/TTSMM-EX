@@ -264,6 +264,13 @@ describe('collection handlers', () => {
 		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
 	});
 
+	it('loads stored collections with duplicate mod IDs as a unique ordered selection', () => {
+		const directory = path.join(tempDir, 'collections');
+		fs.mkdirSync(directory, { recursive: true });
+		fs.writeFileSync(path.join(directory, 'default.json'), JSON.stringify({ mods: ['local:a', 'local:b', 'local:a'] }));
+		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:a', 'local:b'] });
+	});
+
 	it('only updates content for an existing collection at the ipc seam', async () => {
 		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
 		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'default' }));

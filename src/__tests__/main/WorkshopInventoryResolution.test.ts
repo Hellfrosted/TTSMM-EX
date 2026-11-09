@@ -575,7 +575,28 @@ describe('WorkshopInventoryExpansion', () => {
 			}).pipe(Effect.flip);
 
 			expect(error).toBeInstanceOf(WorkshopPagingStalled);
-			expect(error).toMatchObject({ pageNum: 2, reason: 'no-progress' });
+			expect(error).toMatchObject({ pageNum: 3, reason: 'no-progress' });
+		})
+	);
+
+	it.effect('continues after an overlapping page and discovers later items', () =>
+		Effect.gen(function* () {
+			const fetched: number[] = [];
+			yield* scanWorkshopInventoryExpansion({
+				buildWorkshopMod: () => Effect.succeed(null),
+				fetchSubscribedPage: (page) => {
+					fetched.push(page);
+					return Effect.succeed({
+						items: [],
+						itemIDs: page < 4 ? [BigInt(page === 2 ? 1 : page)] : [],
+						numReturned: page < 4 ? 1 : 0,
+						totalItems: 3
+					});
+				},
+				getDetailsForWorkshopModList: () => Effect.succeed([]),
+				knownWorkshopMods: new Set<bigint>()
+			});
+			expect(fetched).toEqual([1, 2, 3, 4]);
 		})
 	);
 

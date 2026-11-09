@@ -8,7 +8,7 @@ import type {
 	RenameCollectionLifecycleRequest,
 	SwitchCollectionLifecycleRequest
 } from 'shared/collection-lifecycle';
-import { collectionModsSchema } from 'shared/collection-payload';
+import { collectionModsSchema, storedCollectionModsSchema } from 'shared/collection-payload';
 import type { ValidChannel } from 'shared/ipc';
 import type { StartupCollectionResolutionRequest } from 'shared/startup-collection-resolution';
 import { appConfigPayloadSchema } from './config-validation';
@@ -20,7 +20,7 @@ const modCollectionSchema = Schema.Struct({
 	mods: collectionModsSchema
 });
 const storedModCollectionSchema = Schema.Struct({
-	mods: collectionModsSchema
+	mods: storedCollectionModsSchema
 });
 const collectionLifecycleBaseRequestSchema = Schema.Struct({
 	config: appConfigPayloadSchema,
@@ -46,7 +46,8 @@ export function parseCollectionNamePayload(channel: ValidChannel, payload: unkno
 }
 
 export function parseStoredModCollectionPayload(channel: ValidChannel, payload: unknown): Pick<ModCollection, 'mods'> {
-	return parseEffectIpcPayload(channel, storedModCollectionSchema, payload) as Pick<ModCollection, 'mods'>;
+	const collection = parseEffectIpcPayload(channel, storedModCollectionSchema, payload);
+	return { mods: [...new Set(collection.mods)] };
 }
 
 export function parseCollectionContentSaveRequest(channel: ValidChannel, payload: unknown): CollectionContentSaveRequest {

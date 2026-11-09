@@ -19,11 +19,12 @@ function recordPageProgress(
 	pageNumber: number,
 	numReturned: number,
 	ids: Set<bigint>,
-	seen: Set<bigint>
+	progress: { seen: Set<bigint>; repeatedPages: number }
 ): WorkshopPagingStalled | undefined {
-	const hasNewIDs = [...ids].some((id) => !seen.has(id));
-	for (const id of ids) seen.add(id);
-	return numReturned > 0 && (ids.size === 0 || !hasNewIDs) ? new WorkshopPagingStalled(pageNumber, 'no-progress') : undefined;
+	const hasNewIDs = [...ids].some((id) => !progress.seen.has(id));
+	for (const id of ids) progress.seen.add(id);
+	progress.repeatedPages = numReturned > 0 && !hasNewIDs ? progress.repeatedPages + 1 : 0;
+	return progress.repeatedPages >= 2 ? new WorkshopPagingStalled(pageNumber, 'no-progress') : undefined;
 }
 
 export function createEmptyWorkshopInventoryScanOutcome(): WorkshopInventoryScanOutcome {
@@ -52,7 +53,7 @@ export const scanWorkshopInventoryExpansion = Effect.fnUntraced(function* ({
 	const expansion = new WorkshopInventoryExpansion(explicitKnownWorkshopMods, new Map(), new Set(), options);
 	const maxPages = paging?.maxPages ?? DEFAULT_MAX_WORKSHOP_PAGES;
 	const pageTimeout = paging?.pageTimeout ?? DEFAULT_WORKSHOP_PAGE_TIMEOUT;
-	const seenWorkshopIDs = new Set<bigint>();
+	const pageProgress = { seen: new Set<bigint>(), repeatedPages: 0 };
 	let subscribedItems = 0;
 
 	for (let pageNumber = 1; ; pageNumber += 1) {
@@ -66,7 +67,7 @@ export const scanWorkshopInventoryExpansion = Effect.fnUntraced(function* ({
 		}
 		const page = pageOption.value;
 		const requestedWorkshopIDs = getWorkshopInventoryPageItemIDs(page);
-		const stall = recordPageProgress(pageNumber, page.numReturned, requestedWorkshopIDs, seenWorkshopIDs);
+		const stall = recordPageProgress(pageNumber, page.numReturned, requestedWorkshopIDs, pageProgress);
 		if (stall) return yield* Effect.fail(stall);
 		logDebug?.(`Total items: ${page.totalItems}, Returned by Steam: ${page.numReturned}, Processed this chunk: ${page.items.length}`);
 

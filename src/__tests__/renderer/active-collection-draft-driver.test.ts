@@ -94,6 +94,22 @@ function createDriverHarness(
 }
 
 describe('active-collection-draft-driver', () => {
+	it('settles a launch when its draft disappears before the save effect runs', () => {
+		const { adapters, driver } = createDriverHarness({ draft: collection(['local:a']) });
+		driver.dispatch({ type: 'has-unsaved-draft-changed', hasUnsavedDraft: true });
+		const unsubscribe = driver.subscribe(() => {
+			const state = driver.getWorkflowState();
+			if (state.pendingLaunchSaveId !== undefined && state.draft) {
+				unsubscribe();
+				driver.workflowRef.set({ ...state, draft: undefined });
+			}
+		});
+		driver.dispatch({ type: 'launch-anyway-requested' });
+		expect(adapters.persistDraft).not.toHaveBeenCalled();
+		expect(driver.getWorkflowState().pendingLaunchSaveId).toBeUndefined();
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(false);
+	});
+
 	it('settles a launch if its save adapter rejects before reporting a result', async () => {
 		const draft = collection(['local:a']);
 		const { adapters, driver } = createDriverHarness({ draft });

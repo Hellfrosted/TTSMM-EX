@@ -225,7 +225,7 @@ export function createActiveCollectionDraftDriver({
 
 	function persistLaunchDraft() {
 		const { draft, pendingLaunchSaveId: launchSaveId, draftGeneration } = workflowRef.value;
-		if (!draft || launchSaveId === undefined) return;
+		if (launchSaveId === undefined) return;
 		const failSave = () =>
 			applyWorkflowEvent({
 				type: 'collection-content-save-completed',
@@ -234,6 +234,7 @@ export function createActiveCollectionDraftDriver({
 				pureSave: true,
 				writeAccepted: false
 			});
+		if (!draft) return failSave();
 		try {
 			const result = adapters.persistDraft(draft, launchSaveId);
 			if (result) void result.catch(failSave);
