@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron';
 import { app } from 'electron';
 
 import { ValidChannel } from '../../model';
+import type { CollectionLifecycleResult } from '../../shared/collection-lifecycle';
 import { saveExistingCollectionContent } from '../collection-content-save';
 import {
 	beginCollectionLifecycleJournal,
@@ -62,12 +63,18 @@ export function registerCollectionHandlers(
 				(name): name is string => typeof name === 'string'
 			);
 			beginCollectionLifecycleJournal(userDataPath, names);
-			const result = await runMain(
-				runCollectionLifecycle(userDataPath, {
-					...command,
-					request: { ...command.request, config: stored }
-				} as CollectionLifecycleCommand)
-			);
+			let result: CollectionLifecycleResult;
+			try {
+				result = await runMain(
+					runCollectionLifecycle(userDataPath, {
+						...command,
+						request: { ...command.request, config: stored }
+					} as CollectionLifecycleCommand)
+				);
+			} catch (error) {
+				recoverCollectionLifecycleJournal(userDataPath);
+				throw error;
+			}
 			if (result.ok) clearCollectionLifecycleJournal(userDataPath);
 			else recoverCollectionLifecycleJournal(userDataPath);
 			return result;
