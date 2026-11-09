@@ -67,6 +67,29 @@ describe('collection handlers', () => {
 		}
 	});
 
+	it('preserves both errors and retries recovery when immediate recovery fails', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		const config = createTestAppConfig({ activeCollection: 'default', workshopID: 1n, treatNuterraSteamBetaAsEquivalent: true });
+		writeConfigFile(path.join(tempDir, 'config.json'), config);
+		const journal = path.join(tempDir, 'collection-lifecycle-journal.json');
+		const original = fs.readdirSync;
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: Parameters<typeof fs.readdirSync>) => {
+			if (fs.existsSync(journal)) throw new Error('directory read failed');
+			return original(...args);
+		}) as typeof fs.readdirSync);
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		try {
+			const error = await invoke(ValidChannel.CREATE_COLLECTION_LIFECYCLE, { config, name: 'new', mods: [] }).catch((value) => value);
+			expect(error).toBeInstanceOf(AggregateError);
+			expect((error as AggregateError).errors).toHaveLength(2);
+			expect(fs.existsSync(journal)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
+		await expect(invoke(ValidChannel.READ_COLLECTION, 'default')).resolves.toEqual({ name: 'default', mods: ['local:old'] });
+		expect(fs.existsSync(journal)).toBe(false);
+	});
+
 	it('returns null for a missing collection file', () => {
 		expect(readCollectionFile(tempDir, 'missing')).toBeNull();
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(true);

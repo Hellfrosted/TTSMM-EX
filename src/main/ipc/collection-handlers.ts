@@ -72,7 +72,11 @@ export function registerCollectionHandlers(
 					} as CollectionLifecycleCommand)
 				);
 			} catch (error) {
-				recoverCollectionLifecycleJournal(userDataPath);
+				try {
+					recoverCollectionLifecycleJournal(userDataPath);
+				} catch (recoveryError) {
+					throw new AggregateError([error, recoveryError], 'Collection lifecycle failed and recovery could not complete');
+				}
 				throw error;
 			}
 			if (result.ok) clearCollectionLifecycleJournal(userDataPath);
