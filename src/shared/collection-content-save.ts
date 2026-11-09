@@ -7,7 +7,7 @@ export interface CollectionContentSaveRequest {
 	mods: string[];
 }
 
-type CollectionContentSaveFailureCode = 'missing-collection' | 'write-failed';
+type CollectionContentSaveFailureCode = 'missing-collection' | 'stale-active-collection' | 'write-failed';
 
 export type CollectionContentSaveResult =
 	| {

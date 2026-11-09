@@ -1,4 +1,6 @@
+import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
+import { writeConfigFile } from '../../main/config-store';
 import { runConfigTransaction } from '../../main/config-transaction';
 import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { registerConfigHandlers } from '../../main/ipc/config-handlers';
@@ -55,6 +57,7 @@ describe('config transactions', () => {
 	it('holds collection content saves behind lifecycle transactions', async () => {
 		const directory = createTempDir('ttsmm-collection-transaction-ipc-');
 		writeTestCollection(directory, { name: 'default', mods: [] });
+		writeConfigFile(path.join(directory, 'config.json'), { ...createDefaultAppConfig('win32'), activeCollection: 'default' });
 		const { invoke } = createIpcHandlerHarness((ipcMain) => registerCollectionHandlers(ipcMain, { getUserDataPath: () => directory }));
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
@@ -89,5 +92,26 @@ describe('config transactions', () => {
 		release();
 		await transaction;
 		await expect(read).resolves.toEqual({ name: 'default', mods: ['local:new'] });
+	});
+
+	it('rejects a queued save if the active selection changes first', async () => {
+		const directory = createTempDir('ttsmm-collection-stale-save-');
+		writeTestCollection(directory, { name: 'default', mods: ['local:old'] });
+		const config = { ...createDefaultAppConfig('win32'), activeCollection: 'default' };
+		writeConfigFile(path.join(directory, 'config.json'), config);
+		const { invoke } = createIpcHandlerHarness((ipcMain) => registerCollectionHandlers(ipcMain, { getUserDataPath: () => directory }));
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const transaction = runConfigTransaction(directory, async () => {
+			await gate;
+			writeConfigFile(path.join(directory, 'config.json'), { ...config, activeCollection: 'other' });
+		});
+		const save = invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'default', mods: ['local:stale'] });
+		release();
+		await transaction;
+		await expect(save).resolves.toMatchObject({ ok: false, code: 'stale-active-collection' });
+		await expect(invoke(ValidChannel.READ_COLLECTION, 'default')).resolves.toEqual({ name: 'default', mods: ['local:old'] });
 	});
 });

@@ -87,7 +87,17 @@ export function registerCollectionHandlers(
 	registerValidatedIpcHandler(ipcMain, ValidChannel.UPDATE_COLLECTION, (_event, request: unknown) => {
 		const userDataPath = getUserDataPath();
 		const parsed = parseCollectionContentSaveRequest(ValidChannel.UPDATE_COLLECTION, request);
-		return runConfigTransaction(userDataPath, () => runMain(saveExistingCollectionContent(userDataPath, parsed)));
+		return runConfigTransaction(userDataPath, async () => {
+			const config = await runMain(readConfigFileEffect(configFilePath(userDataPath), false));
+			if (!config || config.activeCollection !== parsed.collectionName) {
+				return {
+					ok: false as const,
+					code: 'stale-active-collection' as const,
+					message: 'The active collection changed. Reload before saving.'
+				};
+			}
+			return runMain(saveExistingCollectionContent(userDataPath, parsed));
+		});
 	});
 
 	registerValidatedIpcHandler(ipcMain, ValidChannel.CREATE_COLLECTION_LIFECYCLE, async (_event, request: unknown) => {

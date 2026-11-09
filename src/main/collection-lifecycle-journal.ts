@@ -48,22 +48,7 @@ export function clearCollectionLifecycleJournal(root: string): void {
 	fs.rmSync(journalPath(root), { force: true });
 }
 
-export function recoverCollectionLifecycleJournal(root: string): void {
-	const filepath = journalPath(root);
-	if (!fs.existsSync(filepath)) return;
-	const journal: unknown = JSON.parse(fs.readFileSync(filepath, 'utf8'));
-	if (!journal || typeof journal !== 'object') throw new Error('Invalid collection lifecycle journal');
-	const record = journal as Journal;
-	if (
-		record.version !== 1 ||
-		!Array.isArray(record.names) ||
-		!record.names.every((name) => typeof name === 'string' && isValidCollectionName(name)) ||
-		!record.files ||
-		typeof record.files !== 'object' ||
-		Array.isArray(record.files) ||
-		!(record.config === null || typeof record.config === 'string')
-	)
-		throw new Error('Invalid collection lifecycle journal');
+function validateJournalFiles(record: Journal): void {
 	const names = new Set(record.names.map(key));
 	for (const [name, contents] of Object.entries(record.files)) {
 		const parsed = path.parse(name);
@@ -76,6 +61,33 @@ export function recoverCollectionLifecycleJournal(root: string): void {
 			throw new Error('Invalid collection lifecycle journal file');
 		}
 	}
+}
+
+function hasValidJournalShape(record: Journal): boolean {
+	return (
+		record.version === 1 &&
+		Array.isArray(record.names) &&
+		record.names.every((name) => typeof name === 'string' && isValidCollectionName(name)) &&
+		!!record.files &&
+		typeof record.files === 'object' &&
+		!Array.isArray(record.files) &&
+		(record.config === null || typeof record.config === 'string')
+	);
+}
+
+function parseJournal(journal: unknown): Journal {
+	if (!journal || typeof journal !== 'object' || !hasValidJournalShape(journal as Journal)) {
+		throw new Error('Invalid collection lifecycle journal');
+	}
+	const record = journal as Journal;
+	validateJournalFiles(record);
+	return record;
+}
+
+export function recoverCollectionLifecycleJournal(root: string): void {
+	const filepath = journalPath(root);
+	if (!fs.existsSync(filepath)) return;
+	const record = parseJournal(JSON.parse(fs.readFileSync(filepath, 'utf8')));
 	for (const name of matchingFiles(root, record.names)) {
 		if (!Object.hasOwn(record.files, name)) fs.unlinkSync(path.join(collectionsPath(root), name));
 	}

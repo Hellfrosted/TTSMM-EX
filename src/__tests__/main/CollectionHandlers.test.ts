@@ -266,6 +266,7 @@ describe('collection handlers', () => {
 
 	it('only updates content for an existing collection at the ipc seam', async () => {
 		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'default' }));
 		const { invoke } = createCollectionHandlerHarness(tempDir);
 
 		await expect(
@@ -281,12 +282,24 @@ describe('collection handlers', () => {
 			})
 		).resolves.toEqual({
 			ok: false,
-			code: 'missing-collection',
-			message: 'Collection fresh does not exist'
+			code: 'stale-active-collection',
+			message: 'The active collection changed. Reload before saving.'
 		});
 
 		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:new'] });
 		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
+	});
+
+	it('rejects a stale save after switching the active collection', async () => {
+		updateCollectionFile(tempDir, { name: 'old', mods: ['local:old'] });
+		updateCollectionFile(tempDir, { name: 'current', mods: [] });
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'current' }));
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'old', mods: ['local:stale'] })).resolves.toMatchObject({
+			ok: false,
+			code: 'stale-active-collection'
+		});
+		expect(readCollectionFile(tempDir, 'old')?.mods).toEqual(['local:old']);
 	});
 
 	it('rejects malformed collection names at the ipc seam', async () => {

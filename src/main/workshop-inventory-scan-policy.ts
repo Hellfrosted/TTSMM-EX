@@ -15,6 +15,17 @@ import type { WorkshopInventoryExpansionScanInput, WorkshopInventoryScanOutcome 
 const DEFAULT_MAX_WORKSHOP_PAGES = 10_000;
 const DEFAULT_WORKSHOP_PAGE_TIMEOUT = Duration.seconds(30);
 
+function recordPageProgress(
+	pageNumber: number,
+	numReturned: number,
+	ids: Set<bigint>,
+	seen: Set<bigint>
+): WorkshopPagingStalled | undefined {
+	const hasNewIDs = [...ids].some((id) => !seen.has(id));
+	for (const id of ids) seen.add(id);
+	return numReturned > 0 && (ids.size === 0 || !hasNewIDs) ? new WorkshopPagingStalled(pageNumber, 'no-progress') : undefined;
+}
+
 export function createEmptyWorkshopInventoryScanOutcome(): WorkshopInventoryScanOutcome {
 	return {
 		mods: [],
@@ -55,13 +66,8 @@ export const scanWorkshopInventoryExpansion = Effect.fnUntraced(function* ({
 		}
 		const page = pageOption.value;
 		const requestedWorkshopIDs = getWorkshopInventoryPageItemIDs(page);
-		const hasNewWorkshopIDs = [...requestedWorkshopIDs].some((workshopID) => !seenWorkshopIDs.has(workshopID));
-		for (const workshopID of requestedWorkshopIDs) {
-			seenWorkshopIDs.add(workshopID);
-		}
-		if (page.numReturned > 0 && (requestedWorkshopIDs.size === 0 || !hasNewWorkshopIDs)) {
-			return yield* Effect.fail(new WorkshopPagingStalled(pageNumber, 'no-progress'));
-		}
+		const stall = recordPageProgress(pageNumber, page.numReturned, requestedWorkshopIDs, seenWorkshopIDs);
+		if (stall) return yield* Effect.fail(stall);
 		logDebug?.(`Total items: ${page.totalItems}, Returned by Steam: ${page.numReturned}, Processed this chunk: ${page.items.length}`);
 
 		const builtPageMods = yield* buildWorkshopModBatch(page.items, buildWorkshopMod, (workshopID) =>
