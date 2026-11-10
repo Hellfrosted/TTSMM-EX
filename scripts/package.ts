@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { copyGreenworksRuntime } from './lib/greenworks-runtime';
-import { runPackageManager } from './lib/package-manager';
+import { capturePackageManager, runPackageManager } from './lib/package-manager';
 import { repoRoot } from './lib/paths';
 import { cleanReleaseArtifacts } from './lib/release';
 import { terminalStyle } from './lib/terminal-style';
@@ -105,7 +105,17 @@ const stagePackageApp = () => {
 	linkDirectory(path.join(releaseAppPath, 'dist'), path.join(packageAppPath, 'dist'));
 	fs.cpSync(path.join(releaseAppPath, 'bin'), path.join(packageAppPath, 'bin'), { recursive: true });
 	runPackageManager(['--dir', 'release/package-app', 'install', '--prod', '--ignore-scripts']);
-	copyGreenworksRuntime(path.join(sourceNodeModulesPath, 'greenworks'), path.join(targetNodeModulesPath, 'greenworks'));
+	// electron-builder follows pnpm's virtual-store path, not the top-level link.
+	const listOutput = capturePackageManager(['--dir', 'release/package-app', 'list', '--prod', '--json', '--depth=0']);
+	const jsonStart = listOutput.search(/^\[$/m);
+	if (jsonStart < 0) throw new Error('Could not read the staged pnpm dependency list.');
+	const packages = JSON.parse(listOutput.slice(jsonStart)) as Array<{ dependencies?: { greenworks?: { path?: string } } }>;
+	const greenworksPath = packages[0]?.dependencies?.greenworks?.path;
+	const relativePath = greenworksPath && path.relative(targetNodeModulesPath, greenworksPath);
+	if (!greenworksPath || !relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+		throw new Error('The staged Greenworks dependency is outside the package app.');
+	}
+	copyGreenworksRuntime(path.join(sourceNodeModulesPath, 'greenworks'), greenworksPath);
 	sanitizePackageAppLock();
 };
 
@@ -184,8 +194,6 @@ assertSteamworksNativeDepsReady();
 cleanReleaseArtifacts();
 runPackageManager(['run', 'build:block-lookup']);
 runPackageManager(['run', 'build']);
-if (publishMode === 'never' && !requiredPlatform) {
-	stagePackageApp();
-	electronBuilderArgs.push('-c.directories.app=release/package-app');
-}
+stagePackageApp();
+electronBuilderArgs.push('-c.directories.app=release/package-app', '-c.asarUnpack=**/node_modules/greenworks/lib/**');
 runElectronBuilder(electronBuilderArgs);
