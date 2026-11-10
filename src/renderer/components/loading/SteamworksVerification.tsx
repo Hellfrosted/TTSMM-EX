@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import api from 'renderer/Api';
 import { useAppStateSelector } from 'renderer/state/app-state';
+import { APP_ROUTES } from 'shared/app-route-policy';
 import type { SteamworksReadinessKind, SteamworksStatus } from 'shared/ipc';
 import logo_steamworks from '../../../../assets/logo_steamworks.svg';
 import StatusCallout from '../StatusCallout';
@@ -127,11 +128,11 @@ function useSteamworksVerification() {
 		const { config, initializedConfigs: initialized, navigate, updateState } = appStateRef.current;
 		if (!initialized) {
 			updateState({ initializedConfigs: true });
-			navigate('/loading/config');
+			navigate(APP_ROUTES.loadingConfig);
 			return;
 		}
 
-		const nextPath = '/collections/main';
+		const nextPath = APP_ROUTES.collectionMain;
 		if (config.currentPath !== nextPath) {
 			updateState({
 				config: {

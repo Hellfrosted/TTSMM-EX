@@ -8,9 +8,10 @@ import {
 	renameCollectionFile,
 	updateCollectionFile
 } from '../../main/collection-store';
+import { writeConfigFile } from '../../main/config-store';
 import { registerCollectionHandlers } from '../../main/ipc/collection-handlers';
 import { ValidChannel } from '../../shared/ipc';
-import { createIpcHandlerHarness, createTempDir } from './test-utils';
+import { createIpcHandlerHarness, createTempDir, createTestAppConfig } from './test-utils';
 
 function createCollectionHandlerHarness(userDataPath: string) {
 	return createIpcHandlerHarness((ipcMain) =>
@@ -25,6 +26,68 @@ describe('collection handlers', () => {
 
 	beforeEach(() => {
 		tempDir = createTempDir('ttsmm-collection-test-');
+	});
+
+	it('rejects lifecycle commands from a stale active collection and preserves the saved config', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		updateCollectionFile(tempDir, { name: 'other', mods: ['local:other'] });
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'other' }));
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		const result = await invoke(ValidChannel.DELETE_COLLECTION_LIFECYCLE, {
+			config: createTestAppConfig({ activeCollection: 'default', workshopID: 1n, treatNuterraSteamBetaAsEquivalent: true }),
+			dirtyCollection: { name: 'default', mods: [] }
+		});
+		expect(result).toMatchObject({ ok: false, code: 'stale-active-collection' });
+		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
+		expect(readCollectionFile(tempDir, 'other')?.mods).toEqual(['local:other']);
+	});
+
+	it('recovers the lifecycle journal immediately when a command throws', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		const config = createTestAppConfig({ activeCollection: 'default', workshopID: 1n, treatNuterraSteamBetaAsEquivalent: true });
+		writeConfigFile(path.join(tempDir, 'config.json'), config);
+		const journal = path.join(tempDir, 'collection-lifecycle-journal.json');
+		const original = fs.readdirSync;
+		let failed = false;
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: Parameters<typeof fs.readdirSync>) => {
+			if (!failed && fs.existsSync(journal)) {
+				failed = true;
+				throw new Error('directory read failed');
+			}
+			return original(...args);
+		}) as typeof fs.readdirSync);
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		try {
+			await expect(invoke(ValidChannel.CREATE_COLLECTION_LIFECYCLE, { config, name: 'new', mods: [] })).rejects.toThrow();
+			expect(failed).toBe(true);
+			expect(fs.existsSync(journal)).toBe(false);
+			expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('preserves both errors and retries recovery when immediate recovery fails', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		const config = createTestAppConfig({ activeCollection: 'default', workshopID: 1n, treatNuterraSteamBetaAsEquivalent: true });
+		writeConfigFile(path.join(tempDir, 'config.json'), config);
+		const journal = path.join(tempDir, 'collection-lifecycle-journal.json');
+		const original = fs.readdirSync;
+		const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: Parameters<typeof fs.readdirSync>) => {
+			if (fs.existsSync(journal)) throw new Error('directory read failed');
+			return original(...args);
+		}) as typeof fs.readdirSync);
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		try {
+			const error = await invoke(ValidChannel.CREATE_COLLECTION_LIFECYCLE, { config, name: 'new', mods: [] }).catch((value) => value);
+			expect(error).toBeInstanceOf(AggregateError);
+			expect((error as AggregateError).errors).toHaveLength(2);
+			expect(fs.existsSync(journal)).toBe(true);
+		} finally {
+			spy.mockRestore();
+		}
+		await expect(invoke(ValidChannel.READ_COLLECTION, 'default')).resolves.toEqual({ name: 'default', mods: ['local:old'] });
+		expect(fs.existsSync(journal)).toBe(false);
 	});
 
 	it('returns null for a missing collection file', () => {
@@ -107,6 +170,11 @@ describe('collection handlers', () => {
 			name: 'renamed',
 			mods: ['local:new']
 		});
+	});
+
+	it('does not create a destination when the collection to rename is missing', () => {
+		expect(renameCollectionFile(tempDir, { name: 'missing', mods: ['local:new'] }, 'renamed')).toBe(false);
+		expect(readCollectionFile(tempDir, 'renamed')).toBeNull();
 	});
 
 	it('keeps the original collection when rewriting the renamed file fails', () => {
@@ -235,8 +303,25 @@ describe('collection handlers', () => {
 		expect(fs.existsSync(path.join(tempDir, 'collections'))).toBe(false);
 	});
 
+	it('rejects duplicate mod identities before saving collection content', async () => {
+		updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] });
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'default', mods: ['local:a', 'local:a'] })).rejects.toThrow(
+			'Invalid IPC payload for update-collection'
+		);
+		expect(readCollectionFile(tempDir, 'default')?.mods).toEqual(['local:old']);
+	});
+
+	it('loads stored collections with duplicate mod IDs as a unique ordered selection', () => {
+		const directory = path.join(tempDir, 'collections');
+		fs.mkdirSync(directory, { recursive: true });
+		fs.writeFileSync(path.join(directory, 'default.json'), JSON.stringify({ mods: ['local:a', 'local:b', 'local:a'] }));
+		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:a', 'local:b'] });
+	});
+
 	it('only updates content for an existing collection at the ipc seam', async () => {
 		expect(updateCollectionFile(tempDir, { name: 'default', mods: ['local:old'] })).toBe(true);
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'default' }));
 		const { invoke } = createCollectionHandlerHarness(tempDir);
 
 		await expect(
@@ -252,12 +337,24 @@ describe('collection handlers', () => {
 			})
 		).resolves.toEqual({
 			ok: false,
-			code: 'missing-collection',
-			message: 'Collection fresh does not exist'
+			code: 'stale-active-collection',
+			message: 'The active collection changed. Reload before saving.'
 		});
 
 		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:new'] });
 		expect(readCollectionFile(tempDir, 'fresh')).toBeNull();
+	});
+
+	it('rejects a stale save after switching the active collection', async () => {
+		updateCollectionFile(tempDir, { name: 'old', mods: ['local:old'] });
+		updateCollectionFile(tempDir, { name: 'current', mods: [] });
+		writeConfigFile(path.join(tempDir, 'config.json'), createTestAppConfig({ activeCollection: 'current' }));
+		const { invoke } = createCollectionHandlerHarness(tempDir);
+		await expect(invoke(ValidChannel.UPDATE_COLLECTION, { collectionName: 'old', mods: ['local:stale'] })).resolves.toMatchObject({
+			ok: false,
+			code: 'stale-active-collection'
+		});
+		expect(readCollectionFile(tempDir, 'old')?.mods).toEqual(['local:old']);
 	});
 
 	it('rejects malformed collection names at the ipc seam', async () => {

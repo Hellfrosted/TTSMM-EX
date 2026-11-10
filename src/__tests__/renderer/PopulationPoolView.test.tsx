@@ -170,7 +170,8 @@ describe('PopulationPoolView', () => {
 		fireEvent.change(screen.getByRole('spinbutton', { name: 'Saved width for Name column' }), { target: { value: '' } });
 		await waitFor(() =>
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(
-				expect.objectContaining({ viewConfigs: { populationPool: { columnWidthConfig: { path: 400 } } } })
+				expect.objectContaining({ viewConfigs: { populationPool: { columnWidthConfig: { path: 400 } } } }),
+				expect.anything()
 			)
 		);
 	});
@@ -187,7 +188,8 @@ describe('PopulationPoolView', () => {
 			expect(window.electron.updateConfig).toHaveBeenCalledWith(
 				expect.objectContaining({
 					viewConfigs: expect.objectContaining({ populationPool: expect.objectContaining({ columnActiveConfig: { name: false } }) })
-				})
+				}),
+				expect.anything()
 			)
 		);
 	});

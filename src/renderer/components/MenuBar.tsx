@@ -1,20 +1,17 @@
 import { Grid3X3, Search, Settings } from 'lucide-react';
-import type { AppConfig, AppState } from 'model';
 import { startTransition, useCallback, useEffect, useEffectEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getStoredViewPath } from 'shared/app-route-policy';
+import { APP_ROUTES, getStoredViewPath } from 'shared/app-route-policy';
 
 interface MenuProps {
 	disableNavigation?: boolean;
-	config: AppConfig;
 	onWorkspacePreview?: (path: string) => void;
-	updateState: AppState['updateState'];
 }
 
 const navigationItems = [
-	{ key: '/collections/main', icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
+	{ key: APP_ROUTES.collectionMain, icon: <Grid3X3 size={18} />, label: 'Mod Collections' },
 	{
-		key: '/population-pool',
+		key: APP_ROUTES.populationPool,
 		icon: (
 			<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
 				<path
@@ -29,8 +26,8 @@ const navigationItems = [
 		),
 		label: 'Population Pool'
 	},
-	{ key: '/block-lookup', icon: <Search size={18} />, label: 'Block Lookup' },
-	{ key: '/settings', icon: <Settings size={18} />, label: 'Settings' }
+	{ key: APP_ROUTES.blockLookup, icon: <Search size={18} />, label: 'Block Lookup' },
+	{ key: APP_ROUTES.settings, icon: <Settings size={18} />, label: 'Settings' }
 ];
 
 export default function MenuBar({ disableNavigation, onWorkspacePreview }: MenuProps) {

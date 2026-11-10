@@ -1,44 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { type AppState, SessionMods } from '../../model';
-import {
-	createAppShellViewModel,
-	createBlockLookupStageAppState,
-	createCollectionStageAppState,
-	createPopulationPoolStageAppState,
-	createSettingsStageAppState,
-	getAppRouteKind
-} from '../../renderer/app-view-model';
-
-function appState(): AppState {
-	return {
-		activeCollection: { name: 'default', mods: [] },
-		allCollectionNames: new Set(['default']),
-		allCollections: new Map([['default', { name: 'default', mods: [] }]]),
-		config: {
-			closeOnLaunch: false,
-			language: 'english',
-			gameExec: '/game.exe',
-			workshopID: 0n,
-			logsDir: '',
-			steamMaxConcurrency: 5,
-			currentPath: '/collections/main',
-			viewConfigs: {},
-			ignoredValidationErrors: new Map(),
-			userOverrides: new Map()
-		},
-		configErrors: {},
-		firstModLoad: false,
-		forceReloadMods: false,
-		launchingGame: false,
-		loadingMods: false,
-		madeConfigEdits: false,
-		mods: new SessionMods('', []),
-		navigate: vi.fn(),
-		savingConfig: false,
-		sidebarCollapsed: false,
-		updateState: vi.fn()
-	};
-}
+import { describe, expect, it } from 'vitest';
+import { createAppShellViewModel, getAppRouteKind } from '../../renderer/app-view-model';
 
 describe('app-view-model', () => {
 	it('classifies only app route prefixes as staged routes', () => {
@@ -47,6 +8,8 @@ describe('app-view-model', () => {
 		expect(getAppRouteKind('/population-pool')).toBe('population-pool');
 		expect(getAppRouteKind('/block-lookup')).toBe('block-lookup');
 		expect(getAppRouteKind('/collections/loading-history')).toBe('collections');
+		expect(getAppRouteKind('/settings-extra')).toBe('collections');
+		expect(getAppRouteKind('block-lookup/details')).toBe('block-lookup');
 	});
 
 	it('derives app shell route state and navigation disabled state', () => {
@@ -82,32 +45,6 @@ describe('app-view-model', () => {
 			isPopulationPoolRoute: true,
 			showPopulationPool: true,
 			showCollections: false
-		});
-	});
-
-	it('creates route app states with narrow field sets', () => {
-		const state = appState();
-
-		expect(createCollectionStageAppState(state)).toMatchObject({
-			activeCollection: state.activeCollection,
-			config: state.config,
-			mods: state.mods
-		});
-		expect(createSettingsStageAppState(state)).toEqual({
-			config: state.config,
-			configErrors: state.configErrors,
-			madeConfigEdits: false,
-			savingConfig: false,
-			updateState: state.updateState
-		});
-		expect(createBlockLookupStageAppState(state)).toEqual({
-			config: state.config,
-			mods: state.mods,
-			updateState: state.updateState
-		});
-		expect(createPopulationPoolStageAppState(state)).toEqual({
-			config: state.config,
-			updateState: state.updateState
 		});
 	});
 });

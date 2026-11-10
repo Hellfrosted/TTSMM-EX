@@ -6,6 +6,15 @@ import { useSettingsForm } from '../../renderer/hooks/useSettingsForm';
 import { createAppState, createTestWrapper } from './test-utils';
 
 describe('useSettingsForm', () => {
+	it('releases the navigation guard when the settings form unmounts', () => {
+		const appState = createAppState();
+		const { result, unmount } = renderHook(() => useSettingsForm(appState), { wrapper: createTestWrapper() });
+		act(() => result.current.setField(AppConfigKeys.GAME_EXEC, 'another.exe'));
+		expect(appState.madeConfigEdits).toBe(true);
+		unmount();
+		expect(appState.madeConfigEdits).toBe(false);
+		expect(appState.configErrors).toEqual({});
+	});
 	it('selects a settings path through the promise-based preload API', async () => {
 		const appState = createAppState();
 		vi.mocked(window.electron.selectPath).mockResolvedValueOnce('C:\\Games\\TerraTech\\LocalMods');
@@ -75,7 +84,8 @@ describe('useSettingsForm', () => {
 		expect(window.electron.updateConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				gameExec: 'D:\\Steam\\steamapps\\common\\TerraTech\\TerraTechWin64.exe'
-			})
+			}),
+			expect.objectContaining({ gameExec: 'C:\\Games\\TerraTech\\TerraTechWin64.exe' })
 		);
 		expect(saveResult).toEqual({
 			ok: true,
@@ -86,7 +96,8 @@ describe('useSettingsForm', () => {
 
 	it('marks mod data for reload when NuterraSteam compatibility changes', async () => {
 		const appState = createAppState({
-			firstModLoad: true,
+			loadingMods: false,
+			forceReloadMods: false,
 			config: {
 				...DEFAULT_CONFIG,
 				treatNuterraSteamBetaAsEquivalent: true,
@@ -110,13 +121,15 @@ describe('useSettingsForm', () => {
 			ok: true,
 			reloadRequired: true
 		});
-		expect(appState.firstModLoad).toBe(false);
+		expect(appState.loadingMods).toBe(true);
+		expect(appState.forceReloadMods).toBe(true);
 		expect(appState.config.treatNuterraSteamBetaAsEquivalent).toBe(false);
 	});
 
 	it('does not mark mods for reload when saving settings fails', async () => {
 		const appState = createAppState({
-			firstModLoad: true,
+			loadingMods: false,
+			forceReloadMods: false,
 			config: {
 				...DEFAULT_CONFIG,
 				localDir: 'C:\\TerraTech\\LocalMods',
@@ -141,7 +154,8 @@ describe('useSettingsForm', () => {
 			ok: false,
 			message: 'Config write was rejected'
 		});
-		expect(appState.firstModLoad).toBe(true);
+		expect(appState.loadingMods).toBe(false);
+		expect(appState.forceReloadMods).toBe(false);
 		expect(appState.config.localDir).toBe('C:\\TerraTech\\LocalMods');
 		expect(appState.madeConfigEdits).toBe(true);
 	});

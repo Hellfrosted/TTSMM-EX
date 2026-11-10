@@ -8,7 +8,6 @@ import { scanModInventory } from '../../main/mod-inventory-scan';
 import { createLocalPotentialMod, MAX_TTSMM_METADATA_BYTES, scanLocalMods } from '../../main/mod-local-scan';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
-import { resolveWorkshopDependencyChunk } from '../../main/mod-workshop-inventory';
 import {
 	chunkWorkshopIds,
 	createWorkshopPotentialMod,
@@ -125,11 +124,36 @@ describe('ModFetcher', () => {
 		expect(sender.send).toHaveBeenNthCalledWith(2, expect.any(String), expect.any(String), 1, 'Finished loading mods');
 	});
 
+	it('reports a Workshop scan failure instead of presenting a partial inventory as complete', async () => {
+		vi.spyOn(Steamworks, 'ugcGetUserItems').mockImplementation((props) => {
+			props.error_callback(new Error('Steam unavailable'));
+			return true;
+		});
+		const progressSender = { send: vi.fn() };
+		await expect(Effect.runPromise(scanModInventory({ knownWorkshopMods: [], platform: 'win32', progressSender }))).rejects.toMatchObject({
+			_tag: 'WorkshopPagingFailure'
+		});
+		expect(progressSender.send).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), 1, 'Finished loading mods');
+	});
+
 	it('keeps progress finite when item counts arrive after loading starts', () => {
 		const sender = { send: vi.fn() };
 		const progress = new ModInventoryProgress(sender);
 		progress.addLoaded(1);
 		expect(sender.send).toHaveBeenCalledWith(expect.any(String), expect.any(String), 0, 'Loading mod details');
+	});
+
+	it('does not regress as scan totals grow or report progress after finishing', () => {
+		const sender = { send: vi.fn() };
+		const progress = new ModInventoryProgress(sender);
+		progress.localMods = 1;
+		progress.addLoaded(1);
+		progress.workshopMods = 10;
+		progress.addLoaded(1);
+		progress.finish();
+		progress.finish();
+		progress.addLoaded(1);
+		expect(sender.send.mock.calls.map((call) => call[2])).toEqual([0.99, 0.99, 1]);
 	});
 
 	it('keeps workshop metadata helpers behind the metadata adapter', () => {
@@ -499,37 +523,6 @@ describe('ModFetcher', () => {
 				{ treatNuterraSteamBetaAsEquivalent: false }
 			)
 		).toEqual(new Set([betaNuterraWorkshopID]));
-	});
-
-	it('expands known workshop chunks through the Workshop inventory module', async () => {
-		const parentWorkshopID = BigInt(10);
-		const childWorkshopID = BigInt(11);
-		const knownWorkshopMods = new Set([parentWorkshopID]);
-		const workshopMap = new Map<bigint, { uid: string }>();
-		const getDetailsForWorkshopModList = vi.fn(() =>
-			Effect.succeed([
-				{
-					uid: `workshop:${parentWorkshopID}`,
-					id: null,
-					type: ModType.WORKSHOP,
-					hasCode: false,
-					workshopID: parentWorkshopID,
-					steamDependencies: [childWorkshopID]
-				}
-			])
-		);
-
-		await expect(
-			Effect.runPromise(
-				resolveWorkshopDependencyChunk(workshopMap as never, new Set(), new Set([parentWorkshopID]), {
-					getDetailsForWorkshopModList,
-					knownWorkshopMods
-				})
-			)
-		).resolves.toEqual(new Set([childWorkshopID]));
-
-		expect(knownWorkshopMods).toEqual(new Set([parentWorkshopID]));
-		expect(workshopMap.get(parentWorkshopID)).toEqual(expect.objectContaining({ uid: `workshop:${parentWorkshopID}` }));
 	});
 
 	it('skips Linux workshop scans when TerraTech is not installed in Steam', async () => {

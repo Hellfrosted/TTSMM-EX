@@ -17,7 +17,6 @@ import {
 
 export {
 	buildWorkshopModBatch,
-	resolveWorkshopDependencyChunk,
 	type UnresolvedWorkshopItem,
 	type UnresolvedWorkshopReason,
 	type WorkshopInventoryScanOutcome

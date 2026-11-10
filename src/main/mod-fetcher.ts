@@ -1,5 +1,4 @@
 import { Effect } from 'effect';
-import log from 'electron-log';
 import { ModData, type NuterraSteamCompatibilityOptions } from '../model';
 import { ModInventoryProgress } from './mod-inventory-progress';
 import { scanLocalMods } from './mod-local-scan';
@@ -112,18 +111,9 @@ export const fetchModInventory = Effect.fnUntraced(function* (
 ): Effect.fn.Return<ModData[], unknown, SteamPersonaCache> {
 	clearPreviewAllowlist();
 
-	const modResponses = yield* Effect.forEach(
-		[fetchLocalMods(context), fetchWorkshopMods(context)],
-		(effect) =>
-			effect.pipe(
-				Effect.catch((error) => {
-					log.error('Failed to process some mod data:');
-					log.error(error);
-					return Effect.succeed<ModData[]>([]);
-				})
-			),
-		{ concurrency: 'unbounded' }
-	);
+	const modResponses = yield* Effect.forEach([fetchLocalMods(context), fetchWorkshopMods(context)], (effect) => effect, {
+		concurrency: 'unbounded'
+	});
 	const allMods: ModData[] = modResponses.flat();
 
 	context.progress.finish();

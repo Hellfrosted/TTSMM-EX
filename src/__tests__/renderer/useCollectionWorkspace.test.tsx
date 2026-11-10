@@ -46,7 +46,6 @@ describe('useCollectionWorkspace', () => {
 					launchMods,
 					modalOpen: false,
 					openNotification: vi.fn(),
-					overrideGameRunning: false,
 					setModalType: vi.fn()
 				}),
 			{ wrapper: createTestWrapper() }
@@ -80,18 +79,21 @@ describe('useCollectionWorkspace', () => {
 			mods: new SessionMods('', [])
 		});
 
+		vi.useFakeTimers();
+		vi.mocked(window.electron.launchGame).mockResolvedValue(true);
 		const { result } = renderHook(() => useCollectionWorkspace({ appState, openNotification: vi.fn() }), {
 			wrapper: createTestWrapper()
 		});
 
 		act(() => {
-			result.current.setOverrideGameRunning(true);
+			void result.current.closeLaunchModal([]);
 		});
 
-		expect(result.current.overrideGameRunning).toBe(true);
+		expect(result.current.effectiveGameRunning).toBe(true);
 		expect(result.current.collectionWorkspaceSession.launchReadiness.blockers).toContain('game-running');
-		result.current.clearGameRunningPoll();
-		result.current.clearGameLaunchOverrideTimeout();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(1000);
+		});
 	});
 
 	it.each(['dependencies', 'inspect'])('keeps the %s details tab active when opening another mod', async (tabKey) => {
@@ -147,7 +149,5 @@ describe('useCollectionWorkspace', () => {
 
 		expect(result.current.currentRecord?.uid).toBe(rows[1].uid);
 		expect(result.current.detailsActiveTabKey).toBe(tabKey);
-		result.current.clearGameRunningPoll();
-		result.current.clearGameLaunchOverrideTimeout();
 	});
 });

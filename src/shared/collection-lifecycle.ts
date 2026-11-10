@@ -5,6 +5,7 @@ export type CollectionLifecycleFailureCode =
 	| 'invalid-name'
 	| 'duplicate-name'
 	| 'missing-active-collection'
+	| 'stale-active-collection'
 	| 'missing-target-collection'
 	| 'dirty-collection-write-failed'
 	| 'collection-write-failed'

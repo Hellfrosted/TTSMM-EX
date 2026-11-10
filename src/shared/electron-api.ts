@@ -68,7 +68,7 @@ export interface ElectronApi {
 	updateLogLevel: (level: LogLevel) => void;
 	getUserDataPath: () => Promise<string>;
 	readConfig: () => Promise<AppConfig | null>;
-	updateConfig: (config: AppConfig) => Promise<AppConfig | null>;
+	updateConfig: (config: AppConfig, baseConfig?: AppConfig) => Promise<AppConfig | null>;
 	readCollection: (collection: string) => Promise<ModCollection | null>;
 	readCollectionsList: () => Promise<string[]>;
 	updateCollection: (request: CollectionContentSaveRequest) => Promise<CollectionContentSaveResult>;

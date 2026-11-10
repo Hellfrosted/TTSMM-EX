@@ -170,6 +170,10 @@ export const renameCollectionFileEffect = Effect.fnUntraced(function* (
 
 	log.info(`Renaming file ${oldpath} to ${newpath}`);
 	const oldCollectionExists = yield* fileExistsEffect(oldpath).pipe(Effect.catch(() => Effect.succeed(false)));
+	if (!oldCollectionExists) {
+		log.warn(`Refusing to rename missing collection ${collection.name}`);
+		return false;
+	}
 	const newCollectionExists = yield* fileExistsEffect(newpath).pipe(Effect.catch(() => Effect.succeed(false)));
 	const sameCollectionPath =
 		oldCollectionExists &&

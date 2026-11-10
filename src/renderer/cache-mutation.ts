@@ -1,19 +1,19 @@
 import { useCallback, useState } from 'react';
 
 export function useCacheMutation<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>, onSuccess?: (result: TResult) => void) {
-	const [isMutating, setIsMutating] = useState(false);
+	const [pendingCount, setPendingCount] = useState(0);
 	const mutateAsync = useCallback(
 		async (input: TInput) => {
-			setIsMutating(true);
+			setPendingCount((count) => count + 1);
 			try {
 				const result = await mutationFn(input);
 				onSuccess?.(result);
 				return result;
 			} finally {
-				setIsMutating(false);
+				setPendingCount((count) => count - 1);
 			}
 		},
 		[mutationFn, onSuccess]
 	);
-	return { isPending: isMutating, mutateAsync };
+	return { isPending: pendingCount > 0, mutateAsync };
 }

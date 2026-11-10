@@ -1,12 +1,14 @@
 import type { IpcMain } from 'electron';
 import { app } from 'electron';
 import log from 'electron-log';
-import path from 'path';
 
 import { AppConfig, LogLevel, ValidChannel } from '../../model';
-import { applyLogLevel, readConfigFileEffect, writeConfigFileEffect } from '../config-store';
+import { mergeConfigChanges } from '../config-merge';
+import { applyLogLevel, configFilePath, readConfigFileEffect, writeConfigFileEffect } from '../config-store';
+import { runConfigTransaction } from '../config-transaction';
+import { runMain } from '../runtime';
 import { parseAppConfigPayload } from './config-validation';
-import { registerValidatedEffectIpcHandler, registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
+import { registerValidatedIpcHandler, registerValidatedIpcListener } from './ipc-handler';
 
 interface UserDataPathProvider {
 	getUserDataPath: () => string;
@@ -29,12 +31,24 @@ export function registerConfigHandlers(
 		return getUserDataPath();
 	});
 
-	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.READ_CONFIG, () => {
-		return readConfigFileEffect(path.join(getUserDataPath(), 'config.json'), isDevelopment);
+	registerValidatedIpcHandler(ipcMain, ValidChannel.READ_CONFIG, () => {
+		const userDataPath = getUserDataPath();
+		return runConfigTransaction(userDataPath, () => runMain(readConfigFileEffect(configFilePath(userDataPath), isDevelopment)));
 	});
 
-	registerValidatedEffectIpcHandler(ipcMain, ValidChannel.UPDATE_CONFIG, (_event, config: AppConfig) => {
+	registerValidatedIpcHandler(ipcMain, ValidChannel.UPDATE_CONFIG, (_event, config: AppConfig, baseConfig?: AppConfig) => {
 		log.debug('updated config');
-		return writeConfigFileEffect(path.join(getUserDataPath(), 'config.json'), parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config));
+		const userDataPath = getUserDataPath();
+		const parsed = parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, config);
+		const base = baseConfig === undefined ? undefined : parseAppConfigPayload(ValidChannel.UPDATE_CONFIG, baseConfig);
+		return runConfigTransaction(userDataPath, async () => {
+			const filepath = configFilePath(userDataPath);
+			const current = await runMain(readConfigFileEffect(filepath, isDevelopment));
+			if (current && !base) return null;
+			// Collection lifecycle operations own the active selection after initialization.
+			const merged = current && base ? mergeConfigChanges(current, base, parsed) : parsed;
+			const next = current ? { ...merged, activeCollection: current.activeCollection } : merged;
+			return runMain(writeConfigFileEffect(filepath, next));
+		});
 	});
 }

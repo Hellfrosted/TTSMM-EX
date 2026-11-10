@@ -59,7 +59,6 @@ export function createAppState(overrides: Partial<AppState> = {}): AppState {
 		allCollections: new Map(),
 		allCollectionNames: new Set(),
 		activeCollection: undefined,
-		firstModLoad: false,
 		sidebarCollapsed: true,
 		launchingGame: false,
 		initializedConfigs: false,

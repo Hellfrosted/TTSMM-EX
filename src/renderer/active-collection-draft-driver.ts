@@ -19,7 +19,6 @@ export interface ActiveCollectionDraftDriverFacts {
 	gameRunning: boolean;
 	launchingGame: boolean;
 	loadingMods: boolean;
-	overrideGameRunning: boolean;
 	savingDraft: boolean;
 }
 
@@ -29,7 +28,7 @@ export interface ActiveCollectionDraftDriverAdapters {
 	clearLaunchState: () => void;
 	launchDraft: (draft: ModCollection) => void | Promise<void>;
 	openModal: (modalType: CollectionManagerModalType) => void;
-	persistDraft: (draft: ModCollection) => void | Promise<unknown>;
+	persistDraft: (draft: ModCollection, launchSaveId: number) => void | Promise<unknown>;
 	recalculateModData: () => void;
 	setLaunchingGame: (launchingGame: boolean) => void;
 	validateDraft: (
@@ -59,7 +58,7 @@ export type ActiveCollectionDraftDriverEvent =
 			type: 'active-draft-edited';
 	  }
 	| {
-			facts: ActiveCollectionDraftDriverFacts;
+			facts: Omit<ActiveCollectionDraftDriverFacts, 'launchingGame'>;
 			type: 'runtime-facts-changed';
 	  }
 	| {
@@ -224,6 +223,38 @@ export function createActiveCollectionDraftDriver({
 			});
 	};
 
+	function persistLaunchDraft() {
+		const { draft, pendingLaunchSaveId: launchSaveId, draftGeneration } = workflowRef.value;
+		if (launchSaveId === undefined) return;
+		const failSave = () =>
+			applyWorkflowEvent({
+				type: 'collection-content-save-completed',
+				launchSaveId,
+				draftGeneration,
+				pureSave: true,
+				writeAccepted: false
+			});
+		if (!draft) return failSave();
+		try {
+			const result = adapters.persistDraft(draft, launchSaveId);
+			if (result) void result.catch(failSave);
+			else failSave();
+		} catch {
+			failSave();
+		}
+	}
+
+	function launchCurrentDraft() {
+		const draft = workflowRef.value.draft;
+		const finish = () => applyWorkflowEvent({ type: 'launch-finished' });
+		if (!draft) return finish();
+		try {
+			void Promise.resolve(adapters.launchDraft(draft)).then(finish, finish);
+		} catch {
+			finish();
+		}
+	}
+
 	function runEffect(effect: CollectionWorkspaceWorkflowEffect) {
 		if (disposed) {
 			return;
@@ -242,14 +273,10 @@ export function createActiveCollectionDraftDriver({
 				validateActiveDraft(workflowRef.value.draft, effect.launchIfValid);
 				break;
 			case 'persist-active-collection-draft':
-				if (workflowRef.value.draft) {
-					void adapters.persistDraft(workflowRef.value.draft);
-				}
+				persistLaunchDraft();
 				break;
 			case 'launch-current-draft':
-				if (workflowRef.value.draft) {
-					void adapters.launchDraft(workflowRef.value.draft);
-				}
+				launchCurrentDraft();
 				break;
 			case 'set-launching-game':
 				adapters.setLaunchingGame(effect.launchingGame);
@@ -322,7 +349,7 @@ export function createActiveCollectionDraftDriver({
 		workflowRef,
 		dispatch,
 		dispose: () => {
-			if (workflowRef.value.validationLaunchIfValid || workflowRef.value.pendingLaunchAfterSaveDraftKey) {
+			if (workflowRef.value.runtimeFacts.launchingGame) {
 				adapters.clearLaunchState();
 			}
 			disposed = true;

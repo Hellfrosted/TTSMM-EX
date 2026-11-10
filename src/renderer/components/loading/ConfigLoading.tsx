@@ -347,7 +347,7 @@ export default function ConfigLoading() {
 				...baseConfig,
 				gameExec: discoveredGameExec
 			};
-			const persisted = await tryWriteConfig(nextConfig);
+			const persisted = await tryWriteConfig(nextConfig, baseConfig);
 			if (!persisted) {
 				api.logger.warn(`Failed to persist auto-discovered TerraTech executable: ${discoveredGameExec}`);
 				return baseConfig;

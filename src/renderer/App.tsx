@@ -16,14 +16,8 @@ import {
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import api from 'renderer/Api';
 import { AppStateProvider, type CollectionWorkspaceAppState, useAppStateSelector } from 'renderer/state/app-state';
-import {
-	createAppShellViewModel,
-	createBlockLookupStageAppState,
-	createCollectionStageAppState,
-	createPopulationPoolStageAppState,
-	createSettingsStageAppState,
-	getAppRouteKind
-} from './app-view-model';
+import { APP_ROUTES } from 'shared/app-route-policy';
+import { createAppShellViewModel, getAppRouteKind } from './app-view-model';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
 import { NotificationViewport } from './components/NotificationViewport';
 import { appCssVariables } from './theme';
@@ -122,18 +116,17 @@ const CollectionsStageView = memo(function CollectionsStageView() {
 	const mods = useAppStateSelector((state) => state.mods);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo<CollectionWorkspaceAppState>(
-		() =>
-			createCollectionStageAppState({
-				activeCollection,
-				allCollectionNames,
-				allCollections,
-				config,
-				forceReloadMods,
-				launchingGame,
-				loadingMods,
-				mods,
-				updateState
-			}),
+		() => ({
+			activeCollection,
+			allCollectionNames,
+			allCollections,
+			config,
+			forceReloadMods,
+			launchingGame,
+			loadingMods,
+			mods,
+			updateState
+		}),
 		[activeCollection, allCollectionNames, allCollections, config, forceReloadMods, launchingGame, loadingMods, mods, updateState]
 	);
 	return <CollectionViewLazy appState={appState} />;
@@ -146,14 +139,13 @@ const SettingsStageView = memo(function SettingsStageView() {
 	const savingConfig = useAppStateSelector((state) => state.savingConfig);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo(
-		() =>
-			createSettingsStageAppState({
-				config,
-				configErrors,
-				madeConfigEdits,
-				savingConfig,
-				updateState
-			}),
+		() => ({
+			config,
+			configErrors,
+			madeConfigEdits,
+			savingConfig,
+			updateState
+		}),
 		[config, configErrors, madeConfigEdits, savingConfig, updateState]
 	);
 	return <SettingsViewLazy appState={appState} />;
@@ -164,12 +156,11 @@ const BlockLookupStageView = memo(function BlockLookupStageView() {
 	const mods = useAppStateSelector((state) => state.mods);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo(
-		() =>
-			createBlockLookupStageAppState({
-				config,
-				mods,
-				updateState
-			}),
+		() => ({
+			config,
+			mods,
+			updateState
+		}),
 		[config, mods, updateState]
 	);
 	return <BlockLookupViewLazy appState={appState} />;
@@ -179,11 +170,10 @@ const PopulationPoolStageView = memo(function PopulationPoolStageView() {
 	const config = useAppStateSelector((state) => state.config);
 	const updateState = useAppStateSelector((state) => state.updateState);
 	const appState = useMemo(
-		() =>
-			createPopulationPoolStageAppState({
-				config,
-				updateState
-			}),
+		() => ({
+			config,
+			updateState
+		}),
 		[config, updateState]
 	);
 	return <PopulationPoolViewLazy appState={appState} />;
@@ -224,11 +214,7 @@ function MenuBarStageView({
 	disableNavigation: boolean;
 	onWorkspacePreview: (path: string) => void;
 }) {
-	const config = useAppStateSelector((state) => state.config);
-	const updateState = useAppStateSelector((state) => state.updateState);
-	return (
-		<MenuBarLazy config={config} disableNavigation={disableNavigation} onWorkspacePreview={onWorkspacePreview} updateState={updateState} />
-	);
+	return <MenuBarLazy disableNavigation={disableNavigation} onWorkspacePreview={onWorkspacePreview} />;
 }
 
 export function AppShell() {
@@ -264,7 +250,7 @@ export function AppShell() {
 		savingConfig: !!savingConfig
 	});
 	const navigateToSteamworks = useEffectEvent(() => {
-		navigateApp('/loading/steamworks');
+		navigateApp(APP_ROUTES.loadingSteamworks);
 	});
 	const navigateToInitialSteamworks = useEffectEvent(() => {
 		if (!initialSteamworksVerificationRequested && !initializedConfigs) {

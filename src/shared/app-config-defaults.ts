@@ -161,7 +161,8 @@ export function normalizeAppConfig(value: Partial<AppConfig> | Record<string, un
 		localDir: typeof config.localDir === 'string' ? config.localDir : undefined,
 		gameExec: typeof config.gameExec === 'string' ? config.gameExec : defaults.gameExec,
 		workshopID: toWorkshopId(config.workshopID, defaults.workshopID),
-		activeCollection: typeof config.activeCollection === 'string' && config.activeCollection.trim() ? config.activeCollection : undefined,
+		activeCollection:
+			typeof config.activeCollection === 'string' && config.activeCollection.trim() ? config.activeCollection.trim() : undefined,
 		extraParams: typeof config.extraParams === 'string' ? config.extraParams : undefined,
 		logParams: normalizeLogParams(config.logParams),
 		logLevel: normalizeLogLevel(config.logLevel),

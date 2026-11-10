@@ -19,3 +19,20 @@ export class WorkshopPagingFailure extends Error {
 		super(`Failed to fetch Steam Workshop subscription page ${pageNum}`);
 	}
 }
+
+export type WorkshopPagingStallReason = 'page-limit' | 'no-progress' | 'timeout';
+
+export class WorkshopPagingStalled extends Error {
+	readonly _tag = 'WorkshopPagingStalled';
+
+	constructor(
+		readonly pageNum: number,
+		readonly reason: WorkshopPagingStallReason
+	) {
+		super(
+			reason === 'timeout'
+				? `Steam Workshop subscription page ${pageNum} did not respond within the configured timeout`
+				: `Steam Workshop subscription paging stopped at page ${pageNum} without progress (${reason})`
+		);
+	}
+}

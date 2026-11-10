@@ -1,13 +1,13 @@
 import { Schema } from 'effect';
 import type { ModCollection } from 'model/ModCollection';
-import { MAX_COLLECTION_MODS } from './collection-payload';
+import { collectionModsSchema } from './collection-payload';
 
 export interface CollectionContentSaveRequest {
 	collectionName: string;
 	mods: string[];
 }
 
-type CollectionContentSaveFailureCode = 'missing-collection' | 'write-failed';
+type CollectionContentSaveFailureCode = 'missing-collection' | 'stale-active-collection' | 'write-failed';
 
 export type CollectionContentSaveResult =
 	| {
@@ -22,7 +22,7 @@ export type CollectionContentSaveResult =
 
 export const collectionContentSaveRequestSchema = Schema.Struct({
 	collectionName: Schema.String,
-	mods: Schema.Array(Schema.String).check(Schema.isMaxLength(MAX_COLLECTION_MODS))
+	mods: collectionModsSchema
 });
 
 export function createCollectionContentSaveRequest(collection: ModCollection): CollectionContentSaveRequest {

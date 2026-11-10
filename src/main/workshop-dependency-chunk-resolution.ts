@@ -1,27 +1,18 @@
 import { Effect } from 'effect';
-import type { ModData } from '../model';
 import type { SteamPersonaCache } from './steam-persona-cache';
-import { WorkshopInventoryExpansion } from './workshop-inventory-expansion-state';
-import type {
-	WorkshopDependencyEffect,
-	WorkshopDependencyExpansionAdapters,
-	WorkshopInventoryDependencyExpansionOptions
-} from './workshop-inventory-types';
+import type { WorkshopInventoryExpansion } from './workshop-inventory-expansion-state';
+import type { WorkshopDependencyEffect, WorkshopInventoryDependencyExpansionOptions } from './workshop-inventory-types';
 
-const runDependencyExpansion = Effect.fnUntraced(function* (
+export const expandPendingWorkshopDependencies = Effect.fnUntraced(function* (
 	expansion: WorkshopInventoryExpansion,
-	adapters: WorkshopDependencyExpansionAdapters,
-	onProgressEffect: WorkshopInventoryDependencyExpansionOptions['onProgressEffect'],
-	onePass = false
+	{ adapters, onProgressEffect }: WorkshopInventoryDependencyExpansionOptions
 ): Effect.fn.Return<number, unknown, SteamPersonaCache> {
 	let effects: WorkshopDependencyEffect[] = expansion.startDependencyExpansion();
-	let passes = 0;
 	while (effects.length > 0) {
 		const effect = effects.shift()!;
 		if (effect.type === 'dependency-expansion-complete') return effect.dependencyItems;
 		if (effect.type === 'increment-workshop-total') {
-			if (onePass && passes++ > 0) return 0;
-			if (!onePass) onProgressEffect?.(effect);
+			onProgressEffect?.(effect);
 		} else if (effect.type === 'increment-loaded-mods' || effect.type === 'set-workshop-total') {
 			onProgressEffect?.(effect);
 		} else if (effect.type === 'fetch-dependency-chunk') {
@@ -38,24 +29,4 @@ const runDependencyExpansion = Effect.fnUntraced(function* (
 		}
 	}
 	throw new Error('Dependency expansion ended without a completion effect');
-});
-
-export const resolveWorkshopDependencyChunk = Effect.fnUntraced(function* (
-	workshopMap: Map<bigint, ModData>,
-	knownInvalidMods: Set<bigint>,
-	modList: Set<bigint>,
-	adapters: WorkshopDependencyExpansionAdapters
-): Effect.fn.Return<Set<bigint>, unknown, SteamPersonaCache> {
-	const expansion = new WorkshopInventoryExpansion(modList, workshopMap, knownInvalidMods, adapters.options);
-	yield* runDependencyExpansion(expansion, adapters, adapters.onProgressEffect, true);
-	workshopMap.clear();
-	expansion.getResolvedWorkshopModMap().forEach((mod, workshopID) => workshopMap.set(workshopID, mod));
-	return expansion.getPendingWorkshopMods();
-});
-
-export const expandPendingWorkshopDependencies = Effect.fnUntraced(function* (
-	expansion: WorkshopInventoryExpansion,
-	{ adapters, onProgressEffect }: WorkshopInventoryDependencyExpansionOptions
-): Effect.fn.Return<number, unknown, SteamPersonaCache> {
-	return yield* runDependencyExpansion(expansion, adapters, onProgressEffect);
 });

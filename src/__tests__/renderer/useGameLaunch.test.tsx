@@ -1,126 +1,67 @@
 /// <reference path="../types/global.d.ts" />
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameLaunch } from '../../renderer/hooks/collections/useGameLaunch';
 import { createAppState } from './test-utils';
 
+beforeEach(() => {
+	vi.useFakeTimers();
+	vi.mocked(window.electron.isGameRunning).mockResolvedValue(false);
+});
 afterEach(() => {
 	cleanup();
 	vi.useRealTimers();
-	vi.unstubAllGlobals();
 });
 
 describe('useGameLaunch', () => {
-	it('keeps the API receiver when launching after the delay', async () => {
-		vi.useFakeTimers();
+	it('blocks another launch until process detection catches up or the grace period ends', async () => {
 		vi.mocked(window.electron.launchGame).mockResolvedValue(true);
 		const appState = createAppState();
-		const pollGameRunning = vi.fn(async () => undefined);
-		const scheduleLaunchOverrideReset = vi.fn();
-
-		const { result } = renderHook(() =>
-			useGameLaunch({
-				appState,
-				clearGameLaunchOverrideTimeout: vi.fn(),
-				clearGameRunningPoll: vi.fn(),
-				openNotification: vi.fn(),
-				pollGameRunning,
-				scheduleLaunchOverrideReset,
-				setOverrideGameRunning: vi.fn()
-			})
-		);
-
-		await act(async () => {
-			const launchPromise = result.current.launchMods([]);
-			await vi.advanceTimersByTimeAsync(1000);
-			await launchPromise;
+		const { result } = renderHook(() => useGameLaunch({ appState, openNotification: vi.fn() }));
+		let launch!: Promise<void>;
+		act(() => {
+			launch = result.current.launchMods([]);
 		});
-
+		expect(result.current.effectiveGameRunning).toBe(true);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(1000);
+			await launch;
+		});
 		expect(window.electron.launchGame).toHaveBeenCalledWith(
 			appState.config.gameExec,
 			appState.config.workshopID.toString(),
 			appState.config.closeOnLaunch,
 			expect.any(Array)
 		);
-		expect(scheduleLaunchOverrideReset).toHaveBeenCalled();
+		expect(result.current.effectiveGameRunning).toBe(true);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5000);
+		});
+		expect(result.current.effectiveGameRunning).toBe(false);
 	});
 
-	it('clears launch state and reports a failed launch', async () => {
-		vi.useFakeTimers();
-		vi.mocked(window.electron.launchGame).mockResolvedValue(false);
-		const appState = createAppState();
-		const clearGameLaunchOverrideTimeout = vi.fn();
-		const clearGameRunningPoll = vi.fn();
-		const openNotification = vi.fn();
-		const pollGameRunning = vi.fn(async () => undefined);
-		const scheduleLaunchOverrideReset = vi.fn();
-		const setOverrideGameRunning = vi.fn();
-
-		const { result } = renderHook(() =>
-			useGameLaunch({
-				appState,
-				clearGameLaunchOverrideTimeout,
-				clearGameRunningPoll,
-				openNotification,
-				pollGameRunning,
-				scheduleLaunchOverrideReset,
-				setOverrideGameRunning
-			})
-		);
-
-		await act(async () => {
-			const launchPromise = result.current.launchMods([]);
-			await vi.advanceTimersByTimeAsync(1000);
-			await launchPromise;
-		});
-
-		expect(appState.updateState).toHaveBeenCalledWith({ launchingGame: true });
-		expect(appState.updateState).toHaveBeenLastCalledWith({ launchingGame: false });
-		expect(pollGameRunning).toHaveBeenCalledOnce();
-		expect(clearGameRunningPoll).toHaveBeenCalledOnce();
-		expect(clearGameLaunchOverrideTimeout).toHaveBeenCalledOnce();
-		expect(openNotification).toHaveBeenCalledWith(
-			expect.objectContaining({
-				message: 'Game launch did not start. Check the configured executable and Steam state, then try again.',
-				duration: null
-			}),
-			'error'
-		);
-		expect(setOverrideGameRunning).toHaveBeenCalledWith(true);
-		expect(setOverrideGameRunning).toHaveBeenLastCalledWith(false);
-		expect(scheduleLaunchOverrideReset).not.toHaveBeenCalled();
-	});
-
-	it('clears the running override and reports an IPC error', async () => {
-		vi.useFakeTimers();
-		vi.mocked(window.electron.launchGame).mockRejectedValueOnce(new Error('IPC unavailable'));
+	it.each([false, new Error('IPC unavailable')])('clears the running state and reports a failed launch: %s', async (outcome) => {
+		if (outcome instanceof Error) vi.mocked(window.electron.launchGame).mockRejectedValueOnce(outcome);
+		else vi.mocked(window.electron.launchGame).mockResolvedValueOnce(outcome);
 		const appState = createAppState();
 		const openNotification = vi.fn();
-		const setOverrideGameRunning = vi.fn();
-		const { result } = renderHook(() =>
-			useGameLaunch({
-				appState,
-				clearGameLaunchOverrideTimeout: vi.fn(),
-				clearGameRunningPoll: vi.fn(),
-				openNotification,
-				pollGameRunning: vi.fn(async () => undefined),
-				scheduleLaunchOverrideReset: vi.fn(),
-				setOverrideGameRunning
-			})
-		);
-
+		const { result } = renderHook(() => useGameLaunch({ appState, openNotification }));
 		await act(async () => {
-			const launchPromise = result.current.launchMods([]);
+			const launch = result.current.launchMods([]);
 			await vi.advanceTimersByTimeAsync(1000);
-			await launchPromise;
+			await launch;
 		});
-		expect(setOverrideGameRunning).toHaveBeenLastCalledWith(false);
-		expect(appState.updateState).toHaveBeenLastCalledWith({ launchingGame: false });
+		expect(result.current.effectiveGameRunning).toBe(false);
+		expect(appState.updateState).not.toHaveBeenCalledWith({ launchingGame: false });
 		expect(openNotification).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('did not start') }), 'error');
+		vi.mocked(window.electron.isGameRunning).mockResolvedValue(true);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5000);
+		});
+		expect(result.current.effectiveGameRunning).toBe(true);
 	});
 
-	it('passes close-on-launch and pure vanilla launch settings to the Electron API', async () => {
-		vi.useFakeTimers();
+	it('passes close-on-launch and pure vanilla settings to the Electron API', async () => {
 		vi.mocked(window.electron.launchGame).mockResolvedValue(true);
 		const appState = createAppState();
 		appState.config = {
@@ -130,34 +71,14 @@ describe('useGameLaunch', () => {
 			closeOnLaunch: true,
 			pureVanilla: true
 		};
-		const pollGameRunning = vi.fn(async () => undefined);
-
-		const { result } = renderHook(() =>
-			useGameLaunch({
-				appState,
-				clearGameLaunchOverrideTimeout: vi.fn(),
-				clearGameRunningPoll: vi.fn(),
-				openNotification: vi.fn(),
-				pollGameRunning,
-				scheduleLaunchOverrideReset: vi.fn(),
-				setOverrideGameRunning: vi.fn()
-			})
-		);
-
+		const { result } = renderHook(() => useGameLaunch({ appState, openNotification: vi.fn() }));
 		await act(async () => {
-			const launchPromise = result.current.launchMods([
-				{
-					uid: 'workshop:2571814511',
-					id: 'ModManager',
-					type: 'workshop',
-					workshopID: BigInt(2571814511)
-				}
+			const launch = result.current.launchMods([
+				{ uid: 'workshop:2571814511', id: 'ModManager', type: 'workshop', workshopID: BigInt(2571814511) }
 			]);
 			await vi.advanceTimersByTimeAsync(1000);
-			await launchPromise;
+			await launch;
 		});
-
 		expect(window.electron.launchGame).toHaveBeenCalledWith('/games/TerraTech.exe', null, true, []);
-		expect(pollGameRunning).toHaveBeenCalledOnce();
 	});
 });

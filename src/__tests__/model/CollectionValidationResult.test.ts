@@ -71,6 +71,25 @@ describe('collection validation result policy', () => {
 				selectedMods: ['local:a', 'local:b']
 			})
 		).toEqual([{ text: 'Conflicts', tone: 'danger', rank: 1 }]);
+
+		expect(
+			getCollectionStatusTags({
+				record: {
+					uid: 'workshop:11',
+					id: 'Mod',
+					type: ModType.WORKSHOP,
+					errors: {
+						incompatibleMods: ['other'],
+						invalidId: true,
+						unknownWorkshopDependencies: true,
+						notSubscribed: true,
+						notInstalled: true,
+						needsUpdate: true
+					}
+				},
+				selectedMods: ['workshop:11']
+			}).map((tag) => tag.text)
+		).toEqual(['Conflicts', 'Invalid ID', 'Dependencies unknown', 'Not subscribed']);
 	});
 
 	it('applies ignored errors before classifying the validation outcome', () => {
@@ -107,6 +126,25 @@ describe('collection validation result policy', () => {
 		expect(errors['local:a'].missingDependencies).toEqual([dependency]);
 	});
 
+	it('removes an invalid-id issue only when the user ignored it', () => {
+		const errors: CollectionErrors = { 'local:a': { invalidId: true } };
+		const ignored = createCollectionValidationResultPolicy(errors, {
+			...DEFAULT_CONFIG,
+			ignoredValidationErrors: new Map([[ModErrorType.INVALID_ID, { 'local:a': ['Invalid mod ID'] }]])
+		});
+
+		expect(ignored).toEqual(
+			expect.objectContaining({
+				hasBlockingErrors: false,
+				outcome: 'valid',
+				success: true
+			})
+		);
+		expect(ignored.errors).toBeUndefined();
+		expect(errors['local:a'].invalidId).toBe(true);
+		expect(createCollectionValidationResultPolicy(errors, DEFAULT_CONFIG).outcome).toBe('blocked');
+	});
+
 	it('classifies blocking errors separately from launch warnings', () => {
 		expect(
 			createCollectionValidationResultPolicy(
@@ -130,5 +168,9 @@ describe('collection validation result policy', () => {
 				DEFAULT_CONFIG
 			).outcome
 		).toBe('warnings');
+
+		const unknown = createCollectionValidationResultPolicy({ 'workshop:a': { unknownWorkshopDependencies: true } }, DEFAULT_CONFIG);
+		expect(unknown.outcome).toBe('warnings');
+		expect(unknown.summary.unknownWorkshopDependencies).toBe(1);
 	});
 });

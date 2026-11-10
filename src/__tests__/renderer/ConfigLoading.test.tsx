@@ -111,7 +111,10 @@ describe('ConfigLoading', () => {
 		renderConfigLoading();
 
 		await waitFor(() => {
-			expect(window.electron.updateConfig).toHaveBeenCalledWith(expect.objectContaining({ gameExec: discoveredExecutable }));
+			expect(window.electron.updateConfig).toHaveBeenCalledWith(
+				expect.objectContaining({ gameExec: discoveredExecutable }),
+				expect.anything()
+			);
 			expect(window.electron.resolveStartupCollection).toHaveBeenCalledWith({
 				config: expect.objectContaining({ gameExec: discoveredExecutable })
 			});

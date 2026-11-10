@@ -18,14 +18,14 @@ import {
 } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
+import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from 'shared/main-collection-view-config';
 import { getDisplayedCollectionRecord, projectCollectionRowsWithErrors } from '../collection-mod-display';
 import { getCollectionLaunchCommandState } from '../collection-workspace-session';
 import CollectionManagerToolbar from '../components/collections/CollectionManagementToolbar';
 import ViewStageLoadingFallback from '../components/loading/ViewStageLoadingFallback';
 import { useNotifications } from '../hooks/collections/useNotifications';
-import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
 import { markPerfInteraction, PerfProfiler } from '../perf';
-import { useViewConfigCommands } from '../view-config-command';
+import { useMainViewConfigCommands } from '../use-main-view-config-commands';
 import { clampDetailsOverlaySize, getDetailsLayout, type HalfDetailsLayout } from './collection-details-layout';
 import { useCollectionRowFilters } from './use-collection-row-filters';
 import { useCollectionWorkspace } from './use-collection-workspace';
@@ -181,8 +181,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		currentCollectionErrors,
 		currentRecord,
 		detailsActiveTabKey,
-		gameRunning,
-		overrideGameRunning,
+		effectiveGameRunning,
 		setBigDetails: handleExpandFooter,
 		setDetailsActiveTabKey,
 		setModalType,
@@ -212,7 +211,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 	const hasUnsavedDraft = collectionWorkspaceSession.hasUnsavedDraft;
 	const savingDraft = collectionWorkspaceSession.savingDraft;
 	const validatingDraft = collectionWorkspaceSession.validatingDraft;
-	const gameRunningForLaunch = gameRunning || overrideGameRunning;
+	const gameRunningForLaunch = effectiveGameRunning;
 
 	const currentView = CollectionViewType.MAIN;
 
@@ -235,7 +234,7 @@ function useCollectionViewController({ appState }: CollectionViewRouteProps) {
 		setMainColumnOrder: persistMainColumnOrder,
 		setMainColumnVisibility: persistMainColumnVisibility,
 		setMainColumnWidth: persistMainColumnWidth
-	} = useViewConfigCommands({ config, openNotification, updateState });
+	} = useMainViewConfigCommands({ config, openNotification, updateState });
 	const [draftDetailsOverlaySize, setDraftDetailsOverlaySize] = useState<{ layout: HalfDetailsLayout; size: number } | null>(null);
 	useEffect(() => {
 		if (!draftDetailsOverlaySize) {

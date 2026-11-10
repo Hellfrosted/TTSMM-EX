@@ -1,9 +1,8 @@
 import { Effect } from 'effect';
-import path from 'path';
 import { type AppConfig, cloneCollection, type ModCollection } from '../model';
 import { collectionNamesEqual } from '../shared/collection-name';
 import { listCollectionsEffect, readCollectionFileEffect, updateCollectionFileEffect } from './collection-store';
-import { writeConfigFileEffect } from './config-store';
+import { configFilePath, writeConfigFileEffect } from './config-store';
 
 const DEFAULT_COLLECTION_NAME = 'default';
 
@@ -33,14 +32,14 @@ export const persistActiveCollectionSelection = Effect.fnUntraced(function* (
 	config: AppConfig,
 	activeCollection: string
 ): Effect.fn.Return<AppConfig | null, Error> {
-	return yield* writeConfigFileEffect(path.join(userDataPath, 'config.json'), withActiveCollection(config, activeCollection));
+	return yield* writeConfigFileEffect(configFilePath(userDataPath), withActiveCollection(config, activeCollection));
 });
 
 export const persistActiveCollectionConfig = Effect.fnUntraced(function* (
 	userDataPath: string,
 	config: AppConfig
 ): Effect.fn.Return<AppConfig | null, Error> {
-	return yield* writeConfigFileEffect(path.join(userDataPath, 'config.json'), config);
+	return yield* writeConfigFileEffect(configFilePath(userDataPath), config);
 });
 
 export const readSavedActiveCollections = Effect.fnUntraced(function* (

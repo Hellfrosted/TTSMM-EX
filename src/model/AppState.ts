@@ -11,7 +11,6 @@ export interface AppState {
 	allCollections: Map<string, ModCollection>;
 	allCollectionNames: Set<string>;
 	activeCollection?: ModCollection;
-	firstModLoad?: boolean;
 	sidebarCollapsed: boolean;
 	launchingGame?: boolean;
 

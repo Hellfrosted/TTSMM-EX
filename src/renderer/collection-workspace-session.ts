@@ -47,6 +47,8 @@ export interface CollectionWorkspaceWorkflowState {
 	inventoryRevision: number;
 	validationRunKey?: string;
 	pendingLaunchAfterSaveDraftKey?: string;
+	launchSaveSequence: number;
+	pendingLaunchSaveId?: number;
 	runtimeFacts: ActiveCollectionDraftRuntimeFacts;
 	validationLaunchIfValid?: boolean;
 	validationResult?: CollectionWorkspaceValidationResult;
@@ -117,6 +119,7 @@ export type CollectionWorkspaceWorkflowEvent =
 	| {
 			pureSave: boolean;
 			draftGeneration?: number;
+			launchSaveId?: number;
 			savedCollection?: ModCollection;
 			type: 'collection-content-save-completed';
 			writeAccepted: boolean;
@@ -132,6 +135,7 @@ export type CollectionWorkspaceWorkflowEvent =
 			type: 'validation-completed';
 	  }
 	| { type: 'validation-superseded' }
+	| { type: 'launch-finished' }
 	| {
 			type: 'validation-cancelled';
 	  }
@@ -151,7 +155,7 @@ export type CollectionWorkspaceWorkflowEvent =
 			type: 'has-unsaved-draft-changed';
 	  }
 	| {
-			facts: ActiveCollectionDraftRuntimeFacts;
+			facts: Omit<ActiveCollectionDraftRuntimeFacts, 'launchingGame'>;
 			type: 'runtime-facts-changed';
 	  };
 
@@ -365,6 +369,7 @@ function requestLaunchAfterSave(
 		return;
 	}
 	state.pendingLaunchAfterSaveDraftKey = draftKey;
+	state.pendingLaunchSaveId = ++state.launchSaveSequence;
 	effects.push({ type: 'persist-active-collection-draft' });
 }
 
@@ -382,6 +387,7 @@ function invalidateValidation(state: CollectionWorkspaceWorkflowState, effects: 
 		effects.push({ type: 'clear-launching-game' });
 	}
 	state.pendingLaunchAfterSaveDraftKey = undefined;
+	state.pendingLaunchSaveId = undefined;
 	state.validatingDraft = false;
 	state.validationLaunchIfValid = undefined;
 	state.validationRunKey = undefined;
@@ -497,7 +503,16 @@ function continueDraftLaunchAfterSave(
 	effects: CollectionWorkspaceWorkflowEffect[],
 	input: CollectionContentSaveCompletion
 ) {
-	if (input.draftGeneration !== undefined && input.draftGeneration !== state.draftGeneration) return;
+	const isPendingLaunchSave = input.launchSaveId !== undefined && input.launchSaveId === state.pendingLaunchSaveId;
+	if (input.draftGeneration !== undefined && input.draftGeneration !== state.draftGeneration) {
+		if (state.pendingLaunchAfterSaveDraftKey && isPendingLaunchSave) {
+			state.pendingLaunchAfterSaveDraftKey = undefined;
+			state.pendingLaunchSaveId = undefined;
+			setWorkflowLaunchingGame(state, false);
+			effects.push({ type: 'clear-launching-game' });
+		}
+		return;
+	}
 	if (
 		input.writeAccepted &&
 		input.savedCollection &&
@@ -506,7 +521,7 @@ function continueDraftLaunchAfterSave(
 		state.draft = cloneCollection(input.savedCollection);
 		state.hasUnsavedDraft = false;
 	}
-	if (!state.pendingLaunchAfterSaveDraftKey) {
+	if (!state.pendingLaunchAfterSaveDraftKey || !isPendingLaunchSave) {
 		return;
 	}
 	if (
@@ -520,6 +535,7 @@ function continueDraftLaunchAfterSave(
 		effects.push({ type: 'clear-launching-game' });
 	}
 	state.pendingLaunchAfterSaveDraftKey = undefined;
+	state.pendingLaunchSaveId = undefined;
 }
 
 export function createCollectionWorkspaceWorkflowState(
@@ -534,6 +550,8 @@ export function createCollectionWorkspaceWorkflowState(
 		inventoryRevision: input.inventoryRevision ?? 0,
 		validationRunKey: input.validationRunKey,
 		pendingLaunchAfterSaveDraftKey: input.pendingLaunchAfterSaveDraftKey,
+		launchSaveSequence: input.launchSaveSequence ?? 0,
+		pendingLaunchSaveId: input.pendingLaunchSaveId,
 		runtimeFacts: input.runtimeFacts ?? IDLE_ACTIVE_COLLECTION_DRAFT_RUNTIME_FACTS,
 		validationLaunchIfValid: input.validationLaunchIfValid,
 		validationResult: input.validationResult,
@@ -559,6 +577,8 @@ function isSameWorkflowState(current: CollectionWorkspaceWorkflowState, next: Co
 		current.inventoryRevision === next.inventoryRevision &&
 		current.validationRunKey === next.validationRunKey &&
 		current.pendingLaunchAfterSaveDraftKey === next.pendingLaunchAfterSaveDraftKey &&
+		current.launchSaveSequence === next.launchSaveSequence &&
+		current.pendingLaunchSaveId === next.pendingLaunchSaveId &&
 		sameActiveCollectionDraftRuntimeFacts(current.runtimeFacts, next.runtimeFacts) &&
 		current.validationLaunchIfValid === next.validationLaunchIfValid &&
 		current.validationResult === next.validationResult &&
@@ -582,6 +602,7 @@ function applyDraftEdit(
 			effects.push({ type: 'clear-launching-game' });
 		}
 		state.pendingLaunchAfterSaveDraftKey = undefined;
+		state.pendingLaunchSaveId = undefined;
 		effects.push({ type: 'cancel-validation' });
 		state.validatingDraft = false;
 		state.validationLaunchIfValid = undefined;
@@ -664,7 +685,12 @@ export function reduceCollectionWorkspaceWorkflow(
 			break;
 		}
 		case 'runtime-facts-changed': {
-			nextState.runtimeFacts = event.facts;
+			nextState.runtimeFacts = { ...event.facts, launchingGame: nextState.runtimeFacts.launchingGame };
+			break;
+		}
+		case 'launch-finished': {
+			setWorkflowLaunchingGame(nextState, false);
+			effects.push({ type: 'clear-launching-game' });
 			break;
 		}
 		case 'active-draft-changed': {
@@ -705,6 +731,7 @@ export function reduceCollectionWorkspaceWorkflow(
 			nextState.draft = event.currentDraft ? cloneCollection(event.currentDraft) : undefined;
 			nextState.hasUnsavedDraft = false;
 			nextState.pendingLaunchAfterSaveDraftKey = undefined;
+			nextState.pendingLaunchSaveId = undefined;
 			nextState.validationLaunchIfValid = undefined;
 			nextState.validatingDraft = false;
 			break;

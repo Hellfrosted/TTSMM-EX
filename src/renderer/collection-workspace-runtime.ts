@@ -18,7 +18,6 @@ export interface ActiveCollectionDraftRuntimeFacts {
 	gameRunning: boolean;
 	launchingGame: boolean;
 	loadingMods: boolean;
-	overrideGameRunning?: boolean;
 	savingDraft: boolean;
 }
 
@@ -73,7 +72,7 @@ export function getLaunchReadiness(input: {
 	if (input.runtimeFacts.launchingGame) {
 		blockers.push('launching-game');
 	}
-	if (input.runtimeFacts.gameRunning || input.runtimeFacts.overrideGameRunning) {
+	if (input.runtimeFacts.gameRunning) {
 		blockers.push('game-running');
 	}
 	if (input.validationStatus === 'none') {
@@ -191,7 +190,6 @@ export function sameActiveCollectionDraftRuntimeFacts(current: ActiveCollectionD
 		current.gameRunning === next.gameRunning &&
 		current.launchingGame === next.launchingGame &&
 		current.loadingMods === next.loadingMods &&
-		current.overrideGameRunning === next.overrideGameRunning &&
 		current.savingDraft === next.savingDraft
 	);
 }

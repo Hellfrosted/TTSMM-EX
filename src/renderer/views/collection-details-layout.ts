@@ -1,4 +1,4 @@
-import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../main-view-config-constants';
+import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from 'shared/main-collection-view-config';
 
 export type HalfDetailsLayout = 'bottom' | 'side';
 

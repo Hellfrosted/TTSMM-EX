@@ -11,6 +11,7 @@ import {
 	useBuildBlockLookupIndexMutation
 } from '../../renderer/block-lookup-cache';
 import { DEFAULT_CONFIG } from '../../renderer/Constants';
+import { useCacheMutation } from '../../renderer/cache-mutation';
 import {
 	applyCollectionLifecycleResultToCache,
 	readCollectionCache,
@@ -109,11 +110,68 @@ describe('renderer async cache', () => {
 
 		const { result } = renderHook(() => useWriteConfigMutation());
 		await act(async () => {
-			await result.current.mutateAsync(nextConfig);
+			await result.current.mutateAsync({ nextConfig, baseConfig: storedConfig });
 		});
 
-		expect(window.electron.updateConfig).toHaveBeenCalledWith(nextConfig);
+		expect(window.electron.updateConfig).toHaveBeenCalledWith(nextConfig, storedConfig);
 		expect(configValue.result.current).toEqual(nextConfig);
+	});
+
+	it('keeps accepted config and collection state when older reads finish', async () => {
+		let finishConfig!: (value: AppConfig | null) => void;
+		let finishList!: (value: string[]) => void;
+		let finishCollection!: (value: { name: string; mods: string[] } | null) => void;
+		vi.mocked(window.electron.readConfig).mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishConfig = resolve;
+			})
+		);
+		vi.mocked(window.electron.readCollectionsList).mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishList = resolve;
+			})
+		);
+		vi.mocked(window.electron.readCollection).mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishCollection = resolve;
+			})
+		);
+		const configRead = readConfigCache();
+		const listRead = readCollectionsListCache();
+		const collectionRead = readCollectionCache('default');
+		const config = { ...DEFAULT_CONFIG, currentPath: '/settings' };
+		const collection = { name: 'default', mods: ['new'] };
+		setConfigCacheData(config);
+		setCollectionCacheData({ collectionNames: ['default'], collections: new Map([['default', collection]]) });
+		finishConfig(DEFAULT_CONFIG);
+		finishList(['old']);
+		finishCollection({ name: 'default', mods: ['old'] });
+		await expect(configRead).resolves.toBe(config);
+		await expect(listRead).resolves.toEqual(['default']);
+		await expect(collectionRead).resolves.toBe(collection);
+	});
+
+	it('remains pending until all concurrent mutations finish', async () => {
+		const finish: Array<() => void> = [];
+		const mutation = () => new Promise<void>((resolve) => finish.push(resolve));
+		const { result } = renderHook(() => useCacheMutation(mutation));
+		let first!: Promise<void>;
+		let second!: Promise<void>;
+		act(() => {
+			first = result.current.mutateAsync(undefined);
+			second = result.current.mutateAsync(undefined);
+		});
+		expect(result.current.isPending).toBe(true);
+		await act(async () => {
+			finish[0]();
+			await first;
+		});
+		expect(result.current.isPending).toBe(true);
+		await act(async () => {
+			finish[1]();
+			await second;
+		});
+		expect(result.current.isPending).toBe(false);
 	});
 
 	it('writes config through the shared config persistence seam', async () => {

@@ -20,7 +20,8 @@ const summary = {
 	invalidIds: 0,
 	subscriptionIssues: 0,
 	installIssues: 0,
-	updateIssues: 0
+	updateIssues: 0,
+	unknownWorkshopDependencies: 0
 };
 
 function collection(mods: string[]): ModCollection {
@@ -59,7 +60,6 @@ function createDriverHarness(
 		gameRunning: false,
 		launchingGame: false,
 		loadingMods: false,
-		overrideGameRunning: false,
 		savingDraft: false,
 		...options.facts
 	};
@@ -69,7 +69,7 @@ function createDriverHarness(
 		clearLaunchState: vi.fn(),
 		launchDraft: vi.fn(),
 		openModal: vi.fn(),
-		persistDraft: vi.fn(),
+		persistDraft: vi.fn(async () => {}),
 		recalculateModData: vi.fn(),
 		setLaunchingGame: vi.fn((launchingGame) => {
 			facts.launchingGame = launchingGame;
@@ -94,6 +94,51 @@ function createDriverHarness(
 }
 
 describe('active-collection-draft-driver', () => {
+	it('settles a launch when its draft disappears before the save effect runs', () => {
+		const { adapters, driver } = createDriverHarness({ draft: collection(['local:a']) });
+		driver.dispatch({ type: 'has-unsaved-draft-changed', hasUnsavedDraft: true });
+		const unsubscribe = driver.subscribe(() => {
+			const state = driver.getWorkflowState();
+			if (state.pendingLaunchSaveId !== undefined && state.draft) {
+				unsubscribe();
+				driver.workflowRef.set({ ...state, draft: undefined });
+			}
+		});
+		driver.dispatch({ type: 'launch-anyway-requested' });
+		expect(adapters.persistDraft).not.toHaveBeenCalled();
+		expect(driver.getWorkflowState().pendingLaunchSaveId).toBeUndefined();
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(false);
+	});
+
+	it('settles a launch if its save adapter rejects before reporting a result', async () => {
+		const draft = collection(['local:a']);
+		const { adapters, driver } = createDriverHarness({ draft });
+		vi.mocked(adapters.persistDraft).mockRejectedValueOnce(new Error('save failed'));
+		driver.dispatch({ type: 'has-unsaved-draft-changed', hasUnsavedDraft: true });
+		driver.dispatch({ type: 'launch-anyway-requested' });
+		await flushPromises();
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(false);
+		expect(driver.getWorkflowState().pendingLaunchSaveId).toBeUndefined();
+		expect(adapters.clearLaunchState).toHaveBeenCalledOnce();
+	});
+	it('keeps launch ownership while external facts change and settles when the launch fails', async () => {
+		const draft = collection(['local:a']);
+		const { adapters, driver } = createDriverHarness({ draft });
+		let fail!: (reason: Error) => void;
+		vi.mocked(adapters.launchDraft).mockReturnValue(
+			new Promise<void>((_resolve, reject) => {
+				fail = reject;
+			})
+		);
+		driver.dispatch({ type: 'launch-anyway-requested' });
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(true);
+		driver.dispatch({ type: 'runtime-facts-changed', facts: { gameRunning: false, loadingMods: false, savingDraft: false } });
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(true);
+		fail(new Error('launch failed'));
+		await flushPromises();
+		expect(driver.getWorkflowState().runtimeFacts.launchingGame).toBe(false);
+		expect(adapters.clearLaunchState).toHaveBeenCalledOnce();
+	});
 	it('saves a fresh validated draft before launching', async () => {
 		const draft = collection(['local:a']);
 		const { adapters, driver } = createDriverHarness({ draft });
@@ -105,12 +150,13 @@ describe('active-collection-draft-driver', () => {
 		driver.dispatch({ type: 'launch-requested' });
 
 		expect(adapters.setLaunchingGame).toHaveBeenCalledWith(true);
-		expect(adapters.persistDraft).toHaveBeenCalledWith(draft);
+		expect(adapters.persistDraft).toHaveBeenCalledWith(draft, 1);
 		expect(adapters.launchDraft).not.toHaveBeenCalled();
 
 		driver.dispatch({
 			type: 'collection-content-save-completed',
 			completion: {
+				launchSaveId: 1,
 				pureSave: true,
 				savedCollection: draft,
 				writeAccepted: true
@@ -145,7 +191,7 @@ describe('active-collection-draft-driver', () => {
 		driver.dispatch({ type: 'launch-requested' });
 
 		expect(validateDraft).toHaveBeenCalledWith(editedDraft, false, undefined);
-		expect(adapters.persistDraft).toHaveBeenCalledWith(editedDraft);
+		expect(adapters.persistDraft).toHaveBeenCalledWith(editedDraft, 1);
 	});
 
 	it('opens validation errors and clears launching when launch-triggered validation fails', async () => {
@@ -244,7 +290,6 @@ describe('active-collection-draft-driver', () => {
 				gameRunning: true,
 				launchingGame: false,
 				loadingMods: false,
-				overrideGameRunning: false,
 				savingDraft: false
 			}
 		});
@@ -257,7 +302,6 @@ describe('active-collection-draft-driver', () => {
 				gameRunning: false,
 				launchingGame: false,
 				loadingMods: false,
-				overrideGameRunning: false,
 				savingDraft: false
 			}
 		});

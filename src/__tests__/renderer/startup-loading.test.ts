@@ -17,6 +17,8 @@ describe('startup-loading', () => {
 		expect(getStartupRestorablePath('/settings')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/block-lookup')).toBe('/block-lookup');
 		expect(getStartupRestorablePath('/population-pool')).toBe('/population-pool');
+		expect(getStartupRestorablePath('/block-lookup/details')).toBe('/block-lookup');
+		expect(getStartupRestorablePath('/population-pool-extra')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/loading/config')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/loading/steamworks')).toBe('/collections/main');
 		expect(getStartupRestorablePath('/collections/main')).toBe('/collections/main');

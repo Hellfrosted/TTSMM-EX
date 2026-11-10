@@ -9,7 +9,7 @@ import {
 	createBlockLookupTableWorkspaceState,
 	reduceBlockLookupTableWorkspace
 } from 'renderer/block-lookup-table-workspace';
-import { useViewConfigCommands } from 'renderer/view-config-command';
+import { useBlockLookupViewConfigCommands } from 'renderer/use-block-lookup-view-config-commands';
 import type { useBlockLookupWorkflow } from './use-block-lookup-workflow';
 
 function useBlockLookupTableWidth() {
@@ -125,7 +125,7 @@ export function useBlockLookupTableSettings(
 		saveBlockLookupColumns,
 		setBlockLookupColumnOrder,
 		setBlockLookupColumnWidth: persistBlockLookupColumnWidth
-	} = useViewConfigCommands({ config: appConfig, openNotification, updateState });
+	} = useBlockLookupViewConfigCommands({ config: appConfig, openNotification, updateState });
 	const blockLookupConfig = appConfig.viewConfigs.blockLookup;
 	const columnConfig = useMemo(() => getConfiguredBlockLookupColumns(blockLookupConfig), [blockLookupConfig]);
 	const columnConfigRef = useRef(columnConfig);

@@ -20,8 +20,10 @@ const collectionCacheRef = AtomRef.make<CollectionCacheState>({
 	collectionNames: undefined,
 	collections: new Map()
 });
+let collectionCacheGeneration = 0;
 
 export function setCollectionCacheData(state: CollectionCacheState) {
+	collectionCacheGeneration++;
 	collectionCacheRef.set({
 		collectionNames: state.collectionNames,
 		collections: new Map(state.collections)
@@ -41,16 +43,16 @@ function updateCollectionCache(update: (state: CollectionCacheState) => Collecti
 }
 
 export async function readCollectionsListCache(): Promise<string[]> {
-	const cachedCollectionNames = collectionCacheRef.value.collectionNames;
-	if (cachedCollectionNames !== undefined) {
-		return cachedCollectionNames;
+	while (true) {
+		const cachedCollectionNames = collectionCacheRef.value.collectionNames;
+		if (cachedCollectionNames !== undefined) return cachedCollectionNames;
+		const generation = collectionCacheGeneration;
+		const collectionNames = await runRenderer(readCollectionsListEffect());
+		if (generation === collectionCacheGeneration) {
+			collectionCacheRef.set({ ...collectionCacheRef.value, collectionNames });
+			return collectionNames;
+		}
 	}
-	const collectionNames = await runRenderer(readCollectionsListEffect());
-	updateCollectionCache((state) => ({
-		...state,
-		collectionNames
-	}));
-	return collectionNames;
 }
 
 const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Return<string[], unknown, RendererElectron> {
@@ -63,15 +65,18 @@ const readCollectionsListEffect = Effect.fnUntraced(function* (): Effect.fn.Retu
 });
 
 export async function readCollectionCache(collectionName: string): Promise<ModCollection | null> {
-	if (collectionCacheRef.value.collections.has(collectionName)) {
-		return collectionCacheRef.value.collections.get(collectionName) ?? null;
+	while (true) {
+		if (collectionCacheRef.value.collections.has(collectionName)) {
+			return collectionCacheRef.value.collections.get(collectionName) ?? null;
+		}
+		const generation = collectionCacheGeneration;
+		const collection = await runRenderer(readCollectionEffect(collectionName));
+		if (generation === collectionCacheGeneration) {
+			const state = collectionCacheRef.value;
+			collectionCacheRef.set({ ...state, collections: new Map(state.collections).set(collectionName, collection) });
+			return collection;
+		}
 	}
-	const collection = await runRenderer(readCollectionEffect(collectionName));
-	updateCollectionCache((state) => ({
-		...state,
-		collections: new Map(state.collections).set(collectionName, collection)
-	}));
-	return collection;
 }
 
 const readCollectionEffect = Effect.fnUntraced(function* (

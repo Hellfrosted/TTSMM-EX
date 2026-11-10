@@ -1,4 +1,4 @@
-import type { Effect } from 'effect';
+import type { Duration, Effect } from 'effect';
 import type { ModData, NuterraSteamCompatibilityOptions } from '../model';
 import type { SteamPersonaCache } from './steam-persona-cache';
 import type { SteamUGCDetails } from './steamworks';
@@ -55,12 +55,6 @@ export type WorkshopDependencyEffect =
 	| { type: 'dependency-expansion-complete'; dependencyItems: number }
 	| WorkshopInventoryProgressEffect;
 
-export interface WorkshopDependencyChunkOutcome {
-	missingDependencies: Set<bigint>;
-	resolvedRecords: WorkshopInventoryResolvedRecord[];
-	unresolvedWorkshopItems: UnresolvedWorkshopItem[];
-}
-
 export interface WorkshopDependencyExpansionAdapters {
 	getDetailsForWorkshopModList: (
 		workshopIDs: bigint[],
@@ -68,8 +62,6 @@ export interface WorkshopDependencyExpansionAdapters {
 	) => Effect.Effect<ModData[], unknown, SteamPersonaCache>;
 	keepUnknownWorkshopItem?: (workshopID: bigint) => boolean;
 	knownWorkshopMods: Set<bigint>;
-	onProgressEffect?: (effect: WorkshopInventoryProgressEffect) => void;
-	options?: NuterraSteamCompatibilityOptions;
 }
 
 export interface WorkshopInventoryDependencyExpansionOptions {
@@ -83,6 +75,11 @@ export type BuildWorkshopMod = (
 	keepUnknownWorkshopItem?: boolean
 ) => Effect.Effect<ModData | null, unknown, SteamPersonaCache>;
 
+export interface WorkshopInventoryPagingOptions {
+	maxPages?: number;
+	pageTimeout?: Duration.Input;
+}
+
 export interface WorkshopInventoryExpansionScanInput {
 	buildWorkshopMod: BuildWorkshopMod;
 	fetchSubscribedPage: (page: number) => Effect.Effect<WorkshopInventorySubscribedPage, unknown, SteamPersonaCache>;
@@ -91,6 +88,7 @@ export interface WorkshopInventoryExpansionScanInput {
 	logDebug?: (message: string) => void;
 	onProgressEffect?: (effect: WorkshopInventoryProgressEffect) => void;
 	options?: NuterraSteamCompatibilityOptions;
+	paging?: WorkshopInventoryPagingOptions;
 }
 
 export interface WorkshopInventorySubscribedPageObservation {

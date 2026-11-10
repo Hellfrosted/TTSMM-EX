@@ -1,8 +1,10 @@
 import type { AppConfig } from 'model';
-import { cloneAppConfig } from 'renderer/hooks/collections/utils';
-import { normalizeMainCollectionConfig } from 'shared/main-collection-view-config';
+import {
+	MAIN_DETAILS_OVERLAY_MIN_HEIGHT,
+	MAIN_DETAILS_OVERLAY_MIN_WIDTH,
+	normalizeMainCollectionConfig
+} from 'shared/main-collection-view-config';
 import { isFiniteNumber } from 'shared/view-config';
-import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from './main-view-config-constants';
 
 export function setMainCollectionDetailsOverlaySize(config: AppConfig, layout: 'side' | 'bottom', size: number | undefined) {
 	const key = layout === 'side' ? 'detailsOverlayWidth' : 'detailsOverlayHeight';
@@ -13,7 +15,7 @@ export function setMainCollectionDetailsOverlaySize(config: AppConfig, layout: '
 		return undefined;
 	}
 
-	const nextConfig = cloneAppConfig(config);
+	const nextConfig = structuredClone(config);
 	const nextMainConfig = normalizeMainCollectionConfig(nextConfig.viewConfigs.main);
 	if (typeof normalizedSize === 'number') {
 		nextMainConfig[key] = normalizedSize;

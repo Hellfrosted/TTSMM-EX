@@ -28,7 +28,8 @@ const summary = {
 	invalidIds: 0,
 	subscriptionIssues: 0,
 	installIssues: 0,
-	updateIssues: 0
+	updateIssues: 0,
+	unknownWorkshopDependencies: 0
 };
 
 function collection(mods: string[]): ModCollection {
@@ -801,6 +802,7 @@ describe('collection-workspace-session', () => {
 
 		const savedTransition = reduceCollectionWorkspaceWorkflow(validatedTransition.state, {
 			type: 'collection-content-save-completed',
+			launchSaveId: validatedTransition.state.pendingLaunchSaveId,
 			pureSave: true,
 			savedCollection: draft,
 			writeAccepted: true
@@ -823,12 +825,70 @@ describe('collection-workspace-session', () => {
 		);
 		const failedSaveTransition = reduceCollectionWorkspaceWorkflow(validatedTransition.state, {
 			type: 'collection-content-save-completed',
+			launchSaveId: validatedTransition.state.pendingLaunchSaveId,
 			pureSave: true,
 			writeAccepted: false
 		});
 
 		expect(failedSaveTransition.effects).toEqual([{ type: 'clear-launching-game' }]);
 		expect(failedSaveTransition.state.pendingLaunchAfterSaveDraftKey).toBeUndefined();
+	});
+
+	it('clears launch state when a superseded save settles with an older draft generation', () => {
+		const draft = collection(['local:a']);
+		const validation = validationResult(draft);
+		const validatedTransition = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({
+				config: DEFAULT_CONFIG,
+				draft,
+				draftGeneration: 3,
+				validationLaunchIfValid: true,
+				validatingDraft: true
+			}),
+			{
+				type: 'validation-completed',
+				result: validation
+			}
+		);
+
+		const supersededTransition = reduceCollectionWorkspaceWorkflow(
+			{ ...validatedTransition.state, draftGeneration: 4 },
+			{
+				type: 'collection-content-save-completed',
+				launchSaveId: validatedTransition.state.pendingLaunchSaveId,
+				draftGeneration: 3,
+				pureSave: true,
+				writeAccepted: false
+			}
+		);
+
+		expect(supersededTransition.effects).toEqual([{ type: 'clear-launching-game' }]);
+		expect(supersededTransition.state.pendingLaunchAfterSaveDraftKey).toBeUndefined();
+	});
+
+	it('does not let an older save cancel a newer pending launch', () => {
+		const draft = collection(['local:a']);
+		const pending = reduceCollectionWorkspaceWorkflow(
+			createCollectionWorkspaceWorkflowState({ config: DEFAULT_CONFIG, draft, draftGeneration: 4, hasUnsavedDraft: true }),
+			{ type: 'launch-anyway-requested' }
+		).state;
+		const result = reduceCollectionWorkspaceWorkflow(pending, {
+			type: 'collection-content-save-completed',
+			draftGeneration: 3,
+			pureSave: true,
+			writeAccepted: false
+		});
+		expect(result.effects).toEqual([]);
+		expect(result.state.pendingLaunchSaveId).toBe(pending.pendingLaunchSaveId);
+		expect(result.state.runtimeFacts.launchingGame).toBe(true);
+		const unrelated = reduceCollectionWorkspaceWorkflow(pending, {
+			type: 'collection-content-save-completed',
+			draftGeneration: 4,
+			pureSave: true,
+			writeAccepted: false
+		});
+		expect(unrelated.effects).toEqual([]);
+		expect(unrelated.state.pendingLaunchSaveId).toBe(pending.pendingLaunchSaveId);
 	});
 
 	it('clears launch state when save accepts a different draft than the pending launch', () => {
@@ -845,6 +905,7 @@ describe('collection-workspace-session', () => {
 
 		const mismatchedSaveTransition = reduceCollectionWorkspaceWorkflow(validatedTransition.state, {
 			type: 'collection-content-save-completed',
+			launchSaveId: validatedTransition.state.pendingLaunchSaveId,
 			pureSave: true,
 			savedCollection,
 			writeAccepted: true

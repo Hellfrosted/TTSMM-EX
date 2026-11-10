@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../../renderer/main-view-config-constants';
 import { getDetailsLayout } from '../../renderer/views/collection-details-layout';
+import { MAIN_DETAILS_OVERLAY_MIN_HEIGHT, MAIN_DETAILS_OVERLAY_MIN_WIDTH } from '../../shared/main-collection-view-config';
 
 const input = {
 	contentSize: { width: 1400, height: 800 },

@@ -1,35 +1,27 @@
 import { Effect } from 'effect';
-import type { AppConfig, MainColumnTitles, NotificationProps } from 'model';
+import type { AppConfig, AppState, NotificationProps } from 'model';
 import { useCallback } from 'react';
 import api from 'renderer/Api';
-import type { BlockLookupColumnConfig } from 'renderer/block-lookup-column-definitions';
-import type { BlockLookupColumnKey } from 'renderer/block-lookup-table-workspace';
-import { moveBlockLookupColumn, setBlockLookupColumns, setBlockLookupColumnWidth } from 'renderer/block-lookup-view-config-commands';
-import {
-	moveMainCollectionColumn,
-	setMainCollectionColumnVisibility,
-	setMainCollectionColumnWidth
-} from 'renderer/main-view-config-columns';
-import { setMainCollectionDetailsOverlaySize } from 'renderer/main-view-config-size';
 import { type RendererElectron, runRenderer } from 'renderer/runtime';
-import type { CollectionWorkspaceAppState } from 'renderer/state/app-state';
 import { persistConfigChangeProgram } from 'renderer/util/config-write';
-import type { NotificationType } from './hooks/collections/useNotifications';
+import type { NotificationType } from './notification-channel';
 
 interface PersistViewConfigChangeOptions {
+	baseConfig?: AppConfig;
 	logger: Pick<Console, 'error'>;
 	nextConfig: AppConfig | undefined;
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
-	updateState: CollectionWorkspaceAppState['updateState'];
+	updateState: AppState['updateState'];
 }
 
 const persistViewConfigChangeProgram = Effect.fnUntraced(function* ({
+	baseConfig,
 	logger,
 	nextConfig,
 	openNotification,
 	updateState
 }: PersistViewConfigChangeOptions): Effect.fn.Return<boolean, never, RendererElectron> {
-	return yield* persistConfigChangeProgram(nextConfig, (config) => updateState({ config })).pipe(
+	return yield* persistConfigChangeProgram(nextConfig, (config) => updateState({ config }), baseConfig).pipe(
 		Effect.catch((error) => {
 			logger.error(error);
 			openNotification(
@@ -49,62 +41,21 @@ export function persistViewConfigChange(options: PersistViewConfigChangeOptions)
 	return runRenderer(persistViewConfigChangeProgram(options));
 }
 
-interface ViewConfigCommandsOptions {
-	config: AppConfig;
+export interface ViewConfigPersistenceOptions {
 	openNotification: (props: NotificationProps, type?: NotificationType) => void;
-	updateState: CollectionWorkspaceAppState['updateState'];
+	updateState: AppState['updateState'];
 }
 
-export function useViewConfigCommands({ config, openNotification, updateState }: ViewConfigCommandsOptions) {
-	const persist = useCallback(
-		(nextConfig: AppConfig | undefined) =>
+export function useViewConfigPersistence({ openNotification, updateState }: ViewConfigPersistenceOptions) {
+	return useCallback(
+		(nextConfig: AppConfig | undefined, baseConfig: AppConfig) =>
 			persistViewConfigChange({
 				logger: api.logger,
+				baseConfig,
 				nextConfig,
 				openNotification,
 				updateState
 			}),
 		[openNotification, updateState]
 	);
-
-	const setMainColumnWidth = useCallback(
-		(column: MainColumnTitles, width: number) => persist(setMainCollectionColumnWidth(config, column, width)),
-		[config, persist]
-	);
-	const setMainColumnVisibility = useCallback(
-		(column: MainColumnTitles, visible: boolean) => persist(setMainCollectionColumnVisibility(config, column, visible)),
-		[config, persist]
-	);
-	const setMainColumnOrder = useCallback(
-		(fromColumn: MainColumnTitles, toColumn: MainColumnTitles) => persist(moveMainCollectionColumn(config, fromColumn, toColumn)),
-		[config, persist]
-	);
-	const setMainDetailsOverlaySize = useCallback(
-		(layout: 'side' | 'bottom', size: number | undefined) => persist(setMainCollectionDetailsOverlaySize(config, layout, size)),
-		[config, persist]
-	);
-	const saveBlockLookupColumns = useCallback(
-		(columns: BlockLookupColumnConfig[], smallRows: boolean) => persist(setBlockLookupColumns(config, columns, smallRows)),
-		[config, persist]
-	);
-	const setBlockLookupColumnOrder = useCallback(
-		(columnConfig: BlockLookupColumnConfig[], fromKey: BlockLookupColumnKey, toKey: BlockLookupColumnKey) =>
-			fromKey === toKey ? Promise.resolve(undefined) : persist(moveBlockLookupColumn(config, columnConfig, fromKey, toKey)),
-		[config, persist]
-	);
-	const setBlockLookupColumnWidthCommand = useCallback(
-		(columnConfig: BlockLookupColumnConfig[], columnKey: BlockLookupColumnKey, width: number) =>
-			persist(setBlockLookupColumnWidth(config, columnConfig, columnKey, width)),
-		[config, persist]
-	);
-
-	return {
-		saveBlockLookupColumns,
-		setBlockLookupColumnOrder,
-		setBlockLookupColumnWidth: setBlockLookupColumnWidthCommand,
-		setMainDetailsOverlaySize,
-		setMainColumnOrder,
-		setMainColumnVisibility,
-		setMainColumnWidth
-	};
 }

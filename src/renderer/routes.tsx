@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, MemoryRouter as Router, Routes } from 'react-router-dom';
+import { APP_ROUTES } from 'shared/app-route-policy';
 
 import App from './App';
 import ViewStageLoadingFallback from './components/loading/ViewStageLoadingFallback';
@@ -30,13 +31,12 @@ export function AppRoutes() {
 	return (
 		<Routes>
 			<Route path="/" element={<App />}>
-				<Route path="settings" element={<StageRoutePlaceholder />} />
-				<Route path="population-pool" element={<StageRoutePlaceholder />} />
-				<Route path="block-lookup" element={<StageRoutePlaceholder />} />
-				{/* Paths that indicate the application is processing request to load something from disk */}
-				<Route path="loading" element={<LoadingView />}>
+				<Route path={APP_ROUTES.settings} element={<StageRoutePlaceholder />} />
+				<Route path={APP_ROUTES.populationPool} element={<StageRoutePlaceholder />} />
+				<Route path={APP_ROUTES.blockLookup} element={<StageRoutePlaceholder />} />
+				<Route path={APP_ROUTES.loading} element={<LoadingView />}>
 					<Route
-						path="config"
+						path={APP_ROUTES.loadingConfig}
 						element={
 							<Suspense fallback={<RouteChunkFallback label="Loading startup checks" />}>
 								<ConfigLoadingComponentLazy />
@@ -44,7 +44,7 @@ export function AppRoutes() {
 						}
 					/>
 					<Route
-						path="steamworks"
+						path={APP_ROUTES.loadingSteamworks}
 						element={
 							<Suspense fallback={<RouteChunkFallback label="Loading Steamworks verification" />}>
 								<SteamworksVerificationLazy />
@@ -52,14 +52,13 @@ export function AppRoutes() {
 						}
 					/>
 				</Route>
-				{/* The actual collection management components */}
-				<Route path="collections">
-					<Route index element={<Navigate replace to="main" />} />
-					<Route path="main" element={<StageRoutePlaceholder />} />
-					<Route path="*" element={<Navigate replace to="main" />} />
+				<Route path={APP_ROUTES.collections}>
+					<Route index element={<Navigate replace to={APP_ROUTES.collectionMain} />} />
+					<Route path={APP_ROUTES.collectionMain} element={<StageRoutePlaceholder />} />
+					<Route path="*" element={<Navigate replace to={APP_ROUTES.collectionMain} />} />
 				</Route>
 			</Route>
-			<Route path="*" element={<Navigate replace to="/collections/main" />} />
+			<Route path="*" element={<Navigate replace to={APP_ROUTES.collectionMain} />} />
 		</Routes>
 	);
 }
