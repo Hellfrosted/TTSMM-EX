@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -97,6 +97,14 @@ env[UI_SMOKE_SCREENSHOT_DIR_ENV] = smokeRoot;
 env.ELECTRON_ENABLE_LOGGING = '1';
 
 const launch = resolveLaunchCommand();
+if (requestedPackagedApp) {
+	const appAsar = path.join(path.dirname(launch.command), 'resources', 'app.asar');
+	const greenworks = path.join(appAsar, 'node_modules', 'greenworks');
+	execFileSync(electronBinary, ['-e', 'require(process.argv[1])', greenworks], {
+		env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+		stdio: 'inherit'
+	});
+}
 let succeeded = false;
 try {
 	const result = spawnSync(launch.command, launch.args, {
