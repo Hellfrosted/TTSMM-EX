@@ -2,12 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DisplayModData, ModType } from '../../model';
-import {
-	getMainCollectionCellContent,
-	type MainCollectionRowColumn,
-	MainCollectionVirtualRow
-} from '../../renderer/components/collections/main-collection-row';
-import { formatDateStr } from '../../util/Date';
+import { MainCollectionVirtualRow } from '../../renderer/components/collections/main-collection-row';
 
 afterEach(() => {
 	cleanup();
@@ -27,43 +22,22 @@ function createRecord(overrides: Partial<DisplayModData> = {}): DisplayModData {
 }
 
 describe('main-collection-row', () => {
-	it('renders cell values through custom renderers before falling back to record fields', () => {
-		const record = createRecord();
-		const renderContext = { activateRow: vi.fn(), openDetails: vi.fn() };
-		const column: MainCollectionRowColumn = {
-			title: 'Name',
-			dataIndex: 'name',
-			render: (value, row, rowIndex) => `${rowIndex}:${row.uid}:${value}`
-		};
-
-		expect(getMainCollectionCellContent(column, record, 7, renderContext)).toBe('7:workshop:3264187221:HHI Custom Paint GT');
-		expect(getMainCollectionCellContent({ title: 'ID', dataIndex: 'id' }, record, 0, renderContext)).toBe('HumanReadableModId');
-	});
-
-	it('formats date fallback values consistently with collection table dates', () => {
-		const dateAdded = new Date(2026, 3, 12, 9, 30);
-		const record = createRecord({ dateAdded });
-
-		expect(
-			getMainCollectionCellContent({ title: 'Date Added', dataIndex: 'dateAdded' }, record, 0, {
-				activateRow: vi.fn(),
-				openDetails: vi.fn()
-			})
-		).toBe(formatDateStr(dateAdded));
-	});
-
 	it('renders selection and cell presentation for a virtual row', () => {
 		const onSelectedChange = vi.fn();
 		const onContextMenu = vi.fn();
 		const onOpenDetails = vi.fn();
 		const onRowHighlight = vi.fn();
-		const record = createRecord();
+		const record = createRecord({ dateAdded: new Date(2026, 3, 12, 9, 30) });
 
 		render(
 			<table>
 				<tbody>
 					<MainCollectionVirtualRow
-						columns={[{ title: 'ID', dataIndex: 'id', width: 140 }]}
+						columns={[
+							{ title: 'ID', dataIndex: 'id', width: 140 },
+							{ title: 'Date Added', dataIndex: 'dateAdded' },
+							{ title: 'Name', dataIndex: 'name', render: (value) => `Mod name: ${value}` }
+						]}
 						highlighted={true}
 						record={record}
 						rowHeight={48}
@@ -83,7 +57,8 @@ describe('main-collection-row', () => {
 		fireEvent.click(screen.getByRole('checkbox', { name: 'Include HumanReadableModId in collection' }));
 		fireEvent.contextMenu(screen.getByText('HumanReadableModId').closest('tr') as HTMLTableRowElement);
 
-		expect(screen.getByText('HumanReadableModId')).toBeInTheDocument();
+		expect(screen.getByRole('cell', { name: '2026-04-12 09:30' })).toBeInTheDocument();
+		expect(screen.getByRole('cell', { name: 'Mod name: HHI Custom Paint GT' })).toBeInTheDocument();
 		expect(onSelectedChange).toHaveBeenCalledWith(record, false);
 		expect(onContextMenu).toHaveBeenCalledTimes(1);
 		expect(screen.getByRole('row', { name: /Mod row for HumanReadableModId/ })).toHaveStyle({ height: '48px' });

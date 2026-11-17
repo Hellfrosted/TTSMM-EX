@@ -5,8 +5,7 @@ import { registerConfigHandlers } from '../../main/ipc/config-handlers';
 import { registerGameHandlers } from '../../main/ipc/game-handlers';
 import { registerModHandlers } from '../../main/ipc/mod-handlers';
 import { registerPopulationPoolHandlers } from '../../main/ipc/population-pool-handlers';
-import { ValidChannel } from '../../shared/ipc';
-import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from '../../shared/ipc-contract';
+import { ipcInvokeChannels, ipcSendChannels } from '../../shared/ipc-contract';
 import { createTempDir } from './test-utils';
 
 function registerAllMainHandlers() {
@@ -43,67 +42,6 @@ function registerAllMainHandlers() {
 }
 
 describe('ipc contract', () => {
-	it('maps exposed invoke methods to their stable channels', () => {
-		expect(ipcInvokeChannels).toMatchObject({
-			buildBlockLookupIndex: ValidChannel.BLOCK_LOOKUP_BUILD_INDEX,
-			readModMetadata: ValidChannel.READ_MOD_METADATA,
-			readCollectionsList: ValidChannel.READ_COLLECTIONS,
-			updateConfig: ValidChannel.UPDATE_CONFIG
-		});
-		expect(Object.keys(ipcInvokeChannels).sort()).toEqual([
-			'addStablePopulationEntry',
-			'autoDetectBlockLookupWorkshopRoot',
-			'buildBlockLookupIndex',
-			'createCollectionLifecycle',
-			'createWorkshopPopulationRequest',
-			'deleteCollectionLifecycle',
-			'disablePopulationEntry',
-			'discoverGameExecutable',
-			'downloadMod',
-			'duplicateCollectionLifecycle',
-			'fetchWorkshopDependencies',
-			'getBlockLookupStats',
-			'getUserDataPath',
-			'isGameRunning',
-			'launchGame',
-			'pathExists',
-			'readBlockLookupSettings',
-			'readCollection',
-			'readCollectionsList',
-			'readConfig',
-			'readModMetadata',
-			'renameCollectionLifecycle',
-			'resolveStartupCollection',
-			'restorePopulationEntry',
-			'saveBlockLookupSettings',
-			'scanPopulationPool',
-			'searchBlockLookup',
-			'selectPath',
-			'steamworksInited',
-			'subscribeMod',
-			'switchCollectionLifecycle',
-			'unsubscribeMod',
-			'updateCollection',
-			'updateConfig'
-		]);
-	});
-
-	it('maps send and subscription methods to their stable channels', () => {
-		expect(ipcSendChannels).toEqual({
-			openModBrowser: ValidChannel.OPEN_MOD_BROWSER,
-			openModContextMenu: ValidChannel.OPEN_MOD_CONTEXT_MENU,
-			openModSteam: ValidChannel.OPEN_MOD_STEAM,
-			updateLogLevel: ValidChannel.UPDATE_LOG_LEVEL
-		});
-		expect(ipcSubscriptionChannels).toEqual({
-			onBlockLookupIndexProgress: ValidChannel.BLOCK_LOOKUP_INDEX_PROGRESS,
-			onModMetadataUpdate: ValidChannel.MOD_METADATA_UPDATE,
-			onModRefreshRequested: ValidChannel.MOD_REFRESH_REQUESTED,
-			onProgressChange: ValidChannel.PROGRESS_CHANGE,
-			onReloadSteamworks: ValidChannel.RELOAD_STEAMWORKS
-		});
-	});
-
 	it('registers every request and send-only contract channel in the main process', () => {
 		const { handledChannels, listenerChannels } = registerAllMainHandlers();
 

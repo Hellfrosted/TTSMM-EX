@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseExtraLaunchParams } from '../../renderer/Api';
 import { createGameLaunchCommand } from '../../renderer/game-launch-command';
 
 describe('renderer API helpers', () => {
-	it('parses quoted additional launch arguments without splitting embedded spaces', () => {
-		expect(parseExtraLaunchParams('  +foo   "bar baz" \'qux quux\' plain  ')).toEqual(['+foo', 'bar baz', 'qux quux', 'plain']);
-	});
-
 	it('builds TerraTech launch arguments outside the IPC adapter', () => {
 		expect(
 			createGameLaunchCommand({
@@ -20,11 +15,21 @@ describe('renderer API helpers', () => {
 					'': 'debug',
 					Blocks: 'info'
 				},
-				extraParams: '"quoted arg" +flag'
+				extraParams: `  "quoted arg"   'another arg' +flag  `
 			})
 		).toEqual({
 			workshopID: '2571814511',
-			args: ['+ttsmm_mod_list', '[[local:My:/%20Mod]]', '+log_level', 'debug', '+log_level_Blocks', 'info', 'quoted arg', '+flag']
+			args: [
+				'+ttsmm_mod_list',
+				'[[local:My:/%20Mod]]',
+				'+log_level',
+				'debug',
+				'+log_level_Blocks',
+				'info',
+				'quoted arg',
+				'another arg',
+				'+flag'
+			]
 		});
 	});
 

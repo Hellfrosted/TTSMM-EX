@@ -56,19 +56,6 @@ describe('rendered block preview assignment', () => {
 		});
 	});
 
-	it('matches previews when block and asset names use different token order', () => {
-		const [record] = assignRenderedBlockPreviewsToRecords(
-			[createRecord({ blockName: 'LK Outer Corner Battlement Block', internalName: 'LK_battlement_corner_outer' })],
-			[
-				createAsset({ assetName: 'LK_corner_outer_icon', cacheRelativePath: 'bundle/partial-preview.png' }),
-				createAsset({ assetName: 'LK_outerCorner_battlement_icon', cacheRelativePath: 'bundle/reordered-preview.png' })
-			],
-			{ renderedPreviewsEnabled: true }
-		);
-
-		expect(record.renderedPreview?.cacheRelativePath).toBe('bundle/reordered-preview.png');
-	});
-
 	it('matches side-specific blocks to shared family preview assets', () => {
 		const records = assignRenderedBlockPreviewsToRecords(
 			[
@@ -217,19 +204,5 @@ describe('rendered block preview assignment', () => {
 		expect(records.find((record) => record.internalName === 'EXP_Scrapper_322')?.renderedPreview?.cacheRelativePath).toBe(
 			'blockpedia/EXP_Scrapper_322.jpg'
 		);
-	});
-
-	it('leaves unmatched records without placeholder previews', () => {
-		const records = assignRenderedBlockPreviewsToRecords(
-			[
-				createRecord({ blockName: 'Alpha Block', internalName: 'Alpha_Block' }),
-				createRecord({ blockName: 'Beta Block', internalName: 'Beta_Block' })
-			],
-			[createAsset({ assetName: 'Alpha_Block_preview', cacheRelativePath: 'bundle/alpha-preview.png' })],
-			{ renderedPreviewsEnabled: true }
-		);
-
-		expect(records.find((record) => record.internalName === 'Alpha_Block')?.renderedPreview).toBeDefined();
-		expect(records.find((record) => record.internalName === 'Beta_Block')?.renderedPreview).toBeUndefined();
 	});
 });

@@ -27,9 +27,7 @@ import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'sha
 import type { ModContextMenuRequest } from 'shared/mod-context-menu';
 import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from 'shared/startup-collection-resolution';
 import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
-import { createGameLaunchCommand, parseExtraLaunchParams } from './game-launch-command';
-
-export { parseExtraLaunchParams };
+import { createGameLaunchCommand } from './game-launch-command';
 
 type ElectronMethod<TMethod extends keyof ElectronApi> = ElectronApi[TMethod] extends (...args: infer TArgs) => infer TResult
 	? { args: TArgs; result: TResult }

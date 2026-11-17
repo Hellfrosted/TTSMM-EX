@@ -8,7 +8,7 @@ interface GameLaunchCommand {
 	workshopID: string | null;
 }
 
-export function parseExtraLaunchParams(extraParams: string): string[] {
+function parseExtraLaunchParams(extraParams: string): string[] {
 	const matches = extraParams.matchAll(EXTRA_PARAM_PATTERN);
 	return Array.from(matches).flatMap((match) => {
 		const arg = match[1] ?? match[2] ?? match[0];

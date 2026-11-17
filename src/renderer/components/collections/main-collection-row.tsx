@@ -67,7 +67,7 @@ export function SelectionCheckbox({ 'aria-label': ariaLabel, checked, indetermin
 	);
 }
 
-export function getMainCollectionCellContent(
+function getMainCollectionCellContent(
 	column: MainCollectionRowColumn,
 	record: DisplayModData,
 	rowIndex: number,
