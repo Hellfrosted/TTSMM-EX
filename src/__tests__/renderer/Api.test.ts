@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-
+import api from '../../renderer/Api';
 import { createGameLaunchCommand } from '../../renderer/game-launch-command';
+import { ipcInvokeChannels } from '../../shared/ipc-contract';
 
 describe('renderer API helpers', () => {
+	it('projects every invoke contract method onto the renderer API', () => {
+		const apiMethodFor = (method: keyof typeof ipcInvokeChannels) => (method === 'isGameRunning' ? 'gameRunning' : method);
+
+		for (const method of Object.keys(ipcInvokeChannels) as Array<keyof typeof ipcInvokeChannels>) {
+			expect(typeof api[apiMethodFor(method) as keyof typeof api]).toBe('function');
+		}
+	});
+
 	it('builds TerraTech launch arguments outside the IPC adapter', () => {
 		expect(
 			createGameLaunchCommand({

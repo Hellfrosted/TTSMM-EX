@@ -23,7 +23,6 @@ paths:
 auto_add:
   allowlist:
     - "src/**"
-    - "tests/**"
     - "package.json"
     - "pnpm-lock.yaml"
     - "pnpm-workspace.yaml"

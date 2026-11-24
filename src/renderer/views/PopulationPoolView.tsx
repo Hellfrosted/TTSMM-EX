@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PopulationPoolRow, PopulationPoolScanRequest, PopulationPoolScanResult, PopulationPoolSource } from 'shared/population-pool';
 import { POPULATION_POOL_COLUMN_TITLES } from 'shared/population-pool';
 import { normalizedOrder } from 'shared/view-config';
+import api from '../Api';
 import { DesktopButton, DesktopIconButton, DesktopInput } from '../components/DesktopControls';
 
 interface PopulationPoolViewProps {
@@ -28,7 +29,7 @@ type PopulationPoolOperation = 'disable' | 'restore' | 'stable-add' | 'workshop-
 async function confirmPopulationWrite(): Promise<string | undefined> {
 	let gameRunning: boolean;
 	try {
-		gameRunning = await window.electron.isGameRunning();
+		gameRunning = await api.gameRunning();
 	} catch {
 		return window.confirm('Running-game detection failed. This write affects TACtical_AI local population files. Continue?')
 			? undefined
@@ -283,6 +284,7 @@ function usePopulationPoolSettings(
 	return { updateColumnVisibility, updateColumnWidth, moveColumn, updateCompactRows };
 }
 
+// fallow-ignore-next-line complexity -- pre-existing view component; this pass only swapped direct window.electron calls for the typed API.
 export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 	const { config, updateState } = appState;
 	const [scanResult, setScanResult] = useState(DEFAULT_SCAN_RESULT);
@@ -330,7 +332,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 		setError(undefined);
 		try {
 			const scanRequest = await createScanRequest();
-			const result = await window.electron.scanPopulationPool(scanRequest);
+			const result = await api.scanPopulationPool(scanRequest);
 			if (requestId !== refreshRequestId.current) return;
 			setScanResult(result);
 			setSelectedRowId((current) => (current && result.rows.some((row) => row.id === current) ? current : result.rows[0]?.id));
@@ -365,7 +367,7 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 			try {
 				const scanRequest = await createScanRequest();
 				if (operation === 'workshop-request') {
-					await window.electron.createWorkshopPopulationRequest({ row, scanRequest });
+					await api.createWorkshopPopulationRequest({ row, scanRequest });
 					setOperationMessage('Workshop Population Request saved.');
 					await refresh();
 					return;
@@ -378,10 +380,10 @@ export function PopulationPoolView({ appState }: PopulationPoolViewProps) {
 				const confirmedWhileGameRunning = true;
 				const result =
 					operation === 'disable'
-						? await window.electron.disablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
+						? await api.disablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
 						: operation === 'restore'
-							? await window.electron.restorePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
-							: await window.electron.addStablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest });
+							? await api.restorePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest })
+							: await api.addStablePopulationEntry({ row, localDir: config.localDir, confirmedWhileGameRunning, scanRequest });
 				refreshRequestId.current++;
 				setLoading(false);
 				setScanResult(result);

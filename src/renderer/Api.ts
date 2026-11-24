@@ -25,6 +25,13 @@ import type { SteamworksStatus } from 'shared/ipc';
 import { LogLevel, PathType } from 'shared/ipc';
 import { ipcInvokeChannels, ipcSendChannels, ipcSubscriptionChannels } from 'shared/ipc-contract';
 import type { ModContextMenuRequest } from 'shared/mod-context-menu';
+import type {
+	PopulationPoolCreateWorkshopRequest,
+	PopulationPoolFileOperationRequest,
+	PopulationPoolFileOperationResult,
+	PopulationPoolScanRequest,
+	PopulationPoolScanResult
+} from 'shared/population-pool';
 import type { StartupCollectionResolutionRequest, StartupCollectionResolutionResult } from 'shared/startup-collection-resolution';
 import type { WorkshopDependencyRefreshResult } from 'shared/workshop-dependency-snapshot';
 import { createGameLaunchCommand } from './game-launch-command';
@@ -229,6 +236,26 @@ class API {
 
 	fetchWorkshopDependencies(workshopID: bigint): Promise<WorkshopDependencyRefreshResult> {
 		return this.invokeElectron('fetchWorkshopDependencies', workshopID);
+	}
+
+	scanPopulationPool(request: PopulationPoolScanRequest): Promise<PopulationPoolScanResult> {
+		return this.invokeElectron('scanPopulationPool', request);
+	}
+
+	createWorkshopPopulationRequest(request: PopulationPoolCreateWorkshopRequest): Promise<PopulationPoolScanResult> {
+		return this.invokeElectron('createWorkshopPopulationRequest', request);
+	}
+
+	disablePopulationEntry(request: PopulationPoolFileOperationRequest): Promise<PopulationPoolFileOperationResult> {
+		return this.invokeElectron('disablePopulationEntry', request);
+	}
+
+	restorePopulationEntry(request: PopulationPoolFileOperationRequest): Promise<PopulationPoolFileOperationResult> {
+		return this.invokeElectron('restorePopulationEntry', request);
+	}
+
+	addStablePopulationEntry(request: PopulationPoolFileOperationRequest): Promise<PopulationPoolFileOperationResult> {
+		return this.invokeElectron('addStablePopulationEntry', request);
 	}
 
 	steamworksInited(): Promise<SteamworksStatus> {

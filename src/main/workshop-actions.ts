@@ -5,6 +5,7 @@ import { ModType } from 'model/Mod';
 import { cloneModData } from 'model/SessionMods';
 import type { SteamworksStatus } from 'shared/ipc';
 import Steamworks, { EResult, UGCItemState } from './steamworks';
+import { idleWorkshopActionState, reduceWorkshopAction, type WorkshopActionEvent } from './workshop-action-machine';
 
 interface WorkshopMetadataRefreshOptions {
 	loadModDetailsFromPath: (mod: ModData, path: string, type: ModType) => Effect.Effect<ModData | null, unknown>;
@@ -39,53 +40,59 @@ export function runSteamworksAction(
 			return;
 		}
 		if (actionKey) pendingWorkshopActions.add(actionKey);
-		let timedOut = false;
-		let completed = false;
-		const timeout = setTimeout(() => {
-			timedOut = true;
-			logger.error(`${failureMessage}: Steamworks did not respond`);
-			resume(Effect.succeed(false));
-		}, timeoutMs);
-		try {
-			action(
-				(result: EResult | undefined) => {
-					if (completed) return;
-					completed = true;
-					clearTimeout(timeout);
-					if (result === undefined || result === EResult.k_EResultOK) {
-						if (timedOut && onLateSuccess) {
-							void Promise.resolve()
-								.then(onLateSuccess)
-								.catch((error) => logger.error(error))
-								.finally(() => {
-									if (actionKey) pendingWorkshopActions.delete(actionKey);
-								});
-							return;
-						} else {
-							resume(Effect.succeed(true));
+
+		let state = idleWorkshopActionState;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		const dispatch = (event: WorkshopActionEvent) => {
+			const next = reduceWorkshopAction(state, event);
+			state = next.state;
+			if (next.effects.clearTimeout && timeout !== undefined) {
+				clearTimeout(timeout);
+				timeout = undefined;
+			}
+			if (next.effects.releaseKey && actionKey) {
+				pendingWorkshopActions.delete(actionKey);
+			}
+			if (next.effects.runLateSuccess && onLateSuccess) {
+				void Promise.resolve()
+					.then(onLateSuccess)
+					.catch((error) => logger.error(error))
+					.finally(() => {
+						if (next.effects.releaseKeyAfterLateSuccess && actionKey) {
+							pendingWorkshopActions.delete(actionKey);
 						}
-					} else {
-						logger.error(`${failureMessage}. Status ${result.toString()}`);
-						resume(Effect.succeed(false));
-					}
-					if (actionKey) pendingWorkshopActions.delete(actionKey);
-				},
-				(error: Error) => {
-					if (completed) return;
-					completed = true;
-					clearTimeout(timeout);
-					if (actionKey) pendingWorkshopActions.delete(actionKey);
-					logger.error(failureMessage);
-					logger.error(error);
-					resume(Effect.succeed(false));
-				}
-			);
-		} catch (error) {
-			clearTimeout(timeout);
-			if (actionKey) pendingWorkshopActions.delete(actionKey);
+					});
+			}
+			if (next.effects.resume !== null) {
+				resume(Effect.succeed(next.effects.resume));
+			}
+		};
+
+		dispatch({ type: 'start', hasLateSuccess: typeof onLateSuccess === 'function' });
+		timeout = setTimeout(() => {
+			logger.error(`${failureMessage}: Steamworks did not respond`);
+			dispatch({ type: 'timeout' });
+		}, timeoutMs);
+
+		const settle = (ok: boolean, result: EResult | undefined) => {
+			if (!ok) {
+				logger.error(`${failureMessage}. Status ${result?.toString() ?? 'unknown'}`);
+			}
+			dispatch({ type: 'callback', ok });
+		};
+		const fail = (error: unknown) => {
 			logger.error(failureMessage);
 			logger.error(error);
-			resume(Effect.succeed(false));
+			dispatch({ type: 'threw' });
+		};
+
+		try {
+			action(
+				(result: EResult | undefined) => settle(result === undefined || result === EResult.k_EResultOK, result),
+				(error: Error) => fail(error)
+			);
+		} catch (error) {
+			fail(error);
 		}
 	});
 }

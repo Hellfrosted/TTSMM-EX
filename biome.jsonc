@@ -14,7 +14,6 @@
 			"!.omo/**",
 			"!assets/**",
 			"!coverage/**",
-			"!.impeccable/**",
 			"!logs/**",
 			"!node_modules/**",
 			"!output/**",

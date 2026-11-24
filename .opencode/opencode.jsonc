@@ -1,0 +1,17 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	// Last matching rule wins; these deny rules are intentionally narrow.
+	// The canonical, testable definition lives in scripts/vcs-command-policy.ts.
+	"permissions": [
+		{ "action": "shell", "resource": "*--no-ver*", "effect": "deny" },
+		{ "action": "shell", "resource": "git commit -n*", "effect": "deny" },
+		{ "action": "shell", "resource": "git -c core.hooksPath*", "effect": "deny" },
+		{ "action": "shell", "resource": "git --config-env=core.hooksPath*", "effect": "deny" },
+		{ "action": "shell", "resource": "git config core.hooksPath*", "effect": "deny" },
+		{ "action": "shell", "resource": "git config --unset core.hooksPath*", "effect": "deny" },
+		{ "action": "shell", "resource": "*HUSKY=0*", "effect": "deny" },
+		{ "action": "shell", "resource": "*LEFTHOOK=0*", "effect": "deny" },
+		{ "action": "shell", "resource": "* .git/hooks/*", "effect": "deny" },
+		{ "action": "shell", "resource": "* .husky/*", "effect": "deny" }
+	]
+}
