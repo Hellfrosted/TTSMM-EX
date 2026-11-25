@@ -17,12 +17,10 @@ describe('collection name properties', () => {
 		);
 	});
 
-	it('the comparison key is stable and case-insensitive', () => {
+	it('normalizes collection comparison keys to lowercase', () => {
 		fc.assert(
 			fc.property(validName, (name) => {
-				const key = getCollectionNameComparisonKey(name);
-				expect(key).toBe(getCollectionNameComparisonKey(name));
-				expect(key).toBe(name.toLowerCase());
+				expect(getCollectionNameComparisonKey(name)).toBe(name.toLowerCase());
 			})
 		);
 	});

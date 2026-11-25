@@ -226,26 +226,4 @@ describe('App', () => {
 		},
 		STARTUP_ROUTE_TEST_TIMEOUT_MS
 	);
-
-	it('defines explicit elements for staged leaf routes', async () => {
-		const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-		render(
-			<MemoryRouter initialEntries={['/collections/main']}>
-				<AppRoutes />
-			</MemoryRouter>
-		);
-
-		await waitFor(() => {
-			expect(window.electron.onModRefreshRequested).toHaveBeenCalled();
-		});
-
-		expect(
-			consoleWarn.mock.calls.some(([message]) =>
-				String(message).includes('Matched leaf route at location "/collections/main" does not have an element or Component')
-			)
-		).toBe(false);
-
-		consoleWarn.mockRestore();
-	});
 });

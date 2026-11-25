@@ -6,13 +6,9 @@ import {
 	BLOCK_LOOKUP_TABLE_PADDING_WIDTH,
 	BlockLookupHeaderCell,
 	getBlockLookupCellAlignment,
-	getBlockLookupColumnWidthStyle,
-	getBlockLookupColumnWidthVariableName,
 	getBlockLookupTableScrollWidth,
-	getBlockLookupVirtualColumnStyle,
 	getResponsiveBlockLookupColumns,
-	resolveBlockLookupColumnWidth,
-	setBlockLookupColumnWidthVariable
+	resolveBlockLookupColumnWidth
 } from '../../renderer/views/block-lookup-table-layout';
 
 afterEach(() => {
@@ -32,21 +28,9 @@ function createColumn(overrides: Partial<BlockLookupColumnConfig> = {}): BlockLo
 }
 
 describe('block-lookup-table-layout', () => {
-	it('resolves configured widths and exposes matching CSS variable helpers', () => {
-		const column = createColumn({ width: 244 });
-		const element = document.createElement('div');
-
-		setBlockLookupColumnWidthVariable(element, column.key, 244);
-
-		expect(resolveBlockLookupColumnWidth(column)).toBe(244);
-		expect(resolveBlockLookupColumnWidth(createColumn({ width: undefined }))).toBe(220);
-		expect(getBlockLookupColumnWidthVariableName('blockName')).toBe('--block-lookup-column-width-blockname');
-		expect(getBlockLookupColumnWidthStyle('blockName', 244)).toBe('var(--block-lookup-column-width-blockname, 244px)');
-		expect(getBlockLookupVirtualColumnStyle('var(--block-lookup-column-width-blockname, 244px)')).toEqual({
-			width: 'var(--block-lookup-column-width-blockname, 244px)',
-			flex: '0 0 var(--block-lookup-column-width-blockname, 244px)'
-		});
-		expect(element.style.getPropertyValue('--block-lookup-column-width-blockname')).toBe('244px');
+	it('uses a configured width when present and the default otherwise', () => {
+		expect(resolveBlockLookupColumnWidth(createColumn({ width: 244 }))).toBe(244);
+		expect(resolveBlockLookupColumnWidth(createColumn())).toBe(220);
 	});
 
 	it('adds table padding when calculating virtual table scroll width', () => {

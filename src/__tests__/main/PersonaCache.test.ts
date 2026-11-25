@@ -29,19 +29,17 @@ describe('steam persona resolution', () => {
 		vi.useRealTimers();
 	});
 
-	it('resolves by persona-state-change event and reuses the in-flight promise', async () => {
+	it('shares an in-flight Steam persona lookup across main runtime calls', async () => {
 		mockSteamworks.requestUserInformation.mockReturnValue(true);
 		mockSteamworks.getFriendPersonaName.mockReturnValueOnce('').mockReturnValueOnce('').mockReturnValue('Player One');
 
-		const [{ ManagedRuntime }, { SteamPersonaCache, SteamPersonaCacheLive }] = await Promise.all([
-			import('effect'),
+		const [{ runMain }, { SteamPersonaCache }] = await Promise.all([
+			import('../../main/runtime'),
 			import('../../main/steam-persona-cache')
 		]);
-		const runtime = ManagedRuntime.make(SteamPersonaCacheLive);
-
-		const resolvePersonaName = (steamID: string) => SteamPersonaCache['use']((cache) => cache.resolve(steamID));
-		const firstLookup = runtime.runPromise(resolvePersonaName('123'));
-		const secondLookup = runtime.runPromise(resolvePersonaName('123'));
+		const lookup = SteamPersonaCache.use((cache) => cache.resolve('123'));
+		const firstLookup = runMain(lookup);
+		const secondLookup = runMain(lookup);
 
 		await vi.waitFor(() => {
 			expect(mockSteamworks.requestUserInformation).toHaveBeenCalledTimes(1);

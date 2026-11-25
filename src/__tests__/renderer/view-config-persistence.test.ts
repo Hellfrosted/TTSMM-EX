@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	BLOCK_LOOKUP_COLUMN_KEYS,
-	BLOCK_LOOKUP_COLUMN_TITLES,
 	BlockLookupColumnTitles,
 	type BlockLookupViewConfig,
 	type MainCollectionConfig,
@@ -10,7 +8,6 @@ import {
 	type PopulationPoolViewConfig
 } from '../../model';
 import { blockLookupColumnsToConfig, getConfiguredBlockLookupColumns } from '../../renderer/block-lookup-column-config';
-import { DEFAULT_BLOCK_LOOKUP_COLUMNS } from '../../renderer/block-lookup-column-definitions';
 import {
 	createBlockLookupTableOptionsDraft,
 	getBlockLookupDraftColumnStates,
@@ -207,12 +204,14 @@ describe('view-config-persistence', () => {
 		});
 	});
 
-	it('derives default block lookup columns from canonical keys', () => {
-		expect(BLOCK_LOOKUP_COLUMN_KEYS).toEqual(['preview', 'blockName', 'spawnCommand', 'internalName', 'modTitle']);
-		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.key)).toEqual(BLOCK_LOOKUP_COLUMN_KEYS);
-		expect(DEFAULT_BLOCK_LOOKUP_COLUMNS.map((column) => column.title)).toEqual(
-			BLOCK_LOOKUP_COLUMN_KEYS.map((key) => BLOCK_LOOKUP_COLUMN_TITLES[key])
-		);
+	it('uses stable persisted keys in the default block lookup column order', () => {
+		expect(getConfiguredBlockLookupColumns().map((column) => column.key)).toEqual([
+			'preview',
+			'blockName',
+			'spawnCommand',
+			'internalName',
+			'modTitle'
+		]);
 	});
 
 	it('omits default block lookup config fields', () => {

@@ -14,7 +14,6 @@ import { focusMenuItem, handleMenuKeyboardNavigation } from 'renderer/menu-keybo
 import { markPerfInteraction } from 'renderer/perf';
 import {
 	getVirtualTableColumnWidthStyle,
-	getVirtualTableColumnWidthVariableName,
 	getVirtualTableFixedColumnStyle,
 	getVirtualTableScrollWidth,
 	setVirtualTableColumnWidthVariable
@@ -52,10 +51,6 @@ export function resolveBlockLookupColumnWidth(column: BlockLookupColumnConfig) {
 
 export function getBlockLookupColumnMinWidth(column: BlockLookupColumnConfig) {
 	return Math.max(column.minWidth, Math.ceil(column.title.length * 8 + 34));
-}
-
-export function getBlockLookupColumnWidthVariableName(columnKey: string) {
-	return getVirtualTableColumnWidthVariableName('block-lookup', columnKey);
 }
 
 export function getBlockLookupColumnWidthStyle(columnKey: string, width: number) {

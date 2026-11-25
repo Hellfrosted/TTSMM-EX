@@ -8,22 +8,17 @@ import { scanModInventory } from '../../main/mod-inventory-scan';
 import { createLocalPotentialMod, MAX_TTSMM_METADATA_BYTES, scanLocalMods } from '../../main/mod-local-scan';
 import { collectMissingWorkshopDependencies } from '../../main/mod-workshop-dependencies';
 import { hydrateWorkshopMod } from '../../main/mod-workshop-hydration';
-import {
-	chunkWorkshopIds,
-	createWorkshopPotentialMod,
-	getRawWorkshopDetailsForList,
-	hasWorkshopModTag
-} from '../../main/mod-workshop-metadata';
+import { createWorkshopPotentialMod, getRawWorkshopDetailsForList, hasWorkshopModTag } from '../../main/mod-workshop-metadata';
 import { getSteamSubscribedPage, shouldSkipWorkshopFetch } from '../../main/mod-workshop-paging';
-import { SteamPersonaCacheLive } from '../../main/steam-persona-cache';
+import { type SteamPersonaCache, SteamPersonaCacheLive } from '../../main/steam-persona-cache';
 import Steamworks from '../../main/steamworks';
 import { UGCItemState } from '../../main/steamworks/types';
 import { WorkshopMetadataLookupFailure, WorkshopPagingFailure } from '../../main/workshop-errors';
 import { ModType } from '../../model/Mod';
 import { createTempDir, createWorkshopDetails } from './test-utils';
 
-function runWithSteamPersonaCache<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {
-	return Effect.runPromise(effect.pipe(Effect.provide(SteamPersonaCacheLive as never)));
+function runWithSteamPersonaCache<A, E>(effect: Effect.Effect<A, E, SteamPersonaCache>): Promise<A> {
+	return Effect.runPromise(effect.pipe(Effect.provide(SteamPersonaCacheLive)));
 }
 
 describe('ModFetcher', () => {
@@ -156,8 +151,7 @@ describe('ModFetcher', () => {
 		expect(sender.send.mock.calls.map((call) => call[2])).toEqual([0.99, 0.99, 1]);
 	});
 
-	it('keeps workshop metadata helpers behind the metadata adapter', () => {
-		expect(chunkWorkshopIds([BigInt(1), BigInt(2)])).toEqual([[BigInt(1), BigInt(2)]]);
+	it('labels unavailable Workshop mods and recognizes the Mods tag', () => {
 		expect(createWorkshopPotentialMod(BigInt(42))).toEqual(
 			expect.objectContaining({
 				name: 'Workshop item 42',

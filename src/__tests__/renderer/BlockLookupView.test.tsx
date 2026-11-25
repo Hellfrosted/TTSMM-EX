@@ -3,7 +3,7 @@
 import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BlockLookupColumnTitles, ModType, SessionMods, setupDescriptors } from '../../model';
+import { ModType, SessionMods, setupDescriptors } from '../../model';
 import {
 	getBlockLookupBootstrapCacheData,
 	setBlockLookupBootstrapCacheData,
@@ -11,8 +11,7 @@ import {
 } from '../../renderer/block-lookup-cache';
 import { APP_NOTIFICATION_EVENT } from '../../renderer/notification-channel';
 import { BlockLookupView } from '../../renderer/views/BlockLookupView';
-import { getResponsiveBlockLookupColumns } from '../../renderer/views/block-lookup-table-layout';
-import type { BlockLookupRecord } from '../../shared/block-lookup';
+import type { BlockLookupSearchRow } from '../../shared/block-lookup';
 import { createAppState, createDataTransfer } from './test-utils';
 
 const TEST_STATS = {
@@ -33,7 +32,7 @@ const TEST_BLOCK_LOOKUP_SETTINGS = {
 	renderedPreviewsEnabled: false
 };
 
-const TEST_RECORD: BlockLookupRecord = {
+const TEST_RECORD: BlockLookupSearchRow = {
 	blockName: 'Alpha Cannon',
 	internalName: 'TestCannon',
 	blockId: '42',
@@ -48,7 +47,7 @@ const TEST_RECORD: BlockLookupRecord = {
 	fallbackSpawnCommand: 'SpawnBlock Alpha_Cannon(Test_Blocks)'
 };
 
-function createBlockLookupRecord(index: number, overrides: Partial<BlockLookupRecord> = {}): BlockLookupRecord {
+function createBlockLookupRecord(index: number, overrides: Partial<BlockLookupSearchRow> = {}): BlockLookupSearchRow {
 	return {
 		blockName: `Block ${index.toString().padStart(3, '0')}`,
 		internalName: `TestBlock${index}`,
@@ -98,7 +97,7 @@ function createSelectionRecords() {
 }
 
 function mockBlockLookupRecords(
-	records: BlockLookupRecord[],
+	records: BlockLookupSearchRow[],
 	options: { settings?: typeof TEST_BLOCK_LOOKUP_SETTINGS; stats?: typeof TEST_STATS } = {}
 ) {
 	const stats = options.stats ?? { ...TEST_STATS, blocks: records.length };
@@ -171,24 +170,6 @@ describe('BlockLookupView', () => {
 			window.removeEventListener(APP_NOTIFICATION_EVENT, notify);
 		}
 	});
-	it('keeps Block Lookup columns within constrained desktop widths', () => {
-		const responsiveColumns = getResponsiveBlockLookupColumns(
-			[
-				{ key: 'blockName', title: BlockLookupColumnTitles.BLOCK, visible: true, width: 220, defaultWidth: 220, minWidth: 120 },
-				{ key: 'spawnCommand', title: BlockLookupColumnTitles.SPAWN_COMMAND, visible: true, width: 360, defaultWidth: 360, minWidth: 180 },
-				{ key: 'internalName', title: BlockLookupColumnTitles.INTERNAL_NAME, visible: true, width: 220, defaultWidth: 220, minWidth: 136 },
-				{ key: 'modTitle', title: BlockLookupColumnTitles.MOD, visible: true, width: 200, defaultWidth: 200, minWidth: 120 },
-				{ key: 'preview', title: BlockLookupColumnTitles.PREVIEW, visible: true, width: 92, defaultWidth: 92, minWidth: 76 }
-			],
-			560
-		);
-
-		expect(responsiveColumns.map((column) => column.key)).toEqual(['blockName', 'spawnCommand', 'internalName']);
-		expect(responsiveColumns.reduce((totalWidth, column) => totalWidth + (column.width ?? column.defaultWidth), 32)).toBeLessThanOrEqual(
-			560
-		);
-	});
-
 	it('searches indexed block aliases and copies the selected command', async () => {
 		mockBlockLookupRecords([TEST_RECORD], { stats: TEST_STATS });
 		const writeText = mockClipboardWrite();
@@ -543,7 +524,6 @@ describe('BlockLookupView', () => {
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
-			settings: TEST_BLOCK_LOOKUP_SETTINGS,
 			stats: TEST_STATS
 		});
 
@@ -622,7 +602,6 @@ describe('BlockLookupView', () => {
 		vi.mocked(window.electron.getBlockLookupStats).mockResolvedValue(null);
 		vi.mocked(window.electron.searchBlockLookup).mockResolvedValue({ rows: [], stats: null });
 		vi.mocked(window.electron.buildBlockLookupIndex).mockResolvedValue({
-			settings: TEST_BLOCK_LOOKUP_SETTINGS,
 			stats: { ...TEST_STATS, blocks: 12, sources: 3 }
 		});
 

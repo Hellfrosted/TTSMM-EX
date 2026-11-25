@@ -3,7 +3,7 @@ import { Effect, Layer, ManagedRuntime } from 'effect';
 import { type ModInventoryScanner, ModInventoryScannerLive } from './mod-inventory-scan';
 import { type SteamPersonaCache, SteamPersonaCacheLive } from './steam-persona-cache';
 
-export const MainRuntimeLayer = Layer.mergeAll(ModInventoryScannerLive, SteamPersonaCacheLive);
+const MainRuntimeLayer = Layer.mergeAll(ModInventoryScannerLive, SteamPersonaCacheLive);
 
 const MainRuntime = ManagedRuntime.make(MainRuntimeLayer);
 

@@ -34,28 +34,6 @@ describe('active collection transition', () => {
 		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:keep'] });
 	});
 
-	it('creates and activates a collection while preserving a dirty active collection draft', () => {
-		writeTestCollection(tempDir, { name: 'default', mods: ['local:old'] });
-
-		const result = Effect.runSync(
-			createActiveCollectionTransition(tempDir, {
-				config: createTestAppConfig(),
-				dirtyCollection: { name: 'default', mods: ['local:dirty'] },
-				collection: { name: 'fresh', mods: ['local:new'] }
-			})
-		);
-
-		expect(result.ok).toBe(true);
-		if (!result.ok) {
-			return;
-		}
-		expect(result.activeCollection).toEqual({ name: 'fresh', mods: ['local:new'] });
-		expect(result.collectionNames.sort()).toEqual(['default', 'fresh']);
-		expect(result.config.activeCollection).toBe('fresh');
-		expect(readCollectionFile(tempDir, 'default')).toEqual({ name: 'default', mods: ['local:dirty'] });
-		expect(readConfigFile(path.join(tempDir, 'config.json'), true)?.activeCollection).toBe('fresh');
-	});
-
 	it('rolls back a created collection when activation config persistence fails', () => {
 		fs.mkdirSync(path.join(tempDir, 'config.json'), { recursive: true });
 

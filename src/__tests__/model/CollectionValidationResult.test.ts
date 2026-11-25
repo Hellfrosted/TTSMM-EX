@@ -41,14 +41,11 @@ describe('collection validation result policy', () => {
 			lastValidationStatus: false
 		});
 
-		expect(invalidTags.map((tag) => tag.text)).toEqual(['Invalid ID', 'Missing dependencies', 'Not installed']);
-		expect(invalidTags).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ text: 'Invalid ID', tone: 'danger', rank: 0 }),
-				expect.objectContaining({ text: 'Missing dependencies', tone: 'warning', rank: 2 }),
-				expect.objectContaining({ text: 'Not installed', tone: 'warning', rank: 5 })
-			])
-		);
+		expect(invalidTags).toEqual([
+			expect.objectContaining({ text: 'Invalid ID', tone: 'danger', rank: 0 }),
+			expect.objectContaining({ text: 'Missing dependencies', tone: 'warning', rank: 2 }),
+			expect.objectContaining({ text: 'Not installed', tone: 'warning', rank: 5 })
+		]);
 
 		expect(
 			getCollectionStatusTags({

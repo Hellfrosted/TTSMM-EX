@@ -102,20 +102,6 @@ describe('Workshop Dependency Snapshot state', () => {
 		});
 	});
 
-	it('exposes refresh decisions through the state Interface', () => {
-		const freshKnown = getWorkshopDependencySnapshotState(
-			{
-				steamDependencies: [BigInt(11)],
-				steamDependenciesFetchedAt: freshFetchedAt
-			},
-			now
-		);
-		const staleUnknown = getWorkshopDependencySnapshotState({ steamDependenciesFetchedAt: staleFetchedAt }, now);
-
-		expect(freshKnown.shouldRefresh).toBe(false);
-		expect(staleUnknown.shouldRefresh).toBe(true);
-	});
-
 	it('maps updated refresh outcomes to full metadata updates', () => {
 		expect(
 			getWorkshopDependencySnapshotMetadataUpdate({

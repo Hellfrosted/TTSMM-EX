@@ -8,7 +8,7 @@ export class RendererElectron extends Context.Service<
 	}
 >()('ttsmm/RendererElectron') {}
 
-export const RendererRuntimeLayer = Layer.sync(RendererElectron)(() => ({
+const RendererRuntimeLayer = Layer.sync(RendererElectron)(() => ({
 	get electron() {
 		return window.electron;
 	}

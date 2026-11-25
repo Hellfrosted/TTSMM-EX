@@ -9,11 +9,8 @@ describe('Workshop ID chunking properties', () => {
 				const chunks = chunkWorkshopIds(ids);
 				expect(chunks.flat()).toEqual(ids);
 				expect(chunks.every((chunk) => chunk.length > 0 && chunk.length <= 50)).toBe(true);
-			})
+			}),
+			{ examples: [[[]], [[1n, 2n]]] }
 		);
-	});
-
-	it('returns no chunks for an empty list', () => {
-		expect(chunkWorkshopIds([])).toEqual([]);
 	});
 });

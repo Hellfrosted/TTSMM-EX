@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const requiredGreenworksRuntimeFiles = [
+const requiredGreenworksRuntimeFiles = [
 	'greenworks.js',
 	path.join('lib', 'greenworks-win64.node'),
 	path.join('lib', 'steam_api64.dll'),

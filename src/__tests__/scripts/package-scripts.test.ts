@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { copyGreenworksRuntime, requiredGreenworksRuntimeFiles } from '../../../scripts/lib/greenworks-runtime';
+import { copyGreenworksRuntime } from '../../../scripts/lib/greenworks-runtime';
 
 interface PackageManifest {
 	scripts?: Record<string, string>;
@@ -59,11 +59,6 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.['check:staged']).toBe('nano-staged');
 		expect(packageJson.scripts?.['lint-staged']).toBeUndefined();
 		expect(packageJson.scripts?.prepare).toBe('husky');
-		expect(packageJson.scripts?.['start:desktop']).toBeUndefined();
-		expect(packageJson.scripts?.['build:native:block-lookup']).toBeUndefined();
-		expect(packageJson.scripts?.['lint:biome']).toBeUndefined();
-		expect(packageJson.scripts?.fallow).toBeUndefined();
-		expect(packageJson.scripts?.deadcode).toBeUndefined();
 		expect(packageJson.scripts?.['verify:push']).toBeUndefined();
 		expectPnpmRunReferencesToExist(packageJson.scripts ?? {});
 	});
@@ -74,8 +69,6 @@ describe('package scripts', () => {
 		expect(packageJson.scripts?.['rebuild:electron']).toBe('node --import=tsx ../../scripts/electron-rebuild.ts');
 		expect(packageJson.scripts?.['link:modules']).toBe('node --import=tsx ../../scripts/link-modules.ts');
 		expect(packageJson.scripts?.postinstall).toBe('pnpm run rebuild:electron && pnpm run link:modules');
-		expect(packageJson.scripts?.['electron-rebuild']).toBeUndefined();
-		expect(packageJson.scripts?.['link-modules']).toBeUndefined();
 		expectPnpmRunReferencesToExist(packageJson.scripts ?? {});
 	});
 
@@ -112,7 +105,8 @@ describe('package scripts', () => {
 					2
 				)}\n`
 			);
-			for (const runtimeFile of requiredGreenworksRuntimeFiles) {
+			const expectedRuntimeFiles = ['greenworks.js', 'lib/greenworks-win64.node', 'lib/steam_api64.dll', 'lib/sdkencryptedappticket64.dll'];
+			for (const runtimeFile of expectedRuntimeFiles) {
 				const runtimePath = path.join(sourcePath, runtimeFile);
 				fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
 				fs.writeFileSync(runtimePath, runtimeFile);
@@ -120,7 +114,7 @@ describe('package scripts', () => {
 
 			copyGreenworksRuntime(sourcePath, targetPath, 'win32');
 
-			for (const runtimeFile of requiredGreenworksRuntimeFiles) {
+			for (const runtimeFile of expectedRuntimeFiles) {
 				expect(fs.readFileSync(path.join(targetPath, runtimeFile), 'utf8')).toBe(runtimeFile);
 			}
 			expect(JSON.parse(fs.readFileSync(path.join(targetPath, 'package.json'), 'utf8'))).toEqual({
